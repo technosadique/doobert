@@ -1,0 +1,254 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 02-May-2014
+# File description: Campaign(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Incomplete_campaign extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();			
+		$this->load->library('common_function');		
+		$this->load->library('pagination');
+		$this->load->library('form_validation');
+		$this->load->library('upload');	
+		$this->load->model('incomplete_campaign_model');
+		$this->load->helper(array('form', 'url'));		
+	}	
+	
+	function index()
+	{   
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$this->session->unset_userdata('searchadmin1');	
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('searchadmin5');
+		$this->session->unset_userdata('searchadmin6');
+		$this->session->unset_userdata('searchadmin7');							
+		$this->page();	
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$title				=	'';
+		$type				=	'';		
+		$fromdate			=	'';
+		$todate				=	'';
+			
+		//print "<pre>";print_r($this->session->userdata);print "</pre>";
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='campaignId';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtname') || ($this->input->post('action') == 'search'))
+		{	
+				
+				if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');						
+				
+			$name = trim(addslashes($this->input->post('txtname')));				
+			$this->session->set_userdata('searchadmin1',$this->common_function->custom_htmlentities($name));		
+				
+		}		
+		
+		if($this->input->post('txttitle') || ($this->input->post('action') == 'search'))
+		{			
+				
+				if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');						
+				
+			$title = trim(addslashes($this->input->post('txttitle')));				
+			$this->session->set_userdata('searchadmin2',$this->common_function->custom_htmlentities($title));				
+		}
+		
+		if($this->input->post('txttype') || ($this->input->post('action') == 'search'))
+		{
+			
+			if($this->session->userdata('searchadmin3'))
+				$this->session->unset_userdata('searchadmin3');			
+				$type = ($this->input->post('txttype')); 	
+				$this->session->set_userdata('searchadmin3',$type);			
+		}
+		
+		
+		
+		if($this->input->post('txtfrom') || ($this->input->post('action') == 'search'))
+		{	
+			
+			if($this->session->userdata('searchadmin4'))
+				$this->session->unset_userdata('searchadmin4');										
+			 	$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 				
+				$this->session->set_userdata('searchadmin4',$fromdate);
+		}
+		
+		if($this->input->post('txtto') || ($this->input->post('action') == 'search'))
+		{
+			if($this->session->userdata('searchadmin5'))
+				$this->session->unset_userdata('searchadmin5');			
+				$todate = date('Y-m-d',strtotime($this->input->post('txtto')));	
+				$this->session->set_userdata('searchadmin5',$todate);					
+		}
+		
+		$rec_per_page =	 $this->config->item('per_page');			
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->incomplete_campaign_model->get_total_campaign($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['campaign_list']	= $this->incomplete_campaign_model->get_campaign($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		
+		//echo '<pre>';print_r($data['campaign_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'campaign/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];	
+		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Campaign Information Available.';
+		}
+		
+		$this->load->view('incomplete-campaign',$data);
+	}
+	
+	function campaign_delete()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		$campaignId	=	$this->uri->segment(3);
+		$this->incomplete_campaign_model->delete_campaign($campaignId);			
+		$this->session->set_flashdata('success', 'Campaign information has been deleted successfully.');
+		//$sort 	= $this->session->userdata('a_sort');
+//		$order  = $this->session->userdata('a_order');
+//		$limit	= $this->session->userdata('a_limit');		
+		redirect($this->config->item('admin_base_url').'incomplete_campaign');
+		
+	}
+	
+	function delete_multiple_campaign()
+	{  
+		$campaign_ids = $this->input->post('campaignId');
+		$camp_ids	  = $this->input->post('campId');
+		//echo '<pre>'; print_r($camp_ids); die;
+ 		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		
+		
+	
+		if(!empty($campaign_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->incomplete_campaign_model->delete_multiple_campaign($campaign_ids);
+			
+			$this->session->set_flashdata('success', 'Campaign(s) information has been deleted successfully.');			
+		}
+		
+		
+		if(!empty($camp_ids) && $this->input->post('H2') == 'Save')
+		{	
+			$this->incomplete_campaign_model->update_campaign($camp_ids);
+			
+			$this->session->set_flashdata('success', 'Campaign(s) information has been updated successfully.');			
+		}
+		
+		
+		if(empty($camp_ids) && $this->input->post('H2') == 'Save')
+		{				
+			$this->incomplete_campaign_model->update_camp();
+			
+			$this->session->set_flashdata('success', 'Campaign(s) information has been updated successfully.');			
+		}
+		
+		
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+			
+		if($this->session->userdata('a_limit'))
+		{   
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'incomplete_campaign/page/'.$sort.'/'.$order.'/'.$limit);
+		//redirect($this->config->item('admin_base_url').'campaign/');
+	}
+	
+}
+
+/* End of file campaign.php */
+/* Location: ./application/administration/controllers/campaign.php */

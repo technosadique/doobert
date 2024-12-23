@@ -1,0 +1,228 @@
+<?php $base_url = $this->config->item('base_url');
+/*
+$check_user_arpa = $this->common_model->check_arpa_certifcate_status($this->session->userdata('userid'));
+$user_verified = $this->common_model->get_user_verified($this->session->userdata('userid'));
+$common_profile = $this->common_function->get_user_profile($this->session->userdata('userid'));
+$default_org_url = '';
+*/
+$org_list =  $this->common_model->get_organization_list();
+
+$request_board_status = $this->common_model->transport_routing_enable($this->session->userdata('userid'));
+
+$invitation_count = $this->common_function->pending_invitation_cnt($this->session->userdata('userid'));
+$invitation_name = $this->common_function->pending_invitation_name($this->session->userdata('userid'));	
+
+//My Notification Count
+	if($this->router->class == 'user_settings_and_notification' && $this->router->method == 'my_notifications') {  
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYNOTIFICATIONS',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+	}
+	$data['created_date_user'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYNOTIFICATIONS');
+	//print_r($data['created_date_user']);die;
+	
+	if(!empty($data['created_date_user'])) { 
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'),$data['created_date_user']['dt_created']);		
+		//print_r($pending_notifications_front);die;
+		
+	} else { 
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'));
+		
+	}
+
+
+?>
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<title>Resources &amp; Maps - Organization Dashboard</title>
+<?php include 'includes/modern/header.php';?>
+<?php 
+$picture = $common_profile['st_profile_image'];
+//print_r($picture);exit;
+$profile_image = '';
+if(trim($picture) != '' && file_exists($this->config->item('upload').'profile/250x250/'.$picture)) 
+{
+	$profile_image = $picture;
+	$user_profile_src = $this->config->item('upload_url').'profile/250x250/'.$profile_image; 
+} else {
+	$profile_image = 'no_photo_icon.png';
+	$user_profile_src = $this->config->item('upload_url').'profile/250x250/'.$profile_image; 
+}
+?>
+</head>
+
+<body>
+	<div id="wrapper" class="dashboard">
+		<header id="header-info">
+			<div class="container">
+				<div class="dashboard-left-cont">
+					<div class="doobertverify">
+						  <?php if(empty($user_verified)) { ?>
+							<a href="<?php echo base_url(); ?>verification/verify/"><img src="<?php echo base_url()."assets/img/doobert-verified-inactive.png" ?>" alt="Doobert Non Verified"></a>						
+							
+							<?php } else { ?>
+							<a href="<?php echo base_url(); ?>user/verify_status/"><img src="<?php echo base_url()."assets/img/doobert_verified1.png" ?>" alt="Doobert Verified" title="<?php 					
+							
+							if(isset($user_verified['dt_doobert_verified']) && !empty($user_verified['dt_doobert_verified']) && $user_verified['dt_doobert_verified'] != '0000-00-00')
+							{
+							   echo date('F d, Y',strtotime($user_verified['dt_doobert_verified']));
+							}
+							else
+							{
+							  echo '';
+							}
+							
+							?>"></a>							
+							<?php } ?>		
+					
+					</div>
+					<div class="arpaverify">
+						<?php if(!empty($check_user_arpa['st_arpa_cert']) && $check_user_arpa['st_arpa_cert'] =='Y') { ?>
+						<a href="<?php  echo $base_url; ?>user/verified_arpa/"> <img src="<?php echo base_url().'assets/img/arpa-app_rescue_transporter.png'; ?>" title="Certified Animal Rescue Transporter" /></a>
+						<?php } else { ?>
+						<a target='_blank' data-toggle="modal" href="#infoarpapopup"><img src="<?php echo base_url().'assets/img/arpa-app_rescue_transporter_grey.png'; ?>"  /></a>						
+						<?php } ?>
+						
+						<?php if(!empty($check_user_arpa['st_arpa_cert_foster']) && $check_user_arpa['st_arpa_cert_foster'] =='Y') { ?>
+						<a href="<?php  echo $base_url; ?>user/verified_arpa/"> <img src="<?php echo base_url().'assets/img/arpa-app_foster-home.png'; ?>" title="Certified Foster Home" /></a>
+						<?php } else { ?>
+						<a target='_blank' data-toggle="modal" href="#infoarpapopup"><img src="<?php echo base_url().'assets/img/arpa-app_foster-home_grey.png'; ?>"  /></a>						
+						<?php } ?>
+						
+						<?php if(!empty($check_user_arpa['st_arpa_cert_tnr']) && $check_user_arpa['st_arpa_cert_tnr'] =='Y') { ?>
+						<a href="<?php  echo $base_url; ?>user/verified_arpa/"> <img src="<?php echo base_url().'assets/img/arpa-app_tnr_professional.png'; ?>" title="Certified TNR Professional" /></a>
+						<?php } else { ?>
+						<a target='_blank' data-toggle="modal" href="#infoarpapopup"><img src="<?php echo base_url().'assets/img/arpa-app_tnr_professional_grey.png'; ?>"  /></a>						
+						<?php } ?>
+					</div>
+					<div class="br"></div>
+				</div>
+
+<?php 
+$bubblecount='';
+$bubblecount =  $pending_notifications_front['count'] + $invitation_count;
+?>	
+
+				<div class="clearfix dashboard-right-cont">
+					<nav class="navbar navbar-inverse">
+						<div class="container-fluid">
+							<div class="navbar-header">
+								<button type="button" class="overlay">
+                            	<span class="icon-bar"></span>
+								<span class="icon-bar"></span>
+								<span class="icon-bar"></span>
+                        		</button>							
+							</div>
+							<div class="overlayp" id="myNavbar">
+								<div class="menu-menu-1-container">
+									<ul id="primary-menu" class="menu">
+										<li><a href="<?php echo $base_url;?>shop/" target="_blank"><img src="<?php echo $base_url;?>modernview/images/icon_shopping.png" alt="shop" title="shop"/></a></li>
+										
+										<li><a href="javascript:void(0);" class="notification-info dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true" title="Notification"><img src="<?php echo $base_url;?>modernview/images/icon_notification.png" alt=""/><?php if($bubblecount > 0){?><span class="red-circle"><?php echo $bubblecount;?></span><?php } ?></a><ul class="dropdown-menu notification-menu"><li class="notification-heading">You have <?php echo $invitation_count;?> <span style="font-weight:600;font-style:italic;">PENDING INVITATIONS</span></li>
+<?php if(isset($invitation_count) && $invitation_count > 0)	{ ?>
+<?php  foreach($invitation_name as $key => $value) { ?>	
+<li class="pending-invet"><i class="material-icons">keyboard_arrow_right</i><?php echo $value['st_org_name']; ?></li>	
+<?php } }?>
+		
+<li class="view-all"><a href="<?php echo base_url().'pending_invitation'; ?>">View All<i class="material-icons">keyboard_arrow_right</i></a></li>
+<li class="other-notification-heading">You have <?php echo $pending_notifications_front['count']; ?> <span style="font-weight:600;font-style:italic;">OTHER NOTIFICATIONS</span></li>
+	
+	
+<?php 
+if((count($pending_notifications_front['notification_msg'])>0) && is_array($pending_notifications_front['notification_msg'])) { 
+?>
+<?php foreach($pending_notifications_front['notification_msg'] as $key => $value) { ?>	
+<li class="pending-notification"><span><div class="">
+<span><?php echo $value;?></div> </span></li>
+<?php }} ?>
+							
+							
+<li class="view-all"><a href="<?php echo base_url(); ?>notification/">View All<i class="material-icons">keyboard_arrow_right</i></a></li>
+
+<?php if($bubblecount > 0){?>
+<li class="view-all"><a href="javascript:void(0);" class="markallread">Mark All Read</a></li>
+<?php } ?>
+
+</ul></li>
+										<li class="right"><a href="#search-info-box" data-toggle="modal" title="Search" class="search"><i class="material-icons font-31" >search</i></a></li>
+										<li class="orgd"><a href="<?php echo base_url();?>dashboard_modern/" title="My Dashboard"><i class="material-icons" title="My Dashboard">dashboard</i><span>My Dashboard</span></a></li>
+										
+										
+										<li class="last dropdown dropdown-user">
+											<a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+											<img id="fileupload" src="<?php echo $user_profile_src; ?>" alt="noravmotta User" title="<?php echo $common_profile['st_display_name'].' '.$common_profile['st_last_name']; ?>"><i class="material-icons">keyboard_arrow_down</i></a>										
+											<ul class="dropdown-menu dropdown-menu-default">
+												<li><a href="<?php echo $base_url.'notification-overview/'; ?>">Notifications</a></li>
+												
+												<?php	if($this->session->userdata('userid')){ ?>
+											<li><a href="<?php echo base_url(); ?>profile-privacy-setting/" class="">Privacy Settings</a></li>
+											<?php } ?>
+												<?php if(isset($common_profile['st_facebook_uid']) && !empty($common_profile['st_facebook_uid'])) { ?>
+												<li><a  href="javascript:void(0);" onclick="javascript:window.open('<?php echo $base_url;?>fbt/link-facebook.php','Facebook','location=yes,menubar=yes,resizable=yes,scrollbars=yes,status=no,toolbar=no,top=200,left=400,width=1000,height=500');">Link Facebook</a></li>
+												<?php } else { ?>
+												<li><a  href="javascript:void(0);" onClick="javascript:window.open('<?php echo $base_url?>fbt/link-facebook.php','Facebook','location=yes,menubar=yes,resizable=yes,scrollbars=yes,status=no,toolbar=no,top=200,left=400,width=1000,height=500');">Link Facebook</a></li>
+											<?php } ?>
+												<li><a href="<?php echo $base_url.'account-setting/'; ?>">Update Email/Password</a></li>
+												<?php if(isset($request_board_status) && $request_board_status == 2) { ?>
+											<li><a  href="<?php echo $base_url.'org_transportation/submitted_routing_request'; ?>">TC Request Board</a></li>
+											<?php } else if(isset($request_board_status) && $request_board_status ==1) { ?>
+											<li><a href="<?php echo $base_url.'org_transportation/request_assigned_to_me'; ?>">TC Request Board</a></li>
+											<?php } ?>
+											
+											<!--<li>_____________________________________</li>
+											<li></li>-->											
+											<?php if(!empty($org_list)) { ?>
+											<li class="temp1"><strong>ORGANIZATIONS I MANAGE</strong></li>
+											<?php for($i=0;$i<count($org_list);$i++) { ?> 
+											<li><a href="<?php echo base_url()."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><?php echo $org_list[$i]['st_org_name']; ?></a></li>
+											<?php } } ?>
+											<li><a href="<?php echo base_url(); ?>rescue-organization/"><strong>Apply for an Organization account&nbsp;&nbsp;</strong></a></li>
+											<li><a href="#per_frm" data-toggle="modal"><strong>Request user permissions to existing organization&nbsp;&nbsp;</strong></a></li>
+											<li class="temp"><a href="<?php echo $base_url.'user/logout'; ?>">Log Out</a></li>
+											</ul>
+										</li>
+									</ul>
+								</div>
+							</div>
+
+						</div>
+					</nav>
+				</div>
+
+			</div>
+		</header>
+		
+		<section class="inner-breadcrumb">
+			<div class="container">
+				<div class="text-left"><a href="<?php echo base_url(); ?>dashboard_modern">My Dashboard</a><i class="material-icons">chevron_right</i><?php /*<a href="http://crystal99/doobertv4/org-dashboard/986">Org Dashboard</a><i class="material-icons">chevron_right</i>*/ ?>Resources &amp; Maps</div>
+			</div>
+		</section>
+			
+		<section id="middle" class="orgtabs">
+			<div class="container">
+				<div class="col-md-12 col-sm-12 col-xs-12 pad0">
+					<div id="resources">						
+						<div class="w610">
+							<h1 class="title">Resources &amp; Maps</h1>
+							<ul>
+								<li><a href="https://www.doobert.com/doobert-users-map/" target="_blank"><span class="icon"><img src="<?php echo base_url(); ?>modernview/images/icon_resources_volunteer.png" alt="" class="desktop" /><img src="<?php echo base_url(); ?>modernview/images/icon_resources_volunteer_mobile.png" alt="" class="mobile" /></span><span class="text">Volunteer Map</span></a></li>
+								<li class="two"><a href="https://www.doobert.com/transports-map/" target="_blank"><span class="icon"><img src="<?php echo base_url(); ?>modernview/images/icon_resources_transport.png" alt="" class="desktop" /><img src="<?php echo base_url(); ?>modernview/images/icon_resources_transport_mobile.png" alt="" class="mobile" /></span><span class="text">Transport Map</span></a></li>
+								<li class="third sd"><a href="https://www.doobert.com/app/supply_demand/" target="_blank"><span class="icon"><img src="<?php echo base_url(); ?>modernview/images/icon_resources_supply.png" alt="" class="desktop" /><img src="<?php echo base_url(); ?>modernview/images/icon_resources_supply_mobile.png" alt="" class="mobile" /></span><span class="text">Supply / Demand Map</span></a></li>
+								<li class="two"><a href="https://www.doobert.com/state-resources-map/" target="_blank"><span class="icon"><img src="<?php echo base_url(); ?>modernview/images/icon_resources_transport.png" alt="" class="desktop" /><img src="<?php echo base_url(); ?>modernview/images/icon_resources_transport_mobile.png" alt="" class="mobile" /></span><span class="text">State Rules Map</span></a></li>
+								<li><a href="https://bestfriends.org/2025-goal" target="_blank"><span class="icon"><img src="<?php echo base_url(); ?>modernview/images/icon_resources_bestfriends.png" alt="" class="desktop" /><img src="<?php echo base_url(); ?>modernview/images/icon_resources_bestfriends_mobile.png" alt="" class="mobile" /></span><span class="text">Best Friends Map</span></a></li>
+								<li class="two third"><a href="https://www.aspca.org/pet-care/general-pet-care/low-cost-spayneuter-programs" target="_blank"><span class="icon h90"><img src="<?php echo base_url(); ?>modernview/images/icon_resources_lowcost.png" alt="" class="desktop" /><img src="<?php echo base_url(); ?>modernview/images/icon_resources_lowcost_mobile.png" alt="" class="mobile" /></span><span class="text mart5">Low Cost<br>Spay/Neuter Map</span></a></li>
+							</ul><div class="br"></div>
+						</div>						
+					</div>	
+				</div>				
+			</div>
+		</section>		
+		<?php include 'includes/modern/footer.php';?>
+<?php include 'includes/modern/footer-script.php';?>
+</body>
+</html>

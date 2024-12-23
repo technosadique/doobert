@@ -1,0 +1,486 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 22-Jan-2018
+# File description: Featured Partner(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Featured_partner extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');
+		$this->load->library('upload');
+		$this->load->model('common_model');	
+		$this->load->model('featured_partner_model');
+		$this->load->helper(array('form', 'url'));	
+		 	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');		
+		$this->session->unset_userdata('searchadmin1');		
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';		
+		$name				=	'';
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='createddate';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{	
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');						
+				
+			$name = trim($this->input->post('txtsearch'));				
+			$this->session->set_userdata('searchadmin',$this->common_function->custom_htmlentities($name));							
+		}		
+		
+		
+
+		$rec_per_page 		=	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		 $totalrecord		= $this->featured_partner_model->get_total_featured_partner($this->session->userdata('searchadmin'),$this->session->userdata('searchadmin1'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['featured_partner_list']	= $this->featured_partner_model->get_featured_partner($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'),$this->session->userdata('searchadmin1'));
+		
+		//echo '<pre>'; print_r($data['featured_partner_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'featured_partner/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Featured Partner Information Available.';
+		}
+		
+		$this->load->view('featured-partner-manage',$data);
+	}
+	
+	
+	function featured_partner_delete($partnerId=flase)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->featured_partner_model->delete_featured_partner($partnerId);			
+		$this->session->set_flashdata('success', 'Featured Partner information has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'featured_partner');		
+	}
+	
+	
+		
+		
+	function delete_multiple_featured_partner()
+	{   
+	    
+		$partner_ids = $this->input->post('inpartnerid');
+		
+	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($partner_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->featured_partner_model->delete_multiple_featured_partner($partner_ids);
+			
+			$this->session->set_flashdata('success', 'Featured Partner(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'featured_partner/page/'.$sort.'/'.$order.'/'.$limit);			
+	}
+	
+	
+		
+	function featured_partner_add()
+	{		 
+	    if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();
+		$this->session->unset_userdata('field1');	
+		$this->session->unset_userdata('field2');	
+		$this->session->unset_userdata('field3');
+		
+		//$this->load->library('upload'); 
+		$form_field	=	array('st_partner_name'		=> "",
+							  'st_desc'				=> "",
+							  'st_url'				=> ""
+							);			
+			foreach($form_field as $key => $value)	
+			{	
+						$data['add'][$key] = $value;	
+			}	
+								
+		
+		if($this->input->post('action')=='Add')
+		{  
+					
+			if($this->session->userdata('field1'))
+				$this->session->unset_userdata('field1');			
+				$partner_name = trim($this->input->post('st_partner_name'));					
+				$this->session->set_userdata('field1',$partner_name);	
+				
+			if($this->session->userdata('field2'))
+				$this->session->unset_userdata('field2');			
+				$desc = $this->input->post('st_desc');					
+				$this->session->set_userdata('field2',$desc);
+
+			if($this->session->userdata('field3'))
+				$this->session->unset_userdata('field3');			
+				$url = $this->input->post('st_url');					
+				$this->session->set_userdata('field3',$url);
+			
+			// validation starts
+				foreach ($form_field as $key => $value) {	
+						$data['add'][$key] = $this->input->post($key);	
+				}
+				
+				
+			
+						$this->form_validation->set_rules('st_partner_name', 	'Name',    'required');	
+						$this->form_validation->set_rules('st_url',	  'Upload URL',    'trim');
+						$this->form_validation->set_rules('st_desc',  'Description',    'trim');					
+						
+						if(empty($_FILES['partnerimage']['name']))	 {
+							$this->form_validation->set_rules('partnerimage',  'Featured Partner Image', 'required');
+						}
+							
+						
+					
+			
+			if($this->form_validation->run() == FALSE)
+				{
+					foreach ($form_field as $key => $value) {	
+						$data['add'][$key] = $this->input->post($key);	
+					}
+				
+						$data['Err_Msg'].= validation_errors();												
+						$this->load->view('featured-partner-add',$data);	
+				}
+			else
+			{  	
+			
+							 	   
+							
+				$lastDot = strrpos($_FILES['partnerimage']['name'], ".");
+				$_FILES['partnerimage']['name'] = str_replace(".", "", substr($_FILES['partnerimage']['name'], 0, $lastDot)) . substr($_FILES['partnerimage']['name'], $lastDot);
+				
+				//upload image start
+				
+				$config['upload_path']  	= $this->config->item('upload').'featuredpartner/orig/';
+				$config['max_size']			= '5120';  // 5 MB
+				//$config['width']	 		= 60;
+				//$config['height']			= 60;
+				$config['allowed_types']	= 'jpg|jpeg|png|gif';
+				$config['remove_spaces']  	= TRUE;
+				$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['partnerimage']['name']));
+				
+				//Initialization
+				$this->upload->initialize($config);
+					
+				//RW permission to upload folder.
+				//chmod($this->config->item('upload')."featuredpartner/", 0777);
+				
+				//Upload image by calling do_upload method.
+				$this->upload->do_upload("partnerimage"); 							
+				$file_errors = array('errors' => $this->upload->display_errors());
+				
+				//Display errors of file upload.
+				
+				if(!empty($file_errors['errors'])) { 							
+				
+					$data = array('upload_error' => strip_tags($file_errors['errors']));								
+					$this->session->set_flashdata($data);								
+					$data['Err_Msg'] = strip_tags($file_errors['errors']);								
+					$this->load->view('featured-partner-add',$data); 								
+					//redirect(site_url('featured_partner/featured_partner_add'));
+				}
+				else
+				{
+				
+				
+				//thumb image
+				$config['image_library'] 	= 'gd2';
+				$config['source_image']		= $this->config->item('upload').'featuredpartner/orig/'.$config['file_name'];
+				$config['new_image']		= $this->config->item('upload').'featuredpartner/125x105/'.$config['file_name'];
+				$config['maintain_ratio'] 	= TRUE;
+				$config['width']	 		= 135;
+				$config['height']			= 115;
+				
+				$this->load->library('image_lib');
+				$this->load->library('image_lib', $config); 
+				$this->image_lib->initialize($config);
+				$this->image_lib->resize();							
+				//upload image end	
+				
+				
+				$partner_name	=	$this->input->post('st_partner_name'); 
+				
+				$check		=	$this->featured_partner_model->is_partner_exists($partner_name);
+				if($check)
+				{  
+					$data['Err_Msg']	=	'Name already exist.';
+					$this->load->view('featured-partner-add',$data);	
+				}		
+				else
+				{		
+				
+				$data['add']['partnerimage'] = $config['file_name'];																				
+				$this->featured_partner_model->insertFeaturedPartner($data['add'],$data['add']['partnerimage']);						
+				$this->session->set_flashdata('success', 'You have successfully created featured partner!');							
+				redirect(site_url('featured_partner/featured_partner_add'));
+				}	
+				}
+			}			
+		}
+		else
+		{	
+			$this->load->view('featured-partner-add',$data);			
+		}		
+	}
+	
+	function featured_partner_edit($partnerId = false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array('st_partner_name'		=> "",
+							  'st_desc'				=> "",
+							  'st_url'				=> "",
+							  'partnerimage'		=> ""							 	  
+							);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+						
+						$data['partner_details'] = $this->featured_partner_model->get_featured_partner_profile($partnerId);		
+		
+		//echo '<pre>'; print_r($data['demeanor_details']); die;
+		if($this->input->post('action')=='Edit')
+		{  
+			//Validation rules
+						$partnerId			      = $this->input->post('partnerId');									
+						$this->form_validation->set_rules('st_partner_name', 	'Name',    'trim|required');	
+						$this->form_validation->set_rules('st_url', 	'Upload URL',    'trim|required');
+						$this->form_validation->set_rules('st_desc',   	'Description',       'trim');						
+										
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{  
+						$data['Err_Msg'] = validation_errors();						
+						$data['partner_details'] = $this->featured_partner_model->get_featured_partner_profile($partnerId);				
+						$this->load->view('featured-partner-edit',$data);	
+				}
+			
+			else
+			{ 		 
+						
+						
+						if($_FILES['partnerimage']['name']!=''){ 
+							$lastDot = strrpos($_FILES['partnerimage']['name'], ".");
+							$_FILES['partnerimage']['name'] = str_replace(".", "", substr($_FILES['partnerimage']['name'], 0, $lastDot)) . substr($_FILES['partnerimage']['name'], $lastDot);
+							//upload image start
+							
+							$config['upload_path']  	= $this->config->item('upload').'featuredpartner/orig/';
+							$config['max_size']			= '5120';  // 5 MB
+							//$config['width']	 		= 60;
+							//$config['height']			= 60;
+							$config['allowed_types']	= 'jpg|jpeg|png|gif';
+							$config['remove_spaces']  	= TRUE;
+							$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['partnerimage']['name']));
+							
+							//Initialization
+							$this->upload->initialize($config);
+								
+							//RW permission to upload folder.
+							//chmod($this->config->item('upload')."featuredpartner/", 0777);	
+							//Upload image by calling do_upload method.
+							$this->upload->do_upload("partnerimage"); 
+							$file_errors = array('errors' => $this->upload->display_errors());
+							
+							//Display errors of file upload.
+							if(!empty($file_errors['errors'])) {  
+							
+								$data = array('upload_error' => strip_tags($file_errors['errors']));								
+								$this->session->set_flashdata($data);	
+								redirect(site_url('featured_partner/featured_partner_edit/'.$partnerId));
+							}
+							
+							
+							//thumb image
+							$config['image_library'] 	= 'gd2';
+							$config['source_image']		= $this->config->item('upload').'featuredpartner/orig/'.$config['file_name'];
+							$config['new_image']		= $this->config->item('upload').'featuredpartner/125x105/'.$config['file_name'];
+							$config['maintain_ratio'] 	= TRUE;
+							$config['width']	 		= 135;
+							$config['height']			= 115;
+							
+							$this->load->library('image_lib');
+							$this->load->library('image_lib', $config); 
+							$this->image_lib->initialize($config);
+							$this->image_lib->resize();							
+							//upload image end							
+						}
+						
+						
+						$partner_info 								=   array();						
+						$partner_info['st_partner_name'] 			=	$this->input->post('st_partner_name');
+						$partner_info['st_desc'] 			        =	$this->input->post('st_desc');
+						$partner_info['st_url'] 			        =	$this->input->post('st_url');
+						if($_FILES['partnerimage']['name']!=''){
+						$partner_info['st_image'] 					=	$config['file_name'];
+						}													
+						$partner_info['dt_modified'] 				= 	date('Y-m-d H:i:s');				
+			
+						//Updating admin data
+						
+						$partner_name1	=	$this->input->post('st_partner_name1'); 		
+						$partner_name	=	$this->input->post('st_partner_name'); 
+						
+						 if($partner_name!=$partner_name1)
+						{  							
+							$check	=	$this->featured_partner_model->is_partner_exists($this->input->post('st_partner_name'));							
+						}
+						if($check){
+						$data['partner_details'] = $this->featured_partner_model->get_featured_partner_profile($partnerId);	
+						$data['Err_Msg'] = 'Name already exist.';									
+						$this->load->view('featured-partner-edit',$data);		
+						}
+						else
+						{
+						$this->featured_partner_model->update_featured_partner_info($partner_info,$partnerId,'tbl_featured_partner');					
+						$this->session->set_flashdata('success', 'You have successfully updated featured partner!');					
+						redirect(site_url('featured_partner/featured_partner_edit/'.$partnerId));
+						}
+			}
+		}
+		
+		else
+		{			
+						$this->load->view('featured-partner-edit',$data);
+		}
+	}
+	
+}
+
+/* End of file featured_partner.php */
+/* Location: ./application/controllers/featured_partner.php */

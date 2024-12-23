@@ -1,0 +1,2658 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by			: Ghanshyam maurya
+# Created date			: 24-Dec-2014 
+# File description		: daily digest controller 
+# Special- notes		: send daily digest emails to doobert users
+# Tables used			: 
+# Stored procedures		: none 
+# Triggers used			: none
+# --------------------------------------------------------------------------------------
+
+class Daily_digest extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		error_reporting(0);
+		$this->output->enable_profiler(FALSE);
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->library('email');  
+		$this->load->model('common_model');
+		$this->load->model('daily_digest_model');
+		$this->load->helper('cookie');
+		ini_set('max_execution_time', 300);
+	}	
+	
+	#=========================================================
+	#	Function : index
+	#	Purpose  : Executing cron
+	#---------------------------------------------------------
+	
+	public function index() {
+		
+	}
+	
+	function daily_email()
+	{
+		//echo 'stopped on 31Jul2017';
+		//exit;		
+		$this->load->library('email');
+		$alluserDetails = $this->common_model->get_daily_digest_user_details();
+		
+		$receiver_users =	'';
+		$donation		=	'';
+		$affiliate_content	=	'';
+		$leftbanner		=	'';
+		$rightbanner	=	'';
+		$system_notifications = '';
+		$templete 		=	'';
+		
+		$data = array();
+		//$affiliate_info = $this->common_model->get_affiliate_info();
+		$affiliate_text = '';
+		if(sizeof($alluserDetails) > 0)
+		{
+			
+			
+			$email_details = $this->common_model->get_email_containt('82');
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+			$q1			=	$this->common_model->get_affiliate_detail('82','C');	
+			$q2			=	$this->common_model->get_affiliate_detail('82','L');	
+			$q3			=	$this->common_model->get_affiliate_detail('82','R');	
+			//echo '<pre>'; print_r($q3);die;
+			
+			if(isset($q) && !empty($q)){
+				foreach($q as $qr){					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';
+					}						
+				}
+			}			
+			 //CENTER BANNER
+			if(isset($q1) && !empty($q1)){					   		
+				foreach($q1 as $qr)
+				{
+					 
+					if(!empty($qr['st_code']) && isset($qr['in_type']) && $qr['in_type']=='1')
+					{    
+						  $affiliate_content	= $qr['st_code'];
+					}
+					elseif(!empty($qr['st_image']) && isset($qr['in_type']) && $qr['in_type']=='2')
+					{
+							
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name'];
+																	
+							$affiliate_content	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';															  
+					}
+					
+					$affiliate_desc = isset($qr['st_affiliate_content']) && trim($qr['st_affiliate_content'])!=''?$qr['st_affiliate_content']:'';
+					if(isset($affiliate_desc) && !empty($affiliate_desc))
+					{	
+						$affiliate_text ='<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">'.$affiliate_desc.'</p>';
+					}		
+				}
+			}
+			
+		     //LEFT BANNER
+			if(isset($q2) && !empty($q2)){					   		
+				foreach($q2 as $qr)
+				{								 
+					 if(!empty($qr['st_code']) && isset($qr['in_type']) && $qr['in_type']=='1')
+					{    
+						   $leftbanner	= $qr['st_code'];
+						  
+					}
+					elseif(!empty($qr['st_image']) && isset($qr['in_type']) && $qr['in_type']=='2')
+					{
+							
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];	
+							$imgtitle   =   $qr['st_banner_name'];							
+							
+							$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';									  
+					}	
+				}
+			}						
+			 //RIGHT BANNER
+			if(isset($q3) && !empty($q3)){					   		
+				foreach($q3 as $qr)
+				{
+					 
+					if(!empty($qr['st_code']) && isset($qr['in_type']) && $qr['in_type']=='1')
+					{    
+						   $rightbanner	= $qr['st_code'];
+						  
+					}
+					elseif(!empty($qr['st_image']) && isset($qr['in_type']) && $qr['in_type']=='2')
+					{	
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name'];
+							
+							$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';										  
+					}
+				}
+			}
+			// Fetch BLOG data			
+			$blog_data	=	$this->daily_digest_model->fetch_blog_data();
+			$blog		=	unserialize($blog_data[0]['st_blog']);
+			$latest_from_doobert_blog	=	unserialize($blog_data[0]['st_latest']);
+
+			if(isset($blog) && !empty($blog))
+			{
+				//echo '<pre/>';print_r($blog);
+				$system_notifications .= '<div style="padding:26px 20px 31px 20px; background:#fff;">';
+				$system_notifications .= '<p style="font-size:22px; color:#3a676c; font-family:Arial, Helvetica, sans-serif; font-weight:bold; text-transform:uppercase; padding-bottom:24px !important;">Doobert System Notifications</p>';
+				if(isset($blog['img']) && !empty($blog['img'])){ 
+					$system_notifications .= '<img alt="Doobert System Notifications" title="Doobert System Notifications" border="0" height="130"  '.$blog["img"].' style="display:inline-block; float:left; padding-right:20px; border:none; outline:none; width:270" />';
+				}
+				$system_notifications .= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:17px; color:#000; padding-bottom:8px !important; line-height:20px;">'.$blog["title"].'</p><p style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#555555; padding-bottom:8px !important; line-height:20px;">'.strip_tags($blog["content"]).'</p><p><a href="'.$blog["blog_link"].'" style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#ee304d; padding-bottom:8px !important; text-decoration:underline !important;" target="_blank">Read More <img alt="" border="0" height="9" src="https://www.doobert.com/app/assets/img/new-daily-digest-images/red-arrow.png" style="border:none; outline:none; text-decoration:none; width:6" /></a></p>';
+			
+				$system_notifications .= '</div>';
+			}
+			//echo '<pre/>';
+			//print_r($system_notifications);
+			//exit;
+			
+			$latest_from_doobert_blog_str = '';
+			//$latest_from_doobert_blog_str .= '';
+			if(isset($latest_from_doobert_blog) && !empty($latest_from_doobert_blog))
+			{
+				$latest_from_doobert_blog_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+					<div>
+					<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Latest from the Doobert blog <a href="https://www.doobert.com/category/doobert-blog/" target="_blank" style=" background-color:#ee6d35; padding: 4px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;float:right">View all</a></p>
+					<p style="height:15px; margin:0px; padding:0px;"></p>';
+					
+					if(isset($latest_from_doobert_blog['img']) && !empty($latest_from_doobert_blog['img'])){ 
+						$latest_from_doobert_blog_str .= '<img alt="Doobert Blog" title="Doobert Blog" border="0" height="130"  '.$latest_from_doobert_blog["img"].' style="display:inline-block; float:left; padding-right:20px; border:none; outline:none; width:270" />';
+						}
+						
+						$latest_from_doobert_blog_str .= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:17px; color:#000; padding-bottom:8px !important; line-height:20px;">'.$latest_from_doobert_blog["title"].'</p><p style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#555555; padding-bottom:8px !important; line-height:20px;">'.strip_tags($latest_from_doobert_blog["content"]).'</p><p><a href="'.$latest_from_doobert_blog["blog_link"].'" style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#ee304d; padding-bottom:8px !important; text-decoration:underline !important;" target="_blank">Read More <img alt="" border="0" height="9" src="https://www.doobert.com/app/assets/img/new-daily-digest-images/red-arrow.png" style="border:none; outline:none; text-decoration:none; width:6" /></a></p>';
+						
+						$latest_from_doobert_blog_str .= '<p style="display:block; clear:both;">&nbsp;</p>				
+					<p style="height:10px; margin:0px; padding:0px;"></p>
+					</div>';
+			}
+					
+					
+					
+			
+			if (isset($email_details[0]['st_email_body'])) 
+			{
+				$subject 	= $email_details[0]['st_email_subject'];
+				$category 	= $email_details[0]['st_category'];
+				$templete 	= $email_details[0]['st_email_body'];
+				
+				foreach($alluserDetails as $key => $userDetail)
+				{					
+					$user_id = $userDetail['in_user_id'];
+					
+					//$this->common_model->update_daily_digest_user($user_id);
+					
+					$user_organizations = $this->daily_digest_model->get_user_organizations($user_id);					
+					
+					//$to			= 'rupesh@pulsesolutions.net';
+					$to			= $userDetail['email'];					
+					//$to			= 'ankita.mahadik@pulsesolutions.net';					
+					$templete 	= str_replace("##latest-from-doobert-blog##", $latest_from_doobert_blog_str, $templete);
+					$templete 	= str_replace("##system-notifications##", $system_notifications, $templete);
+					$templete	= str_replace("##DONATION##",$donation,$templete);					
+					$templete   = str_replace("##affiliate_content##",$affiliate_content,$templete);
+					$templete   = str_replace("##leftbanner##",$leftbanner,$templete);
+					$templete   = str_replace("##rightbanner##",$rightbanner,$templete);
+					
+					
+					/*$affiliate_block = '<a href="http://www.jdoqocy.com/click-8230473-12712081-1475801543000" target="_top">
+		<img src="http://www.ftjcfx.com/image-8230473-12712081-1475801543000" width="460" height="60" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0"/></a>';
+					$templete 	= str_replace("##affiliate-block##", $affiliate_block, $templete);*/
+					
+					//$near_by_transport_data = $this->daily_digest_model->get_near_by_transport_data($user_id='28');
+					
+					//echo '<pre/>';
+					//print_r($near_by_transport_data);exit;
+					
+					$my_transport_status_str = '';
+					
+					$my_transport_status_data = $this->daily_digest_model->get_my_transport_status_data($user_id);					
+					
+					if(isset($my_transport_status_data) && !empty($my_transport_status_data))
+					{
+					
+						$my_transport_status_str .= '<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">My transports status</p>';
+						
+						foreach($my_transport_status_data as $transport_result_val)
+						{
+						
+							$all_legs_count = 0;
+							$transport_all_legs 	= $this->common_model->get_all_legs_count($transport_result_val['in_transportation_id']);
+							$orgcode = ($transport_result_val['st_org_code'] != '')? $transport_result_val['st_org_code'] : 'DBT';
+							if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+							{
+								$all_legs_count	= $transport_all_legs['total_count'];
+							}
+							
+							$filled_legs_count 	= $this->common_function->get_filled_legs_count($transport_result_val['in_transportation_id']);
+							$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($transport_result_val['in_transportation_id']);	
+							$cover_leg = 0;
+							$cover_leg = $filled_legs_count+$non_doobert_filled_legs_count;
+							
+							$from_day = $transport_result_val['start_day'];
+							
+							$end_day = $transport_result_val['end_day'];
+							
+							$from_date = date("m/d",strtotime($transport_result_val['dt_pickup_date']));
+							//echo $from_date;exit;							
+							//$from_add = $transport_result_val['st_from_city'].'/'.$transport_result_val['st_from_state'];
+							//echo $from_add;exit;
+							//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+							
+							$from_add = '';
+							if(isset($transport_result_val['st_from_city']) && $transport_result_val['st_from_city'] != '')
+							{
+								$from_add .= $transport_result_val['st_from_city'].'/';
+							}
+							if(isset($transport_result_val['st_from_state']) && $transport_result_val['st_from_state'] != '')
+							{
+								$from_add .= $transport_result_val['st_from_state'];
+							}
+							if($from_add == '')
+							{
+								$from_add .= $transport_result_val['st_from_zip'];
+							}
+							//echo $from_add;exit;
+							$to_add = '';
+							//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+							if(isset($transport_result_val['st_to_city']) && $transport_result_val['st_to_city'] != '')
+							{
+								$to_add .= $transport_result_val['st_to_city'].'/';
+							}
+							if(isset($transport_result_val['st_to_state']) && $transport_result_val['st_to_state'] != '')
+							{
+								$to_add .= $transport_result_val['st_to_state'];
+							}
+							if($to_add == '')
+							{
+								$to_add .= $transport_result_val['st_to_zip'];
+							}
+							
+							$my_transport_status_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0"><tr>';					 
+							$my_transport_status_str .= '<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$transport_result_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$transport_result_val['in_transportation_id'].'</a> on '.$from_day.' '. $from_date .' from '.$from_add.' to '.$to_add.' - '.$cover_leg.' of '.$all_legs_count.' legs filled </p></td>';
+							$my_transport_status_str .= '<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$transport_result_val['in_transportation_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;" target="_blank">Contact TC</a></span></td>';
+							$my_transport_status_str .= '</tr></table></div>';
+						}
+							
+					}
+					
+					$templete 	= str_replace("##my-transport-status##", $my_transport_status_str, $templete);
+					
+					##my-transport-updates##			
+					$my_transport_updates_str = '';
+					
+					$my_transport_updates_data = $this->daily_digest_model->get_my_transport_updates_data($user_id);
+					
+					//print_r($my_transport_updates_data);exit;
+					
+					$my_transport_updates_str .= '';
+					
+					if(isset($my_transport_updates_data) && !empty($my_transport_updates_data))
+					{
+						if((isset($my_transport_updates_data['confirmed']) && !empty($my_transport_updates_data['confirmed'])) || (isset($my_transport_updates_data['cancelled']) && !empty($my_transport_updates_data['cancelled'])) || (isset($my_transport_updates_data['changed_both']) && !empty($my_transport_updates_data['changed_both'])) || (isset($my_transport_updates_data['changed_date']) && !empty($my_transport_updates_data['changed_date'])) || (isset($my_transport_updates_data['changed_animal']) && !empty($my_transport_updates_data['changed_animal'])))
+						{
+							$my_transport_updates_str .= '<p style="height:20px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">My transport updates</p>';
+							
+							if((isset($my_transport_updates_data['confirmed']) && !empty($my_transport_updates_data['confirmed'])))
+							{
+								foreach($my_transport_updates_data['confirmed'] as $conf_val)
+								{
+									$orgcode = ($conf_val['st_org_code'] != '')? $conf_val['st_org_code'] : 'DBT';
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$conf_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$conf_val['in_transportation_id'].'</a> has been confirmed. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$conf_val['in_transportation_id'].'" style="background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['cancelled']) && !empty($my_transport_updates_data['cancelled'])))
+							{
+								foreach($my_transport_updates_data['cancelled'] as $can_val)
+								{
+									$orgcode = ($can_val['st_org_code'] != '')? $can_val['st_org_code'] : 'DBT';
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$can_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$can_val['in_transportation_id'].'</a> has been cancelled. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$can_val['in_transportation_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['changed_both']) && !empty($my_transport_updates_data['changed_both'])))
+							{
+								foreach($my_transport_updates_data['changed_both'] as $both_val)
+								{
+										$trid	=	$both_val['in_transport_id'];
+										$sqlorgcode  = "SELECT o.st_org_code 
+													FROM tbl_organization o
+													INNER JOIN tbl_transportation t on t.in_organization_id=o.in_organization_id
+													where t.in_transportation_id='".$trid."'";
+										$sqlorgcodestate	=	$this->db->query($sqlorgcode);
+										$numrowprostat		=	$sqlorgcodestate->num_rows($sqlorgcodestate);	
+										$orgcodestatus		=	$sqlorgcodestate->result();
+										$storgcode			=	$orgcodestatus[0]->st_org_code;
+									
+										$orgcode = ($storgcode != '')? $storgcode : 'DBT';
+									
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$both_val['in_transport_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$both_val['in_transport_id'].'</a> date and animal has been changed. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$both_val['in_transport_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['changed_date']) && !empty($my_transport_updates_data['changed_date'])))
+							{
+								foreach($my_transport_updates_data['changed_date'] as $date_val)
+								{
+									
+										$trid	=	$date_val['in_transport_id'];
+										$sqlorgcode  = "SELECT o.st_org_code 
+														FROM tbl_organization o
+														INNER JOIN tbl_transportation t on t.in_organization_id=o.in_organization_id
+														where t.in_transportation_id='".$trid."'";
+										$sqlorgcodestate	=	$this->db->query($sqlorgcode);
+										$numrowprostat		=	$sqlorgcodestate->num_rows($sqlorgcodestate);	
+										$orgcodestatus		=	$sqlorgcodestate->result();
+										$storgcode			=	$orgcodestatus[0]->st_org_code;									
+										$orgcode = ($storgcode != '')? $storgcode : 'DBT';
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$date_val['in_transport_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$date_val['in_transport_id'].'</a> date has been changed from '.$date_val['prev_day'].' '.date("m/d",strtotime($date_val['prev_to_date'])).' to '.$date_val['new_day'].' '.date("m/d",strtotime($date_val['new_to_date'])).'. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$date_val['in_transport_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['changed_animal']) && !empty($my_transport_updates_data['changed_animal'])))
+							{
+								foreach($my_transport_updates_data['changed_animal'] as $ani_val)
+								{
+									
+										$trid	=	$ani_val['in_transport_id'];
+										$sqlorgcode  = "SELECT o.st_org_code 
+													FROM tbl_organization o
+													INNER JOIN tbl_transportation t on t.in_organization_id=o.in_organization_id
+													where t.in_transportation_id='".$trid."'";
+										$sqlorgcodestate	=	$this->db->query($sqlorgcode);
+										$numrowprostat		=	$sqlorgcodestate->num_rows($sqlorgcodestate);	
+										$orgcodestatus		=	$sqlorgcodestate->result();
+										$storgcode			=	$orgcodestatus[0]->st_org_code;									
+										$orgcode = ($storgcode != '')? $storgcode : 'DBT';
+									
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$ani_val['in_transport_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$ani_val['in_transport_id'].'</a> animal data has been updated. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$ani_val['in_transport_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+						}
+						
+							
+					}
+					
+					$templete 	= str_replace("##my-transport-updates##", $my_transport_updates_str, $templete);
+					
+					##feeds-received##
+					$feeds_received_str = '';
+					
+					$org_feeds_received_data = $this->daily_digest_model->get_org_feeds_received_data($user_id);
+					/*echo '<pre/>';
+					print_r($org_feeds_received_data);
+					exit;*/
+					
+					$feeds_received_str .= '';
+					
+					if((isset($org_feeds_received_data) && !empty($org_feeds_received_data)))
+					{
+						$feeds_received_str .='<p style="height:20px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">My mentions from my feeds</p>';
+							
+						foreach($org_feeds_received_data as $feed_val)
+						{
+							$feeds_received_str .='<p style="height:20px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'user-'.$feed_val['in_user_from_id'].'-'.$this->common_function->get_filtered_name($feed_val['st_from_name']).'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$feed_val["st_from_name"].'</a>: <span style="color:#b0b0b0;">@</span><a href="'.base_url().'user-'.$feed_val['in_user_to_id'].'-'.$this->common_function->get_filtered_name($feed_val['st_display_name']).'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$feed_val["st_display_name"].'</a> '.$feed_val["st_feed_msg"].'</p>
+							</div>';
+						}
+					}
+					
+					$templete 	= str_replace("##feeds-received##", $feeds_received_str, $templete);
+					
+					$near_by_transport_str = '';
+					
+					$near_by_transport_data = $this->daily_digest_model->get_near_by_transport_data($user_id);
+					$near_by_transport_airline = $this->daily_digest_model->get_near_by_airline_data($user_id);
+					//echo '<pre/>';
+					//print_r($near_by_transport_data); //exit;
+					
+					//if(isset($near_by_transport_data) && !empty($near_by_transport_data))
+					if((isset($near_by_transport_data) && !empty($near_by_transport_data)) || (isset($near_by_transport_airline) && count($near_by_transport_airline)>0))		
+					{
+						$near_by_transport_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Nearby transport opportunities  <a href="'.base_url().'my-transportation/" style=" background-color:#ee6d35; padding: 4px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;float:right">View All</a></p>
+							';
+						if(count($near_by_transport_data)>0)
+						{	
+							foreach($near_by_transport_data as $transport_result_val)
+							{
+						
+								$orgcode = ($transport_result_val['st_org_code'] != '')? $transport_result_val['st_org_code'] : 'DBT';
+								$all_legs_count = 0;
+								$transport_all_legs 	= $this->common_model->get_all_legs_count($transport_result_val['in_transportation_id']);
+							
+								if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+								{
+									$all_legs_count	= $transport_all_legs['total_count'];
+								}
+							
+								$filled_legs_count 	= $this->common_function->get_filled_legs_count($transport_result_val['in_transportation_id']);
+								$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($transport_result_val['in_transportation_id']);	
+								$cover_leg = 0;
+								$cover_leg = $filled_legs_count+$non_doobert_filled_legs_count;
+							
+								$from_day = $transport_result_val['start_day'];
+							
+								$end_day = $transport_result_val['end_day'];
+							
+								$from_date = date("m/d",strtotime($transport_result_val['dt_pickup_date']));
+								//echo $from_date;exit;							
+								$from_add = '';
+								if(isset($transport_result_val['st_from_city']) && $transport_result_val['st_from_city'] != '')
+								{
+									$from_add .= $transport_result_val['st_from_city'].'/';
+								}
+								if(isset($transport_result_val['st_from_state']) && $transport_result_val['st_from_state'] != '')
+								{
+									$from_add .= $transport_result_val['st_from_state'];
+								}
+								if($from_add == '')
+								{
+									$from_add .= $transport_result_val['st_from_zip'];
+								}
+								//echo $from_add;exit;
+								$to_add = '';
+								//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+								if(isset($transport_result_val['st_to_city']) && $transport_result_val['st_to_city'] != '')
+								{
+									$to_add .= $transport_result_val['st_to_city'].'/';
+								}
+								if(isset($transport_result_val['st_to_state']) && $transport_result_val['st_to_state'] != '')
+								{
+									$to_add .= $transport_result_val['st_to_state'];
+								}
+								if($to_add == '')
+								{
+									$to_add .= $transport_result_val['st_to_zip'];
+								}
+							
+							
+								$near_by_transport_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">';					 
+								$near_by_transport_str .= '<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$transport_result_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$transport_result_val['in_transportation_id'].'</a> on '.$from_day.' '. $from_date .' from '.$from_add.' to '.$to_add.' - '.$cover_leg.' of '.$all_legs_count.' legs filled </p>';
+							
+								$transport_animals = $this->daily_digest_model->get_transport_animals($transport_result_val['in_transportation_id']);
+								//print_r($transport_animals); //die;
+							
+								if(isset($transport_animals) && !empty($transport_animals))
+								{
+									$near_by_transport_str .= '<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px;">';
+								
+									foreach($transport_animals as $trans_ani)
+									{
+								
+										$animal_url = base_url().'animal-'.$trans_ani['in_animal_id'].'-'.$this->common_function->get_filtered_name($trans_ani['st_animal_name']);
+								
+										$animal_photo 	= $trans_ani['st_file_name'];
+										//echo '<pre/>';
+										//print_r($animal_photo);//exit;
+									
+										if(isset($animal_photo) && $animal_photo != ''){ 
+								
+											if(file_exists($this->config->item('upload')."animal_images/70x70/".$animal_photo)) {
+												$animal_photo = $this->config->item('upload_url').'animal_images/70x70/'.$animal_photo;
+											//echo '$animal_photo'.$animal_photo;
+											} else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+											}
+										}else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+										}
+										
+										$near_by_transport_str .= '<li style="list-style-type:none; float:left; width:32%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; margin-left:0px;"><a href="'.$animal_url.'" style="color:#ee304d;" target="_blank"><img alt="" border="0" height="30" src="'.$animal_photo.'" style="display:inline-block; border:none; outline:none; text-decoration:none; margin-right:5px;" width="31" /><span style="vertical-align:top; margin-top:6px; display:inline-block; line-height:20px; width:75%;">'.$trans_ani['st_animal_name'].'</a></span></li>';
+									}
+									$near_by_transport_str .= '</ul>';
+								}
+							
+								$near_by_transport_str .= '</div>';					
+							
+							}
+						}
+							if(count($near_by_transport_airline)>0)
+							{	
+								foreach($near_by_transport_airline as $transport_result_val)
+								{
+									//echo $from_date;exit;							
+									
+									$from_add = '';
+									$orgcode = ($transport_result_val['st_org_code'] != '')? $transport_result_val['st_org_code'] : 'DBT';
+									if(isset($transport_result_val['st_from_city']) && $transport_result_val['st_from_city'] != '')
+									{
+										$from_add .= $transport_result_val['st_from_city'];
+									}
+									if(isset($transport_result_val['st_from_street']) && $transport_result_val['st_from_street'] != '')
+									{
+										$from_add .= ' ('.$transport_result_val['st_from_street'].') ';
+									}
+									if($from_add == '')
+									{
+										$from_add .= $transport_result_val['st_from_zip'];
+									}
+									//echo $from_add;exit;
+									$to_add = '';
+									//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+									if(isset($transport_result_val['st_to_city']) && $transport_result_val['st_to_city'] != '')
+									{
+										$to_add .= $transport_result_val['st_to_city'];
+									}
+									if(isset($transport_result_val['st_to_street']) && $transport_result_val['st_to_street'] != '')
+									{
+										$to_add .= ' ('.$transport_result_val['st_to_street'].') ';
+									}
+										$near_by_transport_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+										<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">';					 
+										$near_by_transport_str .= '<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$transport_result_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$transport_result_val['in_transportation_id'].'</a> from '.$from_add.' to '.$to_add.' </p>';
+							
+										$transport_animals = $this->daily_digest_model->get_transport_animals($transport_result_val['in_transportation_id']);
+										//print_r($transport_animals); //die;
+							
+										if(isset($transport_animals) && !empty($transport_animals))
+										{
+											$near_by_transport_str .= '<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px;">';
+								
+											foreach($transport_animals as $trans_ani)
+											{
+								
+												$animal_url = base_url().'animal-'.$trans_ani['in_animal_id'].'-'.$this->common_function->get_filtered_name($trans_ani['st_animal_name']);
+								
+												$animal_photo 	= $trans_ani['st_file_name'];
+													//echo '<pre/>';
+												//print_r($animal_photo);//exit;
+									
+												if(isset($animal_photo) && $animal_photo != ''){ 
+								
+												if(file_exists($this->config->item('upload')."animal_images/70x70/".$animal_photo)) {
+													$animal_photo = $this->config->item('upload_url').'animal_images/70x70/'.$animal_photo;
+											//echo '$animal_photo'.$animal_photo;
+													} else {
+													$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+													}
+												}else {
+												$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+												}
+										
+												$near_by_transport_str .= '<li style="list-style-type:none; float:left; width:32%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; margin-left:0px;"><a href="'.$animal_url.'" style="color:#ee304d;" target="_blank"><img alt="" border="0" height="30" src="'.$animal_photo.'" style="display:inline-block; border:none; outline:none; text-decoration:none; margin-right:5px;" width="31" /><span style="vertical-align:top; margin-top:6px; display:inline-block; line-height:20px; width:75%;">'.$trans_ani['st_animal_name'].'</a></span></li>';
+											}
+											$near_by_transport_str .= '</ul>';
+										}
+							
+									$near_by_transport_str .= '</div>';					
+							
+								}
+							}	
+						
+						//$near_by_transport_str .= '<a href="'.base_url().'my-transportation/" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;margin-top:6px;">View All</a>';
+							
+					}
+					
+					
+					
+					//echo $near_by_transport_str;exit;
+					
+					$templete 	= str_replace("##near-by-transports##", $near_by_transport_str, $templete);
+					
+					$feed_need_to_provide_str = '';
+					
+					$feed_need_to_provide_data = $this->daily_digest_model->get_feed_need_to_provide_data($user_id);
+					
+					//echo '<pre/>';
+					//print_r($feed_need_to_provide_data);
+					//exit;
+					$feed_need_to_provide_str .= '';
+					if(isset($feed_need_to_provide_data) && !empty($feed_need_to_provide_data))
+					{
+					
+						$feed_need_to_provide_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Feedback I need to leave</p>
+							<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+					
+						foreach($feed_need_to_provide_data as $feed_val)
+						{
+							
+										$trid	=	$feed_val;
+										$sqlorgcode  = "SELECT o.st_org_code 
+													FROM tbl_organization o
+													INNER JOIN tbl_transportation t on t.in_organization_id=o.in_organization_id
+													where t.in_transportation_id='".$trid."'";
+										$sqlorgcodestate	=	$this->db->query($sqlorgcode);
+										$numrowprostat		=	$sqlorgcodestate->num_rows($sqlorgcodestate);	
+										$orgcodestatus		=	$sqlorgcodestate->result();
+										$storgcode			=	$orgcodestatus[0]->st_org_code;									
+										$orgcode = ($storgcode != '')? $storgcode : 'DBT';
+							
+							$feed_need_to_provide_str .='<li style="list-style-type:none; float:left; width:32%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; padding-bottom:10px; margin-left:0px;"><a href="'.base_url().'org-transportation-scheduled/'.$feed_val.'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$feed_val.'</a> Feedback</li>';	
+						}
+						
+						$feed_need_to_provide_str .= '</ul>
+							</div>';
+					}
+					
+					
+					$templete 	= str_replace("##feeds-need-to-provide##", $feed_need_to_provide_str, $templete);
+					
+					
+					##photo-story-need-to-upload##
+					$photo_story_needed_str = '';
+					
+					$photo_story_data = $this->daily_digest_model->get_photo_story_data($user_id);
+					//echo '<pre/>';
+					//print_r($photo_story_data);
+					//exit;
+					
+					$photo_story_needed_str .= '';
+					
+					if(isset($photo_story_data) && !empty($photo_story_data))
+					{
+					
+						$photo_story_needed_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Photos / Story I need to upload</p>
+							<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+					
+						foreach($photo_story_data as $photo_val)
+						{
+										$trid		 =	$photo_val;
+										$sqlorgcode  = "SELECT o.st_org_code 
+													FROM tbl_organization o
+													INNER JOIN tbl_transportation t on t.in_organization_id=o.in_organization_id
+													where t.in_transportation_id='".$trid."'";
+										$sqlorgcodestate	=	$this->db->query($sqlorgcode);
+										$numrowprostat		=	$sqlorgcodestate->num_rows($sqlorgcodestate);	
+										$orgcodestatus		=	$sqlorgcodestate->result();
+										$storgcode			=	$orgcodestatus[0]->st_org_code;									
+										$orgcode = ($storgcode != '')? $storgcode : 'DBT';
+							
+							$photo_story_needed_str .='<li style="list-style-type:none; float:left; width:32%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; padding-bottom:10px; margin-left:0px;"><a href="'.base_url().'org-transportation-scheduled/'.$photo_val.'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$photo_val.'</a> Story & Photos</li>';	
+						}
+						
+						$photo_story_needed_str .= '</ul>
+							</div>';
+					}
+					
+					$templete 	= str_replace("##photo-story-need-to-upload##", $photo_story_needed_str, $templete);
+					
+					##new-animal-profile##
+					$new_animal_profile_str = '';
+					
+					$new_animal_setting_data = $this->daily_digest_model->get_user_new_animal_setting($user_id);
+					
+					//$animal_type_ids = array();
+					$animal_breed_ids = array();
+					
+					if(isset($new_animal_setting_data) && !empty($new_animal_setting_data))
+					{
+						/*if(isset($new_animal_setting_data['animal_type_ids']) && !empty($new_animal_setting_data['animal_type_ids']))
+						{
+							$animal_type_ids = $new_animal_setting_data['animal_type_ids'];
+						}*/
+						if(isset($new_animal_setting_data['animal_breed_ids']) && !empty($new_animal_setting_data['animal_breed_ids']))
+						{
+							$animal_breed_ids = $new_animal_setting_data['animal_breed_ids'];
+						}
+					}
+					
+					//echo '<pre/>';print_r($animal_type_ids);
+					//echo '<pre/>';print_r($animal_breed_ids);
+					//exit;
+					
+					$new_animal_profile_data = $this->daily_digest_model->get_new_animal_profile_data($user_id,$animal_breed_ids,$user_organizations);
+					//echo '<pre/>';
+					//print_r($new_animal_profile_data);
+					//exit;
+					
+					$new_animal_profile_str .= '';
+					
+					if(isset($new_animal_profile_data) && !empty($new_animal_profile_data))
+					{
+						//print_r($new_animal_profile_data);exit;
+						
+						foreach($new_animal_profile_data as $animal_data)
+						{	
+							if(isset($animal_data) && !empty($animal_data))
+							{
+								$new_animal_profile_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">New animal profile notifications</p>
+								<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px;">
+								<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+								break;	
+							}
+						}
+						
+						$cnt = 0;	
+						foreach($new_animal_profile_data as $val)
+						{
+							//foreach($ani_val as $val)
+							//{
+								$cnt++;
+								$animal_url = base_url().'animal-'.$val['in_animal_id'].'-'.$this->common_function->get_filtered_name($val['st_animal_name']);
+								
+								$animal_photo 	= $this->daily_digest_model->get_animal_photo($val['in_animal_id']);
+								
+								if(isset($animal_photo) && $animal_photo != ''){ 
+							
+									if(file_exists($this->config->item('upload')."animal_images/70x70/".$animal_photo)) {
+										$animal_photo = $this->config->item('upload_url').'animal_images/70x70/'.$animal_photo;
+										//echo '$animal_photo'.$animal_photo;
+									} else {
+										$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+										
+									}
+								}else {
+										$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+										
+									}
+								
+								$new_animal_profile_str .= '<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; margin-right:0px;"><img alt="" border="0" height="30" src="'.$animal_photo.'" style="display:inline-block; border:none; outline:none; text-decoration:none; margin-right:5px;" width="31" /><span style="vertical-align:top; margin-top:6px; display:inline-block; width:90%; line-height:20px;"><a href="'.$animal_url.'" style="color:#ee304d;" target="_blank">'.$val['st_animal_name'].'</a> - "New '.$val['st_animal_breed_name'].' - '.$val['st_animal_type_name'].' from '.$val['st_org_name'].'"</span></li>';
+								
+								if($cnt == 3)
+								{
+									$new_animal_profile_str .= '<a href="'.base_url().'org_animal/animals_in_my_organization/" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;" target="_blank">View All</a>';
+									break;
+								}
+							//}
+						}
+						
+						$new_animal_profile_str .= '</ul>
+							</div>';	
+						
+						
+					}	
+					
+					//print_r($new_animal_profile_str);exit;
+							
+					$templete 	= str_replace("##new-animal-profile##", $new_animal_profile_str, $templete);
+					
+					##new-animal-fundraiser##
+					$new_animal_fundraiser_str = '';
+					
+					$fundraiser_setting_data = array();
+					
+					$fundraiser_setting_data = $this->daily_digest_model->get_user_fundraiser_setting($user_id);
+					
+					$new_animal_fundraiser_data = $this->daily_digest_model->get_new_animal_fundraiser_data($user_id,$fundraiser_setting_data,$user_organizations);
+					//echo '<pre/>';
+					//print_r($new_animal_fundraiser_data);
+					//exit;
+					
+					$new_animal_fundraiser_str .= '';
+					
+					if(isset($new_animal_fundraiser_data) && !empty($new_animal_fundraiser_data))
+					{
+							foreach($new_animal_fundraiser_data as $fundraiser_data)
+							{	
+								if(isset($fundraiser_data) && !empty($fundraiser_data))
+								{
+									$new_animal_fundraiser_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">New animal fundraiser notifications</p>
+							<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+									break;	
+								}
+							}
+							
+							$cnt_fund = 0;
+							foreach($new_animal_fundraiser_data as $val)
+							{
+								//foreach($fund_val as $val)
+								//{
+									$cnt_fund++;
+									$animal_url = base_url().'animal-'.$val['animal_id'].'-'.$this->common_function->get_filtered_name($val['animal_name']);
+								
+									$animal_photo 	= $this->daily_digest_model->get_animal_photo($val['animal_id']);
+									//echo '<pre/>';
+									//print_r($animal_photo);//exit;
+									
+									if(isset($animal_photo) && $animal_photo != ''){ 
+								
+										if(file_exists($this->config->item('upload')."animal_images/70x70/".$animal_photo)) {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/'.$animal_photo;
+											//echo '$animal_photo'.$animal_photo;
+										} else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+										}
+									}else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+										}
+										
+									$new_animal_fundraiser_str .='<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; margin-right:0px;"><img alt="" border="0" height="30" src="'.$animal_photo.'" style="display:inline-block; border:none; outline:none; text-decoration:none; margin-right:5px;" width="31" /><span style="vertical-align:top; margin-top:6px; display:inline-block; width:90%; line-height:20px;"><a href="'.$animal_url.'" style="color:#ee304d;" target="_blank">'.$val['animal_name'].'</a> - "New fundraiser from '.$val['org_name'].'"</span></li>';	
+									
+									$new_animal_fundraiser_str .= '</ul>
+							</div>';
+									if($cnt_fund == 3)
+									{
+										$new_animal_fundraiser_str .= '<a href="'.base_url().'sponsorship/sponsorship_list/" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;">View All</a>';	
+										break;
+									}
+								//}
+								
+								
+							}
+							
+							
+							
+												
+					}
+								
+					
+					$templete 	= str_replace("##new-animal-fundraiser##", $new_animal_fundraiser_str, $templete);
+					
+					
+					
+					##latest-happy-videos##
+					$latest_happy_videos_str = '';
+					$latest_happy_videos_str .= '';
+					$happy_videos_url = 'https://www.doobert.com/videos/doobert-success-stories/';
+					//if(isset($happy_videos) && !empty($happy_videos))
+					//{
+						/*$latest_happy_videos_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+						<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Latest Happy Videos</p>
+						<p style="height:15px; margin:0px; padding:0px;"></p>
+						<div style="display:block; padding-bottom:5px;">
+						<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">
+						<li style="list-style-type:none; float:left; width:49%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; ">'.$happy_videos[0].'</li>
+						<li style="list-style-type:none; float:left; width:49%; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px;">'.$happy_videos[1].'</li>
+					   </ul>
+						</div>
+						<a href="'.$happy_videos_url.'" target="_blank" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;">View More</a>';*/
+						
+					$latest_happy_videos_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+                    <p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Latest Happy Videos</p>
+                    <p style="height:15px; margin:0px; padding:0px;"></p>
+                    <div style="display:block; padding-bottom:5px;">
+                    <ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">
+                    <li style="list-style-type:none; float:left; width:49%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; position:relative";><a href="https://www.youtube.com/watch?v=_RfR_7pTdcI&rel=0&showinfo=0" target="_blank"><span style="background: url(http://img.youtube.com/vi/_RfR_7pTdcI/1.jpg); display:inline-block; width:269px; height:162px; background-repeat:no-repeat; background-size:cover;"><img style="margin-top:49px; margin-left:103px" src="https://www.doobert.com/app/assets/img/new-daily-digest-images/latest-video-icon.png"></span></a></li>
+                    <li style="list-style-type:none; float:left; width:49%; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; position:relative;"><a href="https://www.youtube.com/watch?v=rak7jCPW6HE&rel=0&showinfo=0" target="_blank"><span style="background: url(http://img.youtube.com/vi/rak7jCPW6HE/1.jpg); display:inline-block; width:269px; height:162px; background-repeat:no-repeat; background-size:cover;"><img style="margin-top:49px; margin-left:103px" src="https://www.doobert.com/app/assets/img/new-daily-digest-images/latest-video-icon.png"></span></a></li>
+                   </ul>
+					</div>
+                    <a href="'.$happy_videos_url.'" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;">View More</a>';
+					
+					//}
+					$templete 	= str_replace("##latest-happy-videos##", $latest_happy_videos_str, $templete);
+					
+					
+					##latest-from-doobert-blog##			
+					//$latest_from_doobert_blog = $this->daily_digest_model->get_doobert_blog_data();
+					//echo '<pre/>';
+					//print_r($latest_from_doobert_blog);
+					//exit;
+					
+					
+					
+					$my_organization_updates_str = '';
+					
+					//echo '<pre/>';
+					//print_r($user_organizations);
+					//exit;
+					if(isset($user_organizations) && !empty($user_organizations))
+					{					
+						//$my_organization_updates_str .= '<p style="font-size:22px; color:#3a676c; font-family:Arial, Helvetica, sans-serif; font-weight:bold; text-transform:uppercase; padding-bottom:20px !important;">My Organization(s) Updates</p>';
+						$my_organization_updates_str .= '<p style="font-size:22px; color:#6c6d72; font-family:Arial, Helvetica, sans-serif; font-weight:bold; text-transform:uppercase; padding-bottom:0px !important;">My Organization(s) Updates</p>'; 		
+					}
+					//$templete 	= str_replace("##my-organization-updates##", $my_organization_updates_str, $templete);
+					
+					##org-transport-status##
+					$org_transport_status_str = '';
+					
+					$org_transport_status_data = $this->daily_digest_model->get_org_transport_status_data($user_id,$user_organizations);
+					
+					//echo '<pre/>';
+					//print_r($org_transport_status_data);
+					//exit;
+					$org_transport_status_str .= '';
+					if(isset($user_organizations) && !empty($user_organizations))
+					{
+						$org_transport_status_str .= '<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal;border-bottom:2px solid #ebebeb; padding-bottom:0px !important;">Org transports status</p>';
+					}
+					if(isset($org_transport_status_data) && !empty($org_transport_status_data))
+					{		
+						foreach($org_transport_status_data as $trans_data)
+						{	
+							foreach($trans_data as $trans_val)
+							{
+								$all_legs_count = 0;
+								$orgcode = ($trans_val['st_org_code'] != '')? $trans_val['st_org_code'] : 'DBT';
+								$transport_all_legs 	= $this->common_model->get_all_legs_count($trans_val['in_transportation_id']);
+								
+								if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+								{
+									$all_legs_count	= $transport_all_legs['total_count'];
+								}
+								
+								$filled_legs_count 	= $this->common_function->get_filled_legs_count($trans_val['in_transportation_id']);
+								$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($trans_val['in_transportation_id']);	
+								$cover_leg = 0;
+								$cover_leg = $filled_legs_count+$non_doobert_filled_legs_count;
+								
+								$from_day = $trans_val['start_day'];
+								
+								$end_day = $trans_val['end_day'];
+								
+								$from_date = date("m/d",strtotime($trans_val['dt_pickup_date']));
+								//echo $from_date;exit;							
+								//$from_add = $trans_val['st_from_city'].'/'.$trans_val['st_from_state'];
+								//echo $from_add;exit;
+								//$to_add = $trans_val['st_to_city'].'/'.$trans_val['st_to_state'];
+								
+								$from_add = '';
+								if(isset($trans_val['st_from_city']) && $trans_val['st_from_city'] != '')
+								{
+									$from_add .= $trans_val['st_from_city'].'/';
+								}
+								if(isset($trans_val['st_from_state']) && $trans_val['st_from_state'] != '')
+								{
+									$from_add .= $trans_val['st_from_state'];
+								}
+								if($from_add == '')
+								{
+									$from_add .= $trans_val['st_from_zip'];
+								}
+								//echo $from_add;exit;
+								$to_add = '';
+								//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+								if(isset($trans_val['st_to_city']) && $trans_val['st_to_city'] != '')
+								{
+									$to_add .= $trans_val['st_to_city'].'/';
+								}
+								if(isset($trans_val['st_to_state']) && $trans_val['st_to_state'] != '')
+								{
+									$to_add .= $trans_val['st_to_state'];
+								}
+								if($to_add == '')
+								{
+									$to_add .= $trans_val['st_to_zip'];
+								}
+								
+								$org_transport_status_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+								<table width="100%" border="0" cellspacing="0" cellpadding="0"><tr>';					 
+								$org_transport_status_str .= '<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$trans_val['in_transportation_id'].'</a> on '.$from_day.' '. $from_date .' from '.$from_add.' to <br>'.$to_add.' - '.$cover_leg.' of '.$all_legs_count.' legs filled </p></td>';
+								$org_transport_status_str .= '<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;" target="_blank">View Transport</a></span></td>';
+								$org_transport_status_str .= '</tr></table></div>';
+								
+							}
+						}
+					}	  
+		  
+					
+									
+					//$templete 	= str_replace("##org-transport-status##", $org_transport_status_str, $templete);
+					//echo 'org_transport_status_str'.trim(strip_tags($org_transport_status_str));exit;
+					
+					$str_org_transport_status = trim(strip_tags($org_transport_status_str));
+					if($str_org_transport_status != '' && $str_org_transport_status == 'Org transports status')
+					{
+						$templete 	= str_replace("##org-transport-status##", "", $templete);
+					}else
+					{
+						$templete 	= str_replace("##org-transport-status##", $org_transport_status_str, $templete);
+					}					
+					##org-transport-changes##
+					$org_transport_changes_str = '';
+					
+					$org_transport_changes_data = $this->daily_digest_model->get_org_transport_changes_data($user_id,$user_organizations);
+					//echo '<pre/>';
+					//print_r($org_transport_changes_data);
+					//exit;
+					
+					$org_transport_changes_str .= '';
+					if(isset($org_transport_changes_data) && !empty($org_transport_changes_data))
+					{	
+						foreach($org_transport_changes_data as $trans_data)
+						{	
+							if(isset($trans_data) && !empty($trans_data))
+							{
+								$org_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Org transports changes</p>';
+								break;	
+							}
+						}
+								
+						foreach($org_transport_changes_data as $trans_data)
+						{	
+							foreach($trans_data as $trans_val)
+							{
+								
+								$orgcode = ($trans_val['st_org_code'] != '')? $trans_val['st_org_code'] : 'DBT';
+								
+								if($trans_val['in_deleted'] == 0)
+								{							
+								$org_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+								<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$trans_val['in_transportation_id'].'</a> volunteer '.$trans_val['user_name'].' joined leg '.$trans_val['in_sort_order'].'</p>
+								</div>';	
+								}
+								else
+								{
+								$org_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px;">
+								<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$trans_val['in_transportation_id'].'</a> volunteer '.$trans_val['user_name'].' left leg '.$trans_val['in_sort_order'].'</p>
+								</div>';
+								}				 
+							}
+						}
+					}	
+					
+					$templete 	= str_replace("##org-transport-changes##", $org_transport_changes_str, $templete);
+					
+					##recommended-transport-changes##
+					$recommended_transport_changes_str = '';
+					
+					
+					$recommended_transport_changes_data = $this->daily_digest_model->get_recommended_transport_changes_data($user_id,$user_organizations);
+					//echo '<pre/>';
+					//print_r($recommended_transport_changes_data);
+					//exit;
+					
+					if(isset($recommended_transport_changes_data) && !empty($recommended_transport_changes_data))
+					{	
+						foreach($recommended_transport_changes_data as $recommended_data)
+						{	
+							if(isset($recommended_data) && !empty($recommended_data))
+							{
+								$recommended_transport_changes_str .= ' <p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Recommended changes from volunteers </p>';
+								break;
+							}
+						}	
+						
+						foreach($recommended_transport_changes_data as $recommended_data)
+						{	
+							foreach($recommended_data as $recommended_val)
+							{
+								$pickup_location = '';
+								$orgcode = ($recommended_val['st_org_code'] != '')? $recommended_val['st_org_code'] : 'DBT';
+								if(isset($recommended_val['st_from_street']) && trim($recommended_val['st_from_street']) != '')
+								{
+									$pickup_location .= $recommended_val['st_from_street'] . ', ';
+								}						
+								if(isset($recommended_val['st_from_city']) && trim($recommended_val['st_from_city']) != '')
+								{
+									$pickup_location .= $recommended_val['st_from_city'] . ', ';
+								}
+								if(isset($recommended_val['st_from_state']) && trim($recommended_val['st_from_state']) != '')
+								{
+									$pickup_location .= $recommended_val['st_from_state'];
+								}
+								
+								
+								$dropoff_location = '';
+								if(isset($recommended_val['st_to_street']) && trim($recommended_val['st_to_street']) != '')
+								{
+									$dropoff_location .= $recommended_val['st_to_street'] . ', ';
+								}
+								if(isset($recommended_val['st_to_city']) && trim($recommended_val['st_to_city']) != '')
+								{
+									$dropoff_location .= $recommended_val['st_to_city'] . ', ';
+								}
+								if(isset($recommended_val['st_to_state']) && trim($recommended_val['st_to_state']) != '')
+								{
+									$dropoff_location .= $recommended_val['st_to_state'];
+								}
+								
+								
+								$recommended_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$recommended_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$recommended_val['in_transportation_id'].'</a> - '.$recommended_val['st_user_name'].' said "I could do '.$pickup_location.' to '.$dropoff_location.'"</p>
+							</div>';	
+												 
+							}
+						}
+					}
+					
+					$templete 	= str_replace("##recommended-transport-changes##", $recommended_transport_changes_str, $templete);
+					
+					##org-fundraiser-status##
+					$org_fundraiser_status_str = '';
+					
+					$org_fundraiser_status_data = $this->daily_digest_model->get_org_fundraiser_status_data($user_id,$fundraiser_setting_data,$user_organizations);
+					//echo '<pre/>';
+					//print_r($org_fundraiser_status_data);
+					//exit;
+					
+					$org_fundraiser_status_str .= '';	
+					
+					if(isset($user_organizations) && !empty($user_organizations))
+					{		
+						$org_fundraiser_status_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Org fundraiser status</p>
+								<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px;">
+								<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+					}
+					if(isset($org_fundraiser_status_data) && !empty($org_fundraiser_status_data))
+					{
+						foreach($org_fundraiser_status_data as $fund_data)
+						{	
+							foreach($fund_data as $fund_val)
+							{
+								$org_fundraiser_status_str .= '<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; box-sizing:border-box; margin-left:0px;"><span style="vertical-align:top; margin-top:6px; display:inline-block; width:80%; line-height:20px;"><a href="'.base_url().'campaign/'.$fund_val['custom_url'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.htmlspecialchars($fund_val['page_title']).'</a> fundraiser</span></li>';
+							}
+						}
+					}
+					
+						$org_fundraiser_status_str .= '</ul>
+							</div>';
+					
+					//$templete 	= str_replace("##org-fundraiser-status##", $org_fundraiser_status_str, $templete);
+					
+					$str_org_fundraiser_status = trim(strip_tags($org_fundraiser_status_str));
+					if($str_org_fundraiser_status != '' && $str_org_fundraiser_status == 'Org fundraiser status')
+					{
+						$templete 	= str_replace("##org-fundraiser-status##", "", $templete);
+					}else
+					{
+						$templete 	= str_replace("##org-fundraiser-status##", $org_transport_status_str, $templete);
+					}
+					
+					##org-fundraiser-updates##
+					$org_fundraiser_updates_str = '';
+					$org_fundraiser_updates_data = $this->daily_digest_model->get_org_fundraiser_updates_data($user_id,$fundraiser_setting_data,$user_organizations);
+					//echo '<pre/>';
+					//print_r($org_fundraiser_updates_data);exit;
+					
+					$org_fundraiser_updates_str .= '';
+					if(isset($org_fundraiser_updates_data) && !empty($org_fundraiser_updates_data))
+					{
+							
+						foreach($org_fundraiser_updates_data as $fund_data)
+						{	
+							if(isset($fund_data) && !empty($fund_data))
+							{
+								$org_fundraiser_updates_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Org fundraiser updates</p>';
+								break;
+							}
+						}	
+						
+							
+						foreach($org_fundraiser_updates_data as $fund_data)
+						{	
+							foreach($fund_data as $fund_val)
+							{
+								$org_fundraiser_updates_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:0px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+								$org_fundraiser_updates_str .= '<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; margin-right:0px;"><a href="'.base_url().'campaign/'.$fund_val['st_custom_url'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.htmlspecialchars($fund_val['st_page_title']).'</a> fundraiser - '.$fund_val['st_display_name'].' donated $'.$fund_val['in_donation_amount'].'</span></li>';
+								
+							}
+						}
+						
+						 $org_fundraiser_updates_str .= '</ul>
+							</div>';
+					}
+					$templete 	= str_replace("##org-fundraiser-updates##", $org_fundraiser_updates_str, $templete);
+					
+					$unsubscribe_url = base_url().'daily_digest/unsubscribe_email/'.$this->common_function->encode_base64($userDetail['in_user_id']).'/'.$this->common_function->encode_base64($userDetail['email']);
+					/*$unsubscribe_email_str = '';
+					$unsubscribe_email_str .= '<p style="height:15px; margin:0px; padding:0px;"></p><div style="display:block; padding-bottom:0px;">';
+					//$unsubscribe_email_str .= 'If you don\'t want to receive Daily Digest Email from Doobert in the future, please <a href="'.$unsubscribe_url.'" target="_blank">unsubscribe.</a>';	
+					$unsubscribe_email_str .= '<a href="'.$unsubscribe_url.'" target="_blank">Click HERE</a> and we will add you to our Daily Digest DO NOT EMAIL list. You will no longer receive daily digest emails from Doobert.';						
+					$unsubscribe_email_str .= '</div>';
+
+					$templete 	= str_replace("##unsubscribe-email##", $unsubscribe_email_str, $templete);*/
+					
+					//echo '<br/>';
+					$templete = str_replace("##unsubscribe-email##",$unsubscribe_url,$templete);
+					
+					if(trim(strip_tags($org_transport_status_str)) == 'Org transports status' && trim(strip_tags($org_fundraiser_status_str)) == 'Org fundraiser status' && trim($org_transport_changes_str) == '' && $recommended_transport_changes_str == '' && trim($org_fundraiser_updates_str) == '')
+					{
+						$templete 	= str_replace("##my-organization-updates##", "", $templete);
+					}else{
+						$templete 	= str_replace("##my-organization-updates##", $my_organization_updates_str, $templete);
+					}
+					
+					$resuce_template = '';
+					$button_url =  base_url().'assets/img/viewall.png';
+					$cart_url = base_url().'assets/img/addcart.png';
+					$resuce_store = $this->common_model->get_resuce_store();
+					if(count($resuce_store)>0)
+					{	
+							//$resuce_template .='<tr><td>';
+						$resuce_template .='<table cellspacing="0" cellpadding="0" width="100%" style="margin-top: 20px;">';
+						$resuce_template .=	'<tbody>
+													<tr>
+														<td style="font-size: 21px;color:#6c6d72;font-family:Arial, Helvetica, sans-serif;font-weight:bold;text-transform:uppercase; vertical-align:top;">Doobert Rescue Store</td>
+														<td style="text-align: right; padding-bottom:7px;"><a href="'.base_url().'shop" target="_blank"><img src="'.$button_url.'" alt="DOOBERT - animal rescue made simple" title="DOOBERT - animal rescue made simple" /></a></td>
+													</tr>
+												</tbody>
+											</table>
+											<table cellpadding="0" cellspacing="0" width="100%" style="margin-top:0;">
+											<tbody><tr>';
+						$font_type = 'Roboto';	
+						if(count($resuce_store[0])>0)
+						{		
+							$img_path1 =  base_url().'upload/animal_images/140x140/no_photo_icon.png';
+							if($resuce_store[0]['p_affiliate_image_url']!='')
+							{
+								$img_path1 = $resuce_store[0]['p_affiliate_image_url'];
+							} else 
+							{		
+								if(file_exists($this->config->item('upload').'/product/225x225/'.$resuce_store[0]['st_prod_image']) && $resuce_store[0]['st_prod_image']!='')	
+									$img_path1 = base_url().'upload/product/225x225/'.$resuce_store[0]['st_prod_image'];	
+							}		
+							$resuce_template .=	'<td style="padding-right:6px;vertical-align:top;">
+													<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px;text-align:center; border:1px solid #dedede;">
+														<tbody>
+															<tr>
+																<td style="padding:14px;background:#fff;"><a href="'.base_url().'prod/'.$resuce_store[0]['p_url'].'" target="_blank"><img src="'.$img_path1.'" alt="" title="" style="width:169px; height:126px;" /></a></td>
+															</tr>
+															<tr>
+																<td style="font-family: sans-serif; font-size: 15px; line-height: 20px; color: #555555; text-align:center; padding-top:10px; padding-bottom:16px; background:#fff;" class="stack-column-center">
+																	<p style="margin-top:0; margin-bottom:0; color: #f25613; font: 500 17px '.$font_type.',sans-serif;"><a href="'.base_url().'prod/'.$resuce_store[0]['p_url'].'" target="_blank" style="color:#f25613;">'.$resuce_store[0]['st_product'].'</a></p>
+																	<p style="margin-top:18px!important; margin-bottom:14px!important; font: 500 17px '.$font_type.',sans-serif;">Price: $'.$resuce_store[0]['fl_regular_price'].'</p>
+																	<p style="color:#6c6d72; font:400 15px'.$font_type.',sans-serif; margin-bottom:16px!important;">by <a href="'.base_url().'org/'.$resuce_store[0]['o_url'].'" target="_blank" style="color:#6c6d72;text-decoration:underline!important;">'.$resuce_store[0]['st_org_name'].'</a></p>
+																	<p><a href="'.base_url().'prod/'.$resuce_store[0]['p_url'].'" target="_blank"><img src="'.$cart_url.'" alt="Add To Cart" title="Add To Cart" /></a></p>
+																</td>
+															</tr>
+														</tbody>
+													</table>
+												</td>';
+						}
+						if(count($resuce_store[1])>0)
+						{	
+							$img_path2 = base_url().'upload/animal_images/140x140/no_photo_icon.png';
+							if($resuce_store[1]['p_affiliate_image_url']!='')
+							{
+								$img_path2 = $resuce_store[1]['p_affiliate_image_url'];
+							} else 
+							{	if(file_exists($this->config->item('upload').'/product/225x225/'.$resuce_store[1]['st_prod_image']) && $resuce_store[1]['st_prod_image']!='')
+									$img_path2 = base_url().'upload/product/225x225/'.$resuce_store[1]['st_prod_image'];
+							}	
+								$resuce_template .=	'<td style="padding:0 6px;vertical-align:top;">
+													<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px;text-align:center; border:1px solid #dedede;">
+														<tbody>
+															<tr>
+																<td style="padding:14px;background:#fff;"><a href="'.base_url().'prod/'.$resuce_store[1]['p_url'].'" target="_blank"><img src="'.$img_path2.'" alt="" title="" style="width:169px;height:126px;" /></a></td>
+															</tr>
+															<tr>
+																<td style="font-family: sans-serif; font-size: 15px; line-height: 20px; color: #555555; text-align:center; padding-top:10px; padding-bottom:16px;background:#fff;" class="stack-column-center">
+																	<p style="margin-top:0; margin-bottom:0; color: #f25613; font: 500 17px '.$font_type.',sans-serif;"><a href="'.base_url().'prod/'.$resuce_store[1]['p_url'].'" target="_blank" style="color:#f25613;">'.$resuce_store[1]['st_product'].'</a></p>
+																	<p style="margin-top:18px!important; margin-bottom:14px!important; font: 500 17px '.$font_type.',sans-serif;">Price: $'.$resuce_store[1]['fl_regular_price'].'</p>
+																	<p style="color:#6c6d72; font:400 15px '.$font_type.',sans-serif; margin-bottom:16px!important;">by <a href="'.base_url().'org/'.$resuce_store[1]['o_url'].'" target="_blank" style="color:#6c6d72;text-decoration:underline!important;">'.$resuce_store[1]['st_org_name'].'</a></p>
+																	<p><a href="'.base_url().'prod/'.$resuce_store[1]['p_url'].'" target="_blank"><img src="'.$cart_url.'" alt="Add To Cart" title="Add To Cart" /></a></p>
+																</td>
+															</tr>
+														</tbody>
+													</table>
+												</td>';
+						}
+						if(count($resuce_store[2])>0)
+						{	
+							$img_path3 = base_url().'upload/animal_images/140x140/no_photo_icon.png';
+							if($resuce_store[2]['p_affiliate_image_url']!='')
+							{
+								$img_path3 = $resuce_store[2]['p_affiliate_image_url'];
+							} else 
+							{
+								if(file_exists($this->config->item('upload').'/product/225x225/'.$resuce_store[2]['st_prod_image']) && $resuce_store[2]['st_prod_image']!='')
+									$img_path3 = base_url().'upload/product/225x225/'.$resuce_store[2]['st_prod_image'];
+							}	
+							$resuce_template .=	'<td style="padding-left:6px;vertical-align:top;">
+													<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px;text-align:center; border:1px solid #dedede;">
+														<tbody>
+															<tr>
+																<td style="padding:14px;background:#fff;"><a href="'.base_url().'prod/'.$resuce_store[2]['p_url'].'" target="_blank"><img src="'.$img_path3.'" alt="" title="" style="width:169px;height:126px;" /></a></td>
+															</tr>
+														<tr>
+															<td style="font-family: sans-serif; font-size: 15px; line-height: 20px; color: #555555; text-align:center; padding-top:10px; padding-bottom:16px; background:#fff;" class="stack-column-center">
+																<p style="margin-top:0; margin-bottom:0; color: #f25613; font: 500 17px '.$font_type.',sans-serif;"><a href="'.base_url().'prod/'.$resuce_store[2]['p_url'].'" target="_blank" style="color:#f25613;">'.$resuce_store[2]['st_product'].'</a></p>
+																<p style="margin-top:18px!important; margin-bottom:14px!important; font: 500 17px '.$font_type.',sans-serif;">Price: $'.$resuce_store[2]['fl_regular_price'].'</p>
+                                                                <p style="color:#6c6d72; font:400 15px '.$font_type.',sans-serif; margin-bottom:16px!important;">by <a href="'.base_url().'org/'.$resuce_store[2]['o_url'].'" target="_blank" style="color:#6c6d72;text-decoration:underline!important;">'.$resuce_store[2]['st_org_name'].'</a></p>
+																<p><a href="'.base_url().'prod/'.$resuce_store[2]['p_url'].'" target="_blank"><img src="'.$cart_url.'" alt="Add To Cart" title="Add To Cart" /></a></p>
+															</td>
+														</tr>
+														</tbody>
+													</table>
+												</td>';
+						}						
+						$resuce_template .=	'</tr></tbody></table>';
+					}
+					$templete	= 	str_replace('##resuce_store_block##',$resuce_template,$templete);
+					$templete  	= 	str_replace("##affiliate_content_description##",$affiliate_text,$templete);
+					
+					/*print_r($templete);
+					die;*/
+					
+					$this->common_model->update_daily_digest_user($user_id);
+					
+					$message 	= $templete;
+					
+					if(trim($my_transport_status_str) == '' && trim($my_transport_updates_str) == '' && trim($feeds_received_str) == '' && (trim(strip_tags($near_by_transport_str)) == 'Nearby transport opportunities' || trim(strip_tags($near_by_transport_str)) == '') && trim($feed_need_to_provide_str) == '' && trim($photo_story_needed_str) == '' && trim($new_animal_profile_str) == '' && trim($new_animal_fundraiser_str) == ''  && (trim(strip_tags($org_transport_status_str)) == 'Org transports status' || trim(strip_tags($org_transport_status_str)) == '') && trim($org_transport_changes_str) == '' &&  $recommended_transport_changes_str == '' && (trim(strip_tags($org_fundraiser_status_str)) == 'Org fundraiser status' || trim(strip_tags($org_fundraiser_status_str)) == '') && trim($org_fundraiser_updates_str) == '')
+					{
+						echo 'No content - Email not sent';
+					}	
+					else
+					{
+						echo 'send email';
+						//echo $message; exit;
+						$email_status = $this->common_function->send_mail($this->email, $to, $user_id.'-'.$subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+					
+						if($email_status && $email_status == '1')
+						{
+							echo 'email sent successfully';
+						}else{
+							echo 'email not sent';
+						}
+						
+					}
+					
+					
+					$this->email->clear(TRUE);
+					
+					//$this->common_model->update_daily_digest_user($userDetail['in_user_id']);		
+				}
+				
+				//exit;
+			}
+		}	
+		echo "Done";
+	}
+	
+	function transport_leg_update()
+	{
+		
+		$transport_details = $this->daily_digest_model->get_active_transports_data();
+		
+		//echo '<pre/>'; print_r($transport_details); //exit;
+		if(isset($transport_details) && !empty($transport_details))
+		{
+			foreach($transport_details as $trans_value)
+			{
+				$transport_leg_details = $this->daily_digest_model->get_legs_detail_by_id($trans_value['in_transportation_id']);
+				//echo '<pre/>'; print_r($transport_leg_details);// exit;
+				if(isset($transport_leg_details) && !empty($transport_leg_details))
+				{
+					$legs_detail = $this->daily_digest_model->check_legs_detail_exists($trans_value['in_transportation_id']);
+					//print_r($legs_detail);exit;
+					if(isset($legs_detail) && !empty($legs_detail))
+					{
+						$this->daily_digest_model->delete_legs_detail($trans_value['in_transportation_id']);					
+					}
+					foreach($transport_leg_details as $trans_leg_value)
+					{
+					
+							if($trans_leg_value['route_type_id'] == '0')						
+							{
+								if(isset($trans_leg_value['pick_zip']) && $trans_leg_value['pick_zip'] != '')
+								{
+								$lat_long_details = $this->common_model->get_lattitude_longitude($trans_leg_value['pick_zip']);
+								if(isset($lat_long_details) && !empty($lat_long_details))
+								{
+									$start_lat		= $lat_long_details['lat'];
+									$start_lon		= $lat_long_details['lon'];
+								}
+								else
+								{
+									$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['pick_zip']);
+									
+									$start_lat		= $lat_long_details['lat'];
+									$start_lon		= $lat_long_details['lng'];
+								}
+								}
+								
+								if(isset($trans_leg_value['drop_zip']) && $trans_leg_value['drop_zip'] != '')
+								{
+								$lat_long_details = $this->common_model->get_lattitude_longitude($trans_leg_value['drop_zip']);
+								if(isset($lat_long_details) && !empty($lat_long_details))
+								{
+									$end_lat		= $lat_long_details['lat'];
+									$end_lon		= $lat_long_details['lon'];
+								}
+								else
+								{
+									$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['drop_zip']);
+									$end_lat		= $lat_long_details['lat'];
+									$end_lon		= $lat_long_details['lng'];
+								}
+								}
+							
+								if(isset($start_lat) && $start_lat != '' && isset($end_lat) && $end_lat != '')
+								{
+									$leg_data = array("in_transportation_id"=>$trans_value['in_transportation_id'],
+													  "in_route_type"=>'0',
+													  "in_status"=>$trans_value['in_status'],
+													  "in_transportation_leg_id"=>$trans_leg_value['leg_id'],
+													  "st_pzip"=>$trans_leg_value['pick_zip'],
+													  "dt_pstart_time"=>$trans_leg_value['pick_datetime'],
+													  "dt_pstart_day"=>$trans_leg_value['pick_day'],
+													  "st_ptimezone"=>$trans_leg_value['pick_timezone'],
+													  "in_plat"=>$start_lat,
+													  "in_plong"=>$start_lon,
+													  "st_dzip"=>$trans_leg_value['drop_zip'],
+													  "dt_dstart_time"=>$trans_leg_value['drop_datetime'],
+													  "dt_dstart_day"=>$trans_leg_value['drop_day'],
+													  "st_dtimezone"=>$trans_leg_value['drop_timezone'],
+													  "in_dlat"=>$end_lat,
+													  "in_dlong"=>$end_lon,	
+														);
+									$this->daily_digest_model->insert_trans_legs_data($leg_data);
+								}
+							}
+							
+							if($trans_leg_value['route_type_id'] == '1')						
+							{
+								//echo 'Aviation leg';
+								//print_r($pilot_details);
+								if(isset($trans_leg_value['pick_zip']) && $trans_leg_value['pick_zip'] != '')
+								{
+								$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['pick_zip']);
+								
+								$start_lat		= $lat_long_details['lat'];
+								$start_lon		= $lat_long_details['lng'];
+								}
+								
+								if(isset($trans_leg_value['drop_zip']) && $trans_leg_value['drop_zip'] != '')
+								{
+								$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['drop_zip']);
+								$end_lat		= $lat_long_details['lat'];
+								$end_lon		= $lat_long_details['lng'];
+								}							
+								
+								if(isset($start_lat) && $start_lat != '' && isset($end_lat) && $end_lat != '')
+								{
+									$leg_data = array("in_transportation_id"=>$trans_value['in_transportation_id'],
+													  "in_route_type"=>'1',
+													  "in_status"=>$trans_value['in_status'],
+													  "in_transportation_leg_id"=>$trans_leg_value['leg_id'],
+													  "st_pzip"=>$trans_leg_value['pick_zip'],
+													  "dt_pstart_time"=>$trans_leg_value['pick_datetime'],
+													  "dt_pstart_day"=>$trans_leg_value['pick_day'],
+													  "st_ptimezone"=>$trans_leg_value['pick_timezone'],
+													  "in_plat"=>$start_lat,
+													  "in_plong"=>$start_lon,
+													  "st_dzip"=>$trans_leg_value['drop_zip'],
+													  "dt_dstart_time"=>$trans_leg_value['drop_datetime'],
+													  "dt_dstart_day"=>$trans_leg_value['drop_day'],
+													  "st_dtimezone"=>$trans_leg_value['drop_timezone'],
+													  "in_dlat"=>$end_lat,
+													  "in_dlong"=>$end_lon,	
+														);
+									$this->daily_digest_model->insert_trans_legs_data($leg_data);
+								}
+							}
+							
+							if($trans_leg_value['route_type_id'] == '2')						
+							{
+								if(isset($trans_leg_value['o_pick_zip']) && $trans_leg_value['o_pick_zip'] != '')
+								{
+								$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['o_pick_zip']);
+								
+								$start_lat		= $lat_long_details['lat'];
+								$start_lon		= $lat_long_details['lng'];
+								}
+								
+								if(isset($start_lat) && $start_lat != '')
+								{
+									$leg_data = array("in_transportation_id"=>$trans_value['in_transportation_id'],
+													  "in_route_type"=>'2',
+													  "in_status"=>$trans_value['in_status'],
+													  "in_transportation_leg_id"=>$trans_leg_value['leg_id'],
+													  "st_pzip"=>$trans_leg_value['o_pick_zip'],
+													  "in_plat"=>$start_lat,
+													  "in_plong"=>$start_lon,
+													  "dt_pstart_day"=>$trans_leg_value['o_day'],
+													  );
+									$this->daily_digest_model->insert_trans_legs_data($leg_data);
+								}
+							}
+						}
+				}
+			}
+		}	
+			
+	}
+	
+	
+	function unsubscribe_email($uid = false,$email_address)
+	{
+		 $userId = $this->common_function->decode_base64($uid);
+         $email_address = $this->common_function->decode_base64($email_address);
+
+        if ((!$userId) || (!$email_address) )  {
+            $data['subscribe_status_text_msg'] = 'You have not unsubscribed from daily digest email. Please contact us at support@doobert.com.';
+        }
+
+        $user_details = $this->common_function->get_user_profile($userId);
+        if (empty($user_details)) {
+           $data['subscribe_status_text_msg'] = 'You have not unsubscribed from daily digest email. Please contact us at support@doobert.com.';
+        } else {
+			$this->daily_digest_model->update_subscribe_status($userId);
+			$data['subscribe_status_text_msg'] = 'You have been successfully unsubscribed for daily digest email.';
+		}
+		
+		$this->load->view('subscribe_message',$data);
+	}
+	
+	function daily_email_testing()
+	{
+		//echo 'stopped on 04Jan2017';
+		//exit;
+		$this->load->library('email');
+		$alluserDetails = $this->common_model->get_daily_digest_user_details_new1();
+		
+		//echo '<pre>'; print_r($alluserDetails); //die;
+		$receiver_users = '';
+		$data = array();
+		if(sizeof($alluserDetails) > 0)
+		{
+			$email_details = $this->common_model->get_email_containt('82');
+			$blog = $this->daily_digest_model->get_doobert_system_notification();
+			$latest_from_doobert_blog = $this->daily_digest_model->get_doobert_blog_data();
+			
+			if (isset($email_details[0]['st_email_body'])) 
+			{
+				$subject = $email_details[0]['st_email_subject'];
+				$category 	= $email_details[0]['st_category'];
+				
+				foreach($alluserDetails as $key => $userDetail)
+				{	
+					$templete = '';
+					
+					$user_id = $userDetail['in_user_id'];
+					$user_organizations = $this->daily_digest_model->get_user_organizations($user_id);
+					
+					$to			= 'sadique.mohammed@pulsesolutions.net';
+					//$to			= $userDetail['email'];
+					/*echo '<pre/>';
+					echo 'user email id is: '.$to;
+					echo '<pre/>';
+					echo 'user id is: '.$user_id;
+					echo '<pre/>';*/
+					$templete 	= $email_details[0]['st_email_body'];
+					
+					$system_notifications = '';
+					
+					if(isset($blog) && !empty($blog))
+					{
+						//echo '<pre/>';print_r($blog);
+						$system_notifications .= '<div style="padding:26px 20px 31px 20px; background:#fff;">';
+						$system_notifications .= '<p style="font-size:22px; color:#3a676c; font-family:Arial, Helvetica, sans-serif; font-weight:bold; text-transform:uppercase; padding-bottom:24px !important;">Doobert System Notifications</p>';
+						if(isset($blog['img']) && !empty($blog['img'])){ 
+						$system_notifications .= '<img alt="Doobert System Notifications" title="Doobert System Notifications" border="0" height="130"  '.$blog["img"].' style="display:inline-block; float:left; padding-right:20px; border:none; outline:none; width:270" />';
+						}
+						
+						//$system_notifications .= '<a href="'.$blog["blog_link"].'"><p>'.$blog["content"].'</p></a><p>'.$blog["blog_date"].'</p></div></div>';
+						
+						$system_notifications .= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:17px; color:#000; padding-bottom:8px !important; line-height:20px;">'.$blog["title"].'</p><p style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#555555; padding-bottom:8px !important; line-height:20px;">'.strip_tags($blog["content"]).'</p><p><a href="'.$blog["blog_link"].'" style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#ee304d; padding-bottom:8px !important; text-decoration:underline !important;" target="_blank">Read More <img alt="" border="0" height="9" src="https://app.doobert.com/assets/img/new-daily-digest-images/red-arrow.png" style="border:none; outline:none; text-decoration:none; width:6" /></a></p>';
+					
+						$system_notifications .= '</div>';
+					}
+					
+					
+							
+					//echo '<pre/>';
+					//print_r($system_notifications);
+					//exit;
+					$templete 	= str_replace("##system-notifications##", $system_notifications, $templete);
+					
+					/*$affiliate_block = '<a href="http://www.jdoqocy.com/click-8230473-12712081-1475801543000" target="_top">
+		<img src="http://www.ftjcfx.com/image-8230473-12712081-1475801543000" width="460" height="60" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0"/></a>';
+					$templete 	= str_replace("##affiliate-block##", $affiliate_block, $templete);*/
+					
+					//$near_by_transport_data = $this->daily_digest_model->get_near_by_transport_data($user_id='28');
+					
+					//echo '<pre/>';
+					//print_r($near_by_transport_data);exit;
+					
+					$my_transport_status_str = '';
+					
+					$my_transport_status_data = $this->daily_digest_model->get_my_transport_status_data($user_id);
+					
+					if(isset($my_transport_status_data) && !empty($my_transport_status_data))
+					{
+					
+						$my_transport_status_str .= '<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">My transports status</p>';
+						
+						foreach($my_transport_status_data as $transport_result_val)
+						{
+						
+							$orgcode = ($transport_result_val['st_org_code'] != '')? $transport_result_val['st_org_code'] : 'DBT';
+							$all_legs_count = 0;
+							$transport_all_legs 	= $this->common_model->get_all_legs_count($transport_result_val['in_transportation_id']);
+							
+							if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+							{
+								$all_legs_count	= $transport_all_legs['total_count'];
+							}
+							
+							$filled_legs_count 	= $this->common_function->get_filled_legs_count($transport_result_val['in_transportation_id']);
+							$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($transport_result_val['in_transportation_id']);	
+							$cover_leg = 0;
+							$cover_leg = $filled_legs_count+$non_doobert_filled_legs_count;
+							
+							$from_day = $transport_result_val['start_day'];
+							
+							$end_day = $transport_result_val['end_day'];
+							
+							$from_date = date("m/d",strtotime($transport_result_val['dt_pickup_date']));
+							//echo $from_date;exit;							
+							//$from_add = $transport_result_val['st_from_city'].'/'.$transport_result_val['st_from_state'];
+							//echo $from_add;exit;
+							//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+							
+							$from_add = '';
+							if(isset($transport_result_val['st_from_city']) && $transport_result_val['st_from_city'] != '')
+							{
+								$from_add .= $transport_result_val['st_from_city'].'/';
+							}
+							if(isset($transport_result_val['st_from_state']) && $transport_result_val['st_from_state'] != '')
+							{
+								$from_add .= $transport_result_val['st_from_state'];
+							}
+							if($from_add == '')
+							{
+								$from_add .= $transport_result_val['st_from_zip'];
+							}
+							//echo $from_add;exit;
+							$to_add = '';
+							//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+							if(isset($transport_result_val['st_to_city']) && $transport_result_val['st_to_city'] != '')
+							{
+								$to_add .= $transport_result_val['st_to_city'].'/';
+							}
+							if(isset($transport_result_val['st_to_state']) && $transport_result_val['st_to_state'] != '')
+							{
+								$to_add .= $transport_result_val['st_to_state'];
+							}
+							if($to_add == '')
+							{
+								$to_add .= $transport_result_val['st_to_zip'];
+							}
+							
+							$my_transport_status_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0"><tr>';					 
+							$my_transport_status_str .= '<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$transport_result_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$transport_result_val['in_transportation_id'].'</a> on '.$from_day.' '. $from_date .' from '.$from_add.' to '.$to_add.' - '.$cover_leg.' of '.$all_legs_count.' legs filled </p></td>';
+							$my_transport_status_str .= '<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$transport_result_val['in_transportation_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;" target="_blank">Contact TC</a></span></td>';
+							$my_transport_status_str .= '</tr></table></div>';
+						}
+							
+					}
+					
+					$templete 	= str_replace("##my-transport-status##", $my_transport_status_str, $templete);
+					
+					##my-transport-updates##			
+					$my_transport_updates_str = '';
+					
+					$my_transport_updates_data = $this->daily_digest_model->get_my_transport_updates_data($user_id);
+					
+					//print_r($my_transport_updates_data);exit;
+					
+					$my_transport_updates_str .= '';
+					
+					if(isset($my_transport_updates_data) && !empty($my_transport_updates_data))
+					{
+						if((isset($my_transport_updates_data['confirmed']) && !empty($my_transport_updates_data['confirmed'])) || (isset($my_transport_updates_data['cancelled']) && !empty($my_transport_updates_data['cancelled'])) || (isset($my_transport_updates_data['changed_both']) && !empty($my_transport_updates_data['changed_both'])) || (isset($my_transport_updates_data['changed_date']) && !empty($my_transport_updates_data['changed_date'])) || (isset($my_transport_updates_data['changed_animal']) && !empty($my_transport_updates_data['changed_animal'])))
+						{
+							$my_transport_updates_str .= '<p style="height:20px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">My transport updates</p>';
+							
+							if((isset($my_transport_updates_data['confirmed']) && !empty($my_transport_updates_data['confirmed'])))
+							{
+								foreach($my_transport_updates_data['confirmed'] as $conf_val)
+								{
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$conf_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$conf_val['in_transportation_id'].'</a> has been confirmed. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$conf_val['in_transportation_id'].'" style="background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['cancelled']) && !empty($my_transport_updates_data['cancelled'])))
+							{
+								foreach($my_transport_updates_data['cancelled'] as $can_val)
+								{
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$can_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$can_val['in_transportation_id'].'</a> has been cancelled. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$can_val['in_transportation_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['changed_both']) && !empty($my_transport_updates_data['changed_both'])))
+							{
+								foreach($my_transport_updates_data['changed_both'] as $both_val)
+								{
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$both_val['in_transport_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$both_val['in_transport_id'].'</a> date and animal has been changed. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$both_val['in_transport_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['changed_date']) && !empty($my_transport_updates_data['changed_date'])))
+							{
+								foreach($my_transport_updates_data['changed_date'] as $date_val)
+								{
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$date_val['in_transport_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$date_val['in_transport_id'].'</a> date has been changed from '.$date_val['prev_day'].' '.date("m/d",strtotime($date_val['prev_to_date'])).' to '.$date_val['new_day'].' '.date("m/d",strtotime($date_val['new_to_date'])).'. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$date_val['in_transport_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+							if((isset($my_transport_updates_data['changed_animal']) && !empty($my_transport_updates_data['changed_animal'])))
+							{
+								foreach($my_transport_updates_data['changed_animal'] as $ani_val)
+								{
+									$my_transport_updates_str .='<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							 <tr>
+			<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$ani_val['in_transport_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$ani_val['in_transport_id'].'</a> animal data has been updated. </p></td>
+			<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$ani_val['in_transport_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;">Contact TC</a></span></td>
+		  </tr>
+							</table>
+							</div>';
+								}
+							}
+							
+						}
+						
+							
+					}
+					
+					$templete 	= str_replace("##my-transport-updates##", $my_transport_updates_str, $templete);
+					
+					##feeds-received##
+					$feeds_received_str = '';
+					
+					$org_feeds_received_data = $this->daily_digest_model->get_org_feeds_received_data($user_id);
+					/*echo '<pre/>';
+					print_r($org_feeds_received_data);
+					exit;*/
+					
+					$feeds_received_str .= '';
+					
+					if((isset($org_feeds_received_data) && !empty($org_feeds_received_data)))
+					{
+						$feeds_received_str .='<p style="height:20px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">My mentions from my feeds</p>';
+							
+						foreach($org_feeds_received_data as $feed_val)
+						{
+							$feeds_received_str .='<p style="height:20px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'user-'.$feed_val['in_user_from_id'].'-'.$this->common_function->get_filtered_name($feed_val['st_from_name']).'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$feed_val["st_from_name"].'</a>: <span style="color:#b0b0b0;">@</span><a href="'.base_url().'user-'.$feed_val['in_user_to_id'].'-'.$this->common_function->get_filtered_name($feed_val['st_display_name']).'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$feed_val["st_display_name"].'</a> '.$feed_val["st_feed_msg"].'</p>
+							</div>';
+						}
+					}
+					
+					$templete 	= str_replace("##feeds-received##", $feeds_received_str, $templete);
+					
+					$near_by_transport_str = '';
+					
+					$near_by_transport_data = $this->daily_digest_model->get_near_by_transport_data($user_id);
+					
+					//echo '<pre/>';
+					//print_r($near_by_transport_data); //exit;
+					
+					if(isset($near_by_transport_data) && !empty($near_by_transport_data))
+					{
+						$near_by_transport_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Nearby transport opportunities</p>
+							';
+						foreach($near_by_transport_data as $transport_result_val)
+						{
+						
+							$all_legs_count = 0;
+							$transport_all_legs 	= $this->common_model->get_all_legs_count($transport_result_val['in_transportation_id']);
+							
+							if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+							{
+								$all_legs_count	= $transport_all_legs['total_count'];
+							}
+							
+							$filled_legs_count 	= $this->common_function->get_filled_legs_count($transport_result_val['in_transportation_id']);
+							$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($transport_result_val['in_transportation_id']);	
+							$cover_leg = 0;
+							$cover_leg = $filled_legs_count+$non_doobert_filled_legs_count;
+							
+							$from_day = $transport_result_val['start_day'];
+							
+							$end_day = $transport_result_val['end_day'];
+							
+							$from_date = date("m/d",strtotime($transport_result_val['dt_pickup_date']));
+							//echo $from_date;exit;							
+							$from_add = '';
+							if(isset($transport_result_val['st_from_city']) && $transport_result_val['st_from_city'] != '')
+							{
+								$from_add .= $transport_result_val['st_from_city'].'/';
+							}
+							if(isset($transport_result_val['st_from_state']) && $transport_result_val['st_from_state'] != '')
+							{
+								$from_add .= $transport_result_val['st_from_state'];
+							}
+							if($from_add == '')
+							{
+								$from_add .= $transport_result_val['st_from_zip'];
+							}
+							//echo $from_add;exit;
+							$to_add = '';
+							//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+							if(isset($transport_result_val['st_to_city']) && $transport_result_val['st_to_city'] != '')
+							{
+								$to_add .= $transport_result_val['st_to_city'].'/';
+							}
+							if(isset($transport_result_val['st_to_state']) && $transport_result_val['st_to_state'] != '')
+							{
+								$to_add .= $transport_result_val['st_to_state'];
+							}
+							if($to_add == '')
+							{
+								$to_add .= $transport_result_val['st_to_zip'];
+							}
+							
+							
+							$near_by_transport_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">';					 
+							$near_by_transport_str .= '<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$transport_result_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$transport_result_val['in_transportation_id'].'</a> on '.$from_day.' '. $from_date .' from '.$from_add.' to '.$to_add.' - '.$cover_leg.' of '.$all_legs_count.' legs filled </p>';
+							
+							$transport_animals = $this->daily_digest_model->get_transport_animals($transport_result_val['in_transportation_id']);
+							//print_r($transport_animals); //die;
+							
+							if(isset($transport_animals) && !empty($transport_animals))
+							{
+								$near_by_transport_str .= '<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px;">';
+								
+								foreach($transport_animals as $trans_ani)
+								{
+								
+									$animal_url = base_url().'animal-'.$trans_ani['in_animal_id'].'-'.$this->common_function->get_filtered_name($trans_ani['st_animal_name']);
+								
+									$animal_photo 	= $trans_ani['st_file_name'];
+									//echo '<pre/>';
+									//print_r($animal_photo);//exit;
+									
+									if(isset($animal_photo) && $animal_photo != ''){ 
+								
+										if(file_exists($this->config->item('upload')."animal_images/70x70/".$animal_photo)) {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/'.$animal_photo;
+											//echo '$animal_photo'.$animal_photo;
+										} else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+										}
+									}else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+										}
+										
+									$near_by_transport_str .= '<li style="list-style-type:none; float:left; width:32%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; margin-left:0px;"><a href="'.$animal_url.'" style="color:#ee304d;" target="_blank"><img alt="" border="0" height="30" src="'.$animal_photo.'" style="display:inline-block; border:none; outline:none; text-decoration:none; margin-right:5px;" width="31" /><span style="vertical-align:top; margin-top:6px; display:inline-block; line-height:20px; width:75%;">'.$trans_ani['st_animal_name'].'</a></span></li>';
+								}
+								 $near_by_transport_str .= '</ul>';
+							}
+							
+							$near_by_transport_str .= '</div>';					
+							
+						}
+						
+						$near_by_transport_str .= '<a href="'.base_url().'my-transportation/" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;margin-top:6px;">View All</a>';
+							
+					}
+					
+					
+					
+					//echo $near_by_transport_str;exit;
+					
+					$templete 	= str_replace("##near-by-transports##", $near_by_transport_str, $templete);
+					
+					$feed_need_to_provide_str = '';
+					
+					$feed_need_to_provide_data = $this->daily_digest_model->get_feed_need_to_provide_data($user_id);
+					
+					//echo '<pre/>';
+					//print_r($feed_need_to_provide_data);
+					//exit;
+					$feed_need_to_provide_str .= '';
+					if(isset($feed_need_to_provide_data) && !empty($feed_need_to_provide_data))
+					{
+					
+						$feed_need_to_provide_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Feedback I need to leave</p>
+							<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+					
+						foreach($feed_need_to_provide_data as $feed_val)
+						{
+							
+										$trid	=	$feed_val;
+										$sqlorgcode  = "SELECT o.st_org_code 
+													FROM tbl_organization o
+													INNER JOIN tbl_transportation t on t.in_organization_id=o.in_organization_id
+													where t.in_transportation_id='".$trid."'";
+										$sqlorgcodestate	=	$this->db->query($sqlorgcode);
+										$numrowprostat		=	$sqlorgcodestate->num_rows($sqlorgcodestate);	
+										$orgcodestatus		=	$sqlorgcodestate->result();
+										$storgcode			=	$orgcodestatus[0]->st_org_code;									
+										$orgcode = ($storgcode != '')? $storgcode : 'DBT';
+							
+							
+							$feed_need_to_provide_str .='<li style="list-style-type:none; float:left; width:32%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; padding-bottom:10px; margin-left:0px;"><a href="'.base_url().'org-transportation-scheduled/'.$feed_val.'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$feed_val.'</a> Feedback</li>';	
+						}
+						
+						$feed_need_to_provide_str .= '</ul>
+							</div>';
+					}
+					
+					
+					$templete 	= str_replace("##feeds-need-to-provide##", $feed_need_to_provide_str, $templete);
+					
+					
+					##photo-story-need-to-upload##
+					$photo_story_needed_str = '';
+					
+					$photo_story_data = $this->daily_digest_model->get_photo_story_data($user_id);
+					//echo '<pre/>';
+					//print_r($photo_story_data);
+					//exit;
+					
+					$photo_story_needed_str .= '';
+					
+					if(isset($photo_story_data) && !empty($photo_story_data))
+					{
+					
+						$photo_story_needed_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Photos / Story I need to upload</p>
+							<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+					
+						foreach($photo_story_data as $photo_val)
+						{
+							$photo_story_needed_str .='<li style="list-style-type:none; float:left; width:32%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; padding-bottom:10px; margin-left:0px;"><a href="'.base_url().'org-transportation-scheduled/'.$photo_val.'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$photo_val.'</a> Story & Photos</li>';	
+						}
+						
+						$photo_story_needed_str .= '</ul>
+							</div>';
+					}
+					
+					$templete 	= str_replace("##photo-story-need-to-upload##", $photo_story_needed_str, $templete);
+					
+					##new-animal-profile##
+					$new_animal_profile_str = '';
+					
+					$new_animal_setting_data = $this->daily_digest_model->get_user_new_animal_setting($user_id);
+					
+					//$animal_type_ids = array();
+					$animal_breed_ids = array();
+					
+					if(isset($new_animal_setting_data) && !empty($new_animal_setting_data))
+					{
+						/*if(isset($new_animal_setting_data['animal_type_ids']) && !empty($new_animal_setting_data['animal_type_ids']))
+						{
+							$animal_type_ids = $new_animal_setting_data['animal_type_ids'];
+						}*/
+						if(isset($new_animal_setting_data['animal_breed_ids']) && !empty($new_animal_setting_data['animal_breed_ids']))
+						{
+							$animal_breed_ids = $new_animal_setting_data['animal_breed_ids'];
+						}
+					}
+					
+					//echo '<pre/>';print_r($animal_type_ids);
+					//echo '<pre/>';print_r($animal_breed_ids);
+					//exit;
+					
+					$new_animal_profile_data = $this->daily_digest_model->get_new_animal_profile_data($user_id,$animal_breed_ids,$user_organizations);
+					//echo '<pre/>';
+					//print_r($new_animal_profile_data);
+					//exit;
+					
+					$new_animal_profile_str .= '';
+					
+					if(isset($new_animal_profile_data) && !empty($new_animal_profile_data))
+					{
+						//print_r($new_animal_profile_data);exit;
+						
+						foreach($new_animal_profile_data as $animal_data)
+						{	
+							if(isset($animal_data) && !empty($animal_data))
+							{
+								$new_animal_profile_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">New animal profile notifications</p>
+								<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px;">
+								<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+								break;	
+							}
+						}
+						
+						$cnt = 0;	
+						foreach($new_animal_profile_data as $val)
+						{
+							//foreach($ani_val as $val)
+							//{
+								$cnt++;
+								$animal_url = base_url().'animal-'.$val['in_animal_id'].'-'.$this->common_function->get_filtered_name($val['st_animal_name']);
+								
+								$animal_photo 	= $this->daily_digest_model->get_animal_photo($val['in_animal_id']);
+								
+								if(isset($animal_photo) && $animal_photo != ''){ 
+							
+									if(file_exists($this->config->item('upload')."animal_images/70x70/".$animal_photo)) {
+										$animal_photo = $this->config->item('upload_url').'animal_images/70x70/'.$animal_photo;
+										//echo '$animal_photo'.$animal_photo;
+									} else {
+										$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+										
+									}
+								}else {
+										$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+										
+									}
+								
+								$new_animal_profile_str .= '<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; margin-right:0px;"><img alt="" border="0" height="30" src="'.$animal_photo.'" style="display:inline-block; border:none; outline:none; text-decoration:none; margin-right:5px;" width="31" /><span style="vertical-align:top; margin-top:6px; display:inline-block; width:90%; line-height:20px;"><a href="'.$animal_url.'" style="color:#ee304d;" target="_blank">'.$val['st_animal_name'].'</a> - "New '.$val['st_animal_breed_name'].' - '.$val['st_animal_type_name'].' from '.$val['st_org_name'].'"</span></li>';
+								
+								if($cnt == 3)
+								{
+									$new_animal_profile_str .= '<a href="'.base_url().'org_animal/animals_in_my_organization/" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;" target="_blank">View All</a>';
+									break;
+								}
+							//}
+						}
+						
+						$new_animal_profile_str .= '</ul>
+							</div>';	
+						
+						
+					}	
+					
+					//print_r($new_animal_profile_str);exit;
+							
+					$templete 	= str_replace("##new-animal-profile##", $new_animal_profile_str, $templete);
+					
+					##new-animal-fundraiser##
+					$new_animal_fundraiser_str = '';
+					
+					$fundraiser_setting_data = array();
+					
+					$fundraiser_setting_data = $this->daily_digest_model->get_user_fundraiser_setting($user_id);
+					
+					$new_animal_fundraiser_data = $this->daily_digest_model->get_new_animal_fundraiser_data($user_id,$fundraiser_setting_data,$user_organizations);
+					//echo '<pre/>';
+					//print_r($new_animal_fundraiser_data);
+					//exit;
+					
+					$new_animal_fundraiser_str .= '';
+					
+					if(isset($new_animal_fundraiser_data) && !empty($new_animal_fundraiser_data))
+					{
+							foreach($new_animal_fundraiser_data as $fundraiser_data)
+							{	
+								if(isset($fundraiser_data) && !empty($fundraiser_data))
+								{
+									$new_animal_fundraiser_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">New animal fundraiser notifications</p>
+							<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+									break;	
+								}
+							}
+							
+							$cnt_fund = 0;
+							foreach($new_animal_fundraiser_data as $val)
+							{
+								//foreach($fund_val as $val)
+								//{
+									$cnt_fund++;
+									$animal_url = base_url().'animal-'.$val['animal_id'].'-'.$this->common_function->get_filtered_name($val['animal_name']);
+								
+									$animal_photo 	= $this->daily_digest_model->get_animal_photo($val['animal_id']);
+									//echo '<pre/>';
+									//print_r($animal_photo);//exit;
+									
+									if(isset($animal_photo) && $animal_photo != ''){ 
+								
+										if(file_exists($this->config->item('upload')."animal_images/70x70/".$animal_photo)) {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/'.$animal_photo;
+											//echo '$animal_photo'.$animal_photo;
+										} else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+										}
+									}else {
+											$animal_photo = $this->config->item('upload_url').'animal_images/70x70/doobert-animal-no-image-70.gif';
+											
+										}
+										
+									$new_animal_fundraiser_str .='<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; margin-right:0px;"><img alt="" border="0" height="30" src="'.$animal_photo.'" style="display:inline-block; border:none; outline:none; text-decoration:none; margin-right:5px;" width="31" /><span style="vertical-align:top; margin-top:6px; display:inline-block; width:90%; line-height:20px;"><a href="'.$animal_url.'" style="color:#ee304d;" target="_blank">'.$val['animal_name'].'</a> - "New fundraiser from '.$val['org_name'].'"</span></li>';	
+									
+									$new_animal_fundraiser_str .= '</ul>
+							</div>';
+									if($cnt_fund == 3)
+									{
+										$new_animal_fundraiser_str .= '<a href="'.base_url().'sponsorship/sponsorship_list/" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;">View All</a>';	
+										break;
+									}
+								//}
+								
+								
+							}
+							
+							
+							
+												
+					}
+								
+					
+					$templete 	= str_replace("##new-animal-fundraiser##", $new_animal_fundraiser_str, $templete);
+					
+					
+					
+					##latest-happy-videos##
+					$latest_happy_videos_str = '';
+					$latest_happy_videos_str .= '';
+					$happy_videos_url = 'https://www.doobert.com/videos/doobert-success-stories/';
+					//if(isset($happy_videos) && !empty($happy_videos))
+					//{
+						/*$latest_happy_videos_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+						<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Latest Happy Videos</p>
+						<p style="height:15px; margin:0px; padding:0px;"></p>
+						<div style="display:block; padding-bottom:5px;">
+						<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">
+						<li style="list-style-type:none; float:left; width:49%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; ">'.$happy_videos[0].'</li>
+						<li style="list-style-type:none; float:left; width:49%; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px;">'.$happy_videos[1].'</li>
+					   </ul>
+						</div>
+						<a href="'.$happy_videos_url.'" target="_blank" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;">View More</a>';*/
+						
+					$latest_happy_videos_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+                    <p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Latest Happy Videos</p>
+                    <p style="height:15px; margin:0px; padding:0px;"></p>
+                    <div style="display:block; padding-bottom:5px;">
+                    <ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">
+                    <li style="list-style-type:none; float:left; width:49%; margin-right:10px; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; position:relative";><a href="https://www.youtube.com/watch?v=_RfR_7pTdcI&rel=0&showinfo=0" target="_blank"><span style="background: url(http://img.youtube.com/vi/_RfR_7pTdcI/1.jpg); display:inline-block; width:269px; height:162px; background-repeat:no-repeat; background-size:cover;"><img style="margin-top:49px; margin-left:103px" src="https://app.doobert.com/assets/img/new-daily-digest-images/latest-video-icon.png"></span></a></li>
+                    <li style="list-style-type:none; float:left; width:49%; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; position:relative;"><a href="https://www.youtube.com/watch?v=rak7jCPW6HE&rel=0&showinfo=0" target="_blank"><span style="background: url(http://img.youtube.com/vi/rak7jCPW6HE/1.jpg); display:inline-block; width:269px; height:162px; background-repeat:no-repeat; background-size:cover;"><img style="margin-top:49px; margin-left:103px" src="https://app.doobert.com/assets/img/new-daily-digest-images/latest-video-icon.png"></span></a></li>
+                   </ul>
+					</div>
+                    <a href="'.$happy_videos_url.'" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;">View More</a>';
+					
+					//}
+					$templete 	= str_replace("##latest-happy-videos##", $latest_happy_videos_str, $templete);
+					
+					
+					##latest-from-doobert-blog##			
+					//$latest_from_doobert_blog = $this->daily_digest_model->get_doobert_blog_data();
+					//echo '<pre/>';
+					//print_r($latest_from_doobert_blog);
+					//exit;
+					
+					$latest_from_doobert_blog_str = '';
+					//$latest_from_doobert_blog_str .= '';
+					if(isset($latest_from_doobert_blog) && !empty($latest_from_doobert_blog))
+					{
+						$latest_from_doobert_blog_str .= '<p style="height:40px; margin:0px; padding:0px;"></p>
+							<div>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Latest from the Doobert blog</p>
+							<p style="height:15px; margin:0px; padding:0px;"></p>';
+							
+							if(isset($latest_from_doobert_blog['img']) && !empty($latest_from_doobert_blog['img'])){ 
+								$latest_from_doobert_blog_str .= '<img alt="Doobert Blog" title="Doobert Blog" border="0" height="130"  '.$latest_from_doobert_blog["img"].' style="display:inline-block; float:left; padding-right:20px; border:none; outline:none; width:270" />';
+								}
+								
+								$latest_from_doobert_blog_str .= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:17px; color:#000; padding-bottom:8px !important; line-height:20px;">'.$latest_from_doobert_blog["title"].'</p><p style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#555555; padding-bottom:8px !important; line-height:20px;">'.strip_tags($latest_from_doobert_blog["content"]).'</p><p><a href="'.$latest_from_doobert_blog["blog_link"].'" style="font-family:Arial, Helvetica, sans-serif; font-size:15px; color:#ee304d; padding-bottom:8px !important; text-decoration:underline !important;" target="_blank">Read More <img alt="" border="0" height="9" src="https://app.doobert.com/assets/img/new-daily-digest-images/red-arrow.png" style="border:none; outline:none; text-decoration:none; width:6" /></a></p>';
+								
+								$latest_from_doobert_blog_str .= '<p style="display:block; clear:both;">&nbsp;</p>
+							<a href="https://www.doobert.com/category/doobert-blog/" target="_blank" style=" background-color:#ee6d35; padding: 6px 12px; color: #fff; border-radius: 2px; font-family:Arial, Helvetica, sans-serif; font-size:14px; display:inline-block;">View More</a>
+							<p style="height:10px; margin:0px; padding:0px;"></p>
+							</div>';
+					}
+					
+					
+					$templete 	= str_replace("##latest-from-doobert-blog##", $latest_from_doobert_blog_str, $templete);
+					
+					$my_organization_updates_str = '';
+					
+					//echo '<pre/>';
+					//print_r($user_organizations);
+					//exit;
+					if(isset($user_organizations) && !empty($user_organizations))
+					{					
+						$my_organization_updates_str .= '<p style="font-size:22px; color:#3a676c; font-family:Arial, Helvetica, sans-serif; font-weight:bold; text-transform:uppercase; padding-bottom:20px !important;">My Organization(s) Updates</p>';
+					}
+					//$templete 	= str_replace("##my-organization-updates##", $my_organization_updates_str, $templete);
+					
+					##org-transport-status##
+					$org_transport_status_str = '';
+					
+					$org_transport_status_data = $this->daily_digest_model->get_org_transport_status_data($user_id,$user_organizations);
+					
+					//echo '<pre/>';
+					//print_r($org_transport_status_data);
+					//exit;
+					$org_transport_status_str .= '';
+					if(isset($user_organizations) && !empty($user_organizations))
+					{
+						$org_transport_status_str .= '<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal;border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Org transports status</p>';
+					}
+					if(isset($org_transport_status_data) && !empty($org_transport_status_data))
+					{		
+						foreach($org_transport_status_data as $trans_data)
+						{	
+							foreach($trans_data as $trans_val)
+							{
+								$all_legs_count = 0;
+								$transport_all_legs 	= $this->common_model->get_all_legs_count($trans_val['in_transportation_id']);
+								
+								if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+								{
+									$all_legs_count	= $transport_all_legs['total_count'];
+								}
+								
+								$filled_legs_count 	= $this->common_function->get_filled_legs_count($trans_val['in_transportation_id']);
+								$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($trans_val['in_transportation_id']);	
+								$cover_leg = 0;
+								$cover_leg = $filled_legs_count+$non_doobert_filled_legs_count;
+								
+								$from_day = $trans_val['start_day'];
+								
+								$end_day = $trans_val['end_day'];
+								
+								$from_date = date("m/d",strtotime($trans_val['dt_pickup_date']));
+								//echo $from_date;exit;							
+								//$from_add = $trans_val['st_from_city'].'/'.$trans_val['st_from_state'];
+								//echo $from_add;exit;
+								//$to_add = $trans_val['st_to_city'].'/'.$trans_val['st_to_state'];
+								
+								$from_add = '';
+								if(isset($trans_val['st_from_city']) && $trans_val['st_from_city'] != '')
+								{
+									$from_add .= $trans_val['st_from_city'].'/';
+								}
+								if(isset($trans_val['st_from_state']) && $trans_val['st_from_state'] != '')
+								{
+									$from_add .= $trans_val['st_from_state'];
+								}
+								if($from_add == '')
+								{
+									$from_add .= $trans_val['st_from_zip'];
+								}
+								//echo $from_add;exit;
+								$to_add = '';
+								//$to_add = $transport_result_val['st_to_city'].'/'.$transport_result_val['st_to_state'];
+								if(isset($trans_val['st_to_city']) && $trans_val['st_to_city'] != '')
+								{
+									$to_add .= $trans_val['st_to_city'].'/';
+								}
+								if(isset($trans_val['st_to_state']) && $trans_val['st_to_state'] != '')
+								{
+									$to_add .= $trans_val['st_to_state'];
+								}
+								if($to_add == '')
+								{
+									$to_add .= $trans_val['st_to_zip'];
+								}
+								
+								$org_transport_status_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+								<table width="100%" border="0" cellspacing="0" cellpadding="0"><tr>';					 
+								$org_transport_status_str .= '<td><p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$trans_val['in_transportation_id'].'</a> on '.$from_day.' '. $from_date .' from '.$from_add.' to <br>'.$to_add.' - '.$cover_leg.' of '.$all_legs_count.' legs filled </p></td>';
+								$org_transport_status_str .= '<td align="right"><span style="font-size:14px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; text-align:right; white-space:nowrap"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style=" background:#ee6d35; padding:5px 10px; color:#fff; border-radius:2px;" target="_blank">View Transport</a></span></td>';
+								$org_transport_status_str .= '</tr></table></div>';
+								
+							}
+						}
+					}	  
+		  
+					
+									
+					//$templete 	= str_replace("##org-transport-status##", $org_transport_status_str, $templete);
+					//echo 'org_transport_status_str'.trim(strip_tags($org_transport_status_str));exit;
+					
+					$str_org_transport_status = trim(strip_tags($org_transport_status_str));
+					if($str_org_transport_status != '' && $str_org_transport_status == 'Org transports status')
+					{
+						$templete 	= str_replace("##org-transport-status##", "", $templete);
+					}else
+					{
+						$templete 	= str_replace("##org-transport-status##", $org_transport_status_str, $templete);
+					}					
+					##org-transport-changes##
+					$org_transport_changes_str = '';
+					
+					$org_transport_changes_data = $this->daily_digest_model->get_org_transport_changes_data($user_id,$user_organizations);
+					//echo '<pre/>';
+					//print_r($org_transport_changes_data);
+					//exit;
+					
+					$org_transport_changes_str .= '';
+					if(isset($org_transport_changes_data) && !empty($org_transport_changes_data))
+					{	
+						foreach($org_transport_changes_data as $trans_data)
+						{	
+							if(isset($trans_data) && !empty($trans_data))
+							{
+								$org_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Org transports changes</p>';
+								break;	
+							}
+						}
+								
+						foreach($org_transport_changes_data as $trans_data)
+						{	
+							foreach($trans_data as $trans_val)
+							{
+								if($trans_val['in_deleted'] == 0)
+								{							
+								$org_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+								<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$trans_val['in_transportation_id'].'</a> volunteer '.$trans_val['user_name'].' joined leg '.$trans_val['in_sort_order'].'</p>
+								</div>';	
+								}
+								else
+								{
+								$org_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px;">
+								<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$trans_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">DBT'.$trans_val['in_transportation_id'].'</a> volunteer '.$trans_val['user_name'].' left leg '.$trans_val['in_sort_order'].'</p>
+								</div>';
+								}				 
+							}
+						}
+					}	
+					
+					$templete 	= str_replace("##org-transport-changes##", $org_transport_changes_str, $templete);
+					
+					##recommended-transport-changes##
+					$recommended_transport_changes_str = '';
+					
+					
+					$recommended_transport_changes_data = $this->daily_digest_model->get_recommended_transport_changes_data($user_id,$user_organizations);
+					//echo '<pre/>';
+					//print_r($recommended_transport_changes_data);
+					//exit;
+					
+					if(isset($recommended_transport_changes_data) && !empty($recommended_transport_changes_data))
+					{	
+						foreach($recommended_transport_changes_data as $recommended_data)
+						{	
+							if(isset($recommended_data) && !empty($recommended_data))
+							{
+								$recommended_transport_changes_str .= ' <p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Recommended changes from volunteers </p>';
+								break;
+							}
+						}	
+						
+						foreach($recommended_transport_changes_data as $recommended_data)
+						{	
+							foreach($recommended_data as $recommended_val)
+							{
+								$pickup_location = '';
+								$orgcode = ($recommended_data['st_org_code'] != '')? $recommended_data['st_org_code'] : 'DBT';
+								if(isset($recommended_val['st_from_street']) && trim($recommended_val['st_from_street']) != '')
+								{
+									$pickup_location .= $recommended_val['st_from_street'] . ', ';
+								}						
+								if(isset($recommended_val['st_from_city']) && trim($recommended_val['st_from_city']) != '')
+								{
+									$pickup_location .= $recommended_val['st_from_city'] . ', ';
+								}
+								if(isset($recommended_val['st_from_state']) && trim($recommended_val['st_from_state']) != '')
+								{
+									$pickup_location .= $recommended_val['st_from_state'];
+								}
+								
+								
+								$dropoff_location = '';
+								if(isset($recommended_val['st_to_street']) && trim($recommended_val['st_to_street']) != '')
+								{
+									$dropoff_location .= $recommended_val['st_to_street'] . ', ';
+								}
+								if(isset($recommended_val['st_to_city']) && trim($recommended_val['st_to_city']) != '')
+								{
+									$dropoff_location .= $recommended_val['st_to_city'] . ', ';
+								}
+								if(isset($recommended_val['st_to_state']) && trim($recommended_val['st_to_state']) != '')
+								{
+									$dropoff_location .= $recommended_val['st_to_state'];
+								}
+								
+								
+								$recommended_transport_changes_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:15px; border-bottom:1px solid #ebebeb;">
+							<p style="font-size:15px; color:#555; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; padding-right:50px;"><a href="'.base_url().'org-transportation-scheduled/'.$recommended_val['in_transportation_id'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.$orgcode.$recommended_val['in_transportation_id'].'</a> - '.$recommended_val['st_user_name'].' said "I could do '.$pickup_location.' to '.$dropoff_location.'"</p>
+							</div>';	
+												 
+							}
+						}
+					}
+					
+					$templete 	= str_replace("##recommended-transport-changes##", $recommended_transport_changes_str, $templete);
+					
+					##org-fundraiser-status##
+					$org_fundraiser_status_str = '';
+					
+					$org_fundraiser_status_data = $this->daily_digest_model->get_org_fundraiser_status_data($user_id,$fundraiser_setting_data,$user_organizations);
+					//echo '<pre/>';
+					//print_r($org_fundraiser_status_data);
+					//exit;
+					
+					$org_fundraiser_status_str .= '';	
+					
+					if(isset($user_organizations) && !empty($user_organizations))
+					{		
+						$org_fundraiser_status_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+								<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Org fundraiser status</p>
+								<p style="height:15px; margin:0px; padding:0px;"></p>
+								<div style="display:block; padding-bottom:15px;">
+								<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+					}
+					if(isset($org_fundraiser_status_data) && !empty($org_fundraiser_status_data))
+					{
+						foreach($org_fundraiser_status_data as $fund_data)
+						{	
+							foreach($fund_data as $fund_val)
+							{
+								$org_fundraiser_status_str .= '<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; box-sizing:border-box; margin-left:0px;"><span style="vertical-align:top; margin-top:6px; display:inline-block; width:80%; line-height:20px;"><a href="'.base_url().'campaign/'.$fund_val['custom_url'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.htmlspecialchars($fund_val['page_title']).'</a> fundraiser</span></li>';
+							}
+						}
+					}
+					
+						$org_fundraiser_status_str .= '</ul>
+							</div>';
+					
+					//$templete 	= str_replace("##org-fundraiser-status##", $org_fundraiser_status_str, $templete);
+					
+					$str_org_fundraiser_status = trim(strip_tags($org_fundraiser_status_str));
+					if($str_org_fundraiser_status != '' && $str_org_fundraiser_status == 'Org fundraiser status')
+					{
+						$templete 	= str_replace("##org-fundraiser-status##", "", $templete);
+					}else
+					{
+						$templete 	= str_replace("##org-fundraiser-status##", $org_transport_status_str, $templete);
+					}
+					
+					##org-fundraiser-updates##
+					$org_fundraiser_updates_str = '';
+					$org_fundraiser_updates_data = $this->daily_digest_model->get_org_fundraiser_updates_data($user_id,$fundraiser_setting_data,$user_organizations);
+					//echo '<pre/>';
+					//print_r($org_fundraiser_updates_data);exit;
+					
+					$org_fundraiser_updates_str .= '';
+					if(isset($org_fundraiser_updates_data) && !empty($org_fundraiser_updates_data))
+					{
+							
+						foreach($org_fundraiser_updates_data as $fund_data)
+						{	
+							if(isset($fund_data) && !empty($fund_data))
+							{
+								$org_fundraiser_updates_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<p style="font-size:20px; color:#000; font-family:Arial, Helvetica, sans-serif; font-weight:normal; line-height:20px; border-bottom:2px solid #ebebeb; padding-bottom:15px !important;">Org fundraiser updates</p>';
+								break;
+							}
+						}	
+						
+							
+						foreach($org_fundraiser_updates_data as $fund_data)
+						{	
+							foreach($fund_data as $fund_val)
+							{
+								$org_fundraiser_updates_str .= '<p style="height:15px; margin:0px; padding:0px;"></p>
+							<div style="display:block; padding-bottom:0px;">
+							<ul style="display:inline-block; width:100%; box-sizing:border-box; padding:0px; margin-bottom:0px; margin-top:0px;">';
+								$org_fundraiser_updates_str .= '<li style="list-style-type:none; float:left; width:100%; margin-right:10px; background-color:#eef0f7; display:inline-block; font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#555; margin-bottom:10px; margin-left:0px; margin-right:0px;"><a href="'.base_url().'campaign/'.$fund_val['st_custom_url'].'" style="color:#ee304d; text-decoration:underline !important;" target="_blank">'.htmlspecialchars($fund_val['st_page_title']).'</a> fundraiser - '.$fund_val['st_display_name'].' donated $'.$fund_val['in_donation_amount'].'</span></li>';
+								
+							}
+						}
+						
+						 $org_fundraiser_updates_str .= '</ul>
+							</div>';
+					}
+					$templete 	= str_replace("##org-fundraiser-updates##", $org_fundraiser_updates_str, $templete);
+					
+					$unsubscribe_url = base_url().'daily_digest/unsubscribe_email/'.$this->common_function->encode_base64($userDetail['in_user_id']).'/'.$this->common_function->encode_base64($userDetail['email']);
+					/*$unsubscribe_email_str = '';
+					$unsubscribe_email_str .= '<p style="height:15px; margin:0px; padding:0px;"></p><div style="display:block; padding-bottom:0px;">';
+					//$unsubscribe_email_str .= 'If you don\'t want to receive Daily Digest Email from Doobert in the future, please <a href="'.$unsubscribe_url.'" target="_blank">unsubscribe.</a>';	
+					$unsubscribe_email_str .= '<a href="'.$unsubscribe_url.'" target="_blank">Click HERE</a> and we will add you to our Daily Digest DO NOT EMAIL list. You will no longer receive daily digest emails from Doobert.';						
+					$unsubscribe_email_str .= '</div>';
+
+					$templete 	= str_replace("##unsubscribe-email##", $unsubscribe_email_str, $templete);*/
+					
+					//echo '<br/>';
+					$templete = str_replace("##unsubscribe-email##",$unsubscribe_url,$templete);
+					
+					if(trim(strip_tags($org_transport_status_str)) == 'Org transports status' && trim(strip_tags($org_fundraiser_status_str)) == 'Org fundraiser status' && trim($org_transport_changes_str) == '' && $recommended_transport_changes_str == '' && trim($org_fundraiser_updates_str) == '')
+					{
+						$templete 	= str_replace("##my-organization-updates##", "", $templete);
+					}else{
+						$templete 	= str_replace("##my-organization-updates##", $my_organization_updates_str, $templete);
+					}
+					
+					//print_r($templete);
+					//exit;
+					
+					$message 	= $templete;
+					
+					if(trim($my_transport_status_str) == '' && trim($my_transport_updates_str) == '' && trim($feeds_received_str) == '' && (trim(strip_tags($near_by_transport_str)) == 'Nearby transport opportunities' || trim(strip_tags($near_by_transport_str)) == '') && trim($feed_need_to_provide_str) == '' && trim($photo_story_needed_str) == '' && trim($new_animal_profile_str) == '' && trim($new_animal_fundraiser_str) == ''  && (trim(strip_tags($org_transport_status_str)) == 'Org transports status' || trim(strip_tags($org_transport_status_str)) == '') && trim($org_transport_changes_str) == '' &&  $recommended_transport_changes_str == '' && (trim(strip_tags($org_fundraiser_status_str)) == 'Org fundraiser status' || trim(strip_tags($org_fundraiser_status_str)) == '') && trim($org_fundraiser_updates_str) == '')
+					{
+						echo 'No content - Email not sent';
+					}	
+					else
+					{
+						echo 'send email';
+						
+						$email_status = $this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+					
+						if($email_status && $email_status == '1')
+						{
+							echo 'email sent successfully';
+						}else{
+							echo 'email not sent';
+						}
+						
+					}
+					
+					$this->email->clear(TRUE);
+					
+					//$this->common_model->update_daily_digest_user($userDetail['in_user_id']);		
+				}
+				
+				//exit;
+			}
+		}	
+		
+	}
+	function fetch_blog_data()
+	{
+		$blog	=	$this->daily_digest_model->get_doobert_system_notification();
+		$latest_from_doobert_blog = $this->daily_digest_model->get_doobert_blog_data();
+		
+		$update_arr = array('st_blog'=>serialize($blog),'st_latest'=>serialize($latest_from_doobert_blog),'dt_updated' => date('Y-m-d H:i:s'));
+        $this->db->where('in_id', '1');
+        $this->db->update('tbl_daily_digest_content', $update_arr);
+	}
+}
+	
+/* End of file cron_setting_doobert.php */
+/* Location: ./application/controllers/cron_setting_doobert.php */
+?>

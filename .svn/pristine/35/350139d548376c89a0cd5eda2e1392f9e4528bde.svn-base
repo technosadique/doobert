@@ -1,0 +1,161 @@
+<?php
+	if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+	class login_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+        $this->load->database();
+    }   
+	
+	
+	function isValid($username, $password) {
+        $arrData['error'] = '';
+        $is_admin = '0';
+
+        $this->db->select('in_userid, 
+						   st_email, 
+						   st_password,
+							st_org_name
+						  ');
+        $this->db->where('st_email', $username);
+        $this->db->where('st_password', $password);
+        $this->db->where('in_deleted', 0);
+        $this->db->from('tbl_user');
+        $query = $this->db->get();
+        //echo $this->db->last_query(); die;		
+
+
+        if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+                $arrData = array('user_id' => $Row->in_userid,
+                    'email' => $Row->st_email,
+                    'password' => $Row->st_password,
+					 'orgname' => $Row->st_org_name    
+                );
+                $is_user = $Row->in_userid;
+            }
+            return $arrData;
+        } else {
+            $arrData['error'] = "Invalid Email or Password.";
+            return $arrData;
+        }
+    }
+	
+	function user_forgotpassword($data)
+	{
+		$this->db->select("in_userid,st_org_name,st_email");
+		$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($data['email'])));
+		$query = $this->db->get("tbl_user");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData['user_details']	= array("userid"	=> $Row->in_userid,
+													"org_name"	=> $Row->st_org_name,													
+													"email"		=> $Row->st_email													
+													);
+			}
+			return $arrData;
+		}
+		
+	}
+   
+   
+   function update_user($array,$user_id)
+	{
+		$this->db->where('in_userid', $user_id);
+		$this->db->update('tbl_user', $array);
+		// echo $this->db->last_query(); 
+		return $this->db->affected_rows();
+	}
+	
+	
+	function forgotpassword_details($token='',$user_id='')
+	{
+		$this->db->select("in_userid,dt_reset_password_sent");
+		$this->db->where(array("in_deleted"=>'0',"in_userid"=>$user_id,"st_reset_password_token"=>addslashes($token)));
+		$query = $this->db->get("tbl_user");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData['user_details']	= array("userid"				=> $Row->in_userid,
+													"reset_password_sent"   => $Row->dt_reset_password_sent
+													);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	public function get_shelter_detail($shelter_code)
+	{
+		$this->db->select('*');
+		$this->db->where('st_screener_id',$shelter_code);
+		$this->db->order_by('st_screener_id','DESC');
+		$q=$this->db->get('tbl_user');
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+		
+	}
+	public function get_shelter_questation($code)
+	{
+		$this->db->select('*');
+		$this->db->where('in_screenerid',$code);
+		$this->db->order_by('in_screenerid','DESC');
+		$q=$this->db->get('tbl_screener');
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+	}
+	
+	
+	function isAdminValid($username, $password) {
+        $arrData['error'] = '';
+        $is_admin = '0';
+
+        $this->db->select('in_admin_id, 
+						   st_email_address, 
+						   st_password							
+						  ');
+        $this->db->where('st_email_address', $username);
+        $this->db->where('st_password', $password);
+        $this->db->where('in_deleted', 0);
+        $this->db->from('tbl_admin');
+        $query = $this->db->get();
+       // echo $this->db->last_query(); die;		
+
+
+        if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+                $arrData = array('admin_id' => $Row->in_admin_id,
+								 'admin_email' => $Row->st_email_address,
+								 'password' => $Row->st_password					 
+                );
+                $is_user = $Row->in_admin_id;
+            }
+            return $arrData;
+        } else {
+            $arrData['error'] = "Invalid Email or Password.";
+            return $arrData;
+        }
+    }
+	
+	public function get_shelter_availbal($code)
+	{
+		
+		$this->db->select('*');
+		
+		$this->db->where("st_survey_code LIKE '".$code."%'", NULL, FALSE);
+		$this->db->order_by('in_id','DESC');
+		$q=$this->db->get('tbl_survey');
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+	}
+	
+	
+	
+}
+
+?>

@@ -1,0 +1,1745 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Registration extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		//$this->output->enable_profiler(true);
+		$this->load->model('common_model');
+		$this->load->library('common_function');	
+		//$this->load->model('registration_model');
+		$this->load->model('user_model');
+		//$this->load->model('orgtrasnportation_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->helper('cookie');
+		$this->load->library('pagination');
+		//$this->load->library('nativesession'); 
+		error_reporting(0);
+		/*if(!$this->session->userdata('org_id')){
+			redirect(base_url().'my-profile');
+		}*/
+	}
+	
+	public function individual_user_registration()
+	{  
+		
+		//$URL = $_SERVER['HTTP_REFERER'];
+		//$tempUrl = explode("/", $URL);		
+		$referredby = $_GET['ref'];
+		if($referredby == "BFAS"){
+			$this->session->set_userdata('referred_by',$referredby);
+		}
+		
+		if($referredby == "altl"){
+			$this->session->set_userdata('referred_by',$referredby);
+		}
+		
+		if($referredby == "HIFV"){
+			$this->session->set_userdata('referred_by',$referredby);
+		}
+		if($referredby == "PTTR"){
+			$this->session->set_userdata('referred_by',$referredby);
+		}
+		if($referredby == "PVAC"){
+			$this->session->set_userdata('referred_by',$referredby);
+		}
+		
+		if($this->session->userdata('registerstep') && $this->session->userdata('userid'))
+		{	
+				redirect($this->config->item('base_url') . "volunteer-profile");
+		}
+		
+		if($this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url') . "dashboard/");
+		}
+		
+		//$this->session->set_userdata('checkout',$return);
+        $data = array();
+        $data['Err_Msg_forgot'] = '';
+        $data['Err_Msg_reg'] = '';
+        $data['Err_Msg_login'] = '';
+        $data['Err_Msg'] = '';
+        $data['rem_password'] = get_cookie('pass');
+        $data['rem_email'] = get_cookie('user');
+        $data['menu_no'] = 'yes';
+	
+		$this->session->unset_userdata('fb_user');
+		 
+        $form_field = array('username' => "",
+            'lastname' => "",
+            'email' => "",
+            'password' => "",
+            'rpassword' => "",
+            'referred_by' => "",
+            'tnc' => "",
+            'signup' => "",
+            'remember' => "",
+            'action' => "",
+            'oldertc' => "",
+			'volunteer_as' => "",
+			'zipcode' => "",
+			'maskphone' => "",
+        );
+        foreach ($form_field as $key => $value) {
+            $data['register'][$key] = $value;
+        }
+        if ($this->input->post('action')) {
+            foreach ($form_field as $key => $value) {
+				if(!is_array($this->input->post($key)))
+				{
+                	$data['register'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));
+				}else{
+					$data['register'][$key] = $this->input->post($key);
+					}
+            }
+			
+			$removed_empty_space_pass = preg_replace('/\s+/', '',$data['register']['password']);
+			$data['register']['password'] = $removed_empty_space_pass;
+			
+			$verificationCode = $this->generate_random_password(15);
+			$data['register']['email_verification_code'] = $verificationCode;
+			
+            if ($this->input->post('action') == "registeruser") {
+                $this->form_validation->set_rules('username', 'First Name', 'trim|required');
+                $this->form_validation->set_rules('lastname', 'Last Name', 'trim|required');
+                $this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[6]');
+                //$this->form_validation->set_rules('password', 'Password', 'trim|required|spacecheck|min_length[6]');
+                //$this->form_validation->set_rules('rpassword', 'Re-type Your Password', 'trim|required');
+                //$this->form_validation->set_rules('referred_by', 'Person/Organization Name', 'trim');
+                //$this->form_validation->set_rules('tnc', 'I agree to the Terms of Service and Privacy Policy', 'trim|required');
+                //$this->form_validation->set_rules('oldertc', 'I am 18 or older and have read and agree to the Terms and Conditions.', 'trim|required');
+				//$this->form_validation->set_rules('volunteer_as[]', 'Volunteer', 'trim');
+				$this->form_validation->set_rules('zipcode', 'Zipcode', 'trim|required');
+				//$this->form_validation->set_rules('maskphone', 'Phone Number', 'trim|required');		
+                $counts = $this->common_model->check_exists("tbl_users", "in_user_id", array("st_email" => $data['register']['email'], "in_deleted" => '0'));
+                $Err_Msg = '';
+                if ($counts > 0) {
+                    $Err_Msg = "Email address already exists.";					
+					$fb_user_id = $this->common_model->check_fb_user($data['register']['email']);
+					//print_r($fb_user_id);die;
+					if(isset($fb_user_id) && !empty($fb_user_id) && $fb_user_id['st_facebook_uid'] != '')
+					{
+						$this->session->set_userdata('fb_user', 'It looks like you created your account by using the Facebook Login / App. Please click on the Sign In to With Facebook to be logged into the system.');	
+						//$Err_Msg = 'It looks like you created your account by using the Facebook.';	
+						$Err_Msg = '';					
+					}
+                }
+                if ($this->form_validation->run() == FALSE || $Err_Msg != '' || ($this->session->userdata('fb_user') && $this->session->userdata('fb_user') != '')) {
+                    $data['Err_Msg_reg'] = validation_errors() . $Err_Msg;
+                    //$this->load->view('user_register',$data);	
+                } else 
+				{
+                    $browser_details = array();
+                    $browser_details["page_referral"] = $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                    $browser_details["ip_address "] = $_SERVER['REMOTE_ADDR'];
+                    $browser_details["browser_used"] = $_SERVER['HTTP_USER_AGENT'];
+
+                    
+                    $referred_by = $this->session->userdata('referred_by');
+					if($referred_by == "BFAS"){
+						$st_referred_by = $referred_by;
+					}
+					elseif($referred_by == "altl"){
+						$st_referred_by = $referred_by;
+					}	
+						
+					elseif($referred_by == "HIFV"){
+						$st_referred_by = $referred_by;
+					}
+					elseif($referred_by == "PTTR"){
+						$st_referred_by = $referred_by;
+					}
+					elseif($referred_by == "PVAC"){
+						$st_referred_by = $referred_by;
+					}
+					
+					
+					else{
+						$st_referred_by = $data['register']['referred_by'];
+					}					
+
+
+                    $data_array = array("st_display_name" => $data['register']['username'],
+										   "st_last_name" => $data['register']['lastname'],
+											   "st_email" => $data['register']['email'],
+											"st_password" => md5($data['register']['password']),
+										 "st_referred_by" => $st_referred_by,
+											 "dt_created" => date("Y-m-d h:i:s"),
+										    "dt_modified" => date("Y-m-d h:i:s"),
+										  "in_newsletter" => (($data['register']['signup'] != '') ? "Y" : "N"),
+											  "in_public" => "1",
+                                              "in_status" => "1",
+                                      "in_age_terms_flag" => "1",
+                                        "st_browser_info" => @serialize($browser_details),
+						     "st_email_verification_code" => $verificationCode,
+									  'flg_immediate_all' => 1,
+								'flg_immediate_transport' => 1,
+								   'flg_immediate_animal' => 1,
+								     'flg_immediate_fund' => 1,
+									);
+					
+					$zipcode 	  = $data['register']['zipcode'];
+					$volunteer_as = $data['register']['volunteer_as'];
+					
+					
+					//print_r($volunteer_as);exit;
+					
+                    $inserted_id = $this->user_model->insert_user($data_array);
+					$country = $this->common_model->get_country(trim($zipcode));
+					$timezone='';
+					if(trim($country['st_country'])=='IN')
+					{ 
+						$timezone='IST';
+					} 
+					else{
+						$timezone='EST';
+					}
+                    $this->user_model->insert_user_profile(array("in_user_id" => $inserted_id,"st_zip" => $zipcode, "in_status" => "1", "dt_created" => date("Y-m-d H:i:s"),'in_complete_profile'=>'1',"st_time_zone"=>$timezone));
+					
+					$address_details	=	$this->common_model->getaddress($zipcode);
+					$user_profile_info["st_city"]  = isset($address_details['city']) ? $address_details['city'] : '';
+					$user_profile_info["st_state"] = isset($address_details['state_prefix']) ? $address_details['state_prefix'] : '';
+					//$user_profile_info["st_country"] = isset($address_details['st_country']) ? strtoupper($this->common_function->shortCountry[trim($address_details['st_country'])]) : '';
+					$user_profile_info["st_country"] = isset($address_details['st_country']) ? trim($address_details['st_country']) : '';
+					$this->user_model->update_user_info($user_profile_info, $inserted_id, 'tbl_user_profile');
+					
+					
+					$this->session->set_userdata('userid', $inserted_id);
+					$this->session->set_userdata('user_name', $data['register']['username']);
+                    $this->session->set_userdata('last_name', $data['register']['lastname']);
+                    $this->session->set_userdata('email', $data['register']['email']);
+					$this->session->set_userdata('zip',$zipcode);
+					$this->session->set_userdata('ststate',$user_profile_info["st_state"]);
+					$this->session->set_userdata('stcountry',$user_profile_info["st_country"]);
+					$this->session->set_userdata('popup_display',1);
+					$this->session->set_userdata('registerstep',1);
+					setcookie("userid",$inserted_id,0,"/",".doobert.com");
+                    $this->login_details($data['register']);
+					$this->email_confirm();	
+					
+					$lat = 0;
+					$lon = 0;
+					
+					if($this->session->userdata('recommend_routing_id'))
+					{
+						if(count($this->session->userdata('recommend_routing_id'))>0)
+						{
+							foreach($this->session->userdata('recommend_routing_id') as $key=>$value)
+							{
+								if(!empty($value))
+								{
+									$routing_leg = $this->common_model->get_public_assisted_routing($value);
+									if(isset($routing_leg)&& count($routing_leg)>0)
+									{	
+										$legs_cover = array('in_transportation_id'=> $routing_leg['in_transportation_id'],
+																 'in_route_type'  => $routing_leg['in_route_type'],
+																	'in_user_id'  => $this->session->userdata('userid'),
+																'st_from_street' => $routing_leg['st_from_street'],
+																  'st_from_city' => $routing_leg['st_from_city'],
+																'st_from_state'	 => $routing_leg['st_from_state'],	
+																  'st_from_zip'	 => $routing_leg['st_from_zip'],
+															  'st_from_country'	 => $routing_leg['st_from_country'],
+																'st_to_street' 	 => $routing_leg['st_to_street'],
+																  'st_to_city'	=> $routing_leg['st_to_city'],
+																 'st_to_state'  => $routing_leg['st_to_state'],	
+																	'st_to_zip'	=> $routing_leg['st_to_zip'],
+																'st_to_country' => $routing_leg['st_to_country'],
+																	'dt_created' => date("Y-m-d H:i:s"),
+																	'dt_modified' => date("Y-m-d H:i:s"),
+																		'st_info' => $routing_leg['st_notes']
+															);
+										$this->db->insert('tbl_legs_cover', $legs_cover);
+										$delete_legs = array('in_deleted'=>1);
+										$this->db->where('in_id',$value);
+										$this->db->update('tbl_recommend_routing_leg',$delete_legs);
+									}
+										
+								}	
+							}
+						}	
+						$this->session->unset_userdata('recommend_routing_id');	
+					}
+					
+					if($this->session->userdata('recommend_trip_id'))
+					{
+						if(count($this->session->userdata('recommend_trip_id'))>0)
+						{
+							foreach($this->session->userdata('recommend_trip_id') as $key=>$value)
+							{
+								if(!empty($value))
+								{
+									$airline_date = $this->common_model->get_public_airline_routing($value);
+									if(isset($airline_date)&& count($airline_date)>0)
+									{	
+										$trip_date = array('in_transportation_id' => $airline_date['in_transportation_id'],
+																   'in_user_id'   => $this->session->userdata('userid'),
+																   'in_deleted'   => 0,	
+																   'dt_created'   => date("Y-m-d H:i:s"),
+																   'dt_modified'  => date("Y-m-d H:i:s"),
+																   'dt_trip_date' => date('Y-m-d',strtotime($airline_date['trip_date'])),
+																     'st_info'	  => $airline_date['st_notes'],	
+															);									
+										$this->db->insert('tbl_airline_transport_leg', $trip_date);
+										$delete_legs = array('in_deleted'=>1);
+										$this->db->where('in_id',$value);
+										$this->db->update('tbl_recommend_tripdate',$delete_legs);
+									}
+										
+								}	
+							}
+						}	
+						$this->session->unset_userdata('recommend_trip_id');
+					}	
+
+						if($this->session->userdata('recommend_user_name'))
+						{
+							$this->session->unset_userdata('recommend_user_name');
+						}
+
+						if($this->session->userdata('recommend_user_email'))
+						{
+							$this->session->unset_userdata('recommend_user_email');
+						}	
+					
+                    $user_result = $this->user_model->match_nondoobert_email_id($this->session->userdata('email'));
+                    if (isset($user_result) && !empty($user_result)) {
+                        $lat = 0;
+                        $lon = 0;
+						$this->load->model('orgtrasnportation_model');
+                        if ($this->session->userdata('zip')) {
+                            //$get_lat_long = $this->common_model->get_lattitude_longitude(trim($user_result[0]['st_zipcode']));
+							$get_lat_long = $this->common_model->get_lattitude_longitude($this->session->userdata('zip'));
+
+                            if (!empty($get_lat_long['lat']) && !empty($get_lat_long['lon'])) {
+                                $user_vehicle_info['zip_lat'] = $get_lat_long['lat'];
+                                $lat = $get_lat_long['lat'];
+                                $user_vehicle_info['zip_lon'] = $get_lat_long['lon'];
+                                $lon = $get_lat_long['lon'];
+                            }
+
+                            $user_profile_info = array();
+                            //$user_profile_info['st_zip'] = $user_result[0]['st_zipcode'];
+                            $user_profile_info['st_primary_phone'] = $user_result[0]['st_phone'];
+                            $user_profile_info['in_status'] = "1";
+
+                            $data['user_profile'] = $this->user_model->update_user_info($user_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+
+                            $user_data_array = array("in_status" => "1");
+                           
+
+                            $transport_co_details = $this->orgtrasnportation_model->get_transport_coordinator_detail($user_result[0]['in_transportation_id']);
+                            if (isset($transport_co_details) && !empty($transport_co_details)) {
+                                $user_data_array['st_referred_by'] = $transport_co_details['coordinatorname'];
+                            }
+
+                            $this->user_model->update_user($user_data_array, $this->session->userdata('userid'));
+
+                            $driver_data = array("driver_user" => "Y",
+                                "avl_days" => array("0" => "Sun", "1" => "Mon", "2" => "Tue", "3" => "Wed", "4" => "Thu", "5" => "Fri", "6" => "Sat"),
+                                "zipcode" => $this->session->userdata('zip'),
+                                "vehicle_ids" => array("0" => ""),
+                                //"vehicletype"  => array("0"=>$user_result[0]['st_vehicle_type']),
+                                "vehicletype" => array("0" => "4-Door Car"),
+                                "distance" => array("0" => 100),
+                                "color" => array("0" => $user_result[0]['st_vehicle_color']),
+                                "license" => array("0" => $user_result[0]['st_license_plate']),
+                                "license_state" => array("0" => $user_result[0]['st_license_state']),
+								"googlephotos_vehicle" =>array("0"=>""),
+                            );
+                            $this->user_model->update_vehicle_details($driver_data, $this->session->userdata('userid'), $this->session->userdata('zip'), serialize($driver_data['avl_days']),'100', $lat, $lon, 'tbl_user_vehicle');
+                            $driver_profile_info['st_driver'] = "Y";
+                            $driver_profile_info['dt_modified'] = date('Y-m-d H:i:s');
+                            $data['user_profile'] = $this->user_model->update_user_info($driver_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+                        }
+
+                        foreach ($user_result as $key => $value) {
+                            $join_data = array("in_transportation_id" => $value['in_transportation_id'],
+                                "in_user_id" => $this->session->userdata('userid'),
+                                "in_transportation_leg_id" => $value['in_leg_id'],
+                                "in_created_by" => $this->session->userdata('userid'),
+                                "dt_created" => date("Y-m-d H:i:s"),
+                                "in_deleted" => 0
+                            );
+
+                            $this->orgtrasnportation_model->join_legs($join_data);
+
+
+                            $this->orgtrasnportation_model->update_non_doobert_user_leg($value['in_non_doobert_user_id']);
+
+                            $leg_type = $this->orgtrasnportation_model->get_leg_type_by_id($value['in_leg_id']);
+
+                            if (!empty($leg_type)) {
+                                //print_r($leg_type[0]['in_route_type']);
+                                if (isset($leg_type[0]['in_route_type']) && $leg_type[0]['in_route_type'] != '' && $leg_type[0]['in_route_type'] == 0) {
+                                    //code to update vehicle id in leg details 
+                                    $data['arrVehicle'] = $this->user_model->get_vehicle_detail($this->session->userdata('userid'));
+                                    if (!empty($data['arrVehicle'][0]) && isset($data['arrVehicle'][0]['in_vehicle_id'])) {
+                                        //$array_update = array("in_vehicle_id"=>$data['arrVehicle'][0]['in_vehicle_id']);
+                                        //$this->orgtrasnportation_model->update_legs($array_update,$legs_ids);
+                                        $leg_vehicle_detail = array("in_transportation_id" => $value['in_transportation_id'],
+                                            "in_user_id" => $this->session->userdata('userid'),
+                                            "in_vehicle_id" => $data['arrVehicle'][0]['in_vehicle_id'],
+                                            "in_transportation_leg_id" => $value['in_leg_id'],
+                                            "dt_created" => date("Y-m-d H:i:s"),
+                                            "in_deleted" => 0
+                                        );
+                                        $this->orgtrasnportation_model->add_leg_vehicle_detail($leg_vehicle_detail);
+                                    }
+                                }
+                            }
+                        }
+                    }
+					
+					$nondoobert_vol_org = $this->user_model->match_nondoobert_org_vol($this->session->userdata('email'));
+					{
+						if(count($nondoobert_vol_org))
+						{
+							$insert_record = array();
+							foreach($nondoobert_vol_org as $key=>$value)
+							{
+									if(!empty($value['in_organization_id']))
+									{
+										$insert_record[] = array('in_organization_id' => $value['in_organization_id'],
+																		 'in_user_id' => $this->session->userdata('userid'),
+																		 'in_deleted' => 0,
+																		'dt_created'  => date("Y-m-d H:i:s"),
+																	   'dt_modified'  => date("Y-m-d H:i:s")					
+																);
+									}
+								$this->user_model->delete_nondoobert_org_vol($value['in_vol_user_id']);		
+							}
+							
+
+							if(count($insert_record)>0)
+							{	
+										$feedback_id = $this->db->insert_batch('tbl_organization_preferred_volunteer',$insert_record);
+							}	
+							
+						}
+					}
+
+
+                   
+						redirect($this->config->item('base_url') . "volunteer-profile");
+					   //redirect($this->config->item('base_url') . "dashboard/");
+                    }
+                }
+            }
+        //}
+		
+        $this->load->view('individual-signup', $data);
+	}
+	
+	public function individual_user_profile()
+	{ 
+		if(!$this->session->userdata('userid'))
+		{
+				redirect($this->config->item('base_url') . "user-signup");
+		}
+		if(!$this->session->userdata('registerstep') && $this->session->userdata('userid') )
+		{	
+				redirect($this->config->item('base_url') . "user-signup-thankyou");
+		}
+		$data = array();
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		$data['profile_info']= $user_details[0];
+			
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		if($data['profile_info']['st_country']=='USA' || $data['profile_info']['st_country']=='US')
+		{
+			$data['airline']	 = $this->common_model->get_airline();
+			$data['airbase']	 = $this->common_model->get_base_airport();
+		}	
+		$signup_video		 =	$this->common_model->get_signup_demo_video();
+		foreach($signup_video as $val){
+				
+				$arr_v	=	explode('v=',$val['st_url']);
+				$data['signup_video'][$val['id_demo_videos']]	=	$arr_v[1];
+		}
+			
+		if ($this->input->post('action') == "signup-profile") 
+		{  
+			  if($this->input->post('transport_check_box')==1)
+			  {		
+				$this->form_validation->set_rules('profile_type[]', 'Profile type', 'trim|required');	
+				if(in_array("d",$this->input->post('profile_type'))== true || in_array("p",$this->input->post('profile_type'))== true )
+				{   
+					$this->form_validation->set_rules('travel_willing', 'Miles', 'trim|required');
+					$this->form_validation->set_rules('weekdays[]', 'Available days', 'trim|required');
+				}
+				
+				if(in_array("air_emp",$this->input->post('profile_type'))== true)
+				{
+					$this->form_validation->set_rules('airline_name', 'Airline name', 'trim|required');
+					$this->form_validation->set_rules('airline_base', 'Base name', 'trim|required');
+				}
+				
+			  }
+			   
+			  // added by sadiq
+			   if($this->input->post('transport_check_box_ride')==1)
+			  {		 
+				/*	 
+				$this->form_validation->set_rules('profile_type_ride[]', 'Profile type', 'trim|required');	
+				if(in_array("d",$this->input->post('profile_type_ride'))== true || in_array("p",$this->input->post('profile_type_ride'))== true )
+				{   
+					$this->form_validation->set_rules('travel_willing_ride', 'Miles', 'trim|required');
+					$this->form_validation->set_rules('ride_weekdays[]', 'Available days', 'trim|required');
+				}
+				*/
+				if($this->input->post('receivenotification')== '1')
+				{
+					$this->form_validation->set_rules('st_mobile', 'Mobile number', 'trim|required');
+				}				
+			  }
+			  
+			  // added by sadiq
+			  
+			  if($this->input->post('foster_check_box')==1)
+			  {		
+				$this->form_validation->set_rules('duration', 'Select Duration', 'trim|required');
+				$this->form_validation->set_rules('animal_type', 'Select Animal', 'trim|required');
+			  }
+			  
+			  if($this->input->post('coordinator_check_box')==1)
+			  {		
+				$this->form_validation->set_rules('transport_weekdays[]', 'Select Duration', 'trim|required');
+			  }
+			  
+			  if($this->input->post('other_vol_enable1')==1)
+			  {		
+				$this->form_validation->set_rules('other_weekdays1[]', 'Select Available Days', 'trim|required');
+				$this->form_validation->set_rules('travel_willing_photographer', 'Miles', 'trim|required');
+			  }
+			  
+			  
+			  if($this->input->post('other_vol_enable2')==1)
+			  {		
+				$this->form_validation->set_rules('other_weekdays2[]', 'Select Available Days', 'trim');
+			  }
+			  
+			  
+			  if($this->input->post('other_vol_enable3')==1)
+			  {		
+				$this->form_validation->set_rules('other_weekdays3[]', 'Select Available Days', 'trim');
+			  }
+			  
+			  if($this->input->post('other_vol_enable4')==1)
+			  {		
+				$this->form_validation->set_rules('other_weekdays4[]', 'Select Available Days', 'trim|required');
+				$this->form_validation->set_rules('travel_willing_inperson', 'Miles', 'trim|required');
+			  }  
+			 
+			/*
+			  if($this->form_validation->run() == FALSE)
+			  {  
+					  $data['Err_Msg'] = validation_errors();					  
+					  $this->load->view('how-would-you-like-to-help.php',$data);
+					  return;
+			  } 
+			  */
+			  //else 
+			  //{ 
+				 $user_profile_info = array();
+				 $profile_setting_arr = array();
+				if ($this->session->userdata('zip')) 
+				{
+								$address_details	=	$this->common_model->getaddress($this->session->userdata('zip'));
+								$user_profile_info["st_city"]  = isset($address_details['city']) ? $address_details['city'] : '';
+								$user_profile_info["st_state"] = isset($address_details['state_prefix']) ? $address_details['state_prefix'] : '';
+								//$user_profile_info["st_zip"] => $this->input->post('zip_code');
+								$user_profile_info["st_country"] = isset($address_details['st_country']) ? strtoupper($this->common_function->shortCountry[trim($address_details['st_country'])]) : '';
+								$user_profile_info["dt_modified"] = date('Y-m-d H:i:s');
+								$get_lat_long = $this->common_model->get_lattitude_longitude($this->session->userdata('zip'));
+									if (!empty($get_lat_long['lat']) && !empty($get_lat_long['lon'])) 
+									{
+										$user_vehicle_info['zip_lat'] = $get_lat_long['lat'];
+										$lat = $get_lat_long['lat'];
+										$user_vehicle_info['zip_lon'] = $get_lat_long['lon'];
+										$lon = $get_lat_long['lon'];
+									} else {
+										$lat = '';
+										$lon = '';
+									}
+									$zip_code = $this->session->userdata('zip');
+									
+					} else {
+										$zip_code = 0;
+										$lat = '';
+										$lon = '';
+					}
+				
+					if($this->input->post('transport_check_box')==1)
+					{
+						$user_profile_info["in_status"] = "1";
+					
+						if(in_array("d",$this->input->post('profile_type'))== true)
+						{
+							$user_profile_info['st_driver'] = "Y";	
+                            $user_profile_info['in_complete_profile']= '0';
+							$arrVehicle = array('in_user_id' => $this->session->userdata('userid'),
+										'st_driver_availability' => serialize($this->input->post('weekdays')),
+										'st_zip_vehicle' => $zip_code,
+										'in_distance_to_drive' => $this->input->post('travel_willing'),
+										'dt_created' => date('Y-m-d H:i:s'),
+										'dt_modified' => date('Y-m-d H:i:s'),
+										'st_vehicle_type' => '4-Door Car',
+										'in_status' => '1',
+										'zip_lat'  => $lat,
+										'zip_lon'	=> $lon,
+										'in_deleted' => '0'
+										);
+									
+							$this->db->insert('tbl_user_vehicle', $arrVehicle);
+							$last_insert_driver_id = $this->db->insert_id();
+						}
+							if(in_array("p",$this->input->post('profile_type'))== true)
+							{	
+								$user_profile_info['st_pilot'] = "Y";
+								$user_profile_info['in_complete_profile']= '0';
+								$arrPilot = array('in_user_id'            => $this->session->userdata('userid'),
+												  'st_pilot_availability' => serialize($this->input->post('weekdays')),
+												  'st_pilot_zip' 		  =>  $zip_code,
+												  'in_distance_to_pilot'  =>  $this->input->post('travel_willing'),
+												  'dt_created'            => date('Y-m-d H:i:s'),
+												  'dt_modified'           => date('Y-m-d H:i:s'),
+												  'in_status'             => '1',
+												  'zip_lat'	              => $lat,
+												  'zip_lon'	              => $lon,
+												  'in_deleted'            => '0'
+												);
+								$this->db->insert('tbl_user_pilot', $arrPilot);
+								$last_insert_pilot_id = $this->db->insert_id();
+							}
+
+							if(in_array("air_emp",$this->input->post('profile_type'))== true)
+							{	
+								$user_profile_info['st_airline_emp'] = "Y";
+								$user_profile_info['in_complete_profile']= '0';
+								$airline_emp = array('in_user_id' => $this->session->userdata('userid'),
+													 'st_base_name' => $this->input->post('airline_base'),
+												     'st_airline_name' => $this->input->post('airline_name'),
+													 'dt_created' => date('Y-m-d H:i:s'),
+											         'dt_modified' => date('Y-m-d H:i:s'),
+											         'in_deleted' => '0'
+											        );
+								$this->db->insert('tbl_user_airline_employee', $airline_emp);
+								$last_insert_pilot_id = $this->db->insert_id();
+								
+								if($this->session->userdata('email'))
+								{
+									$colorado_email_notification = $this->common_model->get_email_containt("113");	
+									
+									$q			=	$this->common_model->get_affiliate_donation_detail('3');
+											if(isset($q) && !empty($q)){					   		
+											foreach($q as $qr)
+											{		 
+												  
+												if(!empty($qr['st_image']))
+												{
+														$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+														$imgtitle   =   $qr['st_banner_name']; 				
+														$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+														alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+													  
+													  
+												}
+												else
+												{
+													   $donation='';								 
+												}							  
+													
+											}
+										}			
+										   
+									   else
+									   {
+										  $donation='';
+									   }
+									if(isset($colorado_email_notification[0]['st_email_body']))
+									{
+										$to = $this->session->userdata('email');
+										$message  = $colorado_email_notification[0]['st_email_body'];
+										$message  = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+										$message  = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+										$message  = str_replace("##display_name##",$this->session->userdata('user_name'). " " .$this->session->userdata('last_name'),$message);				
+										$message  	= 	str_replace("##DONATION##",$donation,$message);
+										$subject  = $colorado_email_notification[0]['st_email_subject'];
+										$category = $colorado_email_notification[0]['st_category'];
+										$this->mail_notify_colorado($to,$subject,$category,$message);
+									}						
+								}	
+						}	
+						
+					} 
+					
+					// added by sadiq
+					
+					if($this->input->post('transport_check_box_ride')==1)
+					{  
+						$user_profile_info["in_status"] = "1";
+					    if($this->input->post('receivenotification')== 1)
+						{
+							$mobile = $this->input->post('st_mobile');
+							$in_messanger = 1;
+						}
+						//if(in_array("d",$this->input->post('profile_type_ride'))== true)
+						//{
+							$user_profile_info['st_driver'] = "Y";	
+                            $user_profile_info['in_complete_profile']= '0';
+							//$ridefrom=array('0.00');
+							//$rideto=array('01.00');
+							//$avl_days_ride =$this->input->post('ride_weekdays'); 
+							//$ride_daytime[] = array($avl_days_ride,$ridefrom,$rideto);
+							
+							$arrRide = array(   'in_user_id' => $this->session->userdata('userid'),
+												//'st_ride_daytime' => (serialize($ride_daytime)),
+												'in_ride_radius' => 50,
+												'in_messanger' => ($in_messanger)?$in_messanger:0,
+												'st_mobile' => ($mobile)?$mobile:'',
+												'dt_created' => date('Y-m-d H:i:s'),
+												'in_deleted' => 0
+										);									
+							$this->db->insert('tbl_user_rides', $arrRide);
+							$last_insert_ride_id = $this->db->insert_id();
+						//}					
+					} 
+					
+					// added by sadiq
+				
+					if($this->input->post('coordinator_check_box')==1)
+					  {  
+							$user_profile_info['in_complete_profile']= '0';
+						  	$transport_profile = array(		'in_user_id'  => $this->session->userdata('userid'),
+														'st_availability' => serialize($this->input->post('transport_weekdays')),										
+															'st_training' => ($this->input->post('enabled')==1)?'Y':'N',
+															'dt_modified' => date('Y-m-d H:i:s'),
+															'dt_created' => date('Y-m-d H:i:s'),
+															 'in_deleted' => '0',
+													 );
+									$this->db->insert('tbl_transport_profile', $transport_profile);
+									if($transport_profile['st_training']=='N')
+									{
+										if($this->session->userdata('email'))
+										{
+													$colorado_email_notification = $this->common_model->get_email_containt("87");	
+								
+													$q			=	$this->common_model->get_affiliate_donation_detail('3');
+													if(isset($q) && !empty($q)){					   		
+															foreach($q as $qr)
+															{		 
+																  
+																if(!empty($qr['st_image']))
+																{
+																		$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+																		$imgtitle   =   $qr['st_banner_name']; 				
+																		$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+																		alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+																	  
+																	  
+																}
+																else
+																{
+																	   $donation='';								 
+																}							  
+																	
+															}
+														}			
+														   
+													   else
+													   {
+														  $donation='';
+													   }
+													if(isset($colorado_email_notification[0]['st_email_body']))
+													{
+														$to = $this->session->userdata('email');
+														$message  = $colorado_email_notification[0]['st_email_body'];
+														$message  = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+														$message  = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+														$message  = str_replace("##display_name##",$this->session->userdata('user_name'). " " .$this->session->userdata('last_name'),$message);				
+														$message  = str_replace("##DONATION##",$donation,$message);				
+														
+														$subject  = $colorado_email_notification[0]['st_email_subject'];
+														$category = $colorado_email_notification[0]['st_category'];
+														$this->mail_notify_colorado($to,$subject,$category,$message);
+													}						
+										}	
+									}	
+					  }  
+			
+					if($this->input->post('foster_check_box')==1)
+					{
+						  $animal_type = $this->input->post('animal_type');
+						  $user_profile_info['in_complete_profile']= '0';	
+						  $duration_serve = $this->input->post('duration');
+						  $insert_id = $this->user_model->add_foster_home_details($animal_type,$duration_serve,$this->session->userdata('userid'),'tbl_foster_user_detail');
+						  $user_profile_info['st_foster_home'] = "Y";
+						  $profile_setting_arr['st_foster']	 = 'a:5:{i:0;s:18:"st_animal_type_ids";i:1;s:16:"in_duration_type";i:2;s:18:"st_max_foster_days";i:3;s:18:"st_max_animal_size";i:4;s:23:"st_household_animal_ids";}';
+					}	
+					
+					if($this->input->post('more_vol_enable')==1)
+					{  
+					
+							if($this->input->post('other_vol_enable1')==1)
+							{				
+								
+								
+									   $user_profile_info['st_photographer'] = 'Y';
+									   $user_profile_info['in_complete_profile']= '0';
+									   $profile_setting_arr['st_photographer'] =  'a:5:{i:0;s:18:"st_animal_type_ids";i:1;s:16:"in_duration_type";i:2;s:18:"st_max_foster_days";i:3;s:18:"st_max_animal_size";i:4;s:23:"st_household_animal_ids";}';	
+											$arrPhotographer = array('in_user_id'  => $this->session->userdata('userid'),
+														'st_photographer_zipcode' => $zip_code,
+												   'st_photographer_availability' => serialize($this->input->post('other_weekdays1')),										
+																		'zip_lat' => $lat, 
+																		'zip_lon' => $lon,	
+																'in_pro_bono_ser' =>  0,
+														  'in_distance_to_travel' => $this->input->post('travel_willing_photographer'),
+																	'dt_created'  => date('Y-m-d H:i:s'),
+																	'dt_modified' => date('Y-m-d H:i:s'),
+																	'in_deleted' => '0',
+																);
+											$this->db->insert('tbl_photographer_detail', $arrPhotographer);
+												
+								 
+							}
+							
+							if($this->input->post('other_vol_enable2')==1)
+							{
+								
+								$user_profile_info['st_lost_animal_support'] = 'Y';
+								$user_profile_info['in_complete_profile']= '0';	
+									$data   = array('in_user_id' 			     => $this->session->userdata('userid'),													
+													'dt_created' 			     => date("Y-m-d H:i:s"),
+													'dt_modified'				 => date("Y-m-d H:i:s"),
+													//'st_lost_animal_availability'=> serialize($this->input->post('other_weekdays2')),
+													'in_caseworker' => 1,
+													'in_monitor' => 1,
+													'in_networker' => 1,
+													'in_admin' => 1,
+													'in_matcher' => 1,
+													'in_volunteer' => 1,
+													'in_deleted' => 0	
+													);
+									$this->db->insert('tbl_user_lost_animal_support', $data); 
+									 $profile_setting_arr['st_foster']	 = 'a:5:{i:0;s:18:"st_animal_type_ids";i:1;s:16:"in_duration_type";i:2;s:18:"st_max_foster_days";i:3;s:18:"st_max_animal_size";i:4;s:23:"st_household_animal_ids";}';
+							}
+							
+							if($this->input->post('other_vol_enable3')==1)
+							{
+								
+								$user_profile_info['st_virtual_support_volunteer'] = 'Y';
+								$user_profile_info['in_complete_profile']= '0';
+								$profile_setting_arr['st_in_virtual_vol'] =   'a:19:{i:0;s:18:"in_manage_facebook";i:1;s:17:"in_manage_twitter";i:2;s:15:"in_manage_gplus";i:3;s:19:"in_manage_pin_board";i:4;s:19:"in_manage_instagram";i:5;s:15:"in_manage_video";i:6;s:15:"in_social_media";i:7;s:12:"in_petfinder";i:8;s:12:"in_adoptapet";i:9;s:12:"in_petharbor";i:10;s:10:"in_petango";i:11;s:15:"in_rescuegroups";i:12;s:18:"in_shelterexchange";i:13;s:10:"in_dogtime";i:14;s:16:"in_petsoverstock";i:15;s:17:"in_animal_profile";i:16;s:20:"in_transport_monitor";i:17;s:23:"in_adoption_application';
+								
+								if($this->input->post('social')==1)
+								{	
+									$in_manage_facebook=1;
+									$in_manage_facebook_exp=1;
+									$in_manage_twitter=1;
+									$in_manage_twitter_exp=1;
+									$in_manage_gplus=1;
+									$in_manage_gplus_exp=1;
+									$in_manage_pin_board=1;
+									$in_manage_pin_board_exp=1;
+									$in_manage_instagram=1;
+									$in_manage_instagram_exp=1;
+									$in_manage_video=1;
+									$in_manage_video_exp=1;
+									
+								}
+								
+								if($this->input->post('adopt')==1)
+								{
+									$in_petfinder=1;
+									$in_petfinder_exp=1;
+									$in_adoptapet=1;
+									$in_adoptapet_exp=1;
+								}
+									
+									$virtual_support = array('in_user_id'=> $this->session->userdata('userid'),
+														  //'st_virtual_support_availability' => serialize($this->input->post('other_weekdays3')),					
+															'in_petfinder'=> ($in_petfinder)? $in_petfinder:'0',
+															'in_petfinder_exp'=> ($in_petfinder_exp)? $in_petfinder_exp:'0',															
+															'in_adoptapet'=> ($in_adoptapet)? $in_adoptapet:'0',
+															'in_adoptapet_exp'=> ($in_adoptapet_exp)? $in_adoptapet_exp:'0',
+															
+															
+															'in_manage_facebook'=> ($in_manage_facebook)? $in_manage_facebook:'0',
+															'in_manage_facebook_exp'=> ($in_manage_facebook_exp)?$in_manage_facebook_exp : '0',
+															'in_manage_twitter'=> ($in_manage_twitter)?$in_manage_twitter:'0',
+															'in_manage_twitter_exp'=> ($in_manage_twitter_exp)?$in_manage_twitter_exp:'0',
+															'in_manage_gplus'=> ($in_manage_gplus)?$in_manage_gplus:'0',
+															'in_manage_gplus_exp'=> ($in_manage_gplus_exp)?$in_manage_gplus_exp:'0',
+															'in_manage_pin_board'=> ($in_manage_pin_board)?$in_manage_pin_board:'0',
+															'in_manage_pin_board_exp'=> ($in_manage_pin_board_exp)?$in_manage_pin_board_exp:'0',
+															'in_manage_instagram'=> ($in_manage_instagram)?$in_manage_instagram:'0',
+															'in_manage_instagram_exp'=> ($in_manage_instagram_exp)?$in_manage_instagram_exp:'0',
+															'in_manage_video'=> ($in_manage_video)?$in_manage_video:'0',
+															'in_manage_video_exp'=> ($in_manage_video_exp)?$in_manage_video_exp:'0',
+															'dt_modified' => date('Y-m-d H:i:s'),
+															'dt_created'  => date('Y-m-d H:i:s'),
+															'in_deleted'  => '0'	
+															);
+									$this->db->insert('tbl_virtual_support_vol_detail',$virtual_support);
+									$last_insert_pilot_id = $this->db->insert_id();	
+								
+							}							
+							
+							if($this->input->post('other_vol_enable4') == 1)
+							{
+								
+								$user_profile_info['st_in_person_volunteer'] = 'Y';
+								$user_profile_info['in_complete_profile']= '0';
+								$profile_setting_arr['st_in_person_vol'] =  'a:7:{i:0;s:25:"st_volunteer_availability";i:1;s:20:"st_volunteer_zipcode";i:2;s:20:"in_distance_to_drive";i:3;s:13:"in_home_visit";i:4;s:15:"in_app_reviewer";i:5;s:22:"in_physical_fundraiser";i:6;s:14:"in_animal_care";}'; 
+								$person_volunteer= array(		  'in_user_id'	    => $this->session->userdata('userid'),
+														'st_volunteer_zipcode'		=> $zip_code,
+													'st_volunteer_availability'		=>serialize($this->input->post('other_weekdays4')),										
+																	'zip_lat'		=> $lat, 
+																	'zip_lon'		=> $lon,	
+																	'in_distance_to_drive'		=> $this->input->post('travel_willing_inperson'), 			
+																	'dt_created'	=> date('Y-m-d H:i:s'),
+																	'dt_modified'	=> date('Y-m-d H:i:s'),
+																	'in_deleted'    => '0'
+													);
+								
+								$user_profile_info['dt_modified'] = date('Y-m-d H:i:s');
+								$this->db->insert('tbl_in_person_volunteer_detail', $person_volunteer);	
+								$insert_id = $this->db->insert_id();
+							}
+							
+					}
+					
+					
+							
+				$user_profile_info['dt_modified'] = date('Y-m-d H:i:s');
+				$user_profile_info['st_primary_phone'] = ($mobile)?$mobile:'';
+				//$user_profile_info['st_time_zone'] = 'EST';
+				
+				if($this->input->post('shelterstaff1') == 1){
+					$user_profile_info['in_complete_profile'] = '0';
+				 }
+				 
+				 
+				$user_profile = $this->user_model->update_user_info($user_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');	
+							
+				if(count($profile_setting_arr)>0)
+				{	
+						$user_profile_setting_details 		= $this->user_model->get_user_profile_setting($this->session->userdata('userid'));
+						if(empty($user_profile_setting_details))
+						{	
+									$profile_setting_arr['in_user_id']	= $this->session->userdata('userid');
+									$profile_setting_arr['in_public']	= 0;
+									$profile_setting_arr['dt_created']	= date('Y-m-d H:i:s');
+									$profile_setting_arr['in_deleted']	= 0;
+									$this->db->insert('tbl_user_profile_setting',$profile_setting_arr);
+						} else {
+									$this->user_model->update_user_profile_setting($profile_setting_arr,$this->session->userdata('userid'),'tbl_user_profile_setting');	
+						}	
+				}
+				
+				 if($this->session->userdata('zip'))
+				{
+					$zip_code_state = $this->common_model->get_zipcode_info($this->session->userdata('zip'));
+					if($zip_code_state['state_prefix']=='CO')
+					{
+							if($this->session->userdata('email'))
+							{
+								$colorado_email_notification = $this->common_model->get_email_containt("83");	
+								$q			=	$this->common_model->get_affiliate_donation_detail('3');
+									if(isset($q) && !empty($q)){					   		
+											foreach($q as $qr)
+											{		 
+												  
+												if(!empty($qr['st_image']))
+												{
+														$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+														$imgtitle   =   $qr['st_banner_name']; 				
+														$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+														alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+													  
+													  
+												}
+												else
+												{
+													   $donation='';								 
+												}							  
+													
+											}
+										}			
+										   
+									   else
+									   {
+										  $donation='';
+									   }
+								
+								if(isset($colorado_email_notification[0]['st_email_body']))
+								{
+									$to = $this->session->userdata('email');
+									$message  = $colorado_email_notification[0]['st_email_body'];
+									$message  = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+									$message  = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+									$message  = str_replace("##display_name##",$this->session->userdata('user_name'). " " .$this->session->userdata('last_name'),$message);				
+									$message  = str_replace("##DONATION##",$donation,$message);				
+									$subject  = $colorado_email_notification[0]['st_email_subject'];
+									$category = $colorado_email_notification[0]['st_category'];
+									$this->mail_notify_colorado($to,$subject,$category,$message);
+								}	
+								//$message = 'This user has registered colorado zipcode address please verify it';
+								
+							}			
+					}	 
+			   }
+				
+					//redirect($this->config->item('base_url') . "registration/individual_thankyou_signup/");
+					$this->session->set_userdata('orgstep',2);
+					redirect($this->config->item('base_url') . "signup-thankyou");					
+			//}	
+							
+		} 
+		$this->load->view('how-would-you-like-to-help',$data);
+	}
+	
+	function individual_thankyou_signup()
+	{
+		if(!$this->session->userdata('userid'))
+			{
+				redirect($this->config->item('base_url') . "user-signup");
+			}
+			if($this->session->userdata('registerstep'))
+			{	
+				$this->session->unset_userdata('registerstep'); 
+			}
+		$this->load->view('individual-signup-thank-you');
+	}
+
+	function mail_notify_colorado($to,$subject,$category,$message)
+	{
+		$this->load->library('email');
+	    $this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+	}		
+	
+	function login_details($data) 
+	{
+        $allmail = $data['email'];
+        $this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("1");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+        if (isset($email_details[0]['st_email_body'])) {
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##url##", $this->config->item('base_url'), $templete);
+            $templete = str_replace("##display_name##", $data['username'] . " " . $data['lastname'], $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+			$userid = $this->session->userdata('userid');
+			
+			//$confirm_email_link = base_url().'verify/'.base64_encode($userid).'/'.base64_encode($data['email_verification_code']);
+			
+			//$user_email_verify_status = $this->user_model->check_email_verification_status($userid);
+									
+			/*if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+			{			
+				$confirm_email_url = '<p style="font:16px/24px Arial, Helvetica, sans-serif;color:#222222;margin:0;padding:0 0 25px;">
+					<a href="'.$confirm_email_link.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:20px;display:inline;background:#ee6d35;padding:13px 25px 13px 18px;border-radius:3px; display:inline-block;"><img alt="Click here to confirm your email" src="https://app.doobert.com//assets/img/email_img/confirm-email-icon.jpg" style="border:none; display:inline-block; vertical-align:top; padding-right:10px;" title="" />
+						Click here to confirm your email</a></p>';
+			}else{
+				$confirm_email_url = '';
+			}*/
+			//$templete = str_replace("##confirm_email_link##", $confirm_email_url, $templete);
+					
+            $strMail = $templete;
+            $to = $allmail;
+            $subject = $email_details[0]['st_email_subject'];
+            $message = $strMail;
+			
+			//print_r($message);exit;
+			$category = $email_details[0]['st_category'];
+			
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+			
+	        $this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+        }
+    }
+	
+		
+	function email_confirm()
+	{		
+		$userid = $this->session->userdata('userid');	
+		$verificationCode = $this->generate_random_password(15);
+		$details = array("st_email_verification_code" => $verificationCode);
+        $this->user_model->update_user($details, $userid);
+					
+		$this->load->library('email');
+		$email_details = $this->common_model->get_email_containt("81");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		if (isset($email_details[0]['st_email_body'])) 
+		{
+			$templete = $email_details[0]['st_email_body'];
+			
+			$templete = str_replace("##display_name##", $this->session->userdata('user_name') . " " . $this->session->userdata('last_name'), $templete);
+			$templete = str_replace("##current_year##", date('Y'), $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+			
+			//echo 'userid'.$userid;
+			//$confirm_email_url = base_url().'verify/'.base64_encode($userid).'/'.base64_encode($verificationCode);
+			//$confirm_email_url = '<a href="'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($data['email_verification_code']).'">'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($data['email_verification_code']).'</a>';
+			$confirm_email_url = '<a href="'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($verificationCode).'">'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($verificationCode).'</a>';
+			$templete = str_replace("##confirm_email_link##", $confirm_email_url, $templete);
+			$strMail = $templete;
+			$to = $this->session->userdata('email');
+			$subject = $email_details[0]['st_email_subject'];
+			$message = $strMail;
+			$email_sent_status = 0;
+			//print_r($message);exit;
+			$category = $email_details[0]['st_category'];
+			
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+			
+			$send_email = 1;							
+			$sub_data = $this->common_model->check_user_unsub_emails($userid);
+			if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_details[0]['in_email_id'];
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}
+			
+			if($send_email == '1')
+			{
+				$email_sent_status = $this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+			}	
+		}
+	}
+	
+	function generate_random_password($length = 10) 
+	{
+		$alphabets = range('A','Z');
+		$numbers = range('0','9');
+		$additional_characters = array('_','.');
+		$final_array = array_merge($alphabets,$numbers,$additional_characters);
+			 
+		$password = '';
+	  
+		while($length--) {
+		  $key = array_rand($final_array);
+		  $password .= $final_array[$key];
+		}
+	  
+		return $password;
+	}
+	
+	function login_details_harvey($data) 
+	{
+        $allmail = $data['email'];
+        $this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("105");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+        if (isset($email_details[0]['st_email_body'])) {
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##url##", $this->config->item('base_url'), $templete);
+            $templete = str_replace("##display_name##", $data['username'] . " " . $data['lastname'], $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+			$userid = $this->session->userdata('userid');
+			
+			$confirm_email_link = base_url().'verify/'.base64_encode($userid).'/'.base64_encode($data['email_verification_code']);
+			
+			$user_email_verify_status = $this->user_model->check_email_verification_status($userid);
+									
+			if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+			{			
+				$confirm_email_url = '<p style="font:16px/24px Arial, Helvetica, sans-serif;color:#222222;margin:0;padding:0 0 25px;">
+					<a href="'.$confirm_email_link.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:20px;display:inline;background:#ee6d35;padding:13px 25px 13px 18px;border-radius:3px; display:inline-block;"><img alt="Click here to confirm your email" src="https://app.doobert.com//assets/img/email_img/confirm-email-icon.jpg" style="border:none; display:inline-block; vertical-align:top; padding-right:10px;" title="" />
+						Click here to confirm your email</a></p>';
+			}else{
+				$confirm_email_url = '';
+			}
+			$templete = str_replace("##confirm_email_link##", $confirm_email_url, $templete);
+					
+            $strMail = $templete;
+            $to = $allmail;
+            $subject = $email_details[0]['st_email_subject'];
+            $message = $strMail;
+			
+			//print_r($message);exit;
+			$category = $email_details[0]['st_category'];
+			
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+			
+	        $this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+        }
+    }
+	
+	
+	
+	public function harvey_user_registration()
+	{  
+		if($this->session->userdata('registerstep') && $this->session->userdata('userid'))
+		{	
+				redirect($this->config->item('base_url') . "volunteer-profile");
+		}
+		
+		if($this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url') . "dashboard/");
+		}
+		
+		//$this->session->set_userdata('checkout',$return);
+        $data = array();
+        $data['Err_Msg_forgot'] = '';
+        $data['Err_Msg_reg'] = '';
+        $data['Err_Msg_login'] = '';
+        $data['Err_Msg'] = '';
+        $data['rem_password'] = get_cookie('pass');
+        $data['rem_email'] = get_cookie('user');
+        $data['menu_no'] = 'yes';
+	
+		$this->session->unset_userdata('fb_user');
+		 
+        $form_field = array('username' => "",
+            'lastname' => "",
+            'email' => "",
+            'password' => "",
+            'rpassword' => "",
+            'referred_by' => "",
+            'tnc' => "",
+            'signup' => "",
+            'remember' => "",
+            'action' => "",
+            'oldertc' => "",
+			'volunteer_as' => "",
+			'zipcode' => "",
+			'maskphone' => "",
+        );
+        foreach ($form_field as $key => $value) {
+            $data['register'][$key] = $value;
+        }
+        if ($this->input->post('action')) {
+            foreach ($form_field as $key => $value) {
+				if(!is_array($this->input->post($key)))
+				{
+                	$data['register'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));
+				}else{
+					$data['register'][$key] = $this->input->post($key);
+					}
+            }
+			$verificationCode = $this->generate_random_password(15);
+			$data['register']['email_verification_code'] = $verificationCode;
+			
+            if ($this->input->post('action') == "registeruser") {
+                $this->form_validation->set_rules('username', 'First Name', 'trim|required');
+                $this->form_validation->set_rules('lastname', 'Last Name', 'trim|required');
+                $this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[6]');
+               	$this->form_validation->set_rules('zipcode', 'Zipcode', 'trim|required');
+				//$this->form_validation->set_rules('maskphone', 'Phone Number', 'trim|required');		
+                $counts = $this->common_model->check_exists("tbl_users", "in_user_id", array("st_email" => $data['register']['email'], "in_deleted" => '0'));
+                $Err_Msg = '';
+                if ($counts > 0) {
+                    $Err_Msg = "Email address already exists.";					
+					$fb_user_id = $this->common_model->check_fb_user($data['register']['email']);
+					//print_r($fb_user_id);die;
+					if(isset($fb_user_id) && !empty($fb_user_id) && $fb_user_id['st_facebook_uid'] != '')
+					{
+						$this->session->set_userdata('fb_user', 'It looks like you created your account by using the Facebook Login / App. Please click on the Sign In to With Facebook to be logged into the system.');		
+						$Err_Msg = '';					
+					}
+                }
+                if ($this->form_validation->run() == FALSE || $Err_Msg != '' || ($this->session->userdata('fb_user') && $this->session->userdata('fb_user') != '')) {
+                    $data['Err_Msg_reg'] = validation_errors() . $Err_Msg;	
+                } else 
+				{
+                    $browser_details = array();
+                    $browser_details["page_referral"] = $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                    $browser_details["ip_address "] = $_SERVER['REMOTE_ADDR'];
+                    $browser_details["browser_used"] = $_SERVER['HTTP_USER_AGENT'];
+
+                    $data_array = array("st_display_name" => $data['register']['username'],
+										   "st_last_name" => $data['register']['lastname'],
+											   "st_email" => $data['register']['email'],
+											"st_password" => md5($data['register']['password']),
+										 "st_referred_by" => $data['register']['referred_by'],
+											 "dt_created" => date("Y-m-d h:i:s"),
+										    "dt_modified" => date("Y-m-d h:i:s"),
+										  "in_newsletter" => (($data['register']['signup'] != '') ? "Y" : "N"),
+											  "in_public" => "1",
+                                              "in_status" => "1",
+                                      "in_age_terms_flag" => "1",
+                                        "st_browser_info" => @serialize($browser_details),
+						     "st_email_verification_code" => $verificationCode,
+								  
+									);
+					
+					$zipcode 	  = $data['register']['zipcode'];
+					$volunteer_as = $data['register']['volunteer_as'];
+					
+					
+					//print_r($volunteer_as);exit;
+					
+                    $inserted_id = $this->user_model->insert_user($data_array);
+                    $this->user_model->insert_user_profile(array("in_user_id" => $inserted_id,"st_zip" => $zipcode, "in_status" => "1", "dt_created" => date("Y-m-d H:i:s"),'in_complete_profile'=>'1',"hurricane_harvey_reg" => 1));
+					//$this->user_model->insert_user_profile(array("in_user_id" => $inserted_id,"st_zip" => $zipcode, "in_status" => "1", "dt_created" => date("Y-m-d H:i:s"),'in_complete_profile'=>'1','st_primary_phone'=>$data['register']['maskphone']));
+					
+					$this->session->set_userdata('userid', $inserted_id);
+					$this->session->set_userdata('user_name', $data['register']['username']);
+                    $this->session->set_userdata('last_name', $data['register']['lastname']);
+                    $this->session->set_userdata('email', $data['register']['email']);
+					$this->session->set_userdata('zip',$zipcode);
+					$this->session->set_userdata('popup_display',1);
+					$this->session->set_userdata('registerstep',1);
+					setcookie("userid",$inserted_id,0,"/",".doobert.com");
+                    $this->login_details_harvey($data['register']);
+					$this->email_confirm();	
+					
+					$lat = 0;
+					$lon = 0;
+						
+                    $user_result = $this->user_model->match_nondoobert_email_id($this->session->userdata('email'));
+                    if (isset($user_result) && !empty($user_result)) {
+                        $lat = 0;
+                        $lon = 0;
+						$this->load->model('orgtrasnportation_model');
+                        if ($this->session->userdata('zip')) {
+                            //$get_lat_long = $this->common_model->get_lattitude_longitude(trim($user_result[0]['st_zipcode']));
+							  $get_lat_long = $this->common_model->get_lattitude_longitude($this->session->userdata('zip'));	
+                            if (!empty($get_lat_long['lat']) && !empty($get_lat_long['lon'])) {
+                                $user_vehicle_info['zip_lat'] = $get_lat_long['lat'];
+                                $lat = $get_lat_long['lat'];
+                                $user_vehicle_info['zip_lon'] = $get_lat_long['lon'];
+                                $lon = $get_lat_long['lon'];
+                            }
+
+                            $user_profile_info = array();
+                            //$user_profile_info['st_zip'] = $user_result[0]['st_zipcode'];
+                            $user_profile_info['st_primary_phone'] = $user_result[0]['st_phone'];
+                            $user_profile_info['in_status'] = "1";
+
+                            $data['user_profile'] = $this->user_model->update_user_info($user_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+
+                            $user_data_array = array("in_status" => "1");
+                            
+
+                            $transport_co_details = $this->orgtrasnportation_model->get_transport_coordinator_detail($user_result[0]['in_transportation_id']);
+                            if (isset($transport_co_details) && !empty($transport_co_details)) {
+                                $user_data_array['st_referred_by'] = $transport_co_details['coordinatorname'];
+                            }
+
+                            $this->user_model->update_user($user_data_array, $this->session->userdata('userid'));
+
+                            $driver_data = array("driver_user" => "Y",
+                                "avl_days" => array("0" => "Sun", "1" => "Mon", "2" => "Tue", "3" => "Wed", "4" => "Thu", "5" => "Fri", "6" => "Sat"),
+                                "zipcode" => $this->session->userdata('zip'),
+                                "vehicle_ids" => array("0" => ""),
+                                //"vehicletype"  => array("0"=>$user_result[0]['st_vehicle_type']),
+                                "vehicletype" => array("0" => "4-Door Car"),
+                                "distance" => array("0" => 100),
+                                "color" => array("0" => $user_result[0]['st_vehicle_color']),
+                                "license" => array("0" => $user_result[0]['st_license_plate']),
+                                "license_state" => array("0" => $user_result[0]['st_license_state']),
+								"googlephotos_vehicle" =>array("0"=>""),
+                            );
+                            $this->user_model->update_vehicle_details($driver_data, $this->session->userdata('userid'), $this->session->userdata('zip'), serialize($driver_data['avl_days']),'100', $lat, $lon, 'tbl_user_vehicle');
+                            $driver_profile_info['st_driver'] = "Y";
+                            $driver_profile_info['dt_modified'] = date('Y-m-d H:i:s');
+                            $data['user_profile'] = $this->user_model->update_user_info($driver_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+                        }
+
+                        foreach ($user_result as $key => $value) {
+                            $join_data = array("in_transportation_id" => $value['in_transportation_id'],
+                                "in_user_id" => $this->session->userdata('userid'),
+                                "in_transportation_leg_id" => $value['in_leg_id'],
+                                "in_created_by" => $this->session->userdata('userid'),
+                                "dt_created" => date("Y-m-d H:i:s"),
+                                "in_deleted" => 0
+                            );
+
+                            $this->orgtrasnportation_model->join_legs($join_data);
+
+
+                            $this->orgtrasnportation_model->update_non_doobert_user_leg($value['in_non_doobert_user_id']);
+
+                            $leg_type = $this->orgtrasnportation_model->get_leg_type_by_id($value['in_leg_id']);
+
+                            if (!empty($leg_type)) {
+                                //print_r($leg_type[0]['in_route_type']);
+                                if (isset($leg_type[0]['in_route_type']) && $leg_type[0]['in_route_type'] != '' && $leg_type[0]['in_route_type'] == 0) {
+                                    //code to update vehicle id in leg details 
+                                    $data['arrVehicle'] = $this->user_model->get_vehicle_detail($this->session->userdata('userid'));
+                                    if (!empty($data['arrVehicle'][0]) && isset($data['arrVehicle'][0]['in_vehicle_id'])) {
+                                        //$array_update = array("in_vehicle_id"=>$data['arrVehicle'][0]['in_vehicle_id']);
+                                        //$this->orgtrasnportation_model->update_legs($array_update,$legs_ids);
+                                        $leg_vehicle_detail = array("in_transportation_id" => $value['in_transportation_id'],
+                                            "in_user_id" => $this->session->userdata('userid'),
+                                            "in_vehicle_id" => $data['arrVehicle'][0]['in_vehicle_id'],
+                                            "in_transportation_leg_id" => $value['in_leg_id'],
+                                            "dt_created" => date("Y-m-d H:i:s"),
+                                            "in_deleted" => 0
+                                        );
+                                        $this->orgtrasnportation_model->add_leg_vehicle_detail($leg_vehicle_detail);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+
+                   
+						redirect($this->config->item('base_url') . "harvey-volunteer-profile");
+					   //redirect($this->config->item('base_url') . "dashboard/");
+                    }
+                }
+            }
+        //}
+		
+        $this->load->view('hurricane-individual-signup', $data);
+	}
+	
+	public function harvey_user_profile()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+				redirect($this->config->item('base_url') . "user-signup");
+		}
+		if(!$this->session->userdata('registerstep') && $this->session->userdata('userid') )
+		{	
+				redirect($this->config->item('base_url') . "user-signup-thankyou");
+		}
+		$data = array();
+		$data['animal_type'] = $this->common_model->get_animal_types();
+	
+		  if ($this->input->post('action') == "signup-profile") 
+		  {
+			
+			  if($this->input->post('transport_check_box')==1)
+			  {		
+				$this->form_validation->set_rules('travel_willing', 'Miles', 'trim|required');
+				$this->form_validation->set_rules('weekdays[]', 'Available days', 'trim|required');
+				//$this->form_validation->set_rules('profile_type[]', 'Profile type', 'trim|required');
+				//$this->form_validation->set_rules('password', 'Password', 'trim|required|spacecheck|min_length[6]');
+			  }
+			  
+			  if($this->form_validation->run() == FALSE)
+			  {
+					  $data['Err_Msg'] = validation_errors();
+			  } else 
+			  {
+						
+				 $user_profile_info = array();
+				 $profile_setting_arr = array();
+				if ($this->session->userdata('zip')) 
+				{
+								$address_details	=	$this->common_model->getaddress($this->session->userdata('zip'));
+								$user_profile_info["st_city"]  = isset($address_details['city']) ? $address_details['city'] : '';
+								$user_profile_info["st_state"] = isset($address_details['state_prefix']) ? $address_details['state_prefix'] : '';
+								//$user_profile_info["st_zip"] => $this->input->post('zip_code');
+								$user_profile_info["st_country"] = isset($address_details['st_country']) ? strtoupper($this->common_function->shortCountry[trim($address_details['st_country'])]) : '';
+								$user_profile_info["dt_modified"] = date('Y-m-d H:i:s');
+								$get_lat_long = $this->common_model->get_lattitude_longitude($this->session->userdata('zip'));
+									if (!empty($get_lat_long['lat']) && !empty($get_lat_long['lon'])) 
+									{
+										$user_vehicle_info['zip_lat'] = $get_lat_long['lat'];
+										$lat = $get_lat_long['lat'];
+										$user_vehicle_info['zip_lon'] = $get_lat_long['lon'];
+										$lon = $get_lat_long['lon'];
+									} else {
+										$lat = '';
+										$lon = '';
+									}
+									$zip_code = $this->session->userdata('zip');
+									
+					} else {
+										$zip_code = 0;
+										$lat = '';
+										$lon = '';
+					}
+				
+				  if($this->input->post('transport_check_box')==1)
+				  {
+					  
+						$user_profile_info["in_status"] = "1";
+							$user_profile_info['st_driver'] = "Y";	
+                            $user_profile_info['in_complete_profile']= '0';
+							$arrVehicle = array('in_user_id' => $this->session->userdata('userid'),
+										'st_driver_availability' => serialize($this->input->post('weekdays')),
+										'st_zip_vehicle' => $zip_code,
+										'in_distance_to_drive' => $this->input->post('travel_willing'),
+										'dt_created' => date('Y-m-d H:i:s'),
+										'st_vehicle_type' => '4-Door Car',
+										'in_status' => '1',
+										'zip_lat'  => $lat,
+										'zip_lon'	=> $lon,
+										'in_deleted' => '0'
+										);
+									
+							$this->db->insert('tbl_user_vehicle', $arrVehicle);
+							$last_insert_driver_id = $this->db->insert_id();
+						
+													
+				  } 
+							
+				$user_profile_info['dt_modified'] = date('Y-m-d H:i:s');
+				$user_profile = $this->user_model->update_user_info($user_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');	
+							
+				
+				
+				 if($this->session->userdata('zip'))
+				{
+					$zip_code_state = $this->common_model->get_zipcode_info($this->session->userdata('zip'));
+					if($zip_code_state['state_prefix']=='CO')
+					{
+							if($this->session->userdata('email'))
+							{
+								$colorado_email_notification = $this->common_model->get_email_containt("83");
+								$q			=	$this->common_model->get_affiliate_donation_detail('3');
+									if(isset($q) && !empty($q)){					   		
+											foreach($q as $qr)
+											{		 
+												  
+												if(!empty($qr['st_image']))
+												{
+														$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+														$imgtitle   =   $qr['st_banner_name']; 				
+														$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+														alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+													  
+													  
+												}
+												else
+												{
+													   $donation='';								 
+												}							  
+													
+											}
+										}			
+										   
+									   else
+									   {
+										  $donation='';
+									   }
+								
+								if(isset($colorado_email_notification[0]['st_email_body']))
+								{
+									$to = $this->session->userdata('email');
+									$message  = $colorado_email_notification[0]['st_email_body'];
+									$message  = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+									$message  = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($this->session->userdata('userid')).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);
+									$message  = str_replace("##display_name##",$this->session->userdata('user_name'). " " .$this->session->userdata('last_name'),$message);				
+									$message  = str_replace("##DONATION##",$donation,$message);				
+									$subject  = $colorado_email_notification[0]['st_email_subject'];
+									$category = $colorado_email_notification[0]['st_category'];
+									$this->mail_notify_colorado($to,$subject,$category,$message);
+								}	
+								//$message = 'This user has registered colorado zipcode address please verify it';
+								
+							}			
+					}	 
+			   }
+				
+					//redirect($this->config->item('base_url') . "registration/individual_thankyou_signup/");			
+			}	
+			$this->session->set_userdata('orgstep',2);
+			//redirect($this->config->item('base_url') . "user-signup-thankyou");
+			  redirect($this->config->item('base_url') . "signup-thankyou");				
+		} 
+		$this->load->view('hurricane-userprofile',$data);
+	}
+	
+	
+	public function get_org_details()
+	{
+		$org_id = $this->input->post('org_id');		
+		$org_details = array();
+		$org_details = $this->common_model->get_single_org_details($org_id);			
+		$org_html = '';		
+		
+		if(count($org_details)>0)
+		{		
+			$org_html .='<div class="shelterexist" id="div_'.$org_details['in_organization_id'].'"><div class="name"><strong>'. $org_details['st_org_name'].'</strong></div><div class="link"><a href="javascript:void(0);" onclick="removeorg('.$org_details['in_organization_id'].')"><i class="material-icons">close</i></a></div></div>';
+			
+		}	
+			echo $org_html;			
+	}
+	
+	public function add_org_user()
+	{
+		$orgid= $this->input->post('orgid');
+		$recordexist=$this->common_model->recordexist($orgid);
+		
+		if($recordexist == true)
+		{
+			$data['success']=2;
+		}
+		else
+		{
+			$getorguserdetail = $this->common_model->getorguserdetail($orgid);
+			 $insert_id=$this->common_model->addorgrequest($orgid,$getorguserdetail['in_user_id']);
+				
+			// mail starts
+			
+				$this->load->library('email');				
+				
+				//$to = 'sadique.mohammed@pulsesolutions.net';
+				$to = $getorguserdetail['st_email_address'];
+				$user_data['user_name'] = $this->session->userdata('user_name');
+				$user_data['pick_org'] = $getorguserdetail['st_org_name'];
+				$user_data['org_id'] = $orgid;
+				$user_data['in_user_id'] = $this->session->userdata('userid');
+				$user_data['org_email_address'] =$getorguserdetail['st_email_address'];
+				$last_id = $insert_id;
+				$user_data['invite_user_id'] = $getorguserdetail['in_user_id'];
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt('168');
+				
+
+			
+				//echo $user_data['invite_user_id']; die;
+				$subject = str_replace('##organization_display_name##',$user_data['pick_org'],$email_body[0]['st_email_subject']);
+				
+				$patterns 	= array('%##user_display_name##%','%##organization_display_name##%','%##url##%','%##accept_link##%','%##reject_link##%');
+				$replacements = array($user_data['user_name'],$user_data['pick_org'],base_url(),base_url().'user/accept_request2/'.base64_encode($user_data['in_user_id']).'/'.base64_encode($user_data['org_id']).'/'.base64_encode($last_id).'/'.base64_encode($user_data['invite_user_id']),base_url().'user/reject_request2/'.base64_encode($user_data['in_user_id']).'/'.base64_encode($user_data['org_id']).'/'.base64_encode($last_id).'/'.base64_encode($user_data['pick_org']));
+				
+				
+				$content = preg_replace($patterns, $replacements, $email_body[0]['st_email_body']);//die;
+				$category  =    $email_body[0]['st_category'];
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($user_data['org_email_address']);
+						
+				$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				
+				$content  	= 	str_replace("##DONATION##",$donation,$content);
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_body[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{	
+				
+					$this->common_function->send_mail($this->email, $to, $subject, $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+				}			
+			
+			// mail ends			
+			
+			$data['success']=1;
+		}	
+		echo json_encode($data);
+		
+	}
+	
+	
+	public function remove_org_user()
+	{
+		$orgid= $this->input->post('orgid');
+		$deleteorg=$this->common_model->deleteorg($orgid);	
+		$data['success'] = 'Record deleted successfully.';
+		echo json_encode($data);
+	}
+	
+	
+}	
+?>	

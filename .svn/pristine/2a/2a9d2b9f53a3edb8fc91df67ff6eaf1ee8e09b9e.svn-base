@@ -1,0 +1,948 @@
+<?php 
+if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Paypalipn extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->load->model('common_model');
+		$this->load->library('common_function');
+		$this->load->model('order_transport_model');
+		$this->load->model('orgtrasnportation_model');
+	}
+	
+	public function cart_notify_url()
+	{
+		
+		
+		$postData = file_get_contents('php://input');
+		$postData = urldecode($postData);
+		$rawPostArray = explode('&', $postData);
+		//$rawPostArray = unserialize('a:33:{i:0;s:40:"transaction[0].is_primary_receiver=false";i:1;s:50:"transaction[0].id_for_sender_txn=56435407W7557234T";i:2;s:49:"log_default_shipping_address_in_transaction=false";i:3;s:62:"transaction[0].receiver=ghanshyam.maurya+u1@pulsesolutions.net";i:4;s:15:"action_type=PAY";i:5;s:70:"ipn_notification_url=http://beta.doobert.com/paypal/ipn_notification/2";i:6;s:34:"transaction[1].paymentType=SERVICE";i:7;s:30:"transaction[0].amount=USD 8.00";i:8;s:20:"charset=windows-1252";i:9;s:37:"transaction_type=Adaptive Payment PAY";i:10;s:50:"transaction[1].id_for_sender_txn=7D578575VR316264X";i:11;s:40:"transaction[1].is_primary_receiver=false";i:12;s:26:"notify_version=UNVERSIONED";i:13;s:35:"cancel_url=http://beta.doobert.com/";i:14;s:46:"transaction[1].status_for_sender_txn=Completed";i:15;s:61:"transaction[1].receiver=rupesh-facilitator@pulsesolutions.net";i:16;s:68:"verify_sign=An5ns1Kso7MWUdW4ErQKJJJ4qi4-A-pHDzaDs4NUBizb.0KxoFj04oCq";i:17;s:37:"sender_email=doobertpaypal2@gmail.com";i:18;s:23:"fees_payer=EACHRECEIVER";i:19;s:44:"transaction[0].status_for_sender_txn=Pending";i:20;s:48:"return_url=http://beta.doobert.com/shop/thankyou";i:21;s:34:"transaction[0].paymentType=SERVICE";i:22;s:31:"transaction[1].amount=USD 50.00";i:23;s:44:"reverse_all_parallel_payments_on_error=false";i:24;s:34:"tracking_id=1504531662doobertcart2";i:25;s:34:"transaction[1].pending_reason=NONE";i:26;s:28:"pay_key=AP-8BL02019L3694673M";i:27;s:35:"transaction[1].id=91292879A51205456";i:28;s:40:"transaction[0].pending_reason=UNILATERAL";i:29;s:16:"status=COMPLETED";i:30;s:31:"transaction[1].status=Completed";i:31;s:10:"test_ipn=1";i:32;s:49:"payment_request_date=Mon Sep 04 06:27:43 PDT 2017";} ');	
+		
+		if(isset($rawPostArray) && $rawPostArray != '')
+		{
+			$message  	= 	serialize($rawPostArray);	
+			$to			=	'rupesh@pulsesolutions.net';
+			$subject	=	'Paypal Notification';
+			$this->load->library('email');
+			$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='ghanshyam.maurya@pulsesolutions.net', $this->config->item('admin_from_name'));
+		}
+		
+		//echo "<pre>"; print_r($rawPostArray);exit;
+		$responseData	=	array();
+		$data_arr= array();
+		$checkcount = 0;
+		$checkcount2 = 0;		
+		$st_transactions = '';
+		$st_id_for_sender_txn = '';
+		foreach($rawPostArray as $key=>$value)
+		{
+			
+			$data_val = explode("=",$value);		
+			
+			$responseData[$data_val[0]]	=	$data_val[1];
+			
+			
+			if(isset($data_val[0]) && $data_val[0] == "transaction[".$checkcount."].id")
+			{				
+				if($st_transactions == '')
+				{
+					$st_transactions .= $data_val[1];
+				}else
+				{
+					$st_transactions .= ", " . $data_val[1];
+				}				
+			}
+			if(isset($data_val[0]) && $data_val[0] == "transaction[".$checkcount."].id_for_sender_txn")
+			{
+				
+				if($st_id_for_sender_txn == '')
+				{
+					$st_id_for_sender_txn .= $data_val[1];
+				}else
+				{
+					$st_id_for_sender_txn .= ", " . $data_val[1];
+				}
+				
+				$checkcount++;		
+			}	
+				
+			
+		}
+		
+		if(isset($responseData) && $responseData['status']=='COMPLETED')
+		{
+			$track 		= explode("doobertcart",$responseData['tracking_id']);
+			$order_id	=	str_replace("doobertcart","",$track[1]);
+			$crate_id	=	$track[2];
+			
+			$status	=	2; // Processing
+			if($st_transactions=='')
+				$st_transactions	=	$st_id_for_sender_txn;
+			
+			
+			//$order_id	=	$myPost['custom'];			
+			$transaction_id	=	$st_transactions; //$myPost['txn_id'];
+			//$order_id = 183;
+			$order_detail = $this->common_model->get_order_detail($order_id);
+			if(isset($order_detail) && count($order_detail) >0)
+			{
+				$st_transaction_id = $order_detail['st_transaction_id'].','.$transaction_id;
+				$st_transactions   = $order_detail['st_transactions'].','.serialize($rawPostArray);
+			} else {
+				$st_transaction_id = $transaction_id;
+				$st_transactions   = serialize($rawPostArray);
+			}		
+			$ipn_notification_data = array('st_transaction_id'=>$st_transaction_id,'st_transactions'=>$st_transactions,'dt_modified'=>date("Y-m-d H:i:s"));
+			$this->db->where('in_order_id',$order_id);
+			$this->db->update('tbl_order',$ipn_notification_data);
+			
+			
+			$email_details = $this->common_model->get_email_containt("131");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			$user_detail = $this->common_model->get_space_user_detail($order_id);
+			$order_data = $this->order_transport_model->get_data_by_order_id($order_id,$crate_id);
+			$address_data = $this->order_transport_model->get_address_by_order_id($order_id);
+			$approved_in_id = array();
+
+			//Mail for User
+			if(isset($user_detail) && !empty($user_detail))
+			{	
+				$email_details = $this->common_model->get_email_containt("131");
+				
+				if(isset($address_data[0]['st_email']) && ($address_data[0]['st_email'] != '')){
+					$to  = $address_data[0]['st_email'];
+				}else{
+					$to = 'rupesh@pulsesolutions.net';
+				}
+
+				$trans_id = array_keys($order_data)[0];
+				$transport_details	= $this->orgtrasnportation_model->get_transport_details($trans_id);			
+				$user_name  = $address_data[0]['st_first_name']." ".$address_data[0]['st_last_name'];
+				$org_name = $transport_details[0]['st_org_name'];
+				$trans_from_date = date("D, M d",strtotime($transport_details[0]['dt_pickup_date']));
+				$trans_to_date = date("D, M d",strtotime($transport_details[0]['dt_target']));
+				$coordinator = $transport_details['0']['st_display_name'];
+				$coordinator_email = $transport_details['0']['st_email'];
+				$orgcode = ($transport_details[0]['st_org_code'] != '')? '#'.$transport_details[0]['st_org_code'] : '#DBT';
+
+					$email_templete  = $email_details[0]['st_email_body'];
+					$user_info ='';   
+					//$user_info .= 'Name: '.$user_detail['st_first_name'].'<br>';
+					$user_info .= 'your space reservation is confirmed with the following details:<br>';
+					$cart_detail ='';
+					$cart_detail .= '<table id="card-table-fromto" class="table list-animal-profile" style="width:100%">
+										<thead>
+										  <tr>
+										  	<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Transport ID</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Crates</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Quantity</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Cost per Crate</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:right!important;">Total</th>
+										  </tr>
+										</thead>
+										<tbody id="crate_table">';
+					$cost =0;
+					$total_cost = 0;
+					$total =0;
+					foreach($order_data as $o_key => $o_value){
+							
+							foreach ($o_value as $key => $value) {
+								if($value['is_waitinglist'] == 2 && $value['in_approval_o'] == 1){
+									$qty = $value['in_qty'];
+									
+									$order_transport_arr = array('in_approval'=> 1,'is_waitinglist' => 0);
+									$this->db->where('in_id',$value['in_id']);
+									$this->db->update('tbl_order_transport', $order_transport_arr); 
+
+									$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+									$in_user_id = $value['in_user_id'];
+									if($in_user_id != '' || $in_user_id != 0){
+										$cost = $value['in_cost_private'];
+									}else{
+										$cost = $value['in_cost_public'];
+									}
+									$in_from_id = $value['in_from_id'];
+									$in_to_id = $value['in_to_id'];
+									$total = $qty*$cost;
+									$total_cost = $total_cost+$total;
+									$cart_detail .= '<tr><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$o_key.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$value['st_crate_type'].' Crate</td>'; 
+									$cart_detail .= '<td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$qty.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">$'.$cost.'</td>';
+									$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format((float)$total, 2, '.', '').'</td></tr>';
+								}
+							}
+					}
+					
+					if(isset($order_detail) && count($order_detail) >0)
+					{
+						$total_cost_value = $total_cost + $order_detail['fl_order_total'];
+						$total_admin_fee = $this->config->item('transport_cart_admin_fee')+$order_detail['fl_admin_fee'];
+						$grand_total = $total_cost + $this->config->item('transport_cart_admin_fee');
+						$total_grand_total = $grand_total + $order_detail['fl_grand_total'];
+					} else {
+						$total_cost_value = $total_cost;
+						$total_admin_fee = $this->config->item('transport_cart_admin_fee');
+						$grand_total = $total_cost + $this->config->item('transport_cart_admin_fee');
+						$total_grand_total = $grand_total;
+					}		
+					$orderarr = array('fl_order_total' => $total_cost_value,
+									  "fl_admin_fee"   => $total_admin_fee,
+									  "fl_grand_total" =>	$total_grand_total,
+									);
+					
+					$this->db->where('in_order_id',$order_id);
+					$this->db->update('tbl_order',$orderarr);					
+					
+					$final_cost = number_format((float)$total_cost, 2, '.', '');
+					$fl_final_cost = number_format((float)$total_cost+$this->config->item('transport_cart_admin_fee'), 2, '.', '');
+					$cart_detail .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Cart Subtotal</td>';
+					$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$final_cost.'</td></tr>';
+					$cart_detail .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Doobert Support Fee</td>';
+					$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format($this->config->item('transport_cart_admin_fee'), 2, '.', '').'</td></tr>';
+					$cart_detail .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Total</td>';
+					$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$fl_final_cost.'</td></tr>';
+					$cart_detail .= '	</tbody></table>';
+					
+					$from_details =$this->orgtrasnportation_model->get_leg_by_leg_id($in_from_id, 'P');
+					$to_details = $this->orgtrasnportation_model->get_leg_by_leg_id($in_to_id,'D');
+					if(isset($from_details->st_street) && !empty($from_details->st_street)){
+						$pick_up = $from_details->st_street.", ".$from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+					}
+					else{
+						$pick_up = $from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+					}
+
+					if(isset($to_details->st_street) &&!empty($to_details->st_street)){
+						$drop_off = $to_details->st_street.", ".$to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;
+					}else{
+						$drop_off = $to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;		
+					}
+
+
+					$templete   = $email_templete;
+					//$templete   = str_replace("##display_name##",'Rajashri',$templete);
+					$templete  	= str_replace("##transport_day,transport_date##",date("l, M d",strtotime($transport_details[0]['dt_pickup_date'])),$templete);
+					$templete   = str_replace("##user_details##",$user_info,$templete);  
+					$templete   = str_replace("##DONATION##",$donation,$templete);  
+					$templete   = str_replace("##CART_DETAIL##",$cart_detail,$templete);
+					$templete 	= str_replace("##transport_id##", $orgcode.$trans_id, $templete);
+					$templete 	= str_replace("##user_display_name##", $user_name, $templete);
+					$templete 	= str_replace("##organization_name##", $org_name, $templete);
+					$templete 	= str_replace("##Pickup_date##", $trans_from_date, $templete);
+					$templete 	= str_replace("##Dropoff_date##", $trans_to_date, $templete);
+					$templete 	= str_replace("##sending_city/state/zip_code##", $pick_up, $templete);
+					$templete 	= str_replace("##receiving_city/state/zip_code##", $drop_off, $templete);
+					$templete   = str_replace("##transport_coordinator##", $coordinator, $templete);
+					$templete   = str_replace("##coordinator_email##", $coordinator_email, $templete);
+					
+					$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg?'.rand();
+					if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}
+					
+					$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+
+					$share_facebook_str  = ''; 
+					$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+					$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+					
+					$share_twitter_str = ''; 
+					
+					$share_twitter_str .= '<a href="http://twitter.com/share?url='.urlencode($share_url).'&text='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+
+					$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+					
+					$share_gplus_str = ''; 
+					$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="https://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+					
+					
+			                
+					$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+								
+					// for latest Blog.
+					$blog_details = $this->get_doobert_recent_post();
+					
+					if(!empty($blog_details))
+					{
+					$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+					$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+					$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+					}
+
+
+					$strMail 	= 	$templete;
+					$to			=	$to;
+					$subject	=	$email_details[0]['st_email_subject'];
+					$message	=	$strMail;
+					$category   =   $email_details[0]['st_category'];
+					
+					$this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='rajashri.mahapure@pulsesolutions.net',$this->config->item('admin_from_name'),$this->email,$category);
+					
+			}
+
+			// Mail for co ordinator
+			if(isset($order_data) && !empty($order_data))
+			{	
+				
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				foreach($order_data as $o_key => $o_value){
+					$email_details = $this->common_model->get_email_containt("132");
+					
+					$transport_details	= $this->orgtrasnportation_model->get_transport_details($o_key);									
+					if(isset($transport_details[0]['st_email']) && ($transport_details[0]['st_email'] != '')){
+						$to  = $transport_details[0]['st_email'];
+					}else{
+						$to = 'rajashri.mahapure@pulsesolutions.net';
+					}
+					$user_name  = $address_data[0]['st_first_name']." ".$address_data[0]['st_last_name'];//order by user name
+					$user_email = $address_data[0]['st_email'];
+					$org_name = $transport_details[0]['st_org_name'];
+					$trans_from_date = date("D, M d",strtotime($transport_details[0]['dt_pickup_date']));
+					$trans_to_date = date("D, M d",strtotime($transport_details[0]['dt_target']));
+					$coordinator = $transport_details['0']['st_display_name'];
+					$trans_id = $transport_details['0']['in_transportation_id'];
+					$coordinator_email = $transport_details['0']['st_email'];
+					$orgcode = ($transport_details[0]['st_org_code'] != '')? '#'.$transport_details[0]['st_org_code'] : '#DBT';
+
+					$email_templete  = $email_details[0]['st_email_body'];
+					$user_info ='';   
+					$user_info .= 'Name: '.$transport_details['st_org_name'].'<br>';
+					$user_info .= 'your space is reserved with the following details:<br>';
+					$cart_coordinator ='';
+					$cart_coordinator .= '<table id="card-table-fromto" class="table list-animal-profile">
+						<thead>
+						  <tr>
+						  	<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Transport ID</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Crates</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Quantity</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Cost per Crate</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:right!important;">Total</th>
+						  </tr>
+						</thead>
+						<tbody id="crate_table">';
+						$cost =0;
+						$total_cost = 0;
+						$total =0;
+						$send_mail = 0;		
+						foreach ($o_value as $key => $value) {
+							if($value['is_waitinglist'] == 2 && $value['in_approval_o'] == 1){
+							$qty = $value['in_qty'];
+							$send_mail = 1;
+							$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+							$in_user_id = $value['in_user_id'];
+							if($in_user_id != '' || $in_user_id != 0){
+								$cost = $value['in_cost_private'];
+							}else{
+								$cost = $value['in_cost_public'];
+							}
+							$in_from_id = $value['in_from_id'];
+							$in_to_id = $value['in_to_id'];
+							$total = $qty*$cost;
+							$total_cost = $total_cost+$total;
+							$cart_coordinator .= '<tr><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$o_key.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$value['st_crate_type'].' Crate</td>'; 
+							$cart_coordinator .= '<td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$qty.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">$'.$cost.'</td>';
+							$cart_coordinator .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format((float)$total, 2, '.', '').'</td></tr>';
+							}
+						}
+						$final_cost = number_format((float)$total_cost, 2, '.', '');
+						//$fl_final_cost = number_format((float)$total_cost+$this->config->item('transport_cart_admin_fee'), 2, '.', '');
+						$cart_coordinator .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Total Cost</td>';
+						$cart_coordinator .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$final_cost.'</td></tr>';
+						/*$cart_coordinator .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Doobert Support Fee</td>';
+						$cart_coordinator .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format($this->config->item('transport_cart_admin_fee'), 2, '.', '').'</td></tr>';
+						$cart_coordinator .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Total</td>';
+						$cart_coordinator .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$fl_final_cost.'</td></tr>';*/
+						$cart_coordinator .= '</tbody></table>';
+					
+						//$cart_coordinator .= '</tbody></table>';
+
+						$from_details =$this->orgtrasnportation_model->get_leg_by_leg_id($in_from_id, 'P');
+						$to_details = $this->orgtrasnportation_model->get_leg_by_leg_id($in_to_id,'D');
+						if(isset($from_details->st_street) && !empty($from_details->st_street)){
+							$pick_up = $from_details->st_street.", ".$from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+						}
+						else{
+							$pick_up = $from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+						}
+
+						if(isset($to_details->st_street) &&!empty($to_details->st_street)){
+							$drop_off = $to_details->st_street.", ".$to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;
+						}else{
+							$drop_off = $to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;		
+						}
+						
+
+						$templete   = $email_templete;
+						$templete   = str_replace("##display_name##",'Rajashri',$templete);
+						$templete   = str_replace("##DONATION##",$donation,$templete);
+						$templete  	= str_replace("##transport_day,transport_date##",date("l, M d",strtotime($transport_details[0]['dt_pickup_date'])),$templete);
+						$templete   = str_replace("##user_details##",$user_info,$templete);  
+						$templete   = str_replace("##CART_DETAIL##",$cart_coordinator,$templete);
+						$templete 	= str_replace("##transport_id##", $orgcode.$o_key, $templete);
+						$templete 	= str_replace("##user_display_name##", $coordinator, $templete);
+						$templete 	= str_replace("##organization_name##", $org_name, $templete);
+						$templete 	= str_replace("##Pickup_date##", $trans_from_date, $templete);
+						$templete 	= str_replace("##Dropoff_date##", $trans_to_date, $templete);
+						$templete 	= str_replace("##sending_city/state/zip_code##", $pick_up, $templete);
+						$templete 	= str_replace("##receiving_city/state/zip_code##", $drop_off, $templete);
+						//$templete   = str_replace("##Order_by##", $user_name, $templete);
+						//$templete   = str_replace("##Order_by_email##", $user_email, $templete);
+						
+						$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg'))
+							{
+								$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+							} else {
+								$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+							}
+						
+						$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+					
+						$share_facebook_str  = ''; 
+						$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+						$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+						
+						$share_twitter_str = ''; 
+						
+						$share_twitter_str .= '<a href="http://twitter.com/share?url='.urlencode($share_url).'&text='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+
+						$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+						
+						$share_gplus_str = ''; 
+						$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="https://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+						
+						
+				                
+						$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+
+						// for latest Blog.
+						$blog_details = $this->get_doobert_recent_post();
+						
+						if(!empty($blog_details))
+						{
+						$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+						$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+						$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+						}
+						
+						if($send_mail==1)
+						{	
+							$strMail 	= 	$templete;
+							$to			=   $to;
+							$subject	=	$email_details[0]['st_email_subject'];
+							$message	=	$strMail;
+							$category   =   $email_details[0]['st_category'];
+							$this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='rajashri.mahapure@pulsesolutions.net',$this->config->item('admin_from_name'),$this->email,$category);
+						}	
+				}	
+			}
+
+			
+			
+			
+		}	
+		
+	}
+	public function cart_notify_url_test()
+	{
+		$postData = file_get_contents('php://input');
+		$rawPostArray = explode('&', $postData);
+		
+		$myPost = array();
+		foreach ($rawPostArray as $keyval) {
+		  $keyval = explode ('=', $keyval);
+		  if (count($keyval) == 2)
+			$myPost[$keyval[0]] = urldecode($keyval[1]);
+		}
+		if(isset($myPost) && (strtoupper($myPost['payment_status'])=='COMPLETED' || $myPost['payer_status']=='verified')){
+			$order_id	=	$myPost['custom'];			
+			$transaction_id	=	$myPost['txn_id'];
+			//$order_id = 183;
+
+			$ipn_notification_data = array('st_transaction_id'=>$transaction_id,'st_transactions'=>serialize($rawPostArray),'dt_modified'=>date("Y-m-d H:i:s"));
+			$this->db->where('in_order_id',$order_id);
+			$this->db->update('tbl_order',$ipn_notification_data);
+			
+			$this->load->library('email');
+			$email_details = $this->common_model->get_email_containt("131");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			$user_detail = $this->common_model->get_space_user_detail($order_id);
+			$order_data = $this->order_transport_model->get_data_by_order_id($order_id);
+			$address_data = $this->order_transport_model->get_address_by_order_id($order_id);
+
+
+			//Mail for User
+			if(isset($user_detail) && !empty($user_detail))
+			{	
+				$email_details = $this->common_model->get_email_containt("131");
+				
+				if(isset($address_data[0]['st_email']) && ($address_data[0]['st_email'] != '')){
+					$to  = $address_data[0]['st_email'];
+				}else{
+					$to = 'rajashri.mahapure@pulsesolutions.net';
+				}
+
+				$trans_id = array_keys($order_data)[0];
+				$transport_details	= $this->orgtrasnportation_model->get_transport_details($trans_id);			
+				$user_name  = $address_data[0]['st_first_name']." ".$address_data[0]['st_last_name'];
+				$org_name = $transport_details[0]['st_org_name'];
+				$trans_from_date = date("D, M d",strtotime($transport_details[0]['dt_pickup_date']));
+				$trans_to_date = date("D, M d",strtotime($transport_details[0]['dt_target']));
+				$coordinator = $transport_details['0']['st_display_name'];
+				$coordinator_email = $transport_details['0']['st_email'];
+				$orgcode = ($transport_details[0]['st_org_code'] != '')? '#'.$transport_details[0]['st_org_code'] : '#DBT';
+
+					$email_templete  = $email_details[0]['st_email_body'];
+					$user_info ='';   
+					//$user_info .= 'Name: '.$user_detail['st_first_name'].'<br>';
+					$user_info .= 'your space reservation is confirmed with the following details:<br>';
+					$cart_detail ='';
+					$cart_detail .= '<table id="card-table-fromto" class="table list-animal-profile" style="width:100%">
+										<thead>
+										  <tr>
+										  	<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Transport ID</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Crates</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Quantity</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Cost per Crate</th>
+											<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:right!important;">Total</th>
+										  </tr>
+										</thead>
+										<tbody id="crate_table">';
+					$cost =0;
+					$total_cost = 0;
+					$total =0;
+					foreach($order_data as $o_key => $o_value){
+							
+							foreach ($o_value as $key => $value) {
+								if($value['is_waitinglist'] == 0){
+								$qty = $value['in_qty'];
+
+								$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+								$in_user_id = $value['in_user_id'];
+								if($in_user_id != 0){
+									$cost = $value['in_cost_private'];
+								}else if($in_user_id == 0){
+									$cost = $value['in_cost_public'];
+								}
+								$in_from_id = $value['in_from_id'];
+								$in_to_id = $value['in_to_id'];
+								$total = $qty*$cost;
+								$total_cost = $total_cost+$total;
+								$cart_detail .= '<tr><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$o_key.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$value['st_crate_type'].' Crate</td>'; 
+								$cart_detail .= '<td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$qty.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">$'.$cost.'</td>';
+								$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format((float)$total, 2, '.', '').'</td></tr>';
+								}
+							}
+					}
+					$final_cost = number_format((float)$total_cost, 2, '.', '');
+					$fl_final_cost = number_format((float)$total_cost+$this->config->item('transport_cart_admin_fee'), 2, '.', '');
+					$cart_detail .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Cart Subtotal</td>';
+					$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$final_cost.'</td></tr>';
+					$cart_detail .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Doobert Support Fee</td>';
+					$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format($this->config->item('transport_cart_admin_fee'), 2, '.', '').'</td></tr>';
+					$cart_detail .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Total</td>';
+					$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$fl_final_cost.'</td></tr>';
+					$cart_detail .= '	</tbody></table>';
+					
+					$from_details =$this->orgtrasnportation_model->get_leg_by_leg_id($in_from_id, 'P');
+					$to_details = $this->orgtrasnportation_model->get_leg_by_leg_id($in_to_id,'D');
+					if(isset($from_details->st_street) && !empty($from_details->st_street)){
+						$pick_up = $from_details->st_street.", ".$from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+					}
+					else{
+						$pick_up = $from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+					}
+
+					if(isset($to_details->st_street) &&!empty($to_details->st_street)){
+						$drop_off = $to_details->st_street.", ".$to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;
+					}else{
+						$drop_off = $to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;		
+					}
+
+
+					$templete   = $email_templete;
+					//$templete   = str_replace("##display_name##",'Rajashri',$templete);
+					$templete   = str_replace("##user_details##",$user_info,$templete); 
+					$templete   = str_replace("##DONATION##",$donation,$templete); 
+					$templete   = str_replace("##CART_DETAIL##",$cart_detail,$templete);
+					$templete 	= str_replace("##transport_id##", $orgcode.$trans_id, $templete);
+					$templete 	= str_replace("##user_display_name##", $user_name, $templete);
+					$templete 	= str_replace("##organization_name##", $org_name, $templete);
+					$templete 	= str_replace("##Pickup_date##", $trans_from_date, $templete);
+					$templete 	= str_replace("##Dropoff_date##", $trans_to_date, $templete);
+					$templete 	= str_replace("##sending city/state/zip code##", $pick_up, $templete);
+					$templete 	= str_replace("##receiving city/state/zip code##", $drop_off, $templete);
+					$templete   = str_replace("##transport_coordinator##", $coordinator, $templete);
+					$templete   = str_replace("##coordinator_email##", $coordinator_email, $templete);
+					
+					$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg?'.rand();
+					if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}
+					
+					$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+
+					$share_facebook_str  = ''; 
+					$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+					$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+					
+					$share_twitter_str = ''; 
+					
+					$share_twitter_str .= '<a href="http://twitter.com/share?url='.urlencode($share_url).'&text='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+
+					$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+					
+					$share_gplus_str = ''; 
+					$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="https://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+					
+					
+			                
+					$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+								
+					// for latest Blog.
+					$blog_details = $this->get_doobert_recent_post();
+					
+					if(!empty($blog_details))
+					{
+					$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+					$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+					$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+					}
+
+
+					$strMail 	= 	$templete;
+					$to			=	$to;
+					$subject	=	$email_details[0]['st_email_subject'];
+					$message	=	$strMail;
+					$category   =   $email_details[0]['st_category'];
+					
+					$this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='rajashri.mahapure@pulsesolutions.net',$this->config->item('admin_from_name'),$this->email,$category);
+					
+			}
+
+			// Mail for co ordinator
+			if(isset($order_data) && !empty($order_data))
+			{	
+				$email_details = $this->common_model->get_email_containt("132");
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				
+				foreach($order_data as $o_key => $o_value){
+					$transport_details	= $this->orgtrasnportation_model->get_transport_details($o_key);									
+					if(isset($transport_details[0]['st_email']) && ($transport_details[0]['st_email'] != '')){
+						$to  = $transport_details[0]['st_email'];
+					}else{
+						$to = 'rajashri.mahapure@pulsesolutions.net';
+					}
+					$user_name  = $address_data[0]['st_first_name']." ".$address_data[0]['st_last_name'];//order by user name
+					$user_email = $address_data[0]['st_email'];
+					$org_name = $transport_details[0]['st_org_name'];
+					$trans_from_date = date("D, M d",strtotime($transport_details[0]['dt_pickup_date']));
+					$trans_to_date = date("D, M d",strtotime($transport_details[0]['dt_target']));
+					$coordinator = $transport_details['0']['st_display_name'];
+					
+					$coordinator_email = $transport_details['0']['st_email'];
+					$orgcode = ($transport_details[0]['st_org_code'] != '')? '#'.$transport_details[0]['st_org_code'] : '#DBT';
+
+					$email_templete  = $email_details[0]['st_email_body'];
+					$user_info ='';   
+					$user_info .= 'Name: '.$transport_details['st_org_name'].'<br>';
+					$user_info .= 'your space is reserved with the following details:<br>';
+					$cart_coordinator ='';
+					$cart_coordinator .= '<table id="card-table-fromto" class="table list-animal-profile">
+						<thead>
+						  <tr>
+						  	<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Transport ID</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Crates</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Quantity</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Cost per Crate</th>
+							<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:right!important;">Total</th>
+						  </tr>
+						</thead>
+						<tbody id="crate_table">';
+						$cost =0;
+						$total_cost = 0;
+						$total =0;
+								
+						foreach ($o_value as $key => $value) {
+							
+							$qty = $value['in_qty'];
+
+							$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+							$in_user_id = $value['in_user_id'];
+							if($in_user_id != '' || $in_user_id != 0){
+								$cost = $value['in_cost_private'];
+							}else{
+								$cost = $value['in_cost_public'];
+							}
+							$in_from_id = $value['in_from_id'];
+							$in_to_id = $value['in_to_id'];
+							$total = $qty*$cost;
+							$total_cost = $total_cost+$total;
+							$cart_coordinator .= '<tr><td>'.$o_key.'</td><td>'.$value['st_crate_type'].' Crate</td>'; 
+							$cart_coordinator .= '<td>'.$qty.'</td><td>$'.$cost.'</td>';
+							$cart_coordinator .= '<td>$'.number_format((float)$total, 2, '.', '').'</td></tr>';							
+							
+							
+						}
+						$final_cost = number_format((float)$total_cost, 2, '.', '');
+						$cart_coordinator .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Total Cost</td>';
+						$cart_coordinator .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$final_cost.'</td></tr>';
+						$cart_coordinator .= '</tbody></table>';
+
+						$from_details =$this->orgtrasnportation_model->get_leg_by_leg_id($in_from_id, 'P');
+						$to_details = $this->orgtrasnportation_model->get_leg_by_leg_id($in_to_id,'D');
+						if(isset($from_details->st_street) && !empty($from_details->st_street)){
+							$pick_up = $from_details->st_street.", ".$from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+						}
+						else{
+							$pick_up = $from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+						}
+
+						if(isset($to_details->st_street) &&!empty($to_details->st_street)){
+							$drop_off = $to_details->st_street.", ".$to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;
+						}else{
+							$drop_off = $to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;		
+						}
+						
+
+						$templete   = $email_templete;
+						$templete   = str_replace("##display_name##",'Rajashri',$templete);
+						$templete   = str_replace("##user_details##",$user_info,$templete);  
+						$templete   = str_replace("##DONATION##",$donation,$templete);  
+						$templete   = str_replace("##CART_DETAIL##",$cart_coordinator,$templete);
+						$templete 	= str_replace("##transport_id##", $orgcode.$o_key, $templete);
+						$templete 	= str_replace("##user_display_name##", $coordinator, $templete);
+						$templete 	= str_replace("##organization_name##", $org_name, $templete);
+						$templete 	= str_replace("##Pickup_date##", $trans_from_date, $templete);
+						$templete 	= str_replace("##Dropoff_date##", $trans_to_date, $templete);
+						$templete 	= str_replace("##sending city/state/zip code##", $pick_up, $templete);
+						$templete 	= str_replace("##receiving city/state/zip code##", $drop_off, $templete);
+						$templete   = str_replace("##Order_by##", $user_name, $templete);
+						$templete   = str_replace("##Order_by_email##", $user_email, $templete);
+						
+						$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg'))
+							{
+								$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+							} else {
+								$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+							}
+						
+						$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+					
+						$share_facebook_str  = ''; 
+						$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+						$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+						
+						$share_twitter_str = ''; 
+						
+						$share_twitter_str .= '<a href="http://twitter.com/share?url='.urlencode($share_url).'&text='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+
+						$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+						
+						$share_gplus_str = ''; 
+						$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="https://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+						
+						
+				                
+						$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+
+						// for latest Blog.
+						$blog_details = $this->get_doobert_recent_post();
+						
+						if(!empty($blog_details))
+						{
+						$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+						$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+						$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+						}
+						
+						$strMail 	= 	$templete;
+						$to			=   $to;
+						$subject	=	$email_details[0]['st_email_subject'];
+						$message	=	$strMail;
+						$category   =   $email_details[0]['st_category'];
+						$this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='rajashri.mahapure@pulsesolutions.net',$this->config->item('admin_from_name'),$this->email,$category);
+				}	
+			}
+
+			
+		}//post commet
+			
+			
+	}
+
+
+	
+
+
+	public function get_doobert_recent_post() {
+      
+		//$c=curl_init('https://www.doobert.com/feed/');
+		$c=curl_init('https://www.doobert.com/category/blog-home/feed/');
+		curl_setopt( $c, CURLOPT_USERAGENT,'nginx-curl-blahblahblah' );
+		curl_setopt( $c, CURLOPT_RETURNTRANSFER, true );
+		$r=curl_exec( $c );
+		curl_close( $c );
+		//print_r($r);
+		
+		$rss = new DOMDocument();
+		$rss->loadxml($r);
+		$feed = array();
+		foreach ($rss->getElementsByTagName('item') as $node) {
+			$item = array ( 
+				'title' => $node->getElementsByTagName('title')->item(0)->nodeValue,
+				'desc' => $node->getElementsByTagName('description')->item(0)->nodeValue,
+				'link' => $node->getElementsByTagName('link')->item(0)->nodeValue,
+				'date' => $node->getElementsByTagName('pubDate')->item(0)->nodeValue,
+				);
+			array_push($feed, $item);
+		}
+		$limit = 1;
+		$blog =array();
+		for($x=0;$x<$limit;$x++) {
+			$title = str_replace(' & ', ' &amp; ', $feed[$x]['title']);
+			$link = $feed[$x]['link'];
+			$description = $feed[$x]['desc'];
+		    $description = preg_replace("/<img[^>]+\>/i","", $description); 
+			if(strlen($description) > 100)
+				{
+					$des = substr($description, 0, 99);
+					$des.= '...';
+				}
+			
+			$blog['title']=$title;
+			$blog['content']=$des;
+			$blog['blog_link'] = $link;
+			
+			//$date = date('l F d, Y', strtotime($feed[$x]['date']));
+			/*echo '<p><strong><a href="'.$link.'" title="'.$title.'">'.$title.'</a></strong><br />';
+			echo '<small><em>Posted on '.$date.'</em></small></p>';
+			echo '<p>'.$description.'</p>';*/
+			//print_r($blog);
+		}
+		return $blog;	
+	}
+	
+	public function test_order_detail()
+	{
+		$order_id = '239';
+		$order_data = $this->order_transport_model->get_data_by_order_id($order_id);
+		print_r($order_data);
+	}
+	
+
+		
+}	
+?>	

@@ -1,0 +1,4183 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 04-Apr-2014
+# File description		: org_info controller 
+# Special- notes		: 
+# Tables used			: tbl_organization_user
+# Stored procedures		: none 
+# Triggers used			: none 
+# --------------------------------------------------------------------------------------
+
+class Org_info extends CI_Controller { 
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE); 
+		$this->load->model('common_model');
+		$this->load->model('org_info_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');	
+		/*if(!$this->session->userdata('org_id')) {
+			redirect(base_url().'my-profile');
+		}*/
+		  /*if($this->session->userdata('org_username'))
+			{
+			$this->session->unset_userdata('org_username');
+			}*/
+		
+		/*if($this->router->method != 'invite_user') {
+			$this->session->unset_userdata('org_username');
+		}
+		if($this->router->method != 'invite_user') {
+			$this->session->unset_userdata('org_sort');
+		}*/
+	}	
+	
+	#=========================================================
+	#	Function : index
+	#	Purpose  : Display pending users
+	#=========================================================
+	
+	public function index() {
+	
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'org_info/index/';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['pending_user_list'] = $this->org_info_model->get_all_pending_users($config["per_page"],$page,$this->session->userdata('userid'),$this->session->userdata('org_id'));
+		
+		//Getting total rows
+		$config["total_rows"] = $data['pending_user_list']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+		
+		$this->load->view('pending-users',$data);
+	}
+	
+	#=========================================================
+	#	Function : user_profile
+	#	Purpose  : Getting user profile
+	#=========================================================
+	
+	public function user_profile($id,$org_id='') {
+		if(!$this->session->userdata('userid'))
+		{ 
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];	
+			$this->session->set_userdata('url_data',$url);
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$user_id		= $this->uri->segment(2);
+		$data['request_type'] = $this->org_info_model->get_request_type($id);
+		$data['request_type'] = $data['request_type']['in_request_type'];
+		if(!$this->session->userdata('org_id')) {
+			$this->session->set_userdata('org_id',$org_id);
+			$get_org_details = $this->org_info_model->organization_profile($this->session->userdata('org_id'));
+			isset($get_org_details['st_org_name'])?$this->session->set_userdata('org_name',$get_org_details['st_org_name']):'';
+		}
+		
+		$this->load->model('user_model');
+        $data['user_id'] = $id;
+        $data['user_profile'] = $this->org_info_model->get_user_profile($id);
+		
+		//echo '<pre>'; print_r($data['user_profile']);die;
+        
+		$data['user_plane'] = $this->user_model->get_user_plane_detail_with_image($id);
+        $data['user_org_dtls'] = $this->org_info_model->get_users_org($id);
+		$data['user_foster_detail'] = $this->user_model->get_foster_home_detail($id);
+		$data['user_photographer'] = $this->user_model->get_photographer_detail($id);
+        $data['user_in_person_vol'] = $this->user_model->get_in_person_volunteer_detail($id);
+        $data['user_virtual_sup_vol'] = $this->user_model->get_virtual_sup_vol_detail($id);
+		$data['user_foster_animal_type_details'] = $this->user_model->get_foster_animal_type_details($id);
+		$data['user_vehicle'] = $this->user_model->get_user_vehicle_detail_with_image($id);
+		$data['user_foster_reference_details'] = $this->user_model->get_foster_home_ref_by_user_id($id);	
+
+        $data['user_profile_setting_details'] = $this->common_model->get_user_profile_setting($id);
+		$transport_permission_user = $this->common_model->verify_transport_permission($id);
+		if($transport_permission_user == 'true')
+			$data['tc_user_count'] = $this->common_model->get_tc_volunteer_count($id);
+	
+		$data['vol_user_count'] = $this->common_model->get_transaction_volunteer_count($id);
+		
+		//added by ghanshyam on 07Nov2014
+		//$this->load->model('user_model');
+		//$data['arrPlane']							= $this->user_model->get_plane_detail($id); 
+		
+		if(empty($data['user_profile'])) {
+			redirect(base_url().'org_info');
+		}
+		
+		
+		if($this->input->post('remove_user_id') == '1')
+		{
+			$org_user_id = $this->input->post('block_org_user_id');
+			
+			$data['unblock_status'] = array('in_deleted'		=>	'1',
+											'dt_modified'	=>	date('Y-m-d H:i:s')
+										);
+			
+			$this->org_info_model->update_permission($org_user_id,$data['unblock_status']);
+			$this->session->set_flashdata('remove_success','User Removed Successfully.');
+			redirect(base_url().'org_info/approved_users');
+			
+		}
+		
+		//Approving user
+		if($this->input->post('frm_action') == 'permission_frm_value') {
+			
+			if($this->input->post('user_access_level') != 'true') {
+				$this->session->set_flashdata('user_access_level','Please select at least one access level.');
+				
+				if($this->input->post('approve_user_access') == 'yes') {
+					redirect(base_url().'approved-user-cnf/'.$id);
+				} else {
+					redirect(base_url().'user-profile/'.$id);
+				}
+			}
+			
+			$permission_str = $_POST;
+			
+			$org_user_id = $permission_str['org_user_id'];
+			
+			//Unsetting hidden value
+			unset($permission_str['frm_action']);
+			unset($permission_str['org_user_id']);
+			
+			if(($this->input->post('transport') || $this->input->post('profile_manager') || $this->input->post('fundraiser')) && $this->input->post('view_only')){
+				unset($permission_str['view_only']);
+			}
+			
+			//Serialize permission array
+			$user_permission = (!empty($permission_str))?serialize($permission_str):'';
+			
+			$data['permission'] = array('st_permission'	=>	$user_permission,
+										//'in_status'	=> '5',
+										'in_status'		=>	'1',
+										'dt_modified'	=>	date('Y-m-d H:i:s')
+										);
+			
+			$data['update_permission'] = $this->org_info_model->update_permission($org_user_id,$data['permission']);
+			
+			if($data['update_permission'] == 1) {
+				
+				$data['notification'] = array(	'in_organization_id'	=>	$this->session->userdata('org_id'),
+												'in_user_id'			=>	$id,
+												'in_type'				=>	15,
+												'in_modified_by'		=>	$this->session->userdata('userid'),
+												'dt_created'			=>	date('Y-m-d H:i:s'),
+												'in_deleted'			=>	0
+											);
+				$data['notification_data'] = $this->org_info_model->join_org_notification($data['notification']);
+				
+				$this->load->library('email');
+				$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name'));  
+				
+				$this->email->to($data['user_profile']['st_email']);
+				
+				if($_SERVER['HTTP_HOST']!='crystal9') {
+					$this->email->bcc($this->config->item('bcc_email_id'));
+				}
+				
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt('169');    // 14
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				
+				$this->email->subject(str_replace('##organization_display_name##',$this->session->userdata('org_name'),$email_body[0]['st_email_subject']));
+				
+				$patterns = array('%##url##%','%##accepted_user_email##%','%##organization_display_name##%','%##organization_owner_display_name##%','%##current_year##%');
+				$replacements = array(base_url(),$data['user_profile']['st_email'],$this->session->userdata('org_name'),$this->session->userdata('user_name'),date('Y'));
+				
+				$content = preg_replace($patterns,$replacements,$email_body[0]['st_email_body']);
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($data['user_profile']['st_email']);
+						
+				$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($data['user_profile']['st_email']),$content);		
+				$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($data['user_profile']['st_email']),$content);	
+				$content = str_replace("##DONATION##",$donation,$content);	
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_body[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{
+					$this->email->message($content);
+					$this->email->send();
+				}
+
+				$this->session->set_flashdata('accept_cnf', 'Organization user request successfully updated.');
+                redirect(base_url() . 'user-profile/' . $id);
+			}
+		}
+		
+		//Rejecting user
+		if($this->input->post('user_name') != '') {
+			$data['status'] = array(//'st_notes'		=>	$this->input->post('reject_notes'),
+									'in_status'		=>	'4',
+									'dt_modified'	=>	date('Y-m-d H:i:s')
+									);
+				
+			$data['update_status'] = $this->org_info_model->update_permission($data['user_profile']['in_org_user_id'],$data['status']);
+			
+			if($data['update_status'] == 1) {
+				
+				$this->load->library('email');
+				$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name'));  
+				
+				$this->email->to($data['user_profile']['st_email']);
+				
+				if($_SERVER['HTTP_HOST']!='crystal9') {
+					$this->email->bcc($this->config->item('bcc_email_id'));
+				}
+				
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt('170');  //  15
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				
+				$this->email->subject(str_replace('##organization_display_name##',$this->session->userdata('org_name'),$email_body[0]['st_email_subject']));
+				
+				$patterns = array('%##url##%','%##rejected_user_email##%','%##organization_display_name##%','%##current_year##%');
+				$replacements = array(base_url(),$data['user_profile']['st_email'],$this->session->userdata('org_name'),date('Y'));
+				
+				$content = preg_replace($patterns,$replacements,$email_body[0]['st_email_body']);
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($data['user_profile']['st_email']);
+						
+				$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($data['user_profile']['st_email']),$content);		
+				$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($data['user_profile']['st_email']),$content);	
+				$content = str_replace("##DONATION##",$donation,$content);	
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_body[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{
+					$this->email->message($content);
+					$this->email->send();
+				}
+				
+				$this->session->set_flashdata('reject_cnf','Organization user request rejected and notification sent to '.$data['user_profile']['st_display_name'].'.');
+				//redirect(base_url().'reject-user/'.$id);
+				redirect(base_url().'org_info');
+			}
+		}
+		
+		//Blocking user
+		if($this->input->post('block_org_user_id') != '') {
+			
+			$org_user_id = $this->input->post('block_org_user_id');
+			
+			$data['block_status'] = array(	'in_status'		=>	'3',
+											'dt_modified'	=>	date('Y-m-d H:i:s')
+										);
+			
+			$data['status'] = $this->org_info_model->update_permission($org_user_id,$data['block_status']);
+			
+			if($data['status'] == 1) {
+				$this->session->set_flashdata('block_success','User Blocked Successfully.');
+				redirect(base_url().'blocked-user/'.$id);
+			}
+		}
+		
+		$this->load->view('pending-user-profile',$data);
+	}
+	
+	#=========================================================
+	#	Function : approved_user_cnf
+	#	Purpose  : Approved user confirmation
+	#=========================================================
+	
+	public function approved_user_cnf($id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['user_id'] = $id;
+		$data['user_profile'] = $this->org_info_model->get_user_profile($id);
+		
+		$data['user_org_dtls'] = $this->org_info_model->get_users_org($id);
+		//echo '<pre>'; print_r($data['user_org_dtls']); die;
+		$data['user_profile_setting_details'] 		= $this->common_model->get_user_profile_setting($id);	
+		
+		//added by ghanshyam on 07Nov2014
+		 $this->load->model('user_model');
+		$data['user_plane'] = $this->user_model->get_user_plane_detail_with_image($id);
+		$data['user_foster_detail'] = $this->user_model->get_foster_home_detail($id);
+		$data['user_photographer'] = $this->user_model->get_photographer_detail($id);
+        $data['user_in_person_vol'] = $this->user_model->get_in_person_volunteer_detail($id);
+        $data['user_virtual_sup_vol'] = $this->user_model->get_virtual_sup_vol_detail($id);
+		$data['user_foster_animal_type_details'] = $this->user_model->get_foster_animal_type_details($id);
+        //$data['arrPlane'] = $this->user_model->get_plane_detail($id);
+		$data['user_vehicle'] = $this->user_model->get_user_vehicle_detail_with_image($id);
+		$data['user_foster_reference_details'] = $this->user_model->get_foster_home_ref_by_user_id($id); 
+		$data['user_st_lost_animal'] = $this->user_model->get_lost_animal_detail($id);
+		
+		$transport_permission_user = $this->common_model->verify_transport_permission($id);
+		if($transport_permission_user == 'true')
+			$data['tc_user_count'] = $this->common_model->get_tc_volunteer_count($id);
+	
+		$data['vol_user_count'] = $this->common_model->get_transaction_volunteer_count($id);
+		
+		if(empty($data['user_profile'])) {
+			redirect(base_url().'org_info/approved_users');
+		}
+		
+		$this->load->view('approved-user-profile-confirmation',$data);
+	}
+	
+	#=========================================================
+	#	Function : reject_user
+	#	Purpose  : Rejecting organization user profile
+	#=========================================================
+	
+	public function reject_user($id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['user_id'] = $id;
+		$data['user_org_dtls'] = $this->org_info_model->get_users_org($id);
+		
+		$this->load->model('user_model');
+        $data['user_profile'] = $this->org_info_model->get_user_profile($id);
+        $data['user_vehicle'] = $this->user_model->get_user_vehicle_detail_with_image($id);
+		$data['user_plane'] = $this->user_model->get_user_plane_detail_with_image($id);
+		$data['user_foster_detail'] = $this->user_model->get_foster_home_detail($id);
+		$data['user_photographer'] = $this->user_model->get_photographer_detail($id);
+        $data['user_in_person_vol'] = $this->user_model->get_in_person_volunteer_detail($id);
+        $data['user_virtual_sup_vol'] = $this->user_model->get_virtual_sup_vol_detail($id);
+		$data['user_foster_animal_type_details'] = $this->user_model->get_foster_animal_type_details($id);        
+        $data['user_profile_setting_details'] = $this->common_model->get_user_profile_setting($id);	
+		$data['user_foster_reference_details'] = $this->user_model->get_foster_home_ref_by_user_id($id);
+		$data['user_st_lost_animal'] = $this->user_model->get_lost_animal_detail($id);
+		
+		if(empty($data['user_profile'])) {
+			redirect(base_url().'org_info');
+		}
+		
+		$this->load->view('reject-user-request',$data);
+	}
+	
+	#=========================================================
+	#	Function : blocked_user
+	#	Purpose  : Blocking organization user profile
+	#=========================================================
+	
+	public function blocked_user($id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['user_id'] = $id;
+		$this->load->model('user_model');
+        $data['user_profile'] = $this->org_info_model->get_user_profile($id);
+        $data['user_vehicle'] = $this->user_model->get_user_vehicle_detail_with_image($id);
+		$data['user_plane'] = $this->user_model->get_user_plane_detail_with_image($id);
+		$data['user_foster_detail'] = $this->user_model->get_foster_home_detail($id);
+		$data['user_photographer'] = $this->user_model->get_photographer_detail($id);
+        $data['user_in_person_vol'] = $this->user_model->get_in_person_volunteer_detail($id);
+        $data['user_virtual_sup_vol'] = $this->user_model->get_virtual_sup_vol_detail($id);
+		$data['user_foster_animal_type_details'] = $this->user_model->get_foster_animal_type_details($id);
+        $data['user_org_dtls'] = $this->org_info_model->get_users_org($id);
+		$data['user_foster_reference_details'] = $this->user_model->get_foster_home_ref_by_user_id($id);       
+        $data['user_profile_setting_details'] = $this->common_model->get_user_profile_setting($id);	
+		$data['user_st_lost_animal'] = $this->user_model->get_lost_animal_detail($id);
+		
+		if(empty($data['user_profile'])) {
+			redirect(base_url().'org_info/blocked_users');
+		}
+		
+		if($this->input->post('unblock_org_user_id') != '') {
+			
+			$org_user_id = $this->input->post('unblock_org_user_id');
+			//echo $org_user_id;die;
+			$transport_access =  $this->input->post('transport');
+			$fundraiser_access =  $this->input->post('fundraiser');
+			$profile_manager_access =  $this->input->post('profile_manager');
+			$view_only_access =  $this->input->post('view_only');
+			$remove_access =  $this->input->post('remove_access');
+			
+			//echo '<pre>';print_r($transport_access);
+			//echo '<pre>';print_r($fundraiser_access);
+			//echo '<pre>';print_r($profile_manager_access);
+			//echo '<pre>';print_r($view_only_access);
+			//echo '<pre>';
+			//print_r($remove_access);exit;
+			//print_r($transport_access);exit;
+			if(isset($remove_access) && $remove_access != '')
+			{
+					//echo 'delete record';exit;
+					$data['unblock_status'] = array(	'in_deleted'		=>	'1',
+											//'in_status'		=>	'1',
+											'dt_modified'	=>	date('Y-m-d H:i:s')
+										);
+			
+					$data['status'] = $this->org_info_model->update_permission($org_user_id,$data['unblock_status']);
+					$this->session->set_flashdata('unblock_success','User Unblocked Successfully.');
+					redirect(base_url().'org_info/blocked_users');
+					//exit;
+					
+			}
+			elseif (empty($transport_access) && empty($fundraiser_access) &&  empty($profile_manager_access) && empty($view_only_access))
+			{
+				//echo 'delete record222';exit;
+				$data['unblock_status'] = array(	'in_deleted'		=>	'1',
+											//'in_status'		=>	'1',
+											'dt_modified'	=>	date('Y-m-d H:i:s')
+										);
+				$data['status'] = $this->org_info_model->update_permission($org_user_id,$data['unblock_status']);
+				$this->session->set_flashdata('unblock_success','User Unblocked Successfully.');
+				redirect(base_url().'org_info/blocked_users');
+			}
+			elseif(!empty($transport_access) || !empty($fundraiser_access) ||  !empty($profile_manager_access) || !empty($view_only_access))
+			{
+					//echo 'update permission';exit;
+					//echo $org_user_id;
+					
+					$data['permission_array']	= array();
+					
+					$trans_data = $this->input->post('transport');
+					$fund_data = $this->input->post('fundraiser');
+					$profile_data = $this->input->post('profile_manager');
+					$user_access_data = $this->input->post('user_access_level');
+					if(isset($trans_data) && $trans_data != '')
+					{
+						$data['permission_array']['transport'] = $trans_data;
+					}
+					if(isset($fund_data) && $fund_data != '')
+					{
+						$data['permission_array']['fundraiser']  = $fund_data;
+					}
+					if(isset($profile_data) && $profile_data != '')
+					{
+						$data['permission_array']['profile_manager'] = $profile_data;
+					}
+					if(isset($user_access_data) && $user_access_data != '')
+					{
+						$data['permission_array']['user_access_level'] = $user_access_data;
+					}
+					/*$data['permission_array']['transport'] = $this->input->post('transport');
+					$data['permission_array']['fundraiser'] = $this->input->post('fundraiser');
+					$data['permission_array']['profile_manager'] = $this->input->post('profile_manager');
+					$data['permission_array']['user_access_level'] = $this->input->post('user_access_level');*/
+					
+					//$('#user_access_level').val('true');
+					
+					//print_r(serialize($data['permission_array']));exit;
+					
+					//array_push($data['user_id'],$user_id);
+					//print_r($data['permission_array']);die;
+					
+					$data['unblock_status'] = array(	'st_transport_cood'		=>	isset($transport_permission)?'Y':'N',
+											'st_fundraiser'			=>	isset($fundraiser_permission)?'Y':'N',
+											'st_animal_profile'		=>	isset($profile_manager_permission)?'Y':'N',
+											'st_permission'			=>	serialize($data['permission_array']),
+											'in_status'		=>	'1',
+											'dt_modified'	=>	date('Y-m-d H:i:s')
+										);
+			
+					$data['status'] = $this->org_info_model->update_permission($org_user_id,$data['unblock_status']);
+					
+					$this->session->set_flashdata('unblock_success','User Unblocked Successfully.');
+					redirect(base_url().'org_info/blocked_users');
+					//exit;
+									
+			}
+			
+			
+			
+			/*$data['unblock_status'] = array('in_status'		=>	'1',
+											'dt_modified'	=>	date('Y-m-d H:i:s')
+										);
+			
+			$data['status'] = $this->org_info_model->update_permission($org_user_id,$data['unblock_status']);
+			
+			if($data['status'] == 1) {
+				$this->session->set_flashdata('unblock_success','User Unblocked Successfully.');
+				redirect(base_url().'approved-user-cnf/'.$id);
+			}*/
+		}
+		
+		$this->load->view('blocked-user-profile',$data);
+	}
+	
+	#=========================================================
+	#	Function : unblock_user
+	#	Purpose  : unblocking organization user profile
+	#=========================================================
+	
+	public function unblock_user($id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['user_id'] = $id;
+		$data['user_profile'] = $this->org_info_model->get_user_profile($id);
+		$data['user_org_dtls'] = $this->org_info_model->get_users_org($id);
+		
+		$this->load->view('blocked-user-profile',$data);
+	}
+	
+	#=========================================================
+	#	Function : approved_users
+	#	Purpose  : Display approved users
+	#=========================================================
+	
+	public function approved_users($sort=false,$order=false,$limit=false) {  
+		if(!$this->session->userdata('userid') || !$this->session->userdata('org_id')) {
+			redirect($this->config->item('base_url'));
+		}		
+		$data = array();
+		$config = array();	
+		
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'org_info/approved_users/'.$sort.'/'.$order.'/';;
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 5;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		//$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;		
+		
+		$data['approved_user_list'] = $this->org_info_model->get_all_approved_users($sort,$order,$limit,$config["per_page"],$this->session->userdata('userid'),$this->session->userdata('org_id'));
+		
+		//Getting total rows
+		$config["total_rows"] = $data['approved_user_list']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+		
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		
+		$this->load->view('approved-users',$data);
+	}
+	
+	#=========================================================
+	#	Function : blocked_users
+	#	Purpose  : Display blocked users
+	#=========================================================
+	
+	public function blocked_users() {
+		if(!$this->session->userdata('userid') || !$this->session->userdata('org_id')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'org_info/blocked_users/';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['blocked_user_list'] = $this->org_info_model->get_all_blocked_users($config["per_page"],$page,$this->session->userdata('userid'),$this->session->userdata('org_id'));
+		//echo '<pre>'; print_r($data['blocked_user_list']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['blocked_user_list']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+		
+		$this->load->view('blocked-users',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	invite_user	
+	#	Purpose		:	Invitation to user
+	# *******************************************************************************************
+	public function invite_user() {
+		$this->session->unset_userdata('org_username');
+		$this->session->unset_userdata('org_sort');
+		$this->get_invite_user_data();	
+	}
+	
+	public function get_invite_user_data() {
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$username = '';
+		$sort_value = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'org_info/get_invite_user_data/';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'search_value') {
+			//echo "<pre>";print_r($_POST);die;
+			
+			if($this->session->userdata('org_username'))
+				$this->session->unset_userdata('org_username');
+			
+			if($this->session->userdata('org_sort'))
+				$this->session->unset_userdata('org_sort');
+					
+				$username = $this->input->post('search_txt');
+				$this->session->set_userdata('org_username',$username);
+				
+				$sort_value = $this->input->post('sort_by');
+				$this->session->set_userdata('org_sort',$sort_value);
+		} else {
+			if($this->session->userdata('org_username'))
+				$username	= $this->session->userdata('org_username');
+			else
+				$username	= '' ;
+				
+			if($this->session->userdata('org_sort'))
+				$sort_value	= $this->session->userdata('org_sort');
+			else
+				$sort_value	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['user_list'] 	= $this->org_info_model->get_all_users($config["per_page"],$page,trim($username),$sort_value);
+		
+		//echo "<pre>";print_r($data['user_list']);die;
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["user_list"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+
+		$this->load->view('invite-a-user',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	invite_user_profile	
+	#	Purpose		:	Invitation to user by viewing profile
+	# *******************************************************************************************
+	
+	public function invite_user_profile($id='') {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		//echo 'id'.$id; //exit;  //use for testing
+		$data = array();
+		$data['permission_array'] = array();
+		$data['user_id'] = array();
+		$data['user_org_dtls'] = $this->org_info_model->get_users_org($id); 
+		//$data['user_vehicle'] = $this->org_info_model->get_user_vehicle($id);
+		$data['user_profile_setting_details'] 		= $this->common_model->get_user_profile_setting($id);	
+		
+		/*echo '<pre>';print_r($data['user_org_dtls']);
+		echo '<pre>';print_r($data['user_vehicle']);
+		echo '<pre>';print_r($data['user_profile_setting_details']);
+		exit;*/ //use for testing
+		
+		/*if(empty($data['user_org_dtls']) && empty($data['user_vehicle']) && empty($data['user_profile_setting_details'])) {
+			redirect(base_url().'org_info/invite_user');
+		}*/
+		
+		//added by ghanshyam on 07Nov2014
+		
+		$this->load->model('user_model');
+		$data['user_vehicle'] = $this->user_model->get_user_vehicle_detail_with_image($id);
+		$data['user_plane'] = $this->user_model->get_user_plane_detail_with_image($id);
+		$data['user_photographer'] = $this->user_model->get_photographer_detail($id);
+		$data['user_in_person_vol'] = $this->user_model->get_in_person_volunteer_detail($id);
+		$data['user_virtual_sup_vol'] = $this->user_model->get_virtual_sup_vol_detail($id);
+		$data['user_foster_detail'] = $this->user_model->get_foster_home_detail($id);		
+		$data['user_foster_animal_type_details'] = $this->user_model->get_foster_animal_type_details($id);
+		$data['user_foster_reference_details'] = $this->user_model->get_foster_home_ref_by_user_id($id);
+		$data['user_st_lost_animal'] = $this->user_model->get_lost_animal_detail($id);
+		
+		$transport_permission_user = $this->common_model->verify_transport_permission($id);
+
+		if($transport_permission_user == 'true')
+			$data['tc_user_count'] = $this->common_model->get_tc_volunteer_count($id);
+	
+		$data['vol_user_count'] = $this->common_model->get_transaction_volunteer_count($id);
+		
+		//Inviting user
+		if($this->input->post('invite_frm_action') == 'invite_frm_value') {
+			$permission_str = $_POST;
+			
+			$user_id = $permission_str['invite_user_id'];
+			
+			//Unsetting hidden value
+			unset($permission_str['invite_frm_action']);
+			unset($permission_str['invite_user_id']);
+			
+			if(($this->input->post('transport') || $this->input->post('profile_manager') || $this->input->post('fundraiser')) && $this->input->post('view_only')){
+				unset($permission_str['view_only']);
+			}
+			
+			//Serialize permission array
+			$user_permission = (!empty($permission_str))?serialize($permission_str):'';
+			
+			//Pushing data into the array
+			array_push($data['permission_array'],$user_permission);
+			array_push($data['user_id'],$user_id);
+			//print_r($data['permission_array']);die;
+		}
+		
+		if($this->session->userdata('invitation_success')) {
+			$data['user_profile'] = $this->org_info_model->get_invited_user_profile($id);
+		} else {
+			$data['user_profile'] = $this->org_info_model->get_invited_user_profile($data['user_id'][0]);
+		}
+		
+		if(empty($data['user_profile'])) {
+			redirect(base_url().'org_info/invite_user');
+		}
+		
+		$this->load->view('invite-user-profile',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	insert_invite_user	
+	#	Purpose		:	Insert invited user permission
+	# *******************************************************************************************
+	
+	public function insert_invite_user() {
+		if($this->input->post('frm_action')=='frm_post_value') {
+			$user_per_array = unserialize($this->input->post('usr_per'));
+			
+			$user_data['display_name'] = $this->input->post('display_name');
+			$user_data['org_name'] = $this->session->userdata('org_name');
+			
+			//Insert user & permissions
+			$data['org_users'] = array('in_organization_id'		=>	$this->session->userdata('org_id'),
+										'in_user_id'			=>	$this->input->post('usr_id'),
+										'st_transport_cood'		=>	isset($user_per_array['transport'])?'Y':'N',
+										'st_fundraiser'			=>	isset($user_per_array['fundraiser'])?'Y':'N',
+										'st_animal_profile'		=>	isset($user_per_array['profile_manager'])?'Y':'N',
+										'st_permission'			=>	$this->input->post('usr_per'),
+										'in_invite_by'			=>	$this->session->userdata('userid'),
+										'dt_created'			=>	date('Y-m-d H:i:s'),
+										'in_status'				=>	'1',
+										'in_deleted'			=>	'0'
+									);
+			
+			$data['insert_permission'] = $this->org_info_model->insert_permission($data['org_users']);
+			
+			if($data['insert_permission'] == 1) {
+				
+				$this->load->library('email');
+				$to = $this->input->post('user_email');
+				
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt('10');
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				
+				$subject = str_replace('##organization_display_name##',$user_data['org_name'],$email_body[0]['st_email_subject']);
+				
+				$patterns 	= array('%##user_display_name##%','%##organization_display_name##%','%##url##%');
+				$replacements = array($user_data['display_name'],$user_data['org_name'],base_url());
+				$content = preg_replace($patterns, $replacements, $email_body[0]['st_email_body']);
+				$category = $email_body[0]['st_category'];
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($this->input->post('user_email'));
+						
+				$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##DONATION##",$donation,$content);		
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_body[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{
+					$this->common_function->send_mail($this->email, $to, $subject, $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+				}
+				
+				$this->session->set_userdata('invitation_success','Invitation successfully sent to ');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('usr_id'));
+			} else {
+				$this->session->set_flashdata('invitation_error','Error sending invitation.');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('usr_id'));
+			}
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	invite_user_direct	
+	#	Purpose		:	Insert invited user permission directly without viewing profile
+	# *******************************************************************************************
+	
+	public function invite_user_direct() {
+		if($this->input->post('invite_frm_action')=='invite_frm_value') {
+			
+			if(!($this->session->userdata('org_id')) || ($this->input->post('sess_org_id') != $this->session->userdata('org_id')))
+			{
+                redirect($this->config->item('base_url'));
+            }
+
+            $user_data['display_name'] = $this->input->post('display_name');
+            $user_data['org_name'] = $this->session->userdata('org_name');
+
+            $permission_str = $_POST;
+            $user_id = $permission_str['invite_user_id'];
+
+            //Unsetting hidden value
+            unset($permission_str['invite_frm_action']);
+            unset($permission_str['invite_user_id']);
+            unset($permission_str['display_name']);
+            unset($permission_str['user_email']);
+
+            if (($this->input->post('transport') || $this->input->post('profile_manager') || $this->input->post('fundraiser') ||  $this->input->post('vendor_manager')) && $this->input->post('view_only')) {
+                unset($permission_str['view_only']);
+            }
+
+
+            //Serialize permission array
+            $user_permission = (!empty($permission_str)) ? serialize($permission_str) : '';
+
+            //print_r($user_permission);exit; //use for tseting
+            //Insert user & permissions
+            $data['org_users'] = array('in_organization_id' => $this->session->userdata('org_id'),
+                'in_user_id' => $this->input->post('invite_user_id'),
+                'st_transport_cood' => isset($permission_str['transport']) ? 'Y' : 'N',
+                'st_fundraiser' => isset($permission_str['fundraiser']) ? 'Y' : 'N',
+                'st_animal_profile' => isset($permission_str['profile_manager']) ? 'Y' : 'N',
+				'st_product_vendor' => isset($permission_str['vendor_manager']) ? 'Y' : 'N',
+                'st_permission' => $user_permission,
+                'in_invite_by' => $this->session->userdata('userid'),
+                'dt_created' => date('Y-m-d H:i:s'),
+                'in_status' => '5',
+                'in_deleted' => '0'
+            );
+
+
+            $data['check_user_status'] = $this->org_info_model->check_user_status($this->input->post('invite_user_id'));
+			//echo '<pre>'; print_r($data['check_user_status']); die;
+
+            if (empty($data['check_user_status'])) {
+                $data['insert_permission'] = $this->org_info_model->insert_permission($data['org_users']);
+                $last_id = $this->db->insert_id();
+            } else {
+                $last_id = $data['check_user_status']['in_org_user_id'];
+                $data['insert_permission'] = 1;
+            }
+
+            if ($data['insert_permission'] == 1) {
+
+                $this->load->library('email');
+                $to = $this->input->post('user_email');
+
+                //Getting email body
+				$email_body = $this->common_model->get_email_containt('10');
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				
+				$subject = str_replace('##organization_display_name##',$user_data['org_name'],$email_body[0]['st_email_subject']);
+				
+				$patterns 	= array('%##user_display_name##%','%##organization_display_name##%','%##url##%','%##accept_link##%','%##reject_link##%');
+				$replacements = array($user_data['display_name'],$user_data['org_name'],base_url(),base_url().'user/accept_request/'.base64_encode($this->input->post('invite_user_id')).'/'.base64_encode($this->session->userdata('org_id')).'/'.base64_encode($last_id),base_url().'user/reject_request/'.base64_encode($this->input->post('invite_user_id')).'/'.base64_encode($this->session->userdata('org_id')).'/'.base64_encode($last_id));
+				$content = preg_replace($patterns, $replacements, $email_body[0]['st_email_body']);//die;
+				$category  =    $email_body[0]['st_category'];
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($this->input->post('user_email'));
+						
+				$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##DONATION##",$donation,$content);		
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_body[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{	
+				
+				
+					// LRC Banner added				
+								$q1			=	$this->common_model->get_affiliate_detail('10','C');	
+							    $q2			=	$this->common_model->get_affiliate_detail('10','L');	
+							    $q3			=	$this->common_model->get_affiliate_detail('10','R');
+											   		
+									if(isset($q1) && !empty($q1)){	
+										
+										foreach($q1 as $qr)
+										{
+											 
+											  if(!empty($qr['st_code']))
+											{    
+												    $affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name']; 										
+													$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';					
+												  
+											}
+											else
+											{
+												   $affiliate_content='';								 
+											}
+											  
+												
+										}
+									}			
+									   
+								   else
+								   {
+									  $affiliate_content='';
+								   }
+				
+						//LEFT BANNER
+									if(isset($q2) && !empty($q2)){					   		
+										foreach($q2 as $qr)
+										{								 
+											 if(!empty($qr['st_code']))
+											{    
+												   $leftbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+													$imgtitle   =   $qr['st_banner_name'];
+													$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+												  
+											}
+											else
+											{
+												   $leftbanner='';								 
+											} 	
+										}
+									}
+									else
+									{
+										   $leftbanner='';								 
+									}
+									
+						//RIGHT BANNER
+									if(isset($q3) && !empty($q3)){					   		
+										foreach($q3 as $qr)
+										{
+											 
+											if(!empty($qr['st_code']))
+											{    
+												   $rightbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{	
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];
+													$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" /></a>';	
+												  
+											}
+											else
+											{
+												   $rightbanner='';								 
+											}								  
+												
+										}
+									}
+									else
+									{
+										   $rightbanner='';								 
+									}
+				
+				
+						$content = str_replace("##affiliate_content##",$affiliate_content,$content);	
+						$content = str_replace("##leftbanner##",$leftbanner,$content);
+						$content = str_replace("##rightbanner##",$rightbanner,$content);
+				// LRC Banner added
+				
+					$this->common_function->send_mail($this->email, $to, $subject, $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+				}
+				
+				$this->session->set_userdata('invitation_success','Invitation successfully sent to');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('invite_user_id'));
+			} else {
+				$this->session->set_flashdata('invitation_error','Error sending invitation.');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('invite_user_id'));
+			}
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	org_notification	
+	#	Purpose		:	Getting notifications against current organization
+	# *******************************************************************************************
+	
+	public function org_notification() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		//echo $this->session->userdata('org_id'); die;
+		$data = array();
+		$data['notifications'] = $this->org_info_model->org_notification($this->session->userdata('org_id'));
+		//echo "<pre>";print_r($data['notifications']);echo "</pre>";die;
+		
+		$this->load->view('organization-notifications',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	org_notification	
+	#	Purpose		:	Getting notifications against current organization
+	# *******************************************************************************************
+	
+	public function get_more_notification() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		$str = '';
+		$data = array();
+		$data['notifications'] = $this->org_info_model->org_notification($this->session->userdata('org_id'));
+		//echo "<pre>";print_r($data['notifications']);die;
+		if(!empty($data['notifications']['org_data'])) {
+			foreach($data['notifications']['org_data'] as $row) {
+				
+				$org_photo='';	$user_photo='';	
+				if($row['st_org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$row['st_org_image'])) {
+					$org_photo = $row['st_org_image'];
+				} else {
+					$org_photo = 'no_photo_icon.png';
+				}
+					
+				if($row['st_profile_image']!='' && file_exists($this->config->item('upload')."profile/36x36/".$row['st_profile_image'])) {
+					$user_photo = $row['st_profile_image'];
+				} else {
+					$user_photo = 'no_photo_icon.png';
+				}
+				if($row['st_file_name']!='' && file_exists($this->config->item('upload')."animal_images/36x36/".$row['st_file_name'])) {
+								$animal_img = $row['st_file_name'];
+							} else {
+								$animal_img = 'no_photo_icon.png';
+							}
+				
+				$animal_link 	= $this->common_function->get_filtered_name($row['st_animal_name']);
+				$animal_url 	= base_url()."animal-".$row['in_animal_id']."-".$animal_link."/";
+
+				$org_link 	= $this->common_function->get_filtered_name($row['st_org_name']);
+				$org_url 	= base_url()."organization-".$row['in_organization_id']."-".$org_link."/";
+				
+				$patterns = array(	'%##animal_image##%',
+									//'%##org_url##%',
+									//'%##animal_url##%',
+									'%##org_url##'.$row['in_organization_id'].'%',
+									'%##animal_url##'.$row['in_animal_id'].'%',
+									'%##org_image##%',
+									'%##base_url##%',
+									'%##user_image##%'
+								);
+							
+				/*$replacements = array(	base_url().'upload/animal_images/36x36/no_photo_icon.png',
+										base_url().'org-details/',
+										base_url().'org_animal/animal_profile_details/',
+										base_url().'upload/org_doc/36x36/'.$org_photo,
+										base_url(),
+										base_url().'upload/profile/36x36/'.$user_photo
+									);*/
+				$replacements = array(	base_url().'upload/animal_images/36x36/'.$animal_img,
+													$org_url,
+													$animal_url,
+													base_url().'upload/org_doc/36x36/'.$org_photo,
+													base_url(),
+													base_url().'upload/profile/36x36/'.$user_photo
+												);
+				$content = preg_replace($patterns,$replacements,$row['st_notification_msg']);
+				
+				$str .= '<li class="timeline-yellow">';
+				$str .= '<div class="timeline-time">';
+				$str .= '<span class="date">';
+				$str .= date('m/d/Y',strtotime($row['dt_created']));
+				$str .= '</span>';
+				$str .= '<span class="time">';
+				$str .= date('H:i',strtotime($row['dt_created']));
+				$str .= '</span>';
+				$str .= '</div>';
+				$str .= '<div class="timeline-icon"><i class="fa fa-road"></i></div>';
+				$str .= $content;
+				$str .= '</li>';
+			}
+			echo $str;
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_profile	
+	#	Purpose		:	Getting details of organization
+	# *******************************************************************************************
+	
+	public function organization_profile() {
+	
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+
+		$data = array();
+		
+		//Getting detail sof organization
+		if($this->uri->segment(3)!='')              
+		{
+			$this->session->set_userdata('org_id',$this->uri->segment(3));			
+			$org_id = $this->session->userdata('org_id');
+		}
+		else{
+		$org_id = $this->session->userdata('org_id');
+		}
+		$data['org_profile'] = $this->org_info_model->organization_profile($org_id);
+		//print_r($data['org_profile']);exit;
+		$data['guideline_links_details'] = $this->org_info_model->get_guideline_links($org_id);
+		$data['organization_files'] = $this->org_info_model->get_org_guideline_files($org_id);
+		
+		$this->load->model('organization_privacy_setting_model');
+		$data['organization_privacy_setting_details'] 	= $this->organization_privacy_setting_model->get_organization_privacy_setting_by_org_id($org_id);
+		
+		$data['Err_Msg'] = '';
+		if(empty($data['org_profile'])) {
+			redirect(base_url());
+		}
+		$form_field	=	array('txtyourname'			=> "",
+							  "txtamount"			=> "",
+							  "extra_amt_doobert"	=> ""
+							  
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['post_data'][$key] = $value;	
+		}
+		if($this->input->post('action'))
+		{
+			foreach ($form_field as $key => $value)
+			{	
+				$data['post_data'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+			}
+			//echo "<pre>";print_r($data['post_data']);die;
+				$this->form_validation->set_rules('txtyourname', 'Name', 'trim|required');
+				$this->form_validation->set_rules('txtamount', 'Amount', 'trim|required|numeric');	
+			
+			
+			if($this->form_validation->run()==FALSE)
+			{
+					$data['Err_Msg'] = validation_errors();
+					$this->load->view('organization-profile',$data);	
+			}
+			else
+			{
+				//echo "<pre>";print_r($this->input->post());die;
+				$cancel_url  = "http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				//echo $cancel_url;die;
+				$amount  = $data['post_data']['txtamount'];
+				$doobert_amount  = (5*$amount)/100;
+				$actual_amount	 = $amount-$doobert_amount;
+				$full_amount	 = $amount;
+				if($data['post_data']["extra_amt_doobert"]!='')
+				{
+					$doobert_amount  = $doobert_amount;
+					$actual_amount	 = $amount;
+					$full_amount	 = $amount+ $doobert_amount;
+				}
+				$this->session->set_userdata('org_thank_you',$org_id);
+				$insert_data = array("in_organization_id"	=> $org_id,
+									 "st_donar_name"		=> $data['post_data']['txtyourname'],
+									 "in_donation_amount"	=> $actual_amount,
+									 "st_status"			=> "0",
+									 "st_doobert_amount"	=> $doobert_amount,
+									 "dt_created"			=> date("Y-m-d Hi:s"),
+									 "in_deleted"			=> "0");
+				$donation_id = $this->org_info_model->add_org_donation($insert_data);
+				#=================================Paypal Payment Process=================================#
+				$paypal_details = array("paypal_email"		=> $data['org_profile']['st_paypal_email'],
+										"doobert_amount"	=> $doobert_amount,
+										"user_amount"		=> $actual_amount,
+										"fullamount"		=> $full_amount,
+										"tracking_id"		=> "org_donation".$donation_id,
+										"st_custom_url"		=> $cancel_url,
+										"thank_you"			=> $this->config->item('base_url')."organization/thank_you/"
+										);					 					 
+				$paypal_error = $this->paypal_payment($paypal_details);	
+				if(isset($paypal_error['error']) && !empty($paypal_error['error']))
+				{
+					$data['Err_Msg'] = 'Add PayPal Email before donate.';//$paypal_error['error'];
+					$this->load->view('organization-profile',$data);
+				}
+				#==========================================End===========================================#
+			}
+		}
+		else
+		{
+			$this->load->view('organization-profile',$data);
+		}		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	edit_organization_profile	
+	#	Purpose		:	Editing organization
+	# *******************************************************************************************
+	
+	public function edit_organization_profile() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$orgId = $this->session->userdata('org_id');
+		$data['edit_org_profile'] = $this->org_info_model->organization_profile($orgId);
+		$data['guideline_links_details'] = $this->org_info_model->get_guideline_links($orgId);
+		$data['organization_files'] = $this->org_info_model->get_org_guideline_files($orgId);
+		$data['ref_details'] = $this->org_info_model->get_ref_details($orgId);
+		$data['coalition_details'] = $this->org_info_model->get_coalition_details($orgId);
+		$data['coalition']  = 	$this->common_model->get_coalition();				
+		//print_r($data['edit_org_profile']);exit; //use for testing
+		if($this->input->post('frm_action') == 'frm_post') {
+			//Validation rules
+			
+			$req_fields = array(	array('field'   => 'address',	'label'  => 'Addresss',		'rules' => 'required|trim'),
+									array('field'   => 'address2',	'label'  => 'Addresss',		'rules' => 'trim'),
+									array('field'   => 'city', 		'label'  => 'City', 		'rules' => 'required|trim'),
+									array('field'   => 'state', 	'label'  => 'State', 		'rules' => 'required|trim'),
+									array('field'   => 'zip',		'label'  => 'Zip',			'rules' => 'required|trim'),
+									array('field'   => 'manager', 	'label'  => 'Manager Name', 'rules' => 'required|trim'),
+									array('field'   => 'pphone',	'label'  => 'Primary phone','rules' => 'required|trim'),
+									array('field'   => 'sphone',	'label'  => 'Secondary phone','rules' => ''),
+									array('field'   => 'fax',		'label'  => 'Fax',			  'rules' => ''),
+									array('field'   => 'email', 	'label'  => 'Email', 		'rules' => 'required|valid_email|trim'),
+									//array('field'   => 'organization_website',	'label'  => 'Organization Website','rules' => 'callback_validate_urls|trim'),
+									array('field'   => 'paypal_email', 	'label'  => 'Paypal Email', 		'rules' => 'valid_email|trim'),
+									array('field'   => 'st_guideline', 	'label'  => 'Guideline', 		'rules' => 'trim'),
+									array('field'   => 'profile_desc', 	'label'  => 'Profile Description', 		'rules' => 'trim'), //added by ghanshyam on 05Sept2014
+									//array('field'   => 'guideline_url[]','label'  => 'Guideline Url','rules' => 'trim|callback_validdate_urls'),
+									array('field'   => 'reference_1',	'label'  => 'Reference1',		'rules' => 'trim'),
+									array('field'   => 'reference_2',	'label'  => 'Reference2',		'rules' => 'trim'),
+									array('field'   => 'reference_3',	'label'  => 'Reference3',		'rules' => 'trim'),
+									array('field'   => 'guideline_link',	'label'  => 'Guideline link',		'rules' => 'trim')									
+		            			);
+								
+				/*			
+				$ref_req_fields = array(array('field'   => 'ref_1_name',	'label'  => 'Reference 1 Name',		'rules' => 'trim|required'),
+									array('field'   => 'ref_2_name',	'label'  => 'Reference 2 Name',		'rules' => 'trim|required'),
+									array('field'   => 'ref_3_name',	'label'  => 'Reference 3 Name',		'rules' => 'trim|required'),
+									array('field'   => 'ref_1_phone',	'label'  => 'Reference 1 Phone',	'rules' => 'trim|required'),
+									array('field'   => 'ref_2_phone',	'label'  => 'Reference 2 Phone',	'rules' => 'trim|required'),
+									array('field'   => 'ref_3_phone',	'label'  => 'Reference 3 Phone',	'rules' => 'trim|required'),									
+									array('field'   => 'ref_1_email',	'label'  => 'Reference 1 Email',	'rules' => 'trim|required|valid_email'),
+									array('field'   => 'ref_2_email',	'label'  => 'Reference 2 Email',	'rules' => 'trim|required|valid_email'),
+									array('field'   => 'ref_3_email',	'label'  => 'Reference 3 Email',	'rules' => 'trim|required|valid_email')	
+									);
+					*/			
+								
+				$form_field	=	array(
+							  'zip' 			 => "",
+							  'reference_1' 	 => "",
+							  'reference_2' 	 => "",
+							  'reference_3' 	 => "",
+							  'ref_1_name'  	 => "",
+							  'ref_1_email'  	 => "",
+							  'ref_1_phone'  	 => "",
+							  'ref_2_name'  	 => "",
+							  'ref_2_email'  	 => "",
+							  'ref_2_phone'  	 => "",
+							  'ref_3_name'  	 => "",
+							  'ref_3_email'  	 => "",
+							  'ref_3_phone'  	 => "",
+							  'orgtc'			 => "",
+							  'termscondition'   => "",
+							  'orgtc_route'			 => "",
+							  'termscondition_route'   => "",
+							  'orgcode'			 => "",
+							  'comment-additional' =>"",
+							  'disaster'			=> "",
+							  'em_contact'			=> "",
+							  'em_phone'			=> "",
+							  'em_email'			=> "",
+							  'disaster_detail'			=> "",
+							  'disaster_terms_condition'=> "",
+							  "joincoalition1"         => "",
+							  "joincoalition2"         => "",
+							  "joincoalition3"         => "",
+							  "joincoalition4"         => "",
+							  "joincoalition5"         => "",
+							  "type"  				   => "",
+							  "inserted_approval_file_1" => ""
+								);
+			
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $this->input->post($key);	
+			}		
+			
+			$org_zipcode = explode('-',$data['edit']['zip']);
+			if(isset($org_zipcode[1]) && !empty($org_zipcode[1]))
+			{
+				$data['edit']['zip'] = $org_zipcode[0];
+			}
+			
+			$this->form_validation->set_rules($req_fields);
+			
+			/*
+			if($data['edit_org_profile']['st_org_type']!='FS' && $data['edit_org_profile']['st_org_type']['st_org_type']!='S')
+			{
+				$this->form_validation->set_rules($ref_req_fields);
+			}		
+			*/
+			
+		}
+		if($this->form_validation->run() == FALSE) {
+			// Validation error				
+			$data['error_msg'] = validation_errors();
+		
+			$this->load->view('edit-organization-profile',$data);
+		} else {
+			
+			//Updating organization data
+			
+			if($data['edit']['type'] == 'FS') {  
+					$this->load->library('Upload');
+						if(isset($_FILES['approval_file_1']) && $_FILES['approval_file_1']['name']!='') {  
+							if($this->org_info_model->upload_approval_files('approval_file_1')){
+								$arrImageInfo = $this->upload->data();
+								$approval = $arrImageInfo['file_name'];
+								$approval_letter[] = $arrImageInfo['file_name'];
+							} else { 
+								$this->upload->display_errors();
+								$this->session->set_flashdata('update_err','Approval letter is invalid');
+								//$data['error'] = "<p>Approval letter is invalid.</p>";
+								//return false;
+								redirect(base_url().'edit-organization-profile');
+							}
+						 }
+						
+						$approval_letter = $_FILES['approval_file_1']['name'];
+						if(!empty($approval_letter)){
+							$file_ext = preg_replace('/^.*\.([^.]+)$/D', '$1', $approval_letter);				   
+							$file_name = time(basename($approval_letter,'.'.$file_ext)); 
+							$approve_file=$file_name.'.'.$file_ext; 
+							$upload_details = array("in_organization_id"	=> $this->session->userdata('org_id'),
+													"st_file_name"			=> $approve_file,
+													"dt_created"			=> date("Y-m-d H:i:s"),
+													"in_deleted"			=> "0"
+													);								
+								
+							$checkorgid = $this->org_info_model->check_org_upload($this->session->userdata('org_id'));
+							if($checkorgid == true){ 
+							$this->org_info_model->shelter_approval_letter($approve_file,$this->session->userdata('org_id'));
+							}
+							else{
+								$this->org_info_model->add_shelter_approval_letter($upload_details);
+							}
+						
+						
+						} 
+						
+						else {  
+							if($data['edit']['inserted_approval_file_1'] == '') {
+								$this->session->set_flashdata('update_err','Please Upload Approval letter.');
+								redirect(base_url().'edit-organization-profile');
+							}
+						}
+						
+					}
+			$data['org_data'] = array(	'st_address1'				=>	$this->input->post('address'),
+										'st_address2'				=>	$this->input->post('address2'),
+										'st_city'					=>	$this->input->post('city'),
+										'st_state'					=>	$this->input->post('state'),
+										'st_country'				=>	$this->input->post('country'),
+										//'st_zip'					=>	$this->input->post('zip'),
+										'st_zip'					=>	$data['edit']['zip'],
+										'st_director'				=>	$this->input->post('manager'),
+										'st_primary_phone'			=>	$this->input->post('pphone'),
+										'st_secondary_phone'		=>	$this->input->post('sphone'),
+										'st_fax'					=>	$this->input->post('fax'),
+										'st_email_address'			=>	(strstr('http://',$this->input->post('email') ))?str_replace('http://','',$this->input->post('email')):$this->input->post('email'),
+										'st_website'				=>	$this->input->post('organization_website'),
+										'st_guideline'				=>	$this->input->post('st_guideline'),
+										'st_profile_desc'			=>	$this->input->post('profile_desc'),
+										'st_additional_info'		=>	$this->input->post('comment-additional'),
+										'st_paypal_email'			=>	$this->input->post('paypal_email'),
+										'in_modified_by'			=>	$this->session->userdata('userid'),
+										'in_enable_terms_condition'	=>	$this->input->post('orgtc'),
+										'st_terms_condition'		=>	$this->input->post('termscondition'),
+								'in_enable_terms_condition_route'	=>	$this->input->post('orgtc_route'),
+									'st_terms_condition_route'		=>	$this->input->post('termscondition_route'),
+										'dt_modified'				=>	date('Y-m-d H:i:s'),
+										'st_org_code'               =>  $this->input->post('orgcode'),
+										'in_disaster'               =>  $this->input->post('disaster'),
+										
+										'st_em_contact'               =>  $this->input->post('em_contact'),
+										'st_em_phone'               =>  $this->input->post('em_phone'),
+										'st_em_email'               =>  $this->input->post('em_email'),
+										
+										'st_disaster_detail'               =>  $this->input->post('disaster_detail'),
+										
+										'st_disaster_terms_condition'               =>  $this->input->post('disaster_terms_condition'),
+									); 
+			/*if($data['edit_org_profile']['st_org_type']=='O')
+			{
+				$data['org_data']['st_what_type_org']	= $this->input->post('whattypeorg');
+			}*/
+			
+			// update referencesstart
+			 $this->org_info_model->organization_references_update($orgId);		 
+			 
+			
+			for($a=1;$a<=3;$a++)
+			{  
+				$ref_details = array();
+				if($data['edit']['ref_'.$a.'_name']!='' || $data['edit']['ref_'.$a.'_email']!='' || $data['edit']['ref_'.$a.'_phone']!='')
+				{ 
+					$ref_details = array(	"in_organization_id"	=> $orgId, 
+											"st_ref_type"			=> $data['edit']['reference_'.$a], 
+											"st_ref_name"			=> $data['edit']['ref_'.$a.'_name'],
+											"st_ref_email"			=> $data['edit']['ref_'.$a.'_email'],
+											"st_ref_phone"			=> $data['edit']['ref_'.$a.'_phone'],
+											"dt_created"			=> date("Y-m-d H:i:s"),  
+											"in_deleted"			=> "0"
+											);														
+											
+					$this->org_info_model->organization_references($ref_details);
+				}
+			}
+			
+			// update references end	
+			
+			// org coalition add
+				
+				$joincoalition = $this->input->post('counter2');
+			//echo '<pre>'; print_r($joincoalition); die;	
+			
+			if($joincoalition > 0){ 
+				for($i=1; $i<=5; $i++){ 
+					$coalition   = 'joincoalition'.$i;						
+			     if($_POST[$coalition]!=''){		 
+					
+					 
+					$coalition_details = array(	"in_organization_id" => $orgId, 
+												"in_coalition_id"	 => $_POST[$coalition],
+												"dt_created"         => date('Y-m-d H:i:s')
+											);	
+											
+					//echo '<pre>'; print_r($coalition_details); die;
+					$coaid=$_POST[$coalition];
+					$check	=	$this->common_model->is_coalition_exists($orgId,$coaid);
+					
+						if($check == false)
+						{					
+								$this->org_info_model->insertcoalition($coalition_details);	
+								$coalition_admin_list = $this->common_model->get_coalition_admin($coaid);
+								$coalition_name  = 	$this->common_model->get_coalition_name_admin($coaid);
+								$user_name=$coalition_admin_list[0]['st_display_name'];
+								
+								
+								$this->load->library('email');
+								$email_details = $this->common_model->get_email_containt("157");
+								
+								if(isset($email_details[0]['st_email_body']))
+								{
+												
+									
+											
+									for($a=0;$a<count($coalition_admin_list);$a++)
+									{		
+											$templete  = $email_details[0]['st_email_body'];
+											$templete  = str_replace("##user_name##",$coalition_admin_list[$a]['st_display_name'],$templete);
+											$templete  = str_replace("##org_name##",$data['edit_org_profile']['st_org_name'],$templete);
+											$templete  = str_replace("##coaliation_name##",$coalition_name['st_coalition_name'],$templete);				
+												
+											$templete  = str_replace("##coaliation_admin_url##",$this->config->item('admin_base_url').'coalition/manage_coalition_org',$templete);			
+											$templete  = str_replace("##current_year##",date('Y'),$templete);								
+										   
+											$strMail 	= 	$templete;
+											$to			=	$coalition_admin_list[$a]['st_email'];
+											$subject	=	$email_details[0]['st_email_subject'];
+											$message	=	$strMail;
+
+											$user_to_id = $this->common_model->get_user_id_by_email($to);
+									
+											$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+											$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+											
+											$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+									}
+								}		
+								
+								
+						}		
+			    		
+					}
+			}
+			
+			}
+				// org coalition add
+			
+			
+			$num_rows = $this->org_info_model->edit_org($data['org_data'],$orgId);
+			
+			$guidelines_imgs = explode(",",$this->input->post('image_file'));
+			//echo "<pre>";print_r($guidelines_imgs);die;
+			if(!empty($guidelines_imgs))
+			{
+				for($q=0;$q<count($guidelines_imgs);$q++)
+				{
+					if($guidelines_imgs[$q]!='')
+					{
+						$upload_details = array("in_organization_id"	=> $orgId,
+												"st_file_name"			=> $guidelines_imgs[$q],
+												"in_doc_type"			=> "1",
+												"dt_created"			=> date("Y-m-d H:i:s"),
+												"in_deleted"			=> "0"
+												);
+						$this->org_info_model->organization_images($upload_details);
+					}
+				}
+			}
+			
+			$org_links_array = $this->input->post('guideline_url'); 
+			for($links_cnt=0;$links_cnt<count($org_links_array);$links_cnt++)
+			{  
+				$org_links_data = array();
+				
+				if(isset($org_links_array[$links_cnt]) && $org_links_array[$links_cnt] != '')
+				{					
+					//$org_links_array[$links_cnt] = "http://" . $org_links_array[$links_cnt];
+					$org_links_array[$links_cnt] = $org_links_array[$links_cnt];
+				
+					$org_links_data = array(	"in_organization_id"	=> $orgId, 
+												"st_org_link"			=> $org_links_array[$links_cnt],
+												"dt_created"			=> date("Y-m-d H:i:s"),  
+												"in_deleted"			=> "0"
+											);
+					$this->org_info_model->organization_links_detail($org_links_data);
+				}
+			}
+						
+			if($num_rows == 1) {
+				//redirect(base_url().'organization-profile');
+				
+				if($_POST['prevpublic'] !=''){
+				redirect(base_url().'organization-'.$this->session->userdata('org_id').'-'.$this->common_function->get_filtered_name($data['edit_org_profile']['st_org_name']));				
+			    }
+				else{
+					//redirect(base_url().'organization-profile');
+					$this->session->set_flashdata('message', 'General details updated successfully.');
+					redirect(base_url().'edit-organization-profile');
+				}
+			
+			} else {
+				$this->session->set_flashdata('update_err','There is an error in updating data.');
+				redirect(base_url().'edit-organization-profile');
+			}
+		}
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	email_check
+	#	Purpose		:	checking organization email
+	# *******************************************************************************************
+	
+	/*public function email_check() {
+		$data['check_email']  = $this->org_info_model->check_email_ajax($this->input->post('email'),$this->session->userdata('org_id'));
+		if ($data['check_email'] == true) {
+			echo 1;
+		} else {
+			echo 0;
+		}
+	}*/
+	
+	#=========================================================
+	#	Function : validdate_urls
+	#	Purpose  : Call Back function url is validor not
+	#=========================================================	
+	
+	/*function validate_urls($str) {
+		if($str=='')
+		{
+			return TRUE;
+		}
+		$pattern = "/^([A-Z0-9][A-Z0-9_-]*(?:\.[A-Z0-9][A-Z0-9_-]*)+):?(\d+)?\/?/i";
+        if (!preg_match($pattern, $str)){
+            $this->form_validation->set_message('validate_urls', 'Invalid URL.');
+            return FALSE;
+		}else {
+			return TRUE;
+		}
+	}*/
+	
+	function validate_urls($str) 
+	{
+		if (filter_var($str, FILTER_VALIDATE_URL)) 
+		{
+			return TRUE;
+		}else 
+		{
+			 $this->form_validation->set_message('validate_urls', 'Invalid URL.');
+            return FALSE;
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	transfer_ownership	
+	#	Purpose		:	Transefering ownership of organization
+	# *******************************************************************************************
+	
+	 public function transfer_ownership() {
+
+        if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		
+		if($this->session->userdata('org_transefer_username'))
+		{
+			//print_r($this->session->userdata('org_transefer_username'));
+			//die;
+			$this->session->unset_userdata('org_transefer_username');
+		}
+		$short_by = $this->uri->segment(3);
+		
+		if($short_by=='')
+		{
+			$short_by = 'all';
+		}
+		
+		$data = array();
+		$username = '';
+        $sort_value = '';
+
+        $this->load->library('pagination');
+
+        $config = array();
+        $config["base_url"] = base_url() . 'org_info/transfer_ownership/'.$short_by.'/';
+
+        $config["per_page"] = $this->config->item('records_per_page');
+        $config["uri_segment"] = 4;
+		//$config['cur_page'] 	= $limit;
+        $config['first_link'] = FALSE;
+        $config['last_link'] = FALSE;
+
+        $config['full_tag_open'] = '<ul class="pagination">';
+        $config['full_tag_close'] = '</ul>';
+
+        $config['prev_link'] = 'Prev';
+        $config['prev_tag_open'] = '<li class="prev">';
+        $config['prev_tag_close'] = '</li>';
+
+        $config['next_link'] = 'Next';
+        $config['next_tag_open'] = '<li class="next">';
+        $config['next_tag_close'] = '</li>';
+
+        $config['num_tag_open'] = '<li>';
+        $config['num_tag_close'] = '</li>';
+
+        $config['cur_tag_open'] = '<li class="active"><a href="javascript:void(0);">';
+        $config['cur_tag_close'] = '</a></li>';
+
+        if ($this->input->post('frm_action') == 'search_value') {
+
+            if ($this->session->userdata('org_transefer_username'))
+                $this->session->unset_userdata('org_transefer_username');
+
+            if ($this->session->userdata('org_user_sort'))
+                $this->session->unset_userdata('org_user_sort');
+
+            $username = $this->input->post('search_txt');
+            $this->session->set_userdata('org_transefer_username', $username);
+
+            $sort_value = $this->input->post('sort_by');
+            $this->session->set_userdata('org_user_sort', $sort_value);
+        } else {
+            if ($this->session->userdata('org_transefer_username'))
+                $username = $this->session->userdata('org_transefer_username');
+            else
+                $username = '';
+
+            if ($this->session->userdata('org_user_sort'))
+                $sort_value = $this->session->userdata('org_user_sort');
+            else
+                $sort_value = '';
+        }
+
+        //Pagination methods.
+        $page = ($this->uri->segment(4)) ? $this->uri->segment(4) : 0;
+		
+		if($this->session->userdata('current-page'))
+		{
+			$this->session->unset_userdata('current-page');
+		}
+		$this->session->set_userdata('current-page',$page);
+
+        $data['user_list'] = $this->org_info_model->get_all_transefer_users($config["per_page"], $page, $username, $sort_value,$short_by);
+        //Getting total rows
+        $config["total_rows"] = $data["user_list"]['num_rows'];
+
+        //Initialize pagination
+        $this->pagination->initialize($config);
+
+        $data["links"] = $this->pagination->create_links();
+        $data['total_data'] = $config["total_rows"];
+        $data['total_pages'] = floor($config["total_rows"] / $config["per_page"]);
+        $data['currentPage'] = floor(($this->uri->segment(4) / $config['per_page']) + 1);
+        $data['per_page'] = $config["per_page"];
+
+		$data['short_by'] = $short_by;
+        $this->load->view('transefer_ownership', $data);
+    }
+	
+	# *******************************************************************************************	
+	#	Function	:	transefer_user_profile	
+	#	Purpose		:	Trsnsefer's user profile 
+	# *******************************************************************************************
+	
+	public function transefer_user_profile($id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['user_id'] = $id;
+		$data['user_profile'] = $this->org_info_model->get_transefered_user_profile($id);
+		
+		$data['user_org_dtls'] = $this->org_info_model->get_users_org($id);
+		
+		if(empty($data['user_profile']) || $id == $this->session->userdata('userid')) {
+			redirect(base_url().'organization-profile');
+		}
+		
+		$this->load->view('transefer-user-profile',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	transefer_ownership_confirm
+	#	Purpose		:	Transefering user organization confirmation 
+	# *******************************************************************************************
+	
+	public function transefer_ownership_confirm() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		if($this->input->post('frm_action') == 'frm_post') {
+			
+			//Inserting data
+			$data['transefer_data'] = array('in_organization_id'	=>	$this->session->userdata('org_id'),
+											'in_transfer_to'		=>	$this->input->post('user_id'),
+											'in_status'				=>	'0',
+											'in_transfer_by'		=>	$this->session->userdata('userid'),
+											'dt_created'			=>	date('Y-m-d H:i:s')
+											);
+			
+			$data['transefer'] = $this->org_info_model->transefer_org_insert($data['transefer_data']);
+			$url = base_url().'normal-user-profile/'.$this->input->post('user_id');
+			if($data['transefer'] == 1) {
+				
+				//Sending email to transefering user
+				$this->load->library('email');
+				$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name'));  
+				
+				$this->email->to($this->input->post('user_email'));
+				
+				if($_SERVER['HTTP_HOST'] != 'crystal9') {
+					$this->email->bcc($this->config->item('bcc_email_id'));
+				}
+				
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt('18');
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				
+				$this->email->subject($email_body[0]['st_email_subject']);
+				
+				$patterns = array('%##url##%','%##user_display_name##%','%##sending_organization_owner_display_name##%','%##organization_name##%','%##transfer_url##%','%##current_year##%');
+				$replacements = array(base_url(),$this->input->post('display_name'),$this->session->userdata('user_name'),$this->session->userdata('org_name'),base_url().'organization/owner_organization_details/'.$this->session->userdata('org_id'),date('Y'));
+				
+				$content = preg_replace($patterns,$replacements,$email_body[0]['st_email_body']);
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($this->input->post('user_email'));
+						
+				$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##DONATION##",$donation,$content);		
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_body[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{
+					$this->email->message($content);
+					$this->email->send();
+				}
+				
+				$this->session->set_userdata('transefer_success','Organization ownership transfer request successfully sent to <a href="'.$url.'" class="bold link-underline"> '.$this->input->post('display_name').'</a>');
+				redirect(base_url().'organization-profile');
+			} else {
+				$this->session->set_flashdata('transefer_error','There is an error in transefering ownership !');
+				redirect(base_url().'organization-profile');
+			}
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_org_profile
+	#	Purpose		:	Deleting organization profile 
+	# *******************************************************************************************
+	
+	public function delete_org_profile() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		//$data['org_data']	=	array('in_status' => 2);
+		$data['org_data']	=	array('in_deleted' => 1);
+		$data['delete']		=	$this->org_info_model->edit_org($data['org_data'],$this->session->userdata('org_id'));
+		if($data['delete'] == 1) {
+			$this->session->set_userdata('delete_org_id','delete_org');
+			redirect(base_url().'organization-profile');
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	normal_user_profile
+	#	Purpose		:	Getting user profile 
+	# *******************************************************************************************
+	
+	public function normal_user_profile($id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		$data['user_id'] = $id;
+		$data['user_profile'] = $this->org_info_model->get_transefered_user_profile($id);
+		
+		$data['user_org_dtls'] = $this->org_info_model->get_users_org($id);
+		
+		if(empty($data['user_profile']) || $id == $this->session->userdata('userid')) {
+			redirect(base_url().'organization-profile');
+		}
+		
+		$this->load->view('normal-user-profile',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	ownership_request
+	#	Purpose		:	Processing ownership request
+	# *******************************************************************************************
+	
+	public function ownership_request() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'org_info/ownership_request/';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['ownership_req'] = $this->org_info_model->get_all_ownership_req($config["per_page"],$page,$this->session->userdata('org_id'),$this->session->userdata('userid'));
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["ownership_req"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('transfer-ownership-list',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	ownership_request
+	#	Purpose		:	Processing ownership request
+	# *******************************************************************************************
+	
+	public function ownership_org_details($org_id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['organization_id'] = $org_id;
+		
+		$data['org_profile'] = $this->org_info_model->get_org_details($org_id);
+		$data['org_name'] = $data['org_profile']['st_org_name'];
+		
+		if(empty($data['org_profile'])) {
+			redirect(base_url().'org_info/ownership_request');
+		}
+		
+		$this->load->view('ownership-transfer-requests-organizattion',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	edit_organization_for_transfer
+	#	Purpose		:	Update Organization for transefer
+	# *******************************************************************************************
+	
+	public function edit_organization_for_transfer($org_id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$data['edit_org_profile'] = $this->org_info_model->organization_profile_for_transefer($org_id);
+		$data['organization_id'] = $org_id;
+		
+		if(empty($data['edit_org_profile'])) {
+			redirect(base_url().'org_info/ownership_request');
+		}
+		
+		$data['org_name'] = $data['edit_org_profile']['st_org_name'];
+		
+		if($this->input->post('frm_action') == 'frm_post') {
+			//Validation rules
+			
+			$req_fields = array(	array('field'   => 'address',	'label'  => 'Addresss',		'rules' => 'required|trim'),
+									array('field'   => 'city', 		'label'  => 'City', 		'rules' => 'required|trim'),
+									array('field'   => 'state', 	'label'  => 'State', 		'rules' => 'required|trim'),
+									array('field'   => 'zip',		'label'  => 'Zip',			'rules' => 'required|trim'),
+									array('field'   => 'manager', 	'label'  => 'Manager Name', 		'rules' => 'required|trim'),
+									array('field'   => 'pphone',	'label'  => 'Primary phone','rules' => 'required|trim'),
+									array('field'   => 'email', 	'label'  => 'Email', 		'rules' => 'required|trim|'),
+									array('field'   => 'organization_website',	'label'  => 'Organization Website','rules' => 'callback_validate_urls|trim')
+		            			);
+
+			$this->form_validation->set_rules($req_fields);
+		}
+		if($this->form_validation->run() == FALSE) {
+			// Validation error				
+			$data['error_msg'] = validation_errors();
+		
+			$this->load->view('edit-organization-profile-for-transfer',$data);
+		} else {
+			//Updating organization data
+			$data['org_data'] = array(	'st_address1'				=>	$this->input->post('address'),
+										'st_city'					=>	$this->input->post('city'),
+										'st_state'					=>	$this->input->post('state'),
+										'st_zip'					=>	$this->input->post('zip'),
+										'st_director'				=>	$this->input->post('manager'),
+										'st_primary_phone'			=>	$this->input->post('pphone'),
+										'st_email_address'			=>	(strstr('http://',$this->input->post('email') ))?str_replace('http://','',$this->input->post('email')):$this->input->post('email'),
+										'st_website'				=>	$this->input->post('organization_website'),
+										'in_modified_by'			=>	$this->session->userdata('userid'),
+										'in_user_id'				=>	$this->session->userdata('userid'),
+										'in_created_by'				=>	$this->session->userdata('userid'),
+										'dt_modified'				=>	date('Y-m-d H:i:s')
+									);
+									
+			$num_rows1 = $this->org_info_model->edit_org($data['org_data'],$org_id);
+			
+			//Updating transefer request data
+			$data['ownership_data'] = array('in_accepted_by'	=>	$this->session->userdata('userid'),
+											'dt_modified'		=>	date('Y-m-d H:i:s')
+											);
+			$num_rows2 = $this->org_info_model->org_transefer_confirm($data['ownership_data'],$org_id);
+			
+			if($num_rows1 == 1 && $num_rows2 == 1) {
+				$this->session->set_userdata('transefer_ownership_success','yes');
+				redirect(base_url().'org_info/ownership_org_details/'.$org_id);
+			}
+		}
+		
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_profile_display	
+	#	Purpose		:	Getting details of organization
+	# *******************************************************************************************
+	
+	public function organization_profile_display($org_id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		//Getting detail sof organization
+		$data['org_profile'] = $this->org_info_model->organization_profile_display($org_id);
+		
+		if(empty($data['org_profile'])) {
+			redirect(base_url());
+		}
+		
+		$this->load->view('organization-profile-front',$data);
+	}
+	
+	public function organization_donation()
+	{
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'org_info/organization_donation/';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['organization_donation_list'] = $this->org_info_model->get_organization_donation($config["per_page"],$page,$this->session->userdata('org_id'));
+		
+		//echo '<pre>'; print_r($data['organization_donation_list']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['organization_donation_list']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+		
+		$this->load->view('organization-donation',$data);	
+			
+	}
+	
+	public function block_user()
+	{
+		
+		if($this->input->post('invite_frm_action')=='invite_frm_value') {
+			
+			$user_data['display_name'] = $this->input->post('display_name'); 
+			$user_data['org_name'] = $this->session->userdata('org_name');
+			
+			$permission_str = $_POST;
+			$user_id = $permission_str['invite_user_id'];
+			
+			//Unsetting hidden value
+			unset($permission_str['invite_frm_action']);
+			unset($permission_str['invite_user_id']);
+			unset($permission_str['display_name']);
+			unset($permission_str['user_email']);
+			
+			//Serialize permission array
+			$user_permission = (!empty($permission_str))?serialize($permission_str):'';
+			
+			//Insert user & permissions
+			//echo $this->session->userdata('org_id'); 
+			//echo $this->input->post('invite_user_id'); die;
+			
+			$data['org_users'] = array('in_organization_id'		=>	$this->session->userdata('org_id'),
+										'in_user_id'			=>	$this->input->post('invite_user_id'),
+										'st_transport_cood'		=>	isset($permission_str['transport'])?'Y':'N',
+										'st_fundraiser'			=>	isset($permission_str['fundraiser'])?'Y':'N',
+										'st_animal_profile'		=>	isset($permission_str['profile_manager'])?'Y':'N',
+										'st_permission'			=>	$user_permission,
+										'in_invite_by'			=>	$this->session->userdata('userid'),
+										'dt_created'			=>	date('Y-m-d H:i:s'),
+										'in_status'				=>	'3',
+										'in_deleted'			=>	'0'
+									);
+									
+			
+			$data['insert_permission'] = $this->org_info_model->insert_permission($data['org_users']);	
+			
+			// email start
+			if($data['insert_permission'] == 1) {				
+				$this->load->library('email');			
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt(24);
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				$patterns 	= array('%##user_display_name##%','%##organization_display_name##%','%##url##%');
+				$replacements = array($user_data['display_name'],$user_data['org_name'],base_url());
+				$content = preg_replace($patterns, $replacements, $email_body[0]['st_email_body']);
+				$subject = str_replace('##organization_display_name##',$user_data['org_name'],$email_body[0]['st_email_subject']);
+				$message = $content;
+				$message = str_replace("##DONATION##",$donation,$message);
+				$to 	 = $this->input->post('user_email');
+				//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+				$this->session->set_userdata('invitation_success','User blocked successfully.');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('invite_user_id'));		
+			} else {
+				$this->session->set_flashdata('invitation_error','Error sending invitation.');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('invite_user_id'));
+			}
+			//email end	
+		}	
+		
+	}
+	
+	
+	
+	public function block_usr()
+	{
+		
+		
+		if($this->input->post('frm_action')=='frm_post_value') {
+			$user_per_array = unserialize($this->input->post('usr_per'));
+			
+			$user_data['display_name'] = $this->input->post('display_name');
+			$user_data['org_name']     = $this->session->userdata('org_name');
+			
+			//Insert user & permissions
+			$data['org_users'] = array('in_organization_id'		=>	$this->session->userdata('org_id'),
+										'in_user_id'			=>	$this->input->post('usr_id'),
+										'st_transport_cood'		=>	isset($user_per_array['transport'])?'Y':'N',
+										'st_fundraiser'			=>	isset($user_per_array['fundraiser'])?'Y':'N',
+										'st_animal_profile'		=>	isset($user_per_array['profile_manager'])?'Y':'N',
+										'st_permission'			=>	$this->input->post('usr_per'),
+										'in_invite_by'			=>	$this->session->userdata('userid'),
+										'dt_created'			=>	date('Y-m-d H:i:s'),
+										'in_status'				=>	'3',
+										'in_deleted'			=>	'0'
+									);
+			
+			$data['insert_permission'] = $this->org_info_model->insert_permission($data['org_users']);		
+			
+			// email start
+			if($data['insert_permission'] == 1) {				
+				
+				$this->load->library('email');			
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt(24);
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				$patterns 	= array('%##user_display_name##%','%##organization_display_name##%','%##url##%');
+				$replacements = array($user_data['display_name'],$user_data['org_name'],base_url());
+				$content = preg_replace($patterns, $replacements, $email_body[0]['st_email_body']);
+				$subject = str_replace('##organization_display_name##',$user_data['org_name'],$email_body[0]['st_email_subject']);
+				$content = str_replace('##DONATION##',$donation,$content);
+				$message = $content;
+				$to 	 = $this->input->post('user_email');
+				//echo $to."==".$subject."==".$message;die;
+				//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+				
+				//echo $this->email->print_debugger();die;
+				$this->session->set_userdata('invitation_success','User blocked successfully.');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('usr_id'));		
+			} else {
+				$this->session->set_flashdata('invitation_error','Error sending invitation.');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('usr_id'));
+			}			
+			//email end				
+			
+		}
+	}	
+	
+	# *******************************************************************************************	
+	#	Function	:	remove_org_link
+	#	Purpose		:	For deleting organization guidelines link
+	# *******************************************************************************************
+	function remove_org_link()
+	{
+		$org_link_id =  $this->input->post('id');
+		return $this->org_info_model->organization_link_update($org_link_id);
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_organization_files
+	#	Purpose		:	Deleting organization guidelines files
+	# *******************************************************************************************
+	public function delete_organization_files() {
+		$file_id = $this->input->post('id');
+		return $this->org_info_model->delete_organization_files($file_id);		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_images
+	#	Purpose		:	For Adding guidelines Images
+	# *******************************************************************************************	
+	public function add_guidelines_images() {
+		
+		if(!isset($_FILES['files']['name'])) {
+			return false;
+		}
+		
+		
+		$ext = pathinfo($_FILES['files']['name'], PATHINFO_EXTENSION);
+		//$filename = time(basename($_FILES['files']['name'], ".".$ext));
+		//$flname= $filename . '.'.$ext; 
+
+		ini_set("post_max_size",'256M');
+		ini_set("upload_max_filesize",'128M');
+		$config['upload_path'] = $this->config->item('upload')."org_doc/";
+		$config['allowed_types'] = 'jpg|jpeg|doc|docx|xls|xlsx|pdf|jpe';
+		//$config['allowed_types'] = 'doc|docx|pdf';
+		$config['max_size']	= '5120'; //5mb
+		$config['remove_spaces']  	= TRUE;
+		//$config['file_name'] 		= str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['files']['name']);
+		$config['file_name'] = time().".".$ext;
+		
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		$this->upload->do_upload('files');
+
+		
+		$file_errors = array('errors' => $this->upload->display_errors());
+			
+		//Display errors of file upload.
+		if(!empty($file_errors['errors'])){
+			$data = array('error' => strip_tags($file_errors['errors']));
+			echo json_encode(array('files' => array($data) ));
+			return false;
+		}		
+		$data = array(	'name' => $config['file_name'],
+						'size' => $_FILES['files']['size'],
+						'type' => $_FILES['files']['type'],
+						"url"  => $this->config->item('upload_url')."org_doc/".urlencode($config['file_name']),
+						"deleteUrl"  => $this->config->item('base_url')."org_info/delete_files/org_doc/?files=".urlencode($config['file_name']),
+						"deleteType"=>"DELETE"
+					);
+		echo json_encode(array('files' => array($data) ));
+		//return $data;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_files
+	#	Purpose		:	Deleting organization uploaded files
+	# *******************************************************************************************
+	function delete_files($path)
+	{
+		if($this->input->get('files')!='')
+		{
+			$files = $this->input->get('files');
+			@unlink($this->config->item('upload').$path."/".$files);
+			//delete_files($this->config->item('upload').$path."/".$files);
+		}
+	}
+	
+	function generate_download($document)
+    {	
+		
+        $file = $this->config->item('upload')."org_doc/".$document;
+		
+		if ($document!='' && file_exists($file)) {
+		
+		$this->load->helper('download');
+		$data = file_get_contents($file); // Read the file's contents
+		$name = $document;
+		force_download($name, $data);
+		}
+		else
+		{   		
+			$this->session->set_flashdata('docmsg', 'File does not exist.');
+			redirect($this->agent->referrer());		
+			
+		}
+    }
+	
+	function paypal_payment($paypal_detail)
+	{
+			
+		$this->load->model('paypal_model');		
+		//-------------------------------------------------
+		// When you integrate this code
+		// look for TODO as an indication
+		// that you may need to provide a value or take action
+		// before executing this code
+		//-------------------------------------------------
+		
+		//require_once ("paypalplatform.php");
+		// ==================================
+		// PayPal Platform Parallel Payment Module
+		// ==================================
+		
+		// Request specific required fields
+		$actionType            	= "PAY";
+		$cancelUrl				= $paypal_detail['st_custom_url'];//"http://crystal9/Jigar/session.php?success=no";    // TODO - If you are not executing the Pay call for a preapproval,
+														//        then you must set a valid cancelUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$returnUrl  			= $paypal_detail['thank_you'];//"http://crystal9/Jigar/session.php?success=yes";    // TODO - If you are not executing the Pay call for a preapproval,
+														//        then you must set a valid returnUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$currencyCode        	=  $this->config->item('currency_code');
+		
+		
+		// A parallel payment can be made among two to six receivers
+		// TODO - specify the receiver emails
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		$receiverEmailArray    = array(
+				$this->config->item('doobert_paypal_acc'),
+				$paypal_detail['paypal_email']
+				);
+		
+		// TODO - specify the receiver amounts as the amount of money, for example, '5' or '5.55'
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		//$full_amount =		$paypal_detail['doobert_amount']+$paypal_detail['user_amount'];
+		$receiverAmountArray = array(
+				$paypal_detail['doobert_amount'],
+				$paypal_detail['fullamount']
+				);
+		
+		// for parallel payment, no primary indicators are needed, so set empty array
+		$receiverPrimaryArray = array("false","true");
+		
+		// TODO - Set invoiceId to uniquely identify the transaction associated with each receiver
+		//        set the array entries with value for receivers that you have
+		//          each of the array values must be unique
+		$receiverInvoiceIdArray = array(
+				'',
+				'',
+				'',
+				'',
+				'',
+				''
+				);
+		
+		// Request specific optional fields
+		//   Provide a value for each field that you want to include in the request, if left as an empty string the field will not be passed in the request
+		$senderEmail                    	= "";        // TODO - If you are executing the Pay call against a preapprovalKey, you should set senderEmail
+													//        It is not required if the web approval flow immediately follows this Pay call
+		$feesPayer                        	= "PRIMARYRECEIVER";
+		$ipnNotificationUrl                	= ($_SERVER['HTTP_HOST']!='crystal9')?$this->config->item('base_url')."org_info/ipn_notification/":"http://9277.us/doobert/session1.php";
+		$memo                            	= "";        // maxlength is 1000 characters
+		$pin                           		= "";        // TODO - If you are executing the Pay call against an existing preapproval
+													//        the requires a pin, then you must set this
+		$preapprovalKey                    	= "";        // TODO - If you are executing the Pay call against an existing preapproval, set the preapprovalKey here
+		$reverseAllParallelPaymentsOnError  = "";    // TODO - Set this to "true" if you would like each parallel payment to be reversed if an error occurs
+													//        defaults to "false" if you don't specify
+		$trackingId                        	= $paypal_detail['tracking_id'];//$this->generateTrackingID();    // generateTrackingID function is found in paypalplatform.php
+		
+		//-------------------------------------------------
+		// Make the Pay API call
+		//
+		// The CallPay function is defined in the paypalplatform.php file,
+		// which is included at the top of this file.
+		//-------------------------------------------------
+		//echo "<pre>";print_r($receiverAmountArray);die;
+		$resArray = $this->paypal_model->CallPay($actionType, $cancelUrl, $returnUrl, $currencyCode, $receiverEmailArray,
+								$receiverAmountArray, $receiverPrimaryArray, $receiverInvoiceIdArray,
+								$feesPayer, $ipnNotificationUrl, $memo, $pin, $preapprovalKey,
+								$reverseAllParallelPaymentsOnError, $senderEmail, $trackingId
+		);
+		//echo "<pre>";print_r($resArray);die;
+		if(isset($resArray) && !empty($resArray))
+		{
+			$ack = strtoupper($resArray["responseEnvelope.ack"]);
+			
+			if($ack=="SUCCESS")
+			{
+				if ("" == $preapprovalKey)
+				{
+					// redirect for web approval flow
+					$cmd = "cmd=_ap-payment&paykey=" . urldecode($resArray["payKey"]);
+					$this->paypal_model->RedirectToPayPal ( $cmd );
+			
+				}
+				else
+				{
+					//echo "<pre>elsecnd";print_r($resArray);die;
+					// payKey is the key that you can use to identify the result from this Pay call
+					$payKey = urldecode($resArray["payKey"]);
+					// paymentExecStatus is the status of the payment
+					$paymentExecStatus = urldecode($resArray["paymentExecStatus"]);
+				}
+			}
+			else  
+			{
+				//Display a user friendly Error on the page using any of the following error information returned by PayPal
+				//TODO - There can be more than 1 error, so check for "error(1).errorId", then "error(2).errorId", and so on until you find no more errors.
+				$ErrorCode = urldecode($resArray["error(0).errorId"]);
+				$ErrorMsg = urldecode($resArray["error(0).message"]);
+				$ErrorDomain = urldecode($resArray["error(0).domain"]);
+				$ErrorSeverity = urldecode($resArray["error(0).severity"]);
+				$ErrorCategory = urldecode($resArray["error(0).category"]);
+			   
+				/*echo "Preapproval API call failed. "."<br />";
+				echo "Detailed Error Message: " . $ErrorMsg."<br />";
+				echo "Error Code: " . $ErrorCode."<br />";
+				echo "Error Severity: " . $ErrorSeverity."<br />";
+				echo "Error Domain: " . $ErrorDomain."<br />";
+				echo "Error Category: " . $ErrorCategory."<br />";die;*/
+				$error['error'] = $ErrorMsg;
+				return $error;
+			}
+		}
+		else
+		{
+			$error['error'] = "Invalid paypal email address configure";
+			return $error;
+		}
+	}
+	
+	function ipn_notification()
+	{
+		$postData = file_get_contents('php://input');
+		$postData = urldecode($postData);
+		$rawPostArray = explode('&', $postData);			
+		$data_arr= array();
+		foreach($rawPostArray as $key=>$value)
+		{
+			
+			$data_val = explode("=",$value);		
+			
+			if(isset($data_val[0]) && $data_val[0] == "transaction[0].id")
+			{
+				$data_arr['st_doobert_trans_id'] = $data_val[1];
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "transaction[1].id")
+			{
+				$data_arr['st_transaction_id'] = $data_val[1];
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "transaction[1].status" && $data_val[1]=="Completed")
+			{
+				$data_arr['transaction_1'] = "1";
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "transaction[0].status" && $data_val[1]=="Completed")
+			{
+				$data_arr['transaction_0'] = "1";
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "tracking_id")
+			{
+				$data_arr['donation_id'] = str_replace("org_donation","",$data_val[1]);
+			}
+				
+			//echo "<pre>";print_r($data_val);
+		}
+		//echo "<pre>";print_r($data_arr);die;
+//		$file = fopen("test.txt","w");
+//		echo fwrite($file,"<pre>".print_r($data_arr,true)."===".print_r($rawPostArray,true));
+//		fclose($file);
+		if(isset($data_arr) && !empty($data_arr))
+		{
+			$id = $data_arr['donation_id'];
+			$status = 0;
+			if($data_arr['transaction_1']=='1' && $data_arr['transaction_0']=='1')
+			{
+				$status = 1;
+			}
+			$update_details = array("st_doobert_trans"		=> $data_arr['st_doobert_trans_id'],
+									"st_transaction_id"		=> $data_arr['st_transaction_id'],
+									"st_pp_response"		=> serialize($rawPostArray),
+									"dt_created"			=> date("Y-m-d H:i:s"),
+									"st_status"				=> $status);			
+			//mail('jigar.patel@pulsesolutions.com','DataBase data',print_r($update_details,true));																		
+			$this->org_info_model->update_donation_details($id,$update_details);			
+		}
+	}
+	
+	
+	public function view_user_profile($id='') {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+
+		$data = array();
+		$data['user_org_dtls']	= $this->org_info_model->get_users_org($id); 
+		//$data['user_vehicle'] = $this->org_info_model->get_user_vehicle($id);
+		
+		$data['user_profile_setting_details']	= $this->common_model->get_user_profile_setting($id);
+		
+		$data['user_profile'] = $this->org_info_model->get_invited_user_profile($id);
+		
+		$this->load->model('user_model');
+		$data['user_vehicle'] = $this->user_model->get_user_vehicle_detail_with_image($id);
+		$data['user_plane'] = $this->user_model->get_user_plane_detail_with_image($id);
+		$data['user_photographer'] = $this->user_model->get_photographer_detail($id);
+		$data['user_in_person_vol'] = $this->user_model->get_in_person_volunteer_detail($id);
+		$data['user_virtual_sup_vol'] = $this->user_model->get_virtual_sup_vol_detail($id);
+		$data['user_foster_detail'] = $this->user_model->get_foster_home_detail($id);		
+		$data['user_foster_animal_type_details'] = $this->user_model->get_foster_animal_type_details($id);
+		$data['user_foster_reference_details'] = $this->user_model->get_foster_home_ref_by_user_id($id);
+		$data['user_st_lost_animal'] = $this->user_model->get_lost_animal_detail($id);
+		
+		$transport_permission_user = $this->common_model->verify_transport_permission($id);
+
+		if($transport_permission_user == 'true')
+			$data['tc_user_count'] = $this->common_model->get_tc_volunteer_count($id);
+	
+		$data['vol_user_count'] = $this->common_model->get_transaction_volunteer_count($id);
+		
+		
+		//echo '<pre/>'; print_r($data['user_foster_animal_type_details']);exit;
+		
+		$this->load->view('view-user-profile',$data);
+	}
+	
+	public function accept_request($user_id,$org_id,$last_id) {
+		if(!$this->session->userdata('userid')) { 
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];	
+			$this->session->set_userdata('url_data',$url);
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		$user_id = $this->uri->segment(2);
+		
+		if(!$this->session->userdata('org_id')) {
+			$arrOrg = 	array('in_status' 	=> '1' );
+			
+			$this->session->set_userdata('org_id',$org_id);
+			$get_org_details = $this->org_info_model->update_user_info($last_id,$arrOrg);
+			redirect(base_url().'org-dashboard/'.$org_id);
+		}
+	}
+	
+	public function reject_request($user_id,$org_id,$last_id) {
+		if(!$this->session->userdata('userid')) { 
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];	
+			$this->session->set_userdata('url_data',$url);
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$user_id = $this->uri->segment(2);
+		
+		if(!$this->session->userdata('org_id')) {
+			$arrOrg = 	array('in_status' 	=> '4' );
+			
+			$this->session->set_userdata('org_id',$org_id);
+			$get_org_details = $this->org_info_model->update_user_info($last_id,$arrOrg);
+			redirect(base_url().'my-profile');
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	resend_invitation	
+	#	Purpose		:	Resending Invitation to user
+	# *******************************************************************************************
+	
+	public function resend_invitation() {
+		$this->load->library('email');
+		$to = $this->input->post('email');
+		
+		//Getting email body
+		$email_body = $this->common_model->get_email_containt('10');
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		
+		$subject = str_replace('##organization_display_name##',$this->input->post('org_name'),$email_body[0]['st_email_subject']);
+		$content = str_replace('##DONATION##',$donation,$content);
+		
+		$patterns 	= array('%##user_display_name##%','%##organization_display_name##%','%##url##%','%##accept_link##%','%##reject_link##%');
+		$replacements = array($this->input->post('user_name'),$this->input->post('org_name'),base_url(),base_url().'user/accept_request/'.base64_encode($this->input->post('user_id')).'/'.base64_encode($this->session->userdata('org_id')).'/'.base64_encode($this->input->post('invite_id')),base_url().'user/reject_request/'.base64_encode($this->input->post('user_id')).'/'.base64_encode($this->session->userdata('org_id')).'/'.base64_encode($this->input->post('invite_id')));
+		
+		$content = preg_replace($patterns, $replacements, $email_body[0]['st_email_body']);//die;
+		$category  =    $email_body[0]['st_category'];
+		
+		$user_to_id = $this->common_model->get_user_id_by_email($this->input->post('email'));
+						
+		$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('email')),$content);		
+		$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('email')),$content);		
+		
+		$send_email = 1;							
+		$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+		if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+		{
+			$send_email = 0;										
+		}
+		
+		$email_template_id = $email_body[0]['in_email_id'];
+		$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+		if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+		{
+			$send_email = 1;
+		}
+		
+		$mail_send  = 0;
+		
+		if($send_email == '1')
+		{
+			$mail_send = $this->common_function->send_mail($this->email, $to, $subject, $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		}
+		
+		echo $mail_send;
+	}
+	
+	/*public function request_user_details()
+	{
+		
+		$post_msg = $this->input->post('message');
+		$name = $this->input->post('name');
+		$to = $this->input->post('email');
+		
+		$message  = '';
+		$message .= $this->session->userdata('user_name').' sent you the following message.';
+		$message .= $post_msg;
+		$message .= 'You can contact '.$this->session->userdata('user_name').' at '.$this->session->userdata('email').'.';
+		
+		$subject  = 'Contact Request From: '.$this->session->userdata('user_name');
+		$category = 'Doobert.com Contact Request';
+		
+		$this->load->library('email');
+		$mail_send = $this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->session->userdata('email'), $this->email, $category);
+		echo $mail_send;
+	}*/
+	
+	public function request_user_details()
+	{
+		
+		$user_name = $this->input->post('name');
+        $user_email = $this->input->post('email');
+		
+		$sender_name = $this->session->userdata('user_name');
+		$sender_email = $this->session->userdata('email');
+        $msg = nl2br($this->input->post('message'));
+		if(trim($user_email) !='' && trim($sender_email) !=''){
+			// SEND email
+		}else{
+			exit;
+		}
+		//echo $user_name;	echo $user_email; 	echo $sender_name; echo $sender_email;
+		
+		$this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("50");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		
+        if (isset($email_details[0]['st_email_body'])) {
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##user_name##", $user_name , $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+            $templete = str_replace("##sender_name##", $sender_name , $templete);
+			$templete = str_replace("##message##", $msg , $templete);
+            $templete = str_replace("##sender_email##", $sender_email , $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+            $strMail = $templete;
+            $to = $user_email;
+            $subject = $email_details[0]['st_email_subject'];
+			$subject = str_replace('##sender_name##',$sender_name , $subject); 
+			$category = $email_details[0]['st_category'];
+		   // $subject = 'Contact Request From: ' . $this->session->userdata('user_name');
+            $message = $strMail;
+		
+			$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+		
+			$send_email = 1;							
+			$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+			if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_details[0]['in_email_id'];
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}
+
+			if($send_email == '1')
+			{	
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+			}
+			
+			$data['success'] = 1;
+			echo json_encode($data);
+		
+		}
+	}
+	
+	public function org_notify()
+	{
+		if(!$this->session->userdata('userid')) 
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		$org_info = $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		//echo '<pre>'; print_r($org_info['st_org_name']);die;
+		$data['edit_org_profile'] = $org_info['st_org_name'];
+		
+		$data['miles'] = (isset($org_info['in_notification_miles']) && !empty($org_info['in_notification_miles']))?$org_info['in_notification_miles']:'';	
+		
+		
+		$data['miles2'] = (isset($org_info['in_new_org_notification_miles']) && !empty($org_info['in_new_org_notification_miles']))?$org_info['in_new_org_notification_miles']:'';	
+		
+		
+		$data['org_notification'] = (isset($org_info['in_org_notification']) && !empty($org_info['in_org_notification']))?$org_info['in_org_notification']:'0';			
+		
+		
+		$data['mvr_notification'] = (isset($org_info['in_mvr_notification']) && !empty($org_info['in_mvr_notification']))?$org_info['in_mvr_notification']:'0';					
+		
+		$data['mvr_notification_orgdashboard'] = (isset($org_info['in_mvr_notification_orgdashboard']) && !empty($org_info['in_mvr_notification_orgdashboard']))?$org_info['in_mvr_notification_orgdashboard']:'0';					
+		
+		$data['mvr_notification_email'] = (isset($org_info['in_mvr_notification_email']) && !empty($org_info['in_mvr_notification_email']))?$org_info['in_mvr_notification_email']:'0';	
+
+		$data['mvr_no_driver_completed'] = (isset($org_info['in_mvr_no_driver_completed']) && !empty($org_info['in_mvr_no_driver_completed']))?$org_info['in_mvr_no_driver_completed']:'';							
+		
+		$data['zip_code'] = (isset($org_info['st_zip']) && !empty($org_info['st_zip']))?' '.$org_info['st_zip'].'.':'.';
+		
+		//$data['zip_code2'] = (isset($org_info['st_zip2']) && !empty($org_info['st_zip2']))?' '.$org_info['st_zip2'].'.':'.';
+		
+		
+		$data['org_new_notification'] = (isset($org_info['in_new_org_notification']) && !empty($org_info['in_new_org_notification']))?$org_info['in_new_org_notification']:'0';	
+		
+		$data['disastermode']   = ($org_details['in_disaster']=='1')? 'on': 'off';
+		
+		
+		
+		if($this->input->post('action_org_notify') == 'update_notify') 
+		{		
+				$org_info = array('in_org_notification'   =>$this->input->post('org_notification'),
+								  'in_notification_miles' =>$this->input->post('zip_radius') ? $this->input->post('zip_radius'):'',
+
+								 'in_new_org_notification'   =>$this->input->post('new_org_notify'),
+								 
+								 'in_new_org_notification_miles' =>$this->input->post('zip_radius2') ? $this->input->post('zip_radius2'):'',
+								   'in_mvr_notification'   		 			=> $this->input->post('mvr_notify'),
+								  'in_mvr_notification_orgdashboard'   		=> $this->input->post('mvr_notification_orgdashboard'),
+								  'in_mvr_notification_email'               => $this->input->post('mvr_notification_email'),							  
+								  'in_mvr_no_driver_completed'              => $this->input->post('mvrcompleted'),							  
+								  
+								  );
+			
+				$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+				$this->db->update('tbl_organization', $org_info);
+			
+				$this->session->set_flashdata('success', 'Organization notification information saved successfully.');
+				redirect(base_url().'org_info/org_notify/');
+		}
+		
+		$this->load->view('org-notify',$data);
+	}
+	
+	public function org_item_notify()
+	{
+		if(!$this->session->userdata('userid') || !$this->session->userdata('org_id')) 
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		$org_info = $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		//echo '<pre>'; print_r($org_info);die;
+		
+		$data['zip_code'] = (isset($org_info['st_zip']) && !empty($org_info['st_zip']))?' '.$org_info['st_zip'].'.':'.';
+		
+		$data['org_notification_item'] = (isset($org_info['in_notification_items']) && !empty($org_info['in_notification_items']))?$org_info['in_notification_items']:'0';
+		
+		$data['miles3'] = (isset($org_info['in_notification_items_miles']) && !empty($org_info['in_notification_items_miles']))?$org_info['in_notification_items_miles']:'';	
+		
+		$data['category_type'] = (isset($org_info['in_notification_items_category']) && !empty($org_info['in_notification_items_category']))?unserialize($org_info['in_notification_items_category']):array();
+		
+		$data['category_list'] = $this->common_model->get_category();
+		
+		
+		if($this->input->post('action_org_notify') == 'update_notify') 
+		{		
+				$org_info = array('in_notification_items'		  => $this->input->post('items_notification'),
+								  'in_notification_items_miles'	  => $this->input->post('zip_radius3') ? $this->input->post('zip_radius3'):' ',
+								  'in_notification_items_category' => $this->input->post('category_type')?serialize($this->input->post('category_type')):' ',
+								  );
+				
+				$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+				$this->db->update('tbl_organization', $org_info);
+				$this->session->set_flashdata('success', 'Item notification information saved successfully.');
+				redirect(base_url().'org_info/org_item_notify/');
+		}
+		
+		$this->load->view('org-item-notify',$data);
+	}
+	
+	public function disaster_email()
+	{
+		
+		$name=$this->input->post('name');
+		$email=$this->input->post('email');	
+	
+		
+		
+		$phone=$this->input->post('phone');
+		$location=$this->input->post('location');
+		$comment=$this->input->post('comment');
+		$receiveremail=$this->input->post('receiveremail');
+		$receivername=$this->input->post('receivername');
+		
+		
+		$orgowneremail=$this->input->post('orgowneremail');
+		$orgownername=$this->input->post('orgownername');
+		
+		
+		
+		$email_details = $this->common_model->get_email_containt("152");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		$data = array();		
+		$this->load->library('email');
+		
+		if(isset($email_details[0]['st_email_body']))
+		{
+			$templete  = $email_details[0]['st_email_body'];
+			$templete  = str_replace("##current_year##",date('Y'),$templete);
+			$templete  = str_replace("##DONATION##",$donation,$templete);
+			
+			$strMail1 	= 	$templete;
+			$strMail1    = str_replace("##user_name##",$receivername,$strMail1);
+			$strMail1    = str_replace("##name##",$name,$strMail1);
+			$strMail1    = str_replace("##email##",$email,$strMail1);
+			$strMail1    = str_replace("##phone##",$phone,$strMail1);
+			$strMail1    = str_replace("##location##",$location,$strMail1);
+			$strMail1    = str_replace("##comment##",$comment,$strMail1);
+			
+			
+			// owner email template
+			$strMail2 	= 	$templete;
+			$strMail2    = str_replace("##user_name##",$orgownername,$strMail2);
+			$strMail2    = str_replace("##name##",$name,$strMail2);
+			$strMail2    = str_replace("##email##",$email,$strMail2);
+			$strMail2    = str_replace("##phone##",$phone,$strMail2);
+			$strMail2    = str_replace("##location##",$location,$strMail2);
+			$strMail2    = str_replace("##comment##",$comment,$strMail2);
+			
+			
+			
+			
+			$toreceiver			=	$receiveremail;
+			$toowner		    =	$orgowneremail;
+			
+			$subject	        =	$email_details[0]['st_email_subject'];
+			$receivermessage	=	$strMail1;		
+			
+			$ownermessage	    =	$strMail2;
+			
+			$user_to_id = $this->common_model->get_user_id_by_email($toreceiver);						
+			$receivermessage = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($toreceiver),$receivermessage);		
+			$receivermessage = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($toreceiver),$receivermessage);
+							
+			$this->common_function->send_mail($this->email, $toreceiver, $subject, $receivermessage,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));	
+			
+			$this->common_function->send_mail($this->email, $toowner, $subject, $ownermessage,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));	
+			
+			
+			
+			
+			$this->session->set_flashdata('success','Request sent successfully.');
+		    redirect(base_url().'organization-profile');
+					
+		}	
+	}
+	
+			# *******************************************************************************************	
+	#	Function	:	invite_user	
+	#	Purpose		:	Invitation to user
+	# *******************************************************************************************
+	public function volunteer_user() {
+		if(!$this->session->userdata('userid') || !$this->session->userdata('org_id')) 
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$this->session->unset_userdata('org_username');
+		$this->session->unset_userdata('org_sort');
+		$this->get_volunteer_user_data();	
+	}
+	
+	public function get_volunteer_user_data() {
+		
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		
+		
+		$data = array();
+		
+		$username = '';
+		$sort_value = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'org_info/get_volunteer_user_data/';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'search_value') {
+			//echo "<pre>";print_r($_POST);die;
+			
+			if($this->session->userdata('org_username'))
+				$this->session->unset_userdata('org_username');
+			
+			if($this->session->userdata('org_sort'))
+				$this->session->unset_userdata('org_sort');
+					
+				$username = $this->input->post('search_txt');
+				$this->session->set_userdata('org_username',$username);
+				
+				$sort_value = $this->input->post('sort_by');
+				$this->session->set_userdata('org_sort',$sort_value);
+		} else {
+			if($this->session->userdata('org_username'))
+				$username	= $this->session->userdata('org_username');
+			else
+				$username	= '' ;
+				
+			if($this->session->userdata('org_sort'))
+				$sort_value	= $this->session->userdata('org_sort');
+			else
+				$sort_value	= '';
+		}
+		
+		if($this->input->post('submit_volunteer') == 'submit_volunteer')
+		{
+			$insert_record = array();
+			$user_id = $this->input->post('user_id');
+			foreach($user_id as$key=>$value)
+			{
+				$insert_record[] = array('in_organization_id' => $this->session->userdata('org_id'),
+										 'in_user_id'		  => $value,
+										 'in_deleted'		  => 0,
+										 'dt_created'		  => date("Y-m-d H:i:s"),
+										 'dt_modified'		  => date("Y-m-d H:i:s")					
+										);
+			}
+			
+			if(count($insert_record)>0)
+			{	
+				$feedback_id = $this->db->insert_batch('tbl_organization_preferred_volunteer',$insert_record);
+				$this->session->set_flashdata('added_success','Preferred Volunteer added successfully.');	
+			}
+			redirect(base_url().'org_info/approved_volunteer_transporter');
+		}	
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['user_list'] 	= $this->org_info_model->get_volunteer_users($config["per_page"],$page,trim($username),$sort_value);
+		
+		//echo "<pre>";print_r($data['user_list']);die;
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["user_list"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+
+		$this->load->view('invite-a-volunteer-user',$data);
+	}
+	
+	public function approved_volunteer_transporter($sort=false,$order=false,$limit=false) {  
+		if(!$this->session->userdata('userid') || !$this->session->userdata('org_id')) {
+			redirect($this->config->item('base_url'));
+		}		
+		$data = array();
+		$config = array();	
+		
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'org_info/approved_volunteer_transporter/'.$sort.'/'.$order.'/';;
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 5;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		//$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;		
+		
+		$data['approved_user_list'] = $this->org_info_model->get_all_approved_transporter($sort,$order,$limit,$config["per_page"],$this->session->userdata('userid'),$this->session->userdata('org_id'));
+		
+		//Getting total rows
+		$config["total_rows"] = $data['approved_user_list']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+		
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		
+		$this->load->view('approved-volunteer-users',$data);
+	}
+	
+	public function upload_approved_volunteer() 
+	{
+		//echo $this->input->post('upload_leg_f');exit; //use for testing
+		$error_message = '';
+		$leg_upload_data = $_FILES['user_upload']['name'];
+		$leg_upload_data_type = $_FILES['user_upload']['type'];
+			
+		$config['upload_path'] 		= $this->config->item('upload')."userupload/";
+		$config['allowed_types'] 	= 'xls|xlsx|text/csv|csv';
+		$config['max_size']			= '1024';
+		$config['remove_spaces']  	= TRUE;
+		$config['file_name'] 		= str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['user_upload']['name']);
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		$this->upload->do_upload('user_upload');
+		$error_message  .= $this->upload->display_errors();
+			
+		$filename = $config['file_name'];
+		$extension = explode('.',$filename);
+		$uploadfilename = $config['file_name'];
+			
+			if($error_message!='')
+			{
+				$data['Err_Msg'] = "<p>".$error_message."</p>";
+				if(!empty($data['Err_Msg']))
+				{
+					$this->session->set_flashdata('leg_upload_error', $data['Err_Msg']);
+				}
+				redirect($this->config->item('base_url')."org_info/volunteer_user/");
+			}
+			
+			if($error_message=='')
+			{	
+					$file_in_dir_name = $this->config->item('upload').'userupload/'.$uploadfilename;
+					
+				if(isset($extension[1]) && ($extension[1]=='xls' ||$extension[1]=='xlsx'))
+				{
+						set_include_path(get_include_path() . PATH_SEPARATOR . 'Classes/');
+							
+						/** PHPExcel_IOFactory */
+						$this->load->library('PHPExcel');
+						$inputFileName = $file_in_dir_name;
+						try {
+							$objPHPExcel = PHPExcel_IOFactory::load($inputFileName);
+						} catch(Exception $e) {
+							die('Error loading file "'.pathinfo($inputFileName,PATHINFO_BASENAME).'": '.$e->getMessage());
+						}
+						
+						//Get worksheet dimensions
+						$sheet = $objPHPExcel->getActiveSheet(); 
+						$excel_data = $sheet->toArray(null,true,true,true);
+						/*print_r($excel_data);
+						die;
+						foreach($excel_data as $key=>$value)
+						{
+							if (!array_filter($value)) {
+								unset($excel_data[$key]);	// all column values are empty then remove that row
+							}
+							
+						}*/
+						
+						//echo "<pre>";print_r($data); exit;  //use for testing
+						$sheetData = array_values($excel_data);
+						//echo "<pre>";print_r($sheetData); exit;  //use for testing
+										
+						$volunteer_user = array();
+						$non_doobert_vol = array();
+						$added_vol_email = array();
+						//$added_nonvol_email = array();	
+						if($sheetData[0]['A']!='First Name' || $sheetData[0]['B']!='Last Name' || $sheetData[0]['C']!='Email Address' )
+						{
+							$this->session->set_flashdata('leg_upload_error','Excel data not in proper format');
+							redirect($_SERVER['HTTP_REFERER']);
+						}	
+						for($m=1;$m< count($sheetData);$m++)
+						{
+							$e = $m;
+							$error_flag='0';	
+							if($sheetData[$m]['A']=='')
+							{
+								$error_flag='1';
+								$error_message .="First Name is blank in Row ".$e."<br>";
+								
+							}
+							
+							if($sheetData[$m]['B']=='')
+							{
+								$error_flag='1';
+								$error_message .="Last Name is blank in Row ".$e."<br>";
+								
+							}
+							if($sheetData[$m]['C']=='')
+							{
+								$error_flag='1';
+								$error_message .="Email Address is blank in Row ".$e."<br>";
+							} else if (!filter_var($sheetData[$m]['C'], FILTER_VALIDATE_EMAIL)) {
+								$error_flag='1';
+								$error_message .="Entered email is not a valid email address in Row ".$e."<br>";	
+							} else {
+								$email_address = $sheetData[$m]['C'];
+							}
+								if($error_flag=='0')
+								{	
+									$repeat_record = '0';
+								
+									
+									if(count($added_vol_email) >0 && in_array($email_address, $added_vol_email))
+									{
+										$repeat_record = '1';
+									}
+									if($repeat_record == 0)
+									{	
+										$verify_email = $this->org_info_model->verify_doobertuser($email_address);
+										if(isset($verify_email) && count($verify_email)>0)
+										{
+											$joined_user = $this->org_info_model->check_user_volunteer_the_org($verify_email['in_user_id']);
+											if($joined_user==0)
+											{	
+												$insert_record = array('in_organization_id'   => $this->session->userdata('org_id'),
+																				'in_user_id'  => $verify_email['in_user_id'],
+																				'in_deleted'  => 0,
+																				'dt_created'  => date("Y-m-d H:i:s"),
+																				'dt_modified'  => date("Y-m-d H:i:s"),					
+																		);
+												array_push($volunteer_user,$insert_record);
+												array_push($added_vol_email,$sheetData[$m]['C']);
+											} else {
+												$error_message .="This user ".$sheetData[$m]['A']." ".$sheetData[$m]['B']." already exists in Preferred Volunteer Listing In Row ".$e."<br>";
+											}	
+										} else {
+											$nondoobert_joined_user = $this->org_info_model->check_nondoobert_volunteer_org($sheetData[$m]['C']);
+											if($nondoobert_joined_user == 0)
+											{	
+											$insert_nondoobert = array('in_organization_id'    => $this->session->userdata('org_id'),
+															     'st_first_name'   => $sheetData[$m]['A'],
+																 'st_last_name'    => $sheetData[$m]['B'],
+																	 'st_email'    => $sheetData[$m]['C'],
+																	'in_deleted'   => 0,
+										                             'dt_created'  => date("Y-m-d H:i:s"),
+										                            'dt_modified'  => date("Y-m-d H:i:s"),					
+															  );
+												array_push($non_doobert_vol,$insert_nondoobert);
+												array_push($added_vol_email,$sheetData[$m]['C']);
+											} else {
+												$error_message .="This user ".$sheetData[$m]['A']." ".$sheetData[$m]['B']." already exists in Preferred Volunteer Listing In Row ".$e."<br>";
+											}		
+										}
+									}
+								}	
+								
+						}	
+					//if($error_message != "")
+					if($error_message != "" && count($volunteer_user)==0 && count($non_doobert_vol)==0 )	
+					{
+						$data['Err_Msg'] = validation_errors()."<p>".$error_message."</p>";					
+						if(!empty($data['Err_Msg']))
+						{
+							$this->session->set_flashdata('leg_upload_error', $data['Err_Msg']);
+						}
+						redirect($_SERVER['HTTP_REFERER']);
+						//redirect($this->config->item('base_url')."org_info/volunteer_user/");
+					} else {
+						if(count($volunteer_user)>0)
+						{
+							$feedback_id = $this->db->insert_batch('tbl_organization_preferred_volunteer',$volunteer_user);
+						}
+						if(count($non_doobert_vol)>0)
+						{
+							$feedback_id = $this->db->insert_batch('tbl_org_nondoobert_preferred_vol',$non_doobert_vol);
+						}
+						if($error_message!='')
+						{
+							$data['Err_Msg'] = validation_errors()."<p>".$error_message."</p>";					
+							if(!empty($data['Err_Msg']))
+							{
+								$this->session->set_flashdata('leg_upload_error', $data['Err_Msg']);
+							}
+						}		
+						/*echo "<pre>"; print_r($volunteer_user); echo "</pre>";
+						echo "<pre>"; print_r($non_doobert_vol); echo "</pre>";
+						die;*/
+						$this->session->set_flashdata('added_success', 'Preferred Volunteer user uploaded successfully.');
+						redirect($this->config->item('base_url')."org_info/approved_volunteer_transporter/");
+					}	
+				}
+				
+		
+			}
+	}	
+	
+	public function delete_approved_volunteer($in_id='')
+	{
+		if(!empty($in_id))
+		{
+			$delete_array = array('in_deleted'=>'1');
+			$this->db->where('in_vol_user_id',$in_id);
+			$this->db->update('tbl_organization_preferred_volunteer',$delete_array);
+			$this->session->set_flashdata('remove_success','Preferred Volunteer user deleted successfully.');
+			redirect(base_url().'org_info/approved_volunteer_transporter');
+		}	
+	}
+	
+	public function delete_nondoobert_volunteer($in_id='')
+	{
+		if(!empty($in_id))
+		{
+			$delete_array = array('in_deleted'=>'1');
+			$this->db->where('in_vol_user_id',$in_id);
+			$this->db->update('tbl_org_nondoobert_preferred_vol',$delete_array);
+			$this->session->set_flashdata('remove_success','Preferred Volunteer user deleted successfully.');
+			redirect(base_url().'org_info/approved_volunteer_transporter');
+		}	
+	}
+	#=========================================================
+	#	Function : Draw your own coverage area
+	#	Purpose  : Draw your own coverage area in google map
+	#=========================================================
+	
+	public function organization_coverage_area() {
+		 
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$org_name = $this->session->userdata['org_name'];
+		$org_id = $this->org_info_model->getOrgId($org_name);
+		
+		$edit_org_profile = $this->org_info_model->organization_profile($this->session->userdata['org_id']);
+		$data['latlan']= $this->org_info_model->organization_latlng($edit_org_profile['st_zip']);
+		
+		if(!empty($_POST))
+		{
+			if(isset($_POST['zoom']))
+			{
+				$zoom = $_POST['zoom'];
+			}
+			else{
+				$zoom = $st_coverage_area['st_map_zoom'];
+			}
+			if(isset($_POST['center']))
+			{
+				$center = $_POST['center'];
+			}
+			else{
+				$center = $st_coverage_area['st_map_center'];
+			}
+			
+			$coordinates	=	array('st_coverage_area' => $_POST['coords'],'st_map_zoom' => '', 'st_map_center' => '');
+			$result = $this->org_info_model->update_coordinate($coordinates,$org_id['in_organization_id']);
+			if($result)
+			{
+				$st_coverage_area = $this->org_info_model->getCoordinates($org_id['in_organization_id']);
+				$data['coordinates'] = $st_coverage_area['st_coverage_area'];
+				$data['zoom'] = $st_coverage_area['st_map_zoom'];
+				$data['center'] = $st_coverage_area['st_map_center'];
+				
+				if(!empty($st_coverage_area))
+				{
+					//$this->load->view('organization-coverage-area',$data);
+					$this->session->set_flashdata('success','Coverage area map drawn.');
+						redirect(base_url().'org_info/organization_coverage_area');
+				}
+				else{
+					$this->session->set_flashdata('success','Coverage area map drawn.');
+						redirect(base_url().'org_info/organization_coverage_area');
+					
+				}
+			}
+			else {
+				$this->session->set_flashdata('success','Coverage area map not drawn.');
+				redirect(base_url().'org_info/organization_coverage_area');
+			}	
+		}
+		else
+		{
+			$data['latlan']= $this->org_info_model->organization_latlng($edit_org_profile['st_zip']);
+			$st_coverage_area = $this->org_info_model->getCoordinates($org_id['in_organization_id']);
+			
+			$data['coordinates'] = $st_coverage_area['st_coverage_area'];
+			
+			$data['zoom'] = $st_coverage_area['st_map_zoom'];
+			$data['center'] = $st_coverage_area['st_map_center'];
+			if(!empty($st_coverage_area))
+			{
+				
+				
+				$this->load->view('organization-coverage-area',$data);
+				
+			}
+			else{
+				
+				redirect(base_url().'org_info/organization_coverage_area');
+				//$this->load->view('organization-coverage-area');
+			}
+			
+			
+		}
+       
+    }
+	public function reset_coverage_area() {
+		 
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		$org_name = $this->session->userdata['org_name'];
+		$org_id = $this->org_info_model->getOrgId($org_name);
+		
+		if(!empty($_POST))
+		{
+			
+		
+			$coordinates	=	array('st_coverage_area' => $_POST['coords'],'st_map_zoom' => '', 'st_map_center' => '');
+			$st_coverage_area = $this->org_info_model->update_coordinate($coordinates,$org_id['in_organization_id']);
+			$this->session->set_flashdata('success','Coverage area map set to default.');
+		} else {
+			$this->session->set_flashdata('success','Coverage area map not set to default.');
+		}
+		echo "1";
+		
+	
+       
+    }
+	public function update_coverage_area() {
+		 
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		$org_name = $this->session->userdata['org_name'];
+		$org_id = $this->org_info_model->getOrgId($org_name);
+	
+		if(!empty($_POST))
+		{
+			if(isset($_POST['zoom']))
+			{
+				$zoom = $_POST['zoom'];
+			}
+			else{
+				$zoom = $st_coverage_area['st_map_zoom'];
+			}
+			if(isset($_POST['center']))
+			{
+				$center = $_POST['center'];
+			}
+			else{
+				$center = $st_coverage_area['st_map_center'];
+			}
+		
+			$coordinates	=	array('st_coverage_area' => $_POST['coords'],'st_map_zoom' => $zoom, 'st_map_center' => $center);
+			$st_coverage_area = $this->org_info_model->update_coordinate($coordinates,$org_id['in_organization_id']);
+			$this->session->set_flashdata('success','Coverage area map drawn successfully.');
+		} else {
+			$this->session->set_flashdata('success','Coverage area map not drawn.');
+		}
+		echo "1";
+		
+	
+       
+    }
+	
+	public function coalition_delete()
+	{
+		$paypal_status = $this->common_model->delete_coalition($_POST['coalition_id']);
+		echo 'success';
+	}
+	
+	function generate_download_approval($document)
+    {	
+		
+        $file = $this->config->item('upload')."shelter_approval/".$document;
+		
+		if ($document!='' && file_exists($file)) {
+		
+		$this->load->helper('download');
+		$data = file_get_contents($file); // Read the file's contents
+		$name = $document;
+		force_download($name, $data);
+		}
+		else
+		{   		
+			$this->session->set_flashdata('docmsg', 'File does not exist.');
+			redirect($this->agent->referrer());		
+			
+		}
+    }
+	
+	public function transport_rules()
+    {  
+		if(!$this->session->userdata('userid')) {
+			//redirect($this->config->item('base_url'));
+		}	
+		if(!$this->session->userdata('org_id'))
+		{
+			//redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$orgId = $this->session->userdata('org_id');
+		$data['edit_org_profile'] = $this->org_info_model->organization_profile($orgId);
+		
+		if($this->input->post('frm_action') == 'frm_post') {  						
+								
+				$form_field	=	array(						  
+									  'orgtc'			 	 => "",
+									  'termscondition'   	 => "",
+									  'orgtc_route'			 => "",
+									  'termscondition_route' => "",							 
+								);		
+		
+		
+		
+			
+			//Updating organization data		
+			
+			$data['org_data'] = array(	
+										'in_enable_terms_condition'			=>	$this->input->post('orgtc'),
+										'st_terms_condition'				=>	$this->input->post('termscondition'),
+										'in_enable_terms_condition_route'	=>	$this->input->post('orgtc_route'),
+										'st_terms_condition_route'			=>	$this->input->post('termscondition_route'),
+										'dt_modified'						=>	date('Y-m-d H:i:s')
+									); 
+			
+			
+			$num_rows = $this->org_info_model->edit_org($data['org_data'],$orgId);	
+						
+			if($num_rows == 1) {
+				$this->session->set_flashdata('message', 'Organization transport rules updated successfully.');
+				redirect(base_url().'org_info/transport_rules/');
+			
+			} else {  
+				$this->session->set_flashdata('update_err','There is an error in updating data.');
+				redirect(base_url().'org_info/transport_rules/');
+			}
+			
+		}
+		else{
+		
+			$this->load->view('edit-transport-rules',$data);  
+		}	  
+	  
+    } 
+	
+	public function disaster_mode()
+    {
+	  
+	  if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		// demo video
+		$signup_video		 =	$this->common_model->get_demo_video_link_by_id(23);					
+		$arr_v	=	explode('v=',$signup_video['st_url']);				
+		$data['signup_video'][$signup_video['id_demo_videos']]	=	$arr_v[1];
+		$orgId = $this->session->userdata('org_id');
+		$data['edit_org_profile'] = $this->org_info_model->organization_profile($orgId);						
+		//print_r($data['edit_org_profile']);exit; //use for testing
+		if($this->input->post('frm_action') == 'frm_post') { 
+			//Validation rules
+								
+				$form_field	=	array(							 
+							  'disaster'				 => "",
+							  'em_contact'				 => "",
+							  'em_phone'				 => "",
+							  'em_email'				 => "",
+							  'disaster_detail'			 => "",
+							  'disaster_terms_condition' => ""							
+								);
+			
+				
+				
+				
+				$disaster = $this->input->post('disaster')?$this->input->post('disaster'):0;
+				
+				if($disaster == 1)
+				{  
+					$this->form_validation->set_rules('em_contact', 'Emergency Contact', 'trim|required');
+					$this->form_validation->set_rules('em_phone', 'Emergency Phone', 'trim|required');
+					$this->form_validation->set_rules('em_email', 'Emergency Email', 'trim|required|valid_email');
+					$this->form_validation->set_rules('disaster_detail', 'Disaster details', 'trim|required');
+					$this->form_validation->set_rules('disaster_terms_condition', 'Term and conditions', 'trim|required');
+				}
+				
+				
+				if ($this->form_validation->run() == FALSE && $disaster == 1)
+                { 
+                         $data['Err_Msg'] = validation_errors();
+						 $this->load->view('edit-disaster-mode',$data);
+                }
+				else
+				{
+				
+			
+					$data['org_data'] = array(	'in_disaster'               	=>  $disaster,										
+												'st_em_contact'               	=>  $this->input->post('em_contact'),
+												'st_em_phone'               	=>  $this->input->post('em_phone'),
+												'st_em_email'               	=>  $this->input->post('em_email'),										
+												'st_disaster_detail'            =>  $this->input->post('disaster_detail'),										
+												'st_disaster_terms_condition'   =>  $this->input->post('disaster_terms_condition')
+											 );	
+											 
+											 
+					
+						$this->org_info_model->edit_org($data['org_data'],$orgId);									 
+						$this->session->set_flashdata('message', 'Disaster details updated successfully.');
+						redirect(base_url().'org_info/disaster_mode/');
+				}
+		
+		}	
+		
+	  else{
+						$this->load->view('edit-disaster-mode',$data); 
+	  }
+	  
+    }
+	
+	
+	public function coalition()
+    {
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$orgId = $this->session->userdata('org_id');	
+		$data['edit_org_profile'] = $this->org_info_model->organization_profile($orgId);
+		$data['coalition_details'] = $this->org_info_model->get_coalition_details($orgId);
+		$data['coalition']  = 	$this->common_model->get_coalition();				
+		//echo '<pre>';print_r($data['coalition_details']);exit;
+		if($this->input->post('frm_action') == 'frm_post') { //print_r($_POST); die;									
+								
+				$form_field	=	array(							  
+									  "joincoalition1"         => "",
+									  "joincoalition2"         => "",
+									  "joincoalition3"         => "",
+									  "joincoalition4"         => "",
+									  "joincoalition5"         => ""							  
+								);		
+		
+			
+			// org coalition add
+				
+				$joincoalition = $this->input->post('counter2');
+			//echo '<pre>'; print_r($_POST[$coalition]); die;	
+			
+			if($joincoalition > 0){ 
+				for($i=1; $i<=5; $i++){ 
+					$coalition   = 'joincoalition'.$i;	
+			     if($_POST[$coalition]!=''){ 		 
+					
+					 
+					$coalition_details = array(	"in_organization_id" => $orgId, 
+												"in_coalition_id"	 => $_POST[$coalition],
+												"dt_created"         => date('Y-m-d H:i:s')
+											);	
+											
+					//echo '<pre>'; print_r($coalition_details); die;
+					$coaid=$_POST[$coalition];
+					$check	=	$this->common_model->is_coalition_exists($orgId,$coaid);
+					
+						if($check == false)
+						{					
+								$this->org_info_model->insertcoalition($coalition_details);	
+								$coalition_admin_list = $this->common_model->get_coalition_admin($coaid);
+								$coalition_name  = 	$this->common_model->get_coalition_name_admin($coaid);
+								$user_name=$coalition_admin_list[0]['st_display_name'];
+								
+								
+								$this->load->library('email');
+								$email_details = $this->common_model->get_email_containt("157");
+								
+								if(isset($email_details[0]['st_email_body']))
+								{
+												
+									
+											
+									for($a=0;$a<count($coalition_admin_list);$a++)
+									{		
+											$templete  = $email_details[0]['st_email_body'];
+											$templete  = str_replace("##user_name##",$coalition_admin_list[$a]['st_display_name'],$templete);
+											$templete  = str_replace("##org_name##",$data['edit_org_profile']['st_org_name'],$templete);
+											$templete  = str_replace("##coaliation_name##",$coalition_name['st_coalition_name'],$templete);				
+												
+											$templete  = str_replace("##coaliation_admin_url##",$this->config->item('admin_base_url').'coalition/manage_coalition_org',$templete);			
+											$templete  = str_replace("##current_year##",date('Y'),$templete);								
+										   
+											$strMail 	= 	$templete;
+											$to			=	$coalition_admin_list[$a]['st_email'];
+											$subject	=	$email_details[0]['st_email_subject'];
+											$message	=	$strMail;
+
+											$user_to_id = $this->common_model->get_user_id_by_email($to);
+									
+											$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+											$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+											
+											$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+									}
+								}						
+								
+						}		
+			    		
+					}
+				}
+			
+			}		
+			
+			$this->org_info_model->edit_org($data['org_data'],$orgId);	
+			$this->session->set_flashdata('message', 'Coalition details updated successfully.');
+			redirect(base_url().'org_info/coalition/');			
+		}
+		
+		else{ 
+			
+				$this->load->view('edit-coalition',$data);  
+			}
+	}
+	
+	
+	
+
+}
+
+/* End of file org_info.php */
+/* Location: ./application/controllers/org_info.php */

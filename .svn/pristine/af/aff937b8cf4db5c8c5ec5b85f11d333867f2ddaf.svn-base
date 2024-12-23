@@ -1,0 +1,241 @@
+<?php  
+	if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+	class comprehensive_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+        $this->load->database();
+    }
+    
+    public function get_servey_detail($fromdate='',$todate='',$type='',$location='')
+	 {
+		if($fromdate=='1969-12-31'){$fromdate='';  }
+		if($todate=='1969-12-31'){$todate='';  }
+		$this->db->select("s.dt_start,s.dt_end,u.st_org_type,u.st_org_location,sr.*", false);						   	
+		$this->db->from('tbl_survey_result sr');
+		$this->db->join('tbl_survey s', 'sr.in_survey_id = s.in_id','LEFT');	
+		$this->db->join('tbl_user u', 'u.in_userid=s.in_user_id', 'LEFT');		
+		if($fromdate!='' && $todate!='')
+		{
+		$this->db->where("s.dt_start >= '".$fromdate."' AND s.dt_start <= '".$todate."'", NULL, FALSE);
+		}
+		if(trim($type) != '') 
+		{
+		$this->db->where("u.st_org_type", $type);
+		}
+		if(trim($location) != '') {
+		
+		$this->db->where("u.st_org_location",$location);
+		}
+		//$this->db->where('s.in_deleted','0');
+		$this->db->where('sr.flg_deleted','0');
+		//$this->db->where('u.in_deleted','0');
+		
+		$q=$this->db->get();
+		 //echo $this->db->last_query(); 
+		return $q->result_array();
+
+	 }
+	 
+	 
+	 public function question2_response($fromdate='',$todate='',$type='',$location='',$where)
+	 {
+		 if($fromdate=='1969-12-31'){$fromdate='';  }
+		if($todate=='1969-12-31'){$todate='';  }
+		$this->db->select("s.dt_start,s.dt_end,u.st_org_type,u.st_org_location,sr.*", false);						   	
+		$this->db->from('tbl_survey_result sr');
+		$this->db->join('tbl_survey s', 'sr.in_survey_id = s.in_id','LEFT');	
+		$this->db->join('tbl_user u', 'u.in_userid=s.in_user_id', 'LEFT');		
+		if($fromdate!='' && $todate!='')
+		{
+		$this->db->where("s.dt_start >= '".$fromdate."' AND s.dt_start <= '".$todate."'", NULL, FALSE);
+		}
+		if(trim($type) != '') 
+		{
+		$this->db->where("u.st_org_type", $type);
+		}
+		if(trim($location) != '') {
+		
+		$this->db->where("u.st_org_location",$location);
+		}
+		$this->db->where($where);
+		
+		$this->db->where('sr.flg_deleted','0');
+		
+		
+		$q=$this->db->get();
+		 //echo $this->db->last_query();  
+		
+		return $q->result_array();
+	 }
+   
+   
+   ////-------Old-----------------//////
+	
+	Public function get_profile($st_email)
+	{
+		$this->db->select('*');
+		$this->db->where('st_email',$st_email);
+		$this->db->where('in_deleted','0');
+		$this->db->order_by('in_userid','DESC');
+		$q=$this->db->get('tbl_user');
+		// echo $this->db->last_query(); 
+		return $q->row_array();
+		
+	}
+	Public function updated_profile($email,$data)
+	{
+		 $this->db->set($data);
+		  $this->db->where('st_email',$email);  
+		 $this->db->update('tbl_user');
+		$afftectedRows =  $this->db->affected_rows();
+		// echo $this->db->last_query(); 
+        return $afftectedRows;
+	}
+	 public function get_details($st_email)
+	 {
+		$this->db->select('*');
+		$this->db->where('st_email',$st_email);
+		$this->db->where('in_deleted','0');
+		$this->db->order_by('in_userid','DESC');
+		$q=$this->db->get('tbl_user');
+		// echo $this->db->last_query(); 
+		return $q->row_array();
+	 }
+	 public function get_servey_date($shelter_no)
+	 {
+		 $this->db->select('*');
+		$this->db->where('in_user_id',$shelter_no);
+		$this->db->where('in_deleted','0');
+		$this->db->order_by('in_id','DESC');
+		$q=$this->db->get('tbl_survey');
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+	 }
+	 
+	
+	 
+	public function  extend_survey_date($survey_id)
+	{
+		 $this->db->select('*');
+		$this->db->where('in_id',$survey_id);
+		$this->db->where('in_deleted','0');
+		$this->db->order_by('in_id','DESC');
+		$q=$this->db->get('tbl_survey');
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+	}
+	
+	Public function extend_survey_date_update($date_extented,$shelter_id)
+	{
+		 $this->db->set($date_extented);
+		  $this->db->where('in_id',$shelter_id);  
+		 $this->db->update('tbl_survey');
+		$afftectedRows =  $this->db->affected_rows();
+		// echo $this->db->last_query(); 
+        return $afftectedRows;
+	}
+	
+	public function compare_end_date($shelter_no)
+	 {
+		 $where='dt_end < cast((now()) as date)';
+		 $this->db->select('*');
+		$this->db->where('in_id',$shelter_no);
+		$this->db->where($where);
+		$this->db->where('in_deleted','0');
+		$this->db->order_by('in_id','DESC');
+		$q=$this->db->get('tbl_survey');
+		// echo $this->db->last_query(); 
+		return $q->result_array();
+	 }
+	 
+	 /// ----------PDF -----------------------------/////
+	 public function get_currently_active($survey_id)
+	 {
+		  $this->db->select('*');
+		$this->db->where('in_survey_id',$survey_id);
+		$this->db->where('st_foster_ques1','currently active');
+		$this->db->where('flg_deleted','0');
+		$this->db->order_by('dt_created','asc');
+		$q=$this->db->get('tbl_survey_result');
+		 //echo $this->db->last_query(); 
+		return $q->result_array();
+	 }
+	 
+	 public function get_currently_inactive($survey_id)
+	 {
+		  $this->db->select('*');
+		$this->db->where('in_survey_id',$survey_id);
+		$this->db->where('st_foster_ques1','currently inactive');
+		$this->db->where('flg_deleted','0');
+		$this->db->order_by('dt_created','asc');
+		$q=$this->db->get('tbl_survey_result');
+		 //echo $this->db->last_query(); 
+		return $q->result_array();
+	 }
+	 
+	 public function get_taking_break($survey_id)
+	 {
+		  $this->db->select('*');
+		$this->db->where('in_survey_id',$survey_id);
+		$this->db->where('st_foster_ques1','taking a break');
+		$this->db->where('flg_deleted','0');
+		$this->db->order_by('dt_created','asc');
+		$q=$this->db->get('tbl_survey_result');
+		 //echo $this->db->last_query(); 
+		return $q->result_array();
+	 }
+	 
+	 
+	 public function get_servey_id($shelter_no)
+	 {
+		 $this->db->select('*');
+		$this->db->where('in_user_id',$shelter_no);
+		$this->db->where('in_deleted','0');
+		$this->db->order_by('in_id','DESC');
+		$this->db->limit(1, 1);
+		$q=$this->db->get('tbl_survey');
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+	 }
+	 
+	  public function get_prev_survey($in_survey_id,$user_id)
+	{
+		$this->db->select("s.in_id,s.st_survey_code,s.dt_start,s.dt_end ,sr.in_survey_id", false);						   	
+		$this->db->from('tbl_survey s');
+		$this->db->join('tbl_survey_result sr', 's.in_id = sr.in_survey_id','RIGHT');
+		$this->db->where('sr.in_survey_id <',$in_survey_id);
+		$this->db->where('s.in_deleted','0');
+		$this->db->where('sr.flg_deleted','0');
+		$this->db->where('s.in_user_id',$user_id);
+		$this->db->group_by('s.st_survey_code'); 
+		$this->db->order_by('sr.in_survey_id','DESC');
+		$q=$this->db->get();
+		// echo $this->db->last_query(); 
+		return $q->result_array();
+		
+	}
+	
+	public function get_surver_count($in_survey_id)
+	{
+		$this->db->select("s.in_id ,s.in_user_id,COUNT(sr.in_survey_id) AS value_count", false);						   	
+		$this->db->from('tbl_survey_result sr');
+		$this->db->join('tbl_survey s', 's.in_id = sr.in_survey_id','RIGHT');					
+		
+		$this->db->where('s.in_deleted','0');
+		$this->db->where('sr.flg_deleted','0');
+		$this->db->where('sr.in_survey_id',$in_survey_id);
+		$this->db->order_by('sr.in_survey_id','DESC');
+		$q=$this->db->get();
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+		
+	}
+	
+	
+   
+}
+
+?>

@@ -1,0 +1,476 @@
+<?php
+# ======================================================================================
+# Created by		: Divyatva Parwade
+# Created date		: 1-December-2014
+# File description	: Varification Model for User
+# Special - notes	: none
+# Tables used		: tbl_users,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class Verification_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+    function save_varification($formData){ 
+        $data   = array(
+                            'in_user_id'                =>  $formData['userid'],
+                            'st_fname'                  =>  $formData['first_name'],
+                            'st_mname'                  =>  $formData['middle_name'],
+                            'st_lname'                  =>  $formData['lastname'],
+                            'st_age'                    =>  ($formData['age']!='')?date('Y-m-d',strtotime($formData['age'])):'',
+                            'st_dl_state'               =>  $formData['drivers_license_state'],
+                            'st_dl_num'                 =>  $formData['drivers_license_no'],
+                            'dt_dl_exp'                 =>  isset($formData['drivers_license_exp_date']) ? $formData['drivers_license_exp_date'] : '0000:00:00',
+                            'fl_have_pets'              =>  isset($formData['pets_currently']) ? $formData['pets_currently'] : '',
+                            'in_num_pets'               =>  isset($formData['many_pets']) ? $formData['many_pets'] : '',
+                            'st_vt_name'                =>  isset($formData['veterinarianname']) ? $formData['veterinarianname'] : '',
+                            'st_vt_off_name'            =>  isset($formData['veterinarian_off_name']) ? $formData['veterinarian_off_name'] : '',
+                            'st_vt_off_phone'           =>  isset($formData['veterinarian_off_no']) ? $formData['veterinarian_off_no'] : '',
+                            'st_vt_email'               =>  isset($formData['veterinarian_email']) ? $formData['veterinarian_email'] : '',
+                            'fl_animal_volunteer'       =>  $formData['volunteered'],
+                            'st_org_name'               =>  isset($formData['org_name']) ? $formData['org_name'] : '',
+                            'dt_volunteer_from'         =>  isset($formData['from_volunteered_date']) ? $formData['from_volunteered_date'] : '0000:00:00',
+                            'dt_volunteer_to'           =>  isset($formData['to_volunteered_date']) ? $formData['to_volunteered_date'] : '0000:00:00' ,
+                            'st_org_phone'              =>  isset($formData['org_name_no']) ? $formData['org_name_no'] : '',
+                            'st_org_email'              =>  isset($formData['org_email']) ? $formData['org_email'] : '',
+                            'st_addi_info'              =>  $formData['aboutme'],
+                            'st_info_agree'             =>  $formData['i_agree'],
+                            'st_info_agree_name'        =>  $formData['by_typing'],
+							'st_driver_license_photo'	=>	isset($formData['st_driver_license_photo']) ? $formData['st_driver_license_photo'] : '',
+							'in_felony'					=>	$formData['felony'],
+							'in_dui'					=>	$formData['dui'],
+							
+							'st_pet_type'				=>	$formData['pet_type'],
+							'st_pet_name'				=>	$formData['pet_name'],
+							'st_ph_with_vet'			=>	$formData['ph_with_vet'],
+							'dt_created'				=> date("Y-m-d H:i:s"),
+							'in_status'                 =>  1
+                        );
+        
+        $this->db->insert('tbl_verification',$data);
+        return $this->db->insert_id();
+    }
+    
+    function save_images($user_id,$image){
+        $data   = array('in_user_id'        => $user_id,
+                        'st_doc'            => $image,
+                        'dt_added'          => date('Y-m-d H:i:s'),
+                        'in_doc_type'       => 1
+                        );
+        
+        $this->db->insert('tbl_documents', $data);
+    }
+    
+    function check_driver_profie($user_id){
+        $this->db->select('in_verify_id');
+
+        $query  =   $this->db->get_where('tbl_verification',array('in_user_id' => $user_id,'in_deleted' => 0));
+        
+        return $query->num_rows();
+    }
+	
+	// added by sadique on 09-09-15
+	# *******************************************************************************************	
+	#	Function	:	verification_references	
+	#	Purpose		:	Add Organizxation Referances
+	# *******************************************************************************************		
+	function verification_references($arrData)
+	{  //print_r($arrData['in_verify_id']['in_verify_id']);die;
+	    //$verid=$arrData['in_verify_id']['in_verify_id'];
+		//$this->db->where('in_verify_id', $verid);
+		//$this->db->delete('tbl_verification_ref'); 
+		
+		//$arrData['in_verify_id']= $verid;
+		$this->db->insert('tbl_verification_ref', $arrData);
+		return  $this->db->insert_id();
+	}   
+
+	function updateverify($post)
+	{  
+		//print_r($post); die;		
+		 if(!empty($post['age'])){		
+		   $age=date('Y-m-d',strtotime($post['age'])); 
+		   }
+		   else{ $age='';}
+		  
+         if(!empty($post['drlicexp']))	{	  
+		 $dt_dl_exp = $this->get_formated_date($post['drlicexp']);
+		 }
+		 else{
+			$dt_dl_exp=''; 
+		 }
+		  if(!empty($post['fromvolunteered'])){
+			$fromvolunteered = date('Y-m-d',strtotime($post['fromvolunteered']));
+		 }
+		 else{ $fromvolunteered = ''; }
+		 if(!empty($post['tovolunteered'])){
+			$tovolunteered = date('Y-m-d',strtotime($post['tovolunteered']));
+		 }
+		 else{
+			$tovolunteered=''; 
+		 }
+		 
+		 if(isset($post['manypets']) && $post['manypets']!='' && $post['manypets']!='0' )
+		 {
+				$fl_have_pets = '1';
+		 } else {
+				$fl_have_pets = '0';
+		 }
+		 
+		
+		$data   = array(
+						'st_fname' => $post['firstname'],
+						'st_mname' => $post['middlename'],
+						'st_lname' => $post['lastname'],
+						'st_age' => $age,
+						'st_dl_state' => $post['drlicst'],
+						'st_dl_num' => $post['drlicno'],
+						'dt_dl_exp' => $dt_dl_exp,
+						'fl_have_pets' => $fl_have_pets,
+						'in_num_pets' => $post['manypets'],
+						'st_pet_name' => $post['petname'],
+						'st_pet_type' => $post['pettype'],
+						'st_vt_name' => $post['veterinarianname'],
+						'st_vt_off_name' => $post['veterinarianoffname'],
+						'st_vt_off_phone' => $post['veterinarianoffno'],
+						'st_ph_with_vet' => $post['phwithvet'],
+						'st_vt_email' => $post['veterinarianemail'],						
+						'fl_animal_volunteer' => $post['volunteered'],
+						'st_org_name' => $post['orgname'],
+						'dt_volunteer_from' => $fromvolunteered,
+						'dt_volunteer_to' => $tovolunteered,
+						'st_org_phone' => $post['orgnameno'],
+						'st_org_email' => $post['orgemail'],
+						'in_felony' => $post['felony'],
+						'in_dui' => $post['dui'],						
+						'st_addi_info' => $post['aboutme'],
+						'st_info_agree' => $post['iagree'],
+						'st_info_agree_name' => $post['bytyping'],
+						'dt_created'	=> date("Y-m-d H:i:s")						
+						
+		);  
+	 $this->db->where('in_user_id', $this->session->userdata('userid'));
+	 $query = $this->db->update('tbl_verification', $data); 
+	 //echo $this->db->last_query();die;
+	 return $query;
+	
+	 }  
+	
+	function addverify($post)
+	{  //echo '<pre>'; print_r($post);die;
+		
+         if(!empty($post['age'])){		
+	     $age=date('Y-m-d',strtotime($post['age'])); 
+	     }
+	     else{ $age='';}
+	     if(!empty($post['drlicexp']))	{	  
+		 $dt_dl_exp = $this->get_formated_date($post['drlicexp']);
+		 }
+		 else{
+			$dt_dl_exp=''; 
+		 }
+		 if(!empty($post['fromvolunteered'])){
+			$fromvolunteered = date('Y-m-d',strtotime($post['fromvolunteered']));
+		 }
+		 else{ $fromvolunteered = ''; }
+		 if(!empty($post['tovolunteered'])){
+			$tovolunteered = date('Y-m-d',strtotime($post['tovolunteered']));
+		 }
+		 else{
+			$tovolunteered=''; 
+		 }
+		 
+		 if(isset($post['st_driver_license_photo'])){
+			$driver_license_photo = $post['st_driver_license_photo'];
+		} else {
+			$driver_license_photo = '';
+		}
+		  
+		 if(isset($post['manypets']) && $post['manypets']!='' && $post['manypets']!='0' )
+		 {
+				$fl_have_pets = '1';
+		 } else {
+				$fl_have_pets = '0';
+		 } 
+		/*$data   = array(
+						'in_user_id' =>$this->session->userdata('userid'),
+						'st_fname' => $post['firstname'],
+						'st_mname' => $post['middlename'],
+						'st_lname' => $post['lastname'],
+						'st_age' => $age,
+						'st_dl_state' => $post['drlicst'],
+						'st_dl_num' => $post['drlicno'],
+						'dt_dl_exp' => $dt_dl_exp,
+						'fl_have_pets' => $post['petscurrently'],
+						'in_num_pets' => $post['manypets'],
+						'st_pet_name' => $post['petname'],
+						'st_pet_type' => $post['pettype'],
+						'st_vt_name' => $post['veterinarianname'],
+						'st_vt_off_name' => $post['veterinarianoffname'],
+						'st_vt_off_phone' => $post['veterinarianoffno'],
+						'st_ph_with_vet' => $post['phwithvet'],
+						'st_vt_email' => $post['veterinarianemail'],
+						'fl_animal_volunteer' => $post['volunteered'],
+						'st_org_name' => $post['orgname'],
+						'dt_volunteer_from' => $fromvolunteered,
+						'dt_volunteer_to' => $tovolunteered,
+						'st_org_phone' => $post['orgnameno'],
+						'st_org_email' => $post['orgemail'],
+						'in_felony' => $post['felony'],
+						'in_dui' => $post['dui'],						
+						'st_addi_info' => $post['aboutme'],
+						'st_info_agree' => $post['iagree'],
+						'st_info_agree_name' => $post['bytyping'],
+						'dt_modified'	=> date("Y-m-d H:i:s")
+		); */
+
+		$data   = array(
+						'in_user_id' 			  => $this->session->userdata('userid'),
+						'st_fname' 				  => isset($post['firstname'])?$post['firstname']:'',
+						'st_mname' 				  => isset($post['middlename'])?$post['middlename']:'',
+						'st_lname' 				  => isset($post['lastname'])?$post['lastname']:'',
+						'st_age' 				  => $age,
+						'st_dl_state' 			  => isset($post['drlicst'])?$post['drlicst']:'',
+						'st_dl_num' 			  => isset($post['drlicno'])?$post['drlicno']:'',
+						'dt_dl_exp' 			  => $dt_dl_exp,
+						'fl_have_pets' 			  => $fl_have_pets,
+						'in_num_pets' 			  => isset($post['manypets'])? $post['manypets']:'',
+						'st_pet_name' 			  => isset($post['petname'])? $post['petname']:'',
+						'st_pet_type' 			  => isset($post['pettype'])? $post['pettype']:'',
+						'st_vt_name' 			  => isset($post['veterinarianname'])? $post['veterinarianname']:'',
+						'st_vt_off_name' 		  => isset($post['veterinarianoffname'])? $post['veterinarianoffname']:'',
+						'st_vt_off_phone' 		  => isset($post['veterinarianoffno'])? $post['veterinarianoffno']:'',
+						'st_ph_with_vet' 		  => isset($post['phwithvet'])? $post['phwithvet']:'',
+						'st_vt_email' 			  => isset($post['veterinarianemail'])? $post['veterinarianemail']:'',
+						'fl_animal_volunteer' 	  => isset($post['volunteered'])? $post['volunteered']:'',
+						'st_org_name' 			  => isset($post['orgname'])? $post['orgname']:'',
+						'dt_volunteer_from' 	  => $fromvolunteered,
+						'dt_volunteer_to' 		  => $tovolunteered,
+						'st_org_phone' 			  => isset($post['orgnameno'])?$post['orgnameno']:'',
+						'st_org_email' 			  => isset($post['orgemail'])?$post['orgemail']:'',
+						'in_felony' 			  => isset($post['felony'])?$post['felony']:'',
+						'in_dui' 				  => isset($post['dui'])?$post['dui']:'',						
+						'st_addi_info' 			  => isset($post['aboutme'])?$post['aboutme']:'',
+						'st_info_agree' 		  => isset($post['iagree'])?$post['iagree']:'',
+						'st_info_agree_name' 	  => isset($post['bytyping'])?$post['bytyping']:'',
+						'st_driver_license_photo' => $driver_license_photo, 
+						'dt_created'			  => date("Y-m-d H:i:s"),
+		);      	
+		
+        $this->db->insert('tbl_verification', $data);
+		//echo $this->db->last_query();die;		
+		return  $this->db->insert_id();
+	} 
+	
+	/*
+	function addreferences($post,$verifyid)
+	{   //print_r($post); die;
+		if(!empty($post['refname1']) && !empty($post['refemail1']) && !empty($post['refrel1']) && !empty($post['refphone1'])  )	{	
+				$data   = array(
+								'in_user_id'   =>$this->session->userdata('userid'),
+								'in_verify_id' =>$verifyid,
+								'st_ref_name'  => $post['refname1'],
+								'st_ref_email' => $post['refemail1'],
+								'st_ref_rel'   => $post['refrel1'],	
+								'st_ref_phone' => $post['refphone1'],	
+								'dt_created'   => date('Y-m-d H:i:s')								
+				);    
+        
+        $this->db->insert('tbl_verification_ref', $data);
+		//echo $this->db->last_query();die;		
+		return  $this->db->insert_id();
+		}
+		
+		if(!empty($post['refname2']) && !empty($post['refemail2']) && !empty($post['refrel2']) && !empty($post['refphone2'])  )	{	
+				$data   = array(
+								'in_user_id'   =>$this->session->userdata('userid'),
+								'in_verify_id' =>$verifyid,
+								'st_ref_name'  => $post['refname2'],
+								'st_ref_email' => $post['refemail2'],
+								'st_ref_rel'   => $post['refrel2'],	
+								'st_ref_phone' => $post['refphone2'],	
+								'dt_created'   => date('Y-m-d H:i:s')								
+				);    
+        
+        $this->db->insert('tbl_verification_ref', $data);
+		//echo $this->db->last_query();die;		
+		return  $this->db->insert_id();
+		}
+		
+		if(!empty($post['refname3']) && !empty($post['refemail3']) && !empty($post['refrel3']) && !empty($post['refphone3'])  )	{	
+				$data   = array(
+								'in_user_id'   =>$this->session->userdata('userid'),
+								'in_verify_id' =>$verifyid,
+								'st_ref_name'  => $post['refname3'],
+								'st_ref_email' => $post['refemail3'],
+								'st_ref_rel'   => $post['refrel3'],	
+								'st_ref_phone' => $post['refphone3'],	
+								'dt_created'   => date('Y-m-d H:i:s')								
+				);    
+        
+        $this->db->insert('tbl_verification_ref', $data);
+		//echo $this->db->last_query();die;		
+		return  $this->db->insert_id();
+		}
+		
+		
+	}
+	*/
+	function verifyexist()
+	{   
+		$this->db->select('in_verify_id');
+		$this->db->from('tbl_verification');
+		$this->db->where('in_user_id',$this->session->userdata('userid'));
+		$this->db->where('in_deleted',0);		
+		$query = $this->db->get();	
+		//echo $this->db->last_query();die;
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;		
+	}	
+	
+	
+	function updatereferences($post)
+	{		//echo '<pre>'; print_r($post);die;
+	
+	    if($this->session->userdata('verifyId'))
+		{
+			$verid=$this->session->userdata('verifyId');
+		}
+		else
+		{
+			$verid=$post['verifyid'];
+		}
+	    $this->db->where('in_verify_id', $verid);
+		$this->db->delete('tbl_verification_ref'); 
+	    
+			if(!empty($post['refname1']) || !empty($post['refemail1']) || !empty($post['refrel1']) || !empty($post['refphone1'])){
+				$data   = array(
+								'in_user_id'   =>$this->session->userdata('userid'),
+								'in_verify_id' => $verid,
+								'st_ref_name'  => $post['refname1'],
+								'st_ref_email' => $post['refemail1'],
+								'st_ref_rel'   => $post['refrel1'],	
+								'st_ref_phone' => $post['refphone1'],	
+								'dt_created'   => date('Y-m-d H:i:s')								
+				);    
+        
+        $this->db->insert('tbl_verification_ref', $data);
+			}
+		//echo $this->db->last_query();die;		
+		//return  $this->db->insert_id();
+		
+		
+			if(!empty($post['refname2']) || !empty($post['refemail2']) || !empty($post['refrel2']) || !empty($post['refphone2'])){
+				$data   = array(
+								'in_user_id'   =>$this->session->userdata('userid'),
+								'in_verify_id' => $verid,
+								'st_ref_name'  => $post['refname2'],
+								'st_ref_email' => $post['refemail2'],
+								'st_ref_rel'   => $post['refrel2'],	
+								'st_ref_phone' => $post['refphone2'],	
+								'dt_created'   => date('Y-m-d H:i:s')								
+				);    
+        
+        $this->db->insert('tbl_verification_ref', $data);
+			}
+			
+			if(!empty($post['refname3']) || !empty($post['refemail3']) || !empty($post['refrel3']) || !empty($post['refphone3'])){
+				$data   = array(
+								'in_user_id'   =>$this->session->userdata('userid'),
+								'in_verify_id' => $verid,
+								'st_ref_name'  => $post['refname3'],
+								'st_ref_email' => $post['refemail3'],
+								'st_ref_rel'   => $post['refrel3'],	
+								'st_ref_phone' => $post['refphone3'],	
+								'dt_created'   => date('Y-m-d H:i:s')								
+				);    
+        
+        $this->db->insert('tbl_verification_ref', $data);
+			}
+	}
+	
+	function check_verifyid(){
+        $this->db->select('in_verify_id');
+
+        $query  =   $this->db->get_where('tbl_verification',array('in_user_id' => $this->session->userdata('userid'),'in_deleted' => 0));        
+        return $query->num_rows();
+    }	
+	
+	
+	function get_verifyid()
+	{
+		$this->db->select('in_verify_id');
+		$this->db->from('tbl_verification');
+		$this->db->where('in_user_id',$this->session->userdata('userid'));
+		$this->db->where('in_deleted',0);
+        $query=$this->db->get();
+		return $query->row_array();		
+	}
+	
+	
+	public function update_varification($postdata){ 
+	$this->db->where('in_user_id', $this->session->userdata('userid'),'in_deleted', 0);
+	 $query = $this->db->update('tbl_verification', $postdata); 
+	 //echo $this->db->last_query(); die;
+	}
+	
+	public function get_verification_details()
+	{ 
+		$this->db->select('*');
+		$this->db->from('tbl_verification');
+		$this->db->where('in_user_id',$this->session->userdata('userid'));
+		$this->db->where('in_deleted',0);
+        $query=$this->db->get();
+		return $query->row_array();	
+	}
+	
+	public function get_verification_ref($verifyid)
+	{
+		$this->db->select('st_ref_name,st_ref_email,st_ref_phone,st_ref_rel');
+		$this->db->from('tbl_verification_ref');
+		$this->db->where('in_verify_id',$verifyid);
+		$this->db->where('in_deleted',0);
+        $query=$this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	public function get_formated_date($date){
+			
+            $date_arr   =   explode('/',$date);
+            $formated_date  =   @$date_arr[2].'-'.@$date_arr[0].'-'.@$date_arr[1];            
+            return $formated_date;
+			
+        }
+	public function add_driver_license_varification($postdata,$verify_id){ 
+		$this->db->where('in_verify_id',$verify_id);
+		$query = $this->db->update('tbl_verification', $postdata); 
+	}
+
+	function delete_doc_images($file_name)
+	{
+		$delete_file_post = array('in_deleted'=> 1);
+		$this->db->where('st_doc',$file_name);
+		$this->db->update('tbl_documents',$delete_file_post);
+	}
+		
+	function get_verification_doc($verifyid)
+	{
+		$this->db->select('st_doc');
+		$this->db->from('tbl_documents');
+		$this->db->where('in_user_id',$verifyid);
+		$this->db->where('in_doc_type',1);
+		$this->db->where('in_deleted',0);
+        $query=$this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}	
+}
+?>

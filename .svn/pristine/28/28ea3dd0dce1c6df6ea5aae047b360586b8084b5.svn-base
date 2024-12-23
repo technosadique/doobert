@@ -1,0 +1,472 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Rajashri Mahapure
+# Created date: 27-Feb-2018
+# File description: Generate Badege(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+class Referral extends CI_Controller {
+
+	public function __construct() 
+    { 
+		parent::__construct();
+		$this->load->model('referral_model');
+		$this->load->library('pagination');
+		$this->load->helper(array('form', 'url'));
+		$this->load->library('common_function');
+
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}			
+	}
+
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));				
+		}
+			$this->session->unset_userdata('searchadmin');
+			$this->session->unset_userdata('searchadmin2');
+			$this->page();	
+	}
+
+	public function page($sort=false,$order=false,$limit=false){
+		//echo"abcdsd".$sort."||".$order;
+		$tempreferral = array();
+		$data = array();
+		$name ='';
+		$st_referred_by ='';
+		$data['Err_Msg'] = '';
+		$Transport = array();
+
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);		
+		else	
+			$limit = '0';
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');						
+				
+			$search = trim(htmlentities($this->input->post('txtsearch')));				
+			$this->session->set_userdata('searchadmin',$this->common_function->custom_htmlentities($search));
+				
+		}
+		
+		if($this->input->post('selectopt') || ($this->input->post('action') == 'search'))
+		{
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');						
+				
+			$selectopt = trim($this->input->post('selectopt'));				
+			$this->session->set_userdata('searchadmin2',$selectopt);
+				
+		}
+
+		$rec_per_page =	 $this->config->item('per_page');
+		$totalrecord = $this->referral_model->get_users_count($this->session->userdata('searchadmin'),$this->session->userdata('searchadmin2'));
+		//echo"rajashd".$sort."||".$order;exit;
+		$users= $this->referral_model->get_users($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'),$this->session->userdata('searchadmin2'));
+		foreach($users as $users_key => $users_value){
+			$user_id =$users_value['in_user_id'];
+				
+			/*$organization = $this->referral_model->get_organization($user_id);
+				
+			if($organization[0]['orgcount']>1){
+				$orgid = explode(",", $organization[0]['orgid']);
+				$Transport= $this->referral_model->get_transport($orgid);								 
+			}
+			else{
+			 	$Transport['transport'] = 0;
+			}*/
+			$Transport= $this->referral_model->get_transport($user_id);
+			
+			$participants = $this->referral_model->get_transport_participant($user_id);
+			$tempreferral[] = array(
+				'st_referred_by' => $users_value['st_referred_by'],
+				'transport' => $Transport['transport'],
+				'in_user_id' => $user_id,
+				'volunteered' => $participants['participant'],
+				'name' => $users_value['st_display_name']." ".$users_value['st_last_name'],
+				'email' =>$users_value['st_email'],
+				'orgname' =>$users_value['st_org_name'],
+				);		
+		}
+		$data['referral'] = $tempreferral;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'referral/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Referral Information Available.';
+		}
+		
+		$this->load->view('manage-referral',$data);			
+	}
+
+	function exportallreferral(){
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		$tempreferral = array();
+		$data = array();
+		$name ='';
+		$st_referred_by ='';
+		$data['Err_Msg'] = '';
+		$Transport = array();
+			
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		
+		// if($this->uri->segment(4))
+		// 	$sort = $this->uri->segment(4);
+		// else	
+		 	$sort = 'name';
+			
+		// if($this->uri->segment(5))
+		// 	$order = $this->uri->segment(5);
+		// else	
+		 	$order = 'desc';
+				
+		// if($this->uri->segment(3))
+		// 	$limit = $this->uri->segment(3);
+		// else	
+		 	$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+			
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord = $this->referral_model->get_users_count();
+		// GET PAGE LIST RESULT HERE
+		
+		$rec_per_page =	 $totalrecord;		
+		
+		$users= $this->referral_model->get_users($sort,$order,$limit,$rec_per_page);
+		foreach($users as $users_key => $users_value){
+			$user_id =$users_value['in_user_id'];
+				
+			/*$organization = $this->referral_model->get_organization($user_id);
+				
+			if($organization[0]['orgcount']>1){
+				$orgid = explode(",", $organization[0]['orgid']);
+				$Transport= $this->referral_model->get_transport($orgid);								 
+			}
+			else{
+			 	$Transport['transport'] = 0;
+			}*/
+			$Transport= $this->referral_model->get_transport($user_id);
+			
+			$participants = $this->referral_model->get_transport_participant($user_id);
+			$tempreferral[] = array(
+				'st_referred_by' => $users_value['st_referred_by'],
+				'transport' => $Transport['transport'],
+				'in_user_id' => $user_id,
+				'volunteered' => $participants['participant'],
+				'name' => $users_value['st_display_name']." ".$users_value['st_last_name'],
+				);		
+		}
+		$referral = $tempreferral;
+		
+				
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		
+		//Set header with temp array
+		$tmparray =array("Name","Referral","No. of Transport","No. of Volunteered");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($referral as $users)
+		{
+		$tmparray =array();
+		
+		$name = $users['name'];
+		$st_referred_by = $users['st_referred_by'];
+		$transport  = $users['transport'];
+		$volunteered  = $users['volunteered'];
+		
+				
+		array_push($tmparray,$name);
+		array_push($tmparray,$st_referred_by);
+		array_push($tmparray,$transport);
+		array_push($tmparray,$volunteered);
+		array_push($sheet,$tmparray);
+		}
+		
+		
+
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="All Referral Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('All Referral Details');
+		$worksheet->SetCellValue('A1', 'All Referral Details');
+		$worksheet->getStyle('A1:H1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:H1');
+
+		
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:H2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+
+	}
+
+
+	public function exportreferral(){
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		$tempreferral = array();
+		$data = array();
+		$name ='';
+		$st_referred_by ='';
+		$data['Err_Msg'] = '';
+		$Transport = array();
+			
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+	
+		if($this->uri->segment(4))
+		 	$sort = $this->uri->segment(4);
+		 else	
+		 	$sort = 'name';
+			
+		 if($this->uri->segment(5))
+		 	$order = $this->uri->segment(5);
+		 else	
+		 	$order = 'desc';
+				
+		if($this->uri->segment(3))
+			$limit = $this->uri->segment(3);
+		else	
+		 	$limit = '0';
+	
+		//GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+
+	
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord = $this->referral_model->get_users_count($this->session->userdata('searchadmin'));
+		// GET PAGE LIST RESULT HERE
+		
+		$rec_per_page =	 $this->config->item('per_page');		
+		
+		$users= $this->referral_model->get_users($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'));
+		foreach($users as $users_key => $users_value){
+			$user_id =$users_value['in_user_id'];
+				
+			/*$organization = $this->referral_model->get_organization($user_id);
+				
+			if($organization[0]['orgcount']>1){
+				$orgid = explode(",", $organization[0]['orgid']);
+				$Transport= $this->referral_model->get_transport($orgid);								 
+			}
+			else{
+			 	$Transport['transport'] = 0;
+			}*/
+			$Transport= $this->referral_model->get_transport($user_id);
+			$participants = $this->referral_model->get_transport_participant($user_id);
+			$tempreferral[] = array(
+				'st_referred_by' => $users_value['st_referred_by'],
+				'transport' => $Transport['transport'],
+				'in_user_id' => $user_id,
+				'volunteered' => $participants['participant'],
+				'name' => $users_value['st_display_name']." ".$users_value['st_last_name'],
+				);		
+		}
+		$referral = $tempreferral;
+		
+				
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		
+		//Set header with temp array
+		$tmparray =array("Name","Referral","No. of Transport","No. of Volunteered");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($referral as $users)
+		{
+		$tmparray =array();
+		
+		$name = $users['name'];
+		$st_referred_by = $users['st_referred_by'];
+		$transport  = $users['transport'];
+		$volunteered  = $users['volunteered'];
+		
+				
+		array_push($tmparray,$name);
+		array_push($tmparray,$st_referred_by);
+		array_push($tmparray,$transport);
+		array_push($tmparray,$volunteered);
+		array_push($sheet,$tmparray);
+		}
+		
+		
+
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="Referral Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('Referral Details');
+		$worksheet->SetCellValue('A1', 'Referral Details');
+		$worksheet->getStyle('A1:H1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:H1');
+
+		
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:H2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+	}
+
+	
+}
+
+

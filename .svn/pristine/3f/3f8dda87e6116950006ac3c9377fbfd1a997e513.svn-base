@@ -1,0 +1,190 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 07-April-2014
+# File description	: Animal Model for admin
+# Special - notes	: none
+# Tables used		: tbl_arpa_org, tbl_animal_breed
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class arpa_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+	    
+	#============================================================
+	#	Function	:	get_total_animal_types()
+	#  Parameter	: 	name
+	#	Perpose		:	to check valid user login
+	#------------------------------------------------------------
+	public function get_total_arpa_members($name='',$fromdate='',$todate='',$email='')
+	{ 	//	echo $fromdate; die;
+		 if($fromdate=='1969-12-31'){$fromdate='';  }
+		if($todate=='1969-12-31'){$todate='';  }
+		
+		$this->db->select("in_arpa_org_id", false);						   	
+		$this->db->from('tbl_arpa_org');		
+		$this->db->where('in_deleted','0');
+		$this->db->where('in_arpa_exam','1');					
+		if($name!='')
+		{			
+			$this->db->where("st_first_name LIKE '%".$name."%'", NULL, FALSE);
+		}
+
+		if($email!='')
+		{			
+			$this->db->where("st_org_email LIKE '%".$email."%'", NULL, FALSE);
+		}
+		
+		if($fromdate!='' && $todate!='') {
+			$this->db->where("dt_created >= '".$fromdate."' AND dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_animal_types()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to check valid user login
+	#------------------------------------------------------------
+	public function arpa_members($sort,$order,$limit,$rec_per_page,$name,$fromdate,$todate,$email)
+	{
+		
+				  
+		$this->db->select("in_arpa_org_id,st_first_name,st_last_name,st_org_email,st_org_mcity,st_org_mstate,dt_created", false);						   	
+		$this->db->from('tbl_arpa_org');		
+		$this->db->where('in_deleted','0');
+		$this->db->where('in_arpa_exam','1');
+					  
+		if($name!='')
+		{				  
+		  $this->db->where("st_first_name LIKE '%".$name."%'", NULL, FALSE);
+		}	
+		
+		if($email!='')
+		{			
+			$this->db->where("st_org_email LIKE '%".$email."%'", NULL, FALSE);
+		}
+		if($fromdate!='' && $todate!='') {
+							$this->db->where("dt_created >= '".$fromdate."' AND dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}
+					
+					switch($sort)
+					{
+						
+						case 'name': 							
+							$this->db->order_by('st_first_name',$order);
+						break;	
+						
+						case "email":						
+						$this->db->order_by('st_org_email',$order);
+					    break;	
+						
+						case "city":						
+						$this->db->order_by('st_org_mcity',$order);
+					    break;	
+						
+						case "state":						
+						$this->db->order_by('st_org_mstate',$order);
+					    break;
+						
+						case "createddate":						
+						$this->db->order_by('dt_created',$order);
+					    break;
+						
+						
+						
+						default:						
+						$this->db->order_by('in_arpa_org_id',$order);
+						 break; 	         
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 			
+									
+					$arrMember = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+					$arrMember[]	=	array('st_first_name'	=> $Row->st_first_name,
+												'st_org_email'	=> $Row->st_org_email,
+												'st_org_mcity'	=> $Row->st_org_mcity,
+												'st_org_mstate' => $Row->st_org_mstate,
+												'in_arpa_org_id' => $Row->in_arpa_org_id,	
+												'dt_created'    => $Row->dt_created	
+											);
+						}
+						return $arrMember;
+						
+					}
+					
+	}
+	
+	
+	
+	#=====================================================================================
+	#	Function	:	delete_animal_types()
+	#  Parameter	: 	animaltypeId
+	#	Perpose		:	to delete single animal type details from tbl_arpa_org table
+	#-------------------------------------------------------------------------------------
+	function delete_arpa_member($Id)
+	{
+		$arrMember = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_arpa_org_id', $Id);
+		$this->db->update('tbl_arpa_org', $arrMember);		
+	}
+	
+	
+	
+	
+		
+	#=====================================================================================
+	#	Function	:	delete_multiple_arpa_members()
+	#  Parameter	: 	animalIds
+	#	Perpose		:	to delete multiple animal types details from tbl_arpa_org table
+	#--------------------------------------------------------------------------------------
+	function delete_multiple_arpa_members($Ids)
+	{				
+		$arrMember = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_arpa_org_id', $Ids);
+		$this->db->update('tbl_arpa_org', $arrMember);		
+		return $this->db->affected_rows();
+	}	
+	
+	
+function get_user_profile($Id)
+	{
+		$this->db->select('u.in_arpa_org_id,u.st_org_email,u.st_org_mcity,u.st_org_mstate,u.st_first_name,u.st_last_name,u.st_org_maddress,u.st_org_mzip');
+		$this->db->from('tbl_arpa_org as u');		
+		$this->db->where('u.in_arpa_org_id',$Id);	
+		$this->db->where('u.in_deleted',0);	
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->row_array();	
+	}
+	
+	
+	
+}
+?>

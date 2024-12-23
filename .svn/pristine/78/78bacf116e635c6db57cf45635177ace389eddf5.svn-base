@@ -1,0 +1,264 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 21-April-2014
+# File description: Transfer animal(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Transfer_animal extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();			
+		$this->load->library('common_function');	
+		//error_reporting(E_ALL);	
+		$this->load->library('pagination');
+		$this->load->library('email');
+		$this->load->library('form_validation');	
+		$this->load->model('animal_model');
+		$this->load->model('common_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	
+	function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$this->session->unset_userdata('searchadmin1');	
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('searchadmin5');							
+		$this->page();	
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+	    if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$fromorganization	=	'';
+		$toorganization		=	'';
+		$from				=	'';
+		$to					=	'';	
+		$data['org_list']	=	$this->common_model->get_organization_list();
+		
+		//echo '<pre>'; print_r($data['org_list']); die;
+			
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtname') || ($this->input->post('action') == 'search'))
+		{
+			//if($this->session->userdata('searchadmin5'))
+				//$this->session->unset_userdata('searchadmin5');			
+				//$name = trim(addslashes($this->input->post('txtname')));	
+				//$this->session->set_userdata('searchadmin5',$name);	
+				
+				if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');						
+				
+			$name = trim(addslashes($this->input->post('txtname')));				
+			$this->session->set_userdata('searchadmin5',$this->common_function->custom_htmlentities($name));		
+				
+		}	
+		
+		if($this->input->post('fromorganization') || ($this->input->post('action') == 'search'))
+		{			
+			if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');			
+				$fromorganization = trim($this->input->post('fromorganization'));	
+				$this->session->set_userdata('searchadmin1',$fromorganization);			
+				
+		}		
+		
+		if($this->input->post('toorganization') || ($this->input->post('action') == 'search'))
+		{
+			
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');			
+				$toorganization = trim($this->input->post('toorganization'));	
+				$this->session->set_userdata('searchadmin2',$toorganization);			
+				
+		}
+		
+		
+		if($this->input->post('txtfrom') || ($this->input->post('action') == 'search'))
+		{	
+			
+			if($this->session->userdata('searchadmin3'))
+				$this->session->unset_userdata('searchadmin3');										
+			 	$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 				
+				$this->session->set_userdata('searchadmin3',$fromdate);
+		}
+		
+		if($this->input->post('txtto') || ($this->input->post('action') == 'search'))
+		{
+			if($this->session->userdata('searchadmin4'))
+				$this->session->unset_userdata('searchadmin4');			
+				$todate = date('Y-m-d',strtotime($this->input->post('txtto')));	
+				$this->session->set_userdata('searchadmin4',$todate);			
+				
+		}	
+		
+		
+		
+		
+		$rec_per_page 					=	  $this->config->item('per_page');			
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord					= $this->animal_model->get_total_transfer_animal($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['transferanimal_list']	= $this->animal_model->get_transfer_animal($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		
+		//echo '<pre>'; print_r($data['transferanimal_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'transfer_animal/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];	
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Transfer animal request Available.';
+		}
+		
+		$this->load->view('transfer-animals-requests',$data);
+	}
+	
+	
+	
+	
+	function delete_multiple_request()
+	{   
+		$transferrequest_ids = $this->input->post('transferrequestid');
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+	
+		if(!empty($transferrequest_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->animal_model->delete_multiple_transfer($transferrequest_ids);
+			
+			$this->session->set_flashdata('success', 'Transfer(s) animal request has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'transfer_animal/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	
+	
+	function transfer_animal_view($transferreqId)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+			 {
+				$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				$this->session->set_userdata('redirect_url',$url);
+				redirect($this->config->item('admin_base_url'));	
+			 }			
+			
+			$data['transfer_details'] = $this->animal_model->get_transfer_animal_view($transferreqId); 
+			//echo '<pre>'; print_r($data['transfer_details']['in_animal_id']); die;
+			//echo '<pre>'; print_r($data['transfer_details']); die;
+			
+			$animalId	=	$data['transfer_details']['in_animal_id'];
+			$data['cost_to_org'] = $this->animal_model->cost_to_org($animalId);
+			$data['animal_images']  = $this->animal_model->get_animal_photos($animalId);
+			$data['animal_doc']  	= $this->animal_model->get_animal_doc($animalId);
+			$data['get_social_pages']= $this->animal_model->get_social_pages($animalId);
+			
+			//echo '<pre>'; print_r($data['animal_doc']); die;
+			
+				
+			
+			if(count($data['transfer_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}
+			
+					
+			$this->load->view('transfer-animals-view',$data);			
+	}
+}
+
+/* End of file transfer_animal.php */
+/* Location: ./application/administration/controllers/transfer_animal.php */

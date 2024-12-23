@@ -1,0 +1,221 @@
+<?php 
+
+//require( dirname(__FILE__) . '/wp-includes' );
+//echo 'rescue post called';
+//$url = "https://www.doobert.com/wp-resuce-post.php" ; // https://app.doobert.com/wsdl/wp_org_signup
+//$url = "http://crystal99/doobertwplive/wp-resuce-post.php" ;
+$url = "http://dev.doobert.com/wsdl/get_rescue_story_data";
+
+// Generate curl request
+$c = curl_init($url);
+// Tell curl to use HTTP POST
+//curl_setopt ($c, CURLOPT_POST, true);
+// Tell curl that this is the body of the POST
+//curl_setopt ($c, CURLOPT_POSTFIELDS, $data_string);
+// Tell PHP not to use SSLv3 (instead opting for TLS)
+curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+
+curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+
+
+// obtain response
+$response = curl_exec($c);
+
+//print_r($response);
+
+curl_close($c);
+
+
+$data = json_decode($response, true);
+	
+//$postdata	=	$_POST;
+//echo  '<pre>'; print_r($data); echo "</pre>";
+/*echo  '<pre>'; print_r(serialize($data['story_video'])); echo "</pre>";
+$testdata = serialize($data['story_video']);
+echo  '<pre>'; print_r(unserialize($testdata)); echo "</pre>";
+exit(0);*/
+
+//exit;
+
+define('WP_USE_THEMES', true);
+require('./wp-load.php');
+
+	
+$content = '';
+if(count($data['story_image'])>0 || count($data['story_video']) >0 )
+{
+	$counterinc = 0;	
+	$content .= '<div id="story-gallery"> <div id="panel">';
+	if(count($data['story_image'])>0 )	
+	{	
+		foreach($data['story_image'] as $key=>$image)
+		{	
+		  if(!empty($image))
+		  {		
+			$counterinc++;
+			if($counterinc == 1)
+				$content .=  '<div class="main-img">'.$image.'</div>';
+			else if($counterinc%4 == 0)
+				$content .=  '<div class="thumbnails last">'.$image.'</div>';
+			else
+				$content .=  '<div class="thumbnails">'.$image.'</div>';	
+		 }
+	   } 
+	}
+	if(count($data['story_video'])>0 )
+	{	
+		foreach($data['story_video'] as $key=>$video)
+		{	
+		   if(!empty($video))
+		   {	
+				$counterinc++;	
+				if($counterinc%4 == 0)	
+					$content .=  '<div class="thumbnails last">'.$video.'</div>';
+				else if($counterinc == 1)
+					$content .=  '<div class="main-img">'.$video.'</div>';
+				else
+					$content .=  '<div class="thumbnails">'.$video.'</div>';			
+		  }
+        }		 
+	 }
+		$content .= '</div></div>';
+		$content .= $data['story']['transport_story'];	
+						$search_query1 = 'Tell us how the transport came together';
+						$search_query2 = 'Were there any memorable moments from this transport';
+						$search_query3 = 'What could have made this transport better';
+						$search_query4 = 'Tell us about your passenger/s (behavior, demeanor, etc)';
+						$search_query5 = 'Why did you take this transport, what compelled you to help';
+						
+						$content=str_ireplace($search_query1,"<strong>".$search_query1."</strong>",$content);
+						$content=str_ireplace($search_query2,"<strong>".$search_query2."</strong>",$content);
+						$content=str_ireplace($search_query3,"<strong>".$search_query3."</strong>",$content);
+						$content=str_ireplace($search_query4,"<strong>".$search_query4."</strong>",$content);
+						$content=str_ireplace($search_query5,"<strong>".$search_query5."</strong>",$content);
+} else {
+	$content .= $data['story']['transport_story'];
+	
+						$search_query1 = 'Tell us how the transport came together';
+						$search_query2 = 'Were there any memorable moments from this transport';
+						$search_query3 = 'What could have made this transport better';
+						$search_query4 = 'Tell us about your passenger/s (behavior, demeanor, etc)';
+						$search_query5 = 'Why did you take this transport, what compelled you to help';
+						
+						$content=str_ireplace($search_query1,"<strong>".$search_query1."</strong>",$content);
+						$content=str_ireplace($search_query2,"<strong>".$search_query2."</strong>",$content);
+						$content=str_ireplace($search_query3,"<strong>".$search_query3."</strong>",$content);
+						$content=str_ireplace($search_query4,"<strong>".$search_query4."</strong>",$content);
+						$content=str_ireplace($search_query5,"<strong>".$search_query5."</strong>",$content);
+	
+	
+}
+
+					$post_name = sanitize_title($data['story']['title_story']);
+					$excerpt = wp_trim_words($data['story']['transport_story'],50);
+					
+					
+					
+					    $search_query1 = 'Tell us how the transport came together';
+						$search_query2 = 'Were there any memorable moments from this transport';
+						$search_query3 = 'What could have made this transport better';
+						$search_query4 = 'Tell us about your passenger/s (behavior, demeanor, etc)';
+						$search_query5 = 'Why did you take this transport, what compelled you to help';
+						$excerpt=str_ireplace($search_query1,"<strong>".$search_query1."</strong>",$excerpt);
+						$excerpt=str_ireplace($search_query2,"<strong>".$search_query2."</strong>",$excerpt);
+						$excerpt=str_ireplace($search_query3,"<strong>".$search_query3."</strong>",$excerpt);
+						$excerpt=str_ireplace($search_query4,"<strong>".$search_query4."</strong>",$excerpt);
+						$excerpt=str_ireplace($search_query5,"<strong>".$search_query5."</strong>",$excerpt);
+						
+					$new_post = array(
+						'post_title'   => $data['story']['title_story'],
+						'post_content' => $content,
+						'post_status'  => "publish",
+						'post_excerpt' => $excerpt,
+						'post_name'    => $post_name, //name/slug
+						'post_type'    => "post"
+					);
+					
+					//echo '<pre>'; print_r($new_post); die;
+				
+					 $new_post_id = wp_insert_post($new_post,$wp_error);
+					
+					// Add Featured Image to Post ===========================
+					if(isset($data['feature_image_url']) && $data['feature_image_url'] != '' && isset($data['feature_image_name']) && $data['feature_image_name'] != '')
+					{
+						$image_url        = $data['feature_image_url']; // Define the image URL here
+						$image_name       = $data['feature_image_name'];
+						$upload_dir       = wp_upload_dir(); // Set upload folder
+						$image_data       = file_get_contents($image_url); // Get image data
+						$unique_file_name = wp_unique_filename( $upload_dir['path'], $image_name ); // Generate unique name
+						$filename         = basename( $unique_file_name ); // Create image file name
+						
+						// Check folder permission and define file location
+						if( wp_mkdir_p( $upload_dir['path'] ) ) {
+							$file = $upload_dir['path'] . '/' . $filename;
+						} else {
+							$file = $upload_dir['basedir'] . '/' . $filename;
+						}
+						
+						// Create the image  file on the server
+						file_put_contents( $file, $image_data );
+						
+						// Check image file type
+						$wp_filetype = wp_check_filetype( $filename, null );
+						
+						// Set attachment data
+						$attachment = array(
+							'post_mime_type' => $wp_filetype['type'],
+							'post_title'     => sanitize_file_name( $filename ),
+							'post_content'   => '',
+							'post_status'    => 'inherit'
+						);
+						
+						// Create the attachment
+						$attach_id = wp_insert_attachment( $attachment, $file, $new_post_id );
+						
+						// Include image.php
+						require_once(ABSPATH . 'wp-admin/includes/image.php');
+						
+						// Define attachment metadata
+						$attach_data = wp_generate_attachment_metadata( $attach_id, $file );
+						
+						// Assign metadata to attachment
+						wp_update_attachment_metadata( $attach_id, $attach_data );
+						
+						// And finally assign featured image to post
+						set_post_thumbnail( $new_post_id, $attach_id );
+						//
+						// Add Featured Image to Post =======================
+					}
+					
+					if(is_wp_error($new_post_id))
+					{
+						$upload = "Failure";
+						
+					}else{
+						$upload = "Success";
+					}
+					
+					$post_categories = array('60','6');
+					
+					wp_set_post_categories($new_post_id, $post_categories);
+					
+					$post_meta	=	array('transport_id' => $data['story']['in_transportation_id'],
+										  'story_image'  => serialize($data['story_image']),
+										  'story_video'  => serialize($data['story_video']),
+										  'author_name'	 => $data['story']['author_name'],
+										  'story_id'	 => $data['story']['in_id'],
+										  'dt_created'   => $data['story']['dt_created'],
+										  'date_created' => $data['story']['date_created'],			
+						                 );
+						foreach($post_meta as $key => $value){
+							update_post_meta($new_post_id, $key, $value);
+						}
+					
+					echo $upload;
+
+//exit(0);
+
+
+
+
+?>

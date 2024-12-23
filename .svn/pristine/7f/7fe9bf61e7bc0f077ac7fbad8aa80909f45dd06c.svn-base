@@ -1,0 +1,909 @@
+<?php
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 22-April-2019
+# File description	: Transport summary model 
+# Special - notes	: none
+# Tables used		: tbl_adoption, tbl_adoption_order, tbl_transportation, tbl_organization tbl_trans_summary, 
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class Transport_summary_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+    //function to display the records of particular orgnization animal for particular transport
+    public function get_animalBy_trans_org($transport_id, $org_id, $type, $order='', $sort='',$limit='',$rec_per_page='')
+    {
+    	$this->db->select('ao.in_id,ao.in_adoption_id,ao.in_organization_id as receiving_org_id,ao.in_transportation_id,ao.in_animal_id, ao.in_status,
+            a.st_fname, a.st_lname,
+            an.in_organization_id as sending_org_id, an.st_animal_name, an.in_weight,a.st_addr1,a.st_phone,a.st_backup_contact,a.st_backup_phone,
+             ts.in_trans_summary_id, ts.in_id as trans_in_id, ts.in_qty, ts.in_crate_id, ts.is_shared,ts.in_status as trans_status');
+        $this->db->join('tbl_adoption  a', 'a.in_adoption_id = ao.in_adoption_id');
+		$this->db->from('tbl_adoption_order  ao');
+        $this->db->join('tbl_animal  an', 'an.in_animal_id = ao.in_animal_id');
+        $this->db->join('tbl_trans_summary  ts', 'ts.in_id = ao.in_id',left);
+
+
+		$this->db->where('ao.in_deleted',0);
+        $this->db->where('a.in_deleted',0);	
+        $this->db->where('an.in_deleted',0);
+        //$this->db->where('ao.in_status!=',2);
+        $this->db->where('ao.in_transportation_id',$transport_id);        
+        if($type == 'receive')
+        {
+            // $st_status1 = array('0','1');
+            // $this->db->where_in('ao.in_status',$st_status1);
+            $this->db->where('ao.in_organization_id',$org_id);
+        }
+        else if($type == 'send')
+        {
+            //$this->db->where('ao.in_status',0);
+            $this->db->where('an.in_organization_id ',$org_id);
+        }
+        // if(is_numeric($status))
+        // {
+        //     $this->db->where('ts.in_status',$status);
+        // }
+
+        //Sort
+        switch($sort)
+        {
+            case 'in_adoption_id':                          
+                $this->db->order_by('in_adoption_id',$order);
+            break;
+
+            case 'st_animal_name':                       
+                $this->db->order_by('st_animal_name',$order);
+            break;  
+ 
+            case 'in_weight':                      
+                //$this->db->order_by('in_weight',$order);
+                  $this->db->order_by('CAST(in_weight AS SIGNED) '.$order);   
+            break;  
+
+            case 'in_status':                          
+                $this->db->order_by('trans_status',$order);
+            break;              
+                 
+            default:
+               $this->db->order_by('in_adoption_id',$order);
+        }
+
+        //limit
+        if(!isset($limit))
+        {
+            $limit=0;
+        }                   
+        $this->db->limit($rec_per_page,$limit);             
+		$query = $this->db->get();        
+        if($query->num_rows()>0)
+        {
+            foreach($query->result() as $Row)
+            {
+                // if($Row->in_status == 0)
+                // {
+                //     $st_status = "Pending";
+                //     $className ="pending";
+                // }
+                // else if($Row->in_status ==1 )
+                // {
+                //     $st_status = "Approved";
+                //     $className = "accepted";
+                // }
+                // else if($Row->in_status ==2)
+                // {
+                //     $st_status = "Declined";
+                //     $className = "declined";
+                // }
+                if(is_numeric($Row->trans_status == 0))
+                {                    
+                    $st_status = "Pending";
+                    $className ="pending";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==1 )
+                {
+                    $st_status = "Approved";
+                    $className = "accepted";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==2)
+                {                    
+                    $st_status = "Declined";
+                    $className = "declined";
+                    $trans_status = $Row->trans_status;
+                }   
+                else if(empty($Row->trans_status)) {                   
+                    $st_status = "Pending";
+                    $className = "pending";  
+                    $trans_status = 0;
+                }                         
+
+                $arrData[]  = array("in_adoption_order"     => $Row->in_id,
+                                    "in_adoption_id"        => $Row->in_adoption_id,
+                                    "receiving_org_id"      => $Row->receiving_org_id,
+                                    "in_transportation_id"  => $Row->in_transportation_id,
+                                    "in_animal_id"          => $Row->in_animal_id,
+                                    "in_status"             => $Row->in_status,
+                                    "st_status"             => $st_status,
+                                    "sending_org_id"        => $Row->sending_org_id,
+                                    "st_animal_name"        => $Row->st_animal_name,
+                                    "in_weight"             => $Row->in_weight,
+                                    "className"             => $className,
+                                    "delivery_loc"          => $Row->st_addr1,
+                                    "receivingperson"       => $Row->st_fname,
+                                    "receivingcell"         => $Row->st_phone,
+                                    "backupcontact"         => $Row->st_backup_contact,
+                                    "backupphone"           => $Row->st_backup_phone,
+                                    "in_trans_summary_id"   => $Row->in_trans_summary_id,
+                                    "trans_in_id"           => $Row->trans_in_id,
+                                    "in_qty"                => $Row->in_qty,
+                                    "in_crate_id"           => $Row->in_crate_id,
+                                    "is_shared"             => $Row->is_shared,
+                                    "trans_status"          => $trans_status
+                                    );
+            }
+            return $arrData;
+        }     		
+    }
+
+    //function to display the count of total records of particular orgnization animal for particular transport
+     public function routes_animalBy_trans_org($transport_id, $org_id, $type, $order='', $sort='',$limit='',$rec_per_page='')
+    {
+       $this->db->select('ao.in_id,ao.in_adoption_id,ao.in_organization_id as receiving_org_id,ao.in_transportation_id,ao.in_animal_id, ao.in_status,
+            a.st_fname, a.st_lname,
+            an.in_organization_id as sending_org_id, an.st_animal_name, an.in_weight,a.st_addr1,a.st_phone,a.st_backup_contact,a.st_backup_phone,
+             ts.in_trans_summary_id, ts.in_id as trans_in_id, ts.in_qty, ts.in_crate_id, ts.is_shared,ts.in_status as trans_status');
+        $this->db->join('tbl_adoption  a', 'a.in_adoption_id = ao.in_adoption_id');
+        $this->db->from('tbl_adoption_order  ao');
+        $this->db->join('tbl_animal  an', 'an.in_animal_id = ao.in_animal_id');
+        $this->db->join('tbl_trans_summary  ts', 'ts.in_id = ao.in_id',left);
+
+
+        $this->db->where('ao.in_deleted',0);
+        $this->db->where('a.in_deleted',0); 
+        $this->db->where('an.in_deleted',0);
+        
+        $this->db->where('ao.in_transportation_id',$transport_id);
+        if($type == 'receive')
+        {
+            $st_status1 = array('0','1');
+            $this->db->where_in('ao.in_status',$st_status1);
+            $this->db->where('ao.in_organization_id',$org_id);
+        }
+        else if($type == 'send')
+        {
+            $this->db->where('ao.in_status',0);
+            $this->db->where('an.in_organization_id ',$org_id);
+        }
+        // if(is_numeric($status))
+        // {
+        //     $this->db->where('ts.in_status',$status);
+        // }
+
+        //Sort
+        switch($sort)
+        {
+            case 'in_adoption_id':                          
+                $this->db->order_by('in_adoption_id',$order);
+            break;
+
+            case 'st_animal_name':                       
+                $this->db->order_by('st_animal_name',$order);
+            break;  
+ 
+            case 'in_weight':                      
+                //$this->db->order_by('in_weight',$order);
+                  $this->db->order_by('CAST(in_weight AS SIGNED) '.$order);   
+            break;  
+
+            case 'in_status':                          
+                $this->db->order_by('trans_status',$order);
+            break;              
+                 
+            default:
+               $this->db->order_by('in_adoption_id',$order);
+        }
+
+        //limit
+        if(!isset($limit))
+        {
+            $limit=0;
+        }                   
+        $this->db->limit($rec_per_page,$limit);             
+        $query = $this->db->get();        
+        if($query->num_rows()>0)
+        {
+            foreach($query->result() as $Row)
+            {
+              
+                if(is_numeric($Row->trans_status == 0))
+                {                    
+                    $st_status = "Pending";
+                    $className ="pending";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==1 )
+                {
+                    $st_status = "Approved";
+                    $className = "accepted";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==2)
+                {                    
+                    $st_status = "Declined";
+                    $className = "declined";
+                    $trans_status = $Row->trans_status;
+                }   
+                else if(empty($Row->trans_status)) {                   
+                    $st_status = "Pending";
+                    $className = "pending";  
+                    $trans_status = 0;
+                }                         
+
+                $arrData[]  = array("in_adoption_order"     => $Row->in_id,
+                                    "in_adoption_id"        => $Row->in_adoption_id,
+                                    "receiving_org_id"      => $Row->receiving_org_id,
+                                    "in_transportation_id"  => $Row->in_transportation_id,
+                                    "in_animal_id"          => $Row->in_animal_id,
+                                    "in_status"             => $Row->in_status,
+                                    "st_status"             => $st_status,
+                                    "sending_org_id"        => $Row->sending_org_id,
+                                    "st_animal_name"        => $Row->st_animal_name,
+                                    "in_weight"             => $Row->in_weight,
+                                    "className"             => $className,
+                                    "delivery_loc"          => $Row->st_addr1,
+                                    "receivingperson"       => $Row->st_fname,
+                                    "receivingcell"         => $Row->st_phone,
+                                    "backupcontact"         => $Row->st_backup_contact,
+                                    "backupphone"           => $Row->st_backup_phone,
+                                    "in_trans_summary_id"   => $Row->in_trans_summary_id,
+                                    "trans_in_id"           => $Row->trans_in_id,
+                                    "in_qty"                => $Row->in_qty,
+                                    "in_crate_id"           => $Row->in_crate_id,
+                                    "is_shared"             => $Row->is_shared,
+                                    "trans_status"          => $trans_status
+                                    );
+            }
+            return $arrData;
+        }           
+    }   
+
+    //function to remove the animal added for transport   
+    //accept or decline the animals in reservation 
+    function update_adoption_order($adoption_arr, $in_Id)
+    {
+        $this->db->where('in_id',$in_Id);
+        $this->db->update('tbl_adoption_order',$adoption_arr);
+        return $this->db->affected_rows();
+    }
+
+
+    //function to disply the animal details by using the adoption id
+    function get_animalBy_adoptionId($in_adoption_id, $type)
+    {
+         $this->db->select('ao.in_id,ao.in_adoption_id,ao.in_organization_id as receiving_org_id,ao.in_transportation_id,ao.in_animal_id, ao.in_status,
+            a.st_fname, a.st_lname,
+            an.in_organization_id as sending_org_id, an.st_animal_name, an.in_weight,
+            o.in_organization_id,o.st_email_address, o.st_primary_phone, o.st_org_name, o.st_director,o.in_user_id,
+            ts.in_trans_summary_id, ts.in_id as trans_in_id, ts.in_qty, ts.in_crate_id, ts.is_shared,ts.in_status as trans_status');
+        $this->db->from('tbl_adoption_order  ao');
+        $this->db->join('tbl_adoption  a', 'a.in_adoption_id ='.$in_adoption_id);       
+        $this->db->join('tbl_animal  an', 'an.in_animal_id = ao.in_animal_id');
+        $this->db->join('tbl_trans_summary  ts', 'ts.in_id = ao.in_id',left);
+
+        
+         if($type == 'receive')
+        {
+           $this->db->join('tbl_organization o','ao.in_organization_id = o.in_organization_id');
+        }
+        else if($type == 'send')
+        {
+            $this->db->join('tbl_organization o','an.in_organization_id = o.in_organization_id');
+        }
+
+        $this->db->where('ao.in_deleted',0);
+        $this->db->where('a.in_deleted',0); 
+        $this->db->where('an.in_deleted',0);
+        //$this->db->where('ao.in_status',1);
+        $this->db->where('ao.in_adoption_id',$in_adoption_id);        
+        $query = $this->db->get();   
+        
+        if($query->num_rows()>0)
+        {            
+            foreach($query->result() as $Row)
+            {  
+
+              if(is_numeric($Row->trans_status == 0))
+                {                    
+                    $st_status = "Pending";
+                    $className ="pending";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==1 )
+                {
+                    $st_status = "Approved";
+                    $className = "accepted";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==2)
+                {                    
+                    $st_status = "Declined";
+                    $className = "declined";
+                    $trans_status = $Row->trans_status;
+                }   
+                else if(empty($Row->trans_status)) {                   
+                    $st_status = "Pending";
+                    $className = "pending";  
+                    $trans_status = 0;
+                }                 
+                $arrData[]  = array("in_adoption_order"     => $Row->in_id,
+                                    "in_adoption_id"        => $Row->in_adoption_id,
+                                    "receiving_org_id"      => $Row->receiving_org_id,
+                                    "in_transportation_id"  => $Row->in_transportation_id,
+                                    "in_animal_id"          => $Row->in_animal_id,
+                                    "in_status"             => $Row->in_status,
+                                    "st_status"             => $st_status,
+                                    "sending_org_id"        => $Row->sending_org_id,
+                                    "st_animal_name"        => $Row->st_animal_name,
+                                    "in_weight"             => $Row->in_weight,
+                                    "className"             => $className,
+                                    "st_email_address"      => $Row->st_email_address,
+                                    "st_primary_phone"      => $Row->st_primary_phone,
+                                    "st_org_name"           => $Row->st_org_name,
+                                    "st_director"           => $Row->st_director,
+                                    "in_user_id"            => $Row->in_user_id,
+                                    "in_trans_summary_id"   => $Row->in_trans_summary_id,
+                                    "trans_in_id"           => $Row->trans_in_id,
+                                    "in_qty"                => $Row->in_qty,
+                                    "in_crate_id"           => $Row->in_crate_id,
+                                    "is_shared"             => $Row->is_shared,
+                                    "trans_status"          => $trans_status
+                                    );
+       
+            }    
+            
+            return $arrData;
+        }           
+
+    }
+
+
+    public function insert_trans_summary($arrData)
+    {
+        $this->db->insert("tbl_trans_summary",$arrData);
+        return $this->db->insert_id();          
+    }
+
+
+    public function update_trans_summary($trans_summary_id,$arrData)
+    {
+        $this->db->where('in_trans_summary_id',$trans_summary_id);
+        $this->db->update('tbl_trans_summary',$arrData);
+        return $this->db->affected_rows();
+
+    }
+    
+   
+    public function get_summaryBy_adoptionId($in_adoption_id)
+    {
+        $arr = array();
+        $this->db->select('in_trans_summary_id,in_id, in_qty,in_crate_id,is_shared');
+        $this->db->from('tbl_trans_summary');
+        if(is_array($in_adoption_id))
+        {
+            $this->db->where_in('in_id',$in_adoption_id);
+        }else
+        {
+            $this->db->where('in_id',$in_adoption_id);    
+        }
+        
+        $query = $this->db->get();
+        if($query->num_rows()>0)
+        {
+            $arr = $query->result_array();
+        }
+        return $arr;
+
+    }
+
+    ///crate count from trans summary table using crate id
+    public function get_trans_crate_count($in_crate_id)
+    {
+        $this->db->select('in_qty');
+        $this->db->from('tbl_trans_summary');
+        $this->db->where('in_crate_id',$in_crate_id);
+        $this->db->where('in_deleted',0);
+        $query = $this->db->get();
+        $rowcount = $query->num_rows();
+        if($rowcount > 0)
+        {
+            $rowcount = $rowcount;
+        }
+        else{
+            $rowcount = 0;
+        }
+        return $rowcount;
+    }
+
+    //insert comments
+    public function insert_trans_comment($commentarr)
+    {
+        $this->db->insert("tbl_trans_summary_comment",$commentarr);
+        return $this->db->insert_id();        
+    }
+
+
+
+    //function to fetch the commetn data using in_id i. e. adoption order id
+    public function get_commentBy_adoptionId($in_adoption_order)
+    {
+        $arr = array();
+        $this->db->select('in_trans_comment,in_id, st_commment,in_user_id,dt_created');
+        $this->db->from('tbl_trans_summary_comment');        
+        $this->db->where('in_id',$in_adoption_order);    
+        $query = $this->db->get();
+        if($query->num_rows()>0)
+        {
+            $arr = $query->result_array();
+        }
+        return $arr;
+
+    }
+    
+
+    function update_participant_org($org_arr, $org_id, $trans_id)
+    {
+        $this->db->where('in_organization_id',$org_id);
+        $this->db->where('in_transportation_id',$trans_id);
+        $this->db->update('tbl_org_transport_participate',$org_arr);
+       
+        return $this->db->affected_rows();
+    }
+    
+    //get the organization details for sending/ receiving party autocomplete details.
+    public function orgdetails($orgname)
+    {
+        $this->db->select("st_org_name,in_organization_id,st_address1, st_address2, st_city, st_state, st_country, st_zip, st_email_address,in_user_id");
+        $this->db->from('tbl_organization');
+        $this->db->where('st_org_name LIKE "'.$orgname.'%"');
+        $this->db->where('in_deleted',0);
+        $this->db->where('in_status',1);
+        $this->db->limit("10");             
+        $query = $this->db->get();
+        //echo $this->db->last_query();die;
+        if($query->num_rows() > 0)
+        {
+            $arrData = array();
+            foreach($query->result() as $Row)
+            {           
+            //echo $Row->st_country;die;
+                    $arrData[]  = array(
+                        "value"         => $Row->st_org_name,
+                        "org_id"        =>$Row->in_organization_id,
+                        "org_email_address"=>$Row->st_email_address,
+                        "in_user_id"    =>$Row->in_user_id,
+                        "st_address1"   =>$Row->st_address1,
+                        "st_address2"   =>$Row->st_address2,
+                        "st_city"       =>$Row->st_city,
+                        "st_state"      =>$Row->st_state,
+                        "st_country"    =>$Row->st_country,
+                        "st_zip"        =>$Row->st_zip,
+                        );
+            }
+            return $arrData;
+        }
+        //return $query->result_array();
+    }
+	
+		public function get_vehicle($org_id)
+	{	
+		$this->db->select("in_vehicle_id,st_vehicle_type,st_vehicle_name", false);						   	
+		$this->db->from('tbl_vehicle_crate');		
+		$this->db->where('in_deleted','0');
+		$this->db->where('in_organization_id',$org_id);
+		$query = $this->db->get(); 			
+		$arrVehicle = array();
+					
+		if($query->num_rows()>0)
+		{  
+			foreach($query->result() as $Row)
+			{				
+									
+				$arrVehicle[]	=	array('in_vehicle_id'			=> $Row->in_vehicle_id,
+										  'st_vehicle_name'			=> $Row->st_vehicle_name,																				
+										 );
+			}	
+		}
+					
+		return $arrVehicle;			
+	}
+	
+	public function get_vehicle_detail($id)
+	{
+		$this->db->select("tbl_vehicle_crate.in_vehicle_id,
+						   tbl_vehicle_crate.st_vehicle_type,
+						   tbl_vehicle_crate.st_vehicle_name,
+						   tbl_vehicle_crate.st_vehicle_license_plate,								   
+						   tbl_vehicle_crate.st_vehicle_dot,
+						   tbl_vehicle_crate.in_qtyxs,
+						   tbl_vehicle_crate.in_qtys,
+						   tbl_vehicle_crate.in_qtym,
+						   tbl_vehicle_crate.in_qtyl,
+						   tbl_vehicle_crate.in_qtyxl,						   
+						   tbl_vehicle_crate.qtyxs_cst_public,
+						   tbl_vehicle_crate.qtyxs_cst_private,
+						   
+						   tbl_vehicle_crate.qtys_cst_public,
+						   tbl_vehicle_crate.qtys_cst_private,
+						   
+						   tbl_vehicle_crate.qtym_cst_public,
+						   tbl_vehicle_crate.qtym_cst_private,
+						   
+						   tbl_vehicle_crate.qtyl_cst_public,
+						   tbl_vehicle_crate.qtyl_cst_private,
+						   
+						   tbl_vehicle_crate.qtyxl_cst_public,
+						   tbl_vehicle_crate.qtyxl_cst_private", false);						   	
+				$this->db->from('tbl_vehicle_crate');				
+				$this->db->where('tbl_vehicle_crate.in_deleted','0');	
+				$this->db->where('tbl_vehicle_crate.in_vehicle_id',$id);
+				$query = $this->db->get();
+				///echo $this->db->last_query();die;
+				return $query->row_array();		
+	}
+	
+	public function get_assigning_crate_animal_by_org($org_id,$order='', $sort='',$limit='',$rec_per_page='')
+    {
+    	$this->db->select('ao.in_id,ao.in_adoption_id,ao.in_organization_id as receiving_org_id,ao.in_transportation_id,ao.in_animal_id, ao.in_status,
+            a.st_fname, a.st_lname,
+            an.in_organization_id as sending_org_id, an.st_animal_name, an.in_weight,a.st_addr1,a.st_phone,a.st_backup_contact,a.st_backup_phone,
+             ts.in_trans_summary_id, ts.in_id as trans_in_id, ts.in_qty, ts.in_crate_id, ts.is_shared,ts.in_status as trans_status');
+        $this->db->from('tbl_adoption_order  ao');
+		$this->db->join('tbl_adoption  a', 'a.in_adoption_id = ao.in_adoption_id');
+		$this->db->join('tbl_transportation  t', 'ao.in_transportation_id = t.in_transportation_id');
+        $this->db->join('tbl_animal  an', 'an.in_animal_id = ao.in_animal_id');
+        $this->db->join('tbl_trans_summary  ts', 'ts.in_id = ao.in_id','left');
+		
+
+		$this->db->where('ao.in_deleted',0);
+		$this->db->where('t.in_organization_id',$org_id);
+		$this->db->where('t.in_status',1);
+        $this->db->where('a.in_deleted',0);	
+        $this->db->where('an.in_deleted',0);
+        switch($sort)
+        {
+            case 'in_adoption_id':                          
+                $this->db->order_by('in_adoption_id',$order);
+            break;
+
+            case 'st_animal_name':                       
+                $this->db->order_by('st_animal_name',$order);
+            break;  
+ 
+            case 'in_weight':                      
+                //$this->db->order_by('in_weight',$order);
+                  $this->db->order_by('CAST(in_weight AS SIGNED) '.$order);   
+            break;  
+
+            case 'in_status':                          
+                $this->db->order_by('trans_status',$order);
+            break;              
+                 
+            default:
+               $this->db->order_by('in_adoption_id',$order);
+        }
+
+        //limit
+        if(!isset($limit))
+        {
+            $limit=0;
+        }                   
+        $this->db->limit($rec_per_page,$limit);             
+		$query = $this->db->get();                
+        if($query->num_rows()>0)
+        {
+            foreach($query->result() as $Row)
+            {
+                if(is_numeric($Row->trans_status == 0))
+                {                    
+                    $st_status = "Pending";
+                    $className ="pending";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==1 )
+                {
+                    $st_status = "Approved";
+                    $className = "accepted";
+                    $trans_status = $Row->trans_status;
+                }
+                else if($Row->trans_status ==2)
+                {                    
+                    $st_status = "Declined";
+                    $className = "declined";
+                    $trans_status = $Row->trans_status;
+                }   
+                else if(empty($Row->trans_status)) {                   
+                    $st_status = "Pending";
+                    $className = "pending";  
+                    $trans_status = 0;
+                }
+
+				$crate_id = $Row->in_crate_id;	
+				$crate_type = "--";
+				if(is_numeric($crate_id) && $crate_id != 0)
+				{
+					$crate_detail = $this->get_crate_detail($crate_id);
+					if(count($crate_detail)>0)
+					{
+						$crate_type = $crate_detail['st_crate_type'];
+					}		
+				} else if(empty($crate_id) && $Row->is_shared !=0)
+				{
+					$crate_type = "Shared Crate";
+				} else if(is_numeric($crate_id) && $crate_id == 0)
+				{
+					$crate_type = "No Crate";
+				}	
+
+                $arrData[]  = array("in_adoption_order"     => $Row->in_id,
+                                    "in_adoption_id"        => $Row->in_adoption_id,
+                                    "receiving_org_id"      => $Row->receiving_org_id,
+                                    "in_transportation_id"  => $Row->in_transportation_id,
+                                    "in_animal_id"          => $Row->in_animal_id,
+                                    "in_status"             => $Row->in_status,
+                                    "st_status"             => $st_status,
+                                    "sending_org_id"        => $Row->sending_org_id,
+                                    "st_animal_name"        => $Row->st_animal_name,
+                                    "in_weight"             => $Row->in_weight,
+                                    "className"             => $className,
+                                    "delivery_loc"          => $Row->st_addr1,
+                                    "receivingperson"       => $Row->st_fname,
+                                    "receivingcell"         => $Row->st_phone,
+                                    "backupcontact"         => $Row->st_backup_contact,
+                                    "backupphone"           => $Row->st_backup_phone,
+                                    "in_trans_summary_id"   => $Row->in_trans_summary_id,
+                                    "trans_in_id"           => $Row->trans_in_id,
+                                    "in_qty"                => $Row->in_qty,
+                                    //"in_crate_id"           => $Row->in_crate_id,
+                                    "is_shared"             => $Row->is_shared,
+                                    "trans_status"          => $trans_status,
+									"crate_type"			=> $crate_type
+                                    );
+            }
+            return $arrData;
+        }     		
+    }
+	
+	public function get_crate_detail($crate_id='')
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_transport_crates');
+		$this->db->where('in_crate_id',$crate_id);
+		$query = $this->db->get();
+		return $query->row_array();	
+	}
+
+	public function get_transport_crate_detail($tr_id='')
+	{
+		$total_crates_size = array();
+		$this->db->select('*');
+		$this->db->from('tbl_transport_crates');
+		$this->db->where('in_transportation_id',$tr_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->result_array();
+		/*if($query->num_rows()>0)
+		{
+			foreach($query->result() as $key=>$val)
+			{
+				$total_crates_size[$val->st_crate_type] = $val->in_crate_qty;
+			}
+		}		
+		return $total_crates_size;*/	
+	}
+		
+	public function count_routes_animalBy_trans_org($transport_id, $org_id, $type, $order='', $sort='',$limit='',$rec_per_page='')
+    {
+		$total_cnt = '0';
+		
+		$total_crates_id = array();
+		$total_crates_details = $this->get_transport_crate_detail($transport_id);
+		
+		if(count($total_crates_details)>0)
+		{
+			foreach($total_crates_details as $key=>$val)
+			{
+				$total_crates_id[$val['st_crate_type']] = $val['in_crate_id'];
+			}
+		}
+		
+		$this->db->select('ao.in_id,ao.in_status,a.in_adoption_id');
+        $this->db->join('tbl_adoption  a', 'a.in_adoption_id = ao.in_adoption_id');
+        $this->db->from('tbl_adoption_order  ao');
+        $this->db->join('tbl_animal  an', 'an.in_animal_id = ao.in_animal_id','INNER');
+		//$this->db->join('tbl_trans_summary  ts', 'ts.in_id = ao.in_id','left');
+
+
+        $this->db->where('ao.in_deleted',0);
+        $this->db->where('a.in_deleted',0); 
+        $this->db->where('an.in_deleted',0);
+        
+        $this->db->where('ao.in_transportation_id',$transport_id);
+        if($type == 'receive')
+        {
+            $this->db->where('ao.in_organization_id',$org_id);
+        }
+        else if($type == 'send')
+        {
+            $this->db->where('an.in_organization_id ',$org_id);
+        }
+		
+		//$this->db->limit($rec_per_page,$limit); 	
+        $query = $this->db->get(); 
+		$xs = $s= $m = $l = $xl = $shared = $no_crate =0 ;
+		if($query->num_rows()>0)
+		{
+			$count = 0;
+			foreach($query->result() as $key=>$val)
+			{
+				$added_in_crates = $this->added_in_crates($val->in_id);
+				if($type == 'receive')
+				{	
+					if(count($added_in_crates)<=0)
+					{
+							$count++;
+					} else 
+					{
+						if(count($added_in_crates)>0)
+						{
+							if($added_in_crates['in_deleted']=='0')
+							{
+								if(!empty($added_in_crates['in_crate_id']) && $added_in_crates['in_crate_id']!=0)
+								{	
+									$crate_detail = $this->get_crate_detail($added_in_crates['in_crate_id']);
+									if(count($crate_detail)>0)
+									{
+										$crate_type = $crate_detail['st_crate_type'];
+										if($crate_type == 'S')
+										$s++;
+										if($crate_type == 'M')
+										$m++;
+										if($crate_type == 'L')
+										$l++;
+										if($crate_type == 'XL')
+										$xl++;
+										if($crate_type == 'XS')
+										$xs++;
+									}
+								} else if(!empty($added_in_crates['is_shared']) && $added_in_crates['is_shared']!='0')
+								{
+										$shared++;
+								} else if(!empty($added_in_crates['in_crate_id'])==0) {
+										$no_crate++; //No Crates		
+								}		
+							}		
+						}	
+					}		
+				} else 
+				{  
+					if($val->in_status == '0')
+					{	
+							$count++;
+					} else 
+					{	
+						if(count($added_in_crates)>0)
+						{
+							if($added_in_crates['in_deleted']=='0')
+							{
+								if(!empty($added_in_crates['in_crate_id']) && $added_in_crates['in_crate_id']!=0)
+								{	
+									$crate_detail = $this->get_crate_detail($added_in_crates['in_crate_id']);
+									if(count($crate_detail)>0)
+									{
+										$crate_type = $crate_detail['st_crate_type'];
+										if($crate_type == 'S')
+										$s++;
+										if($crate_type == 'M')
+										$m++;
+										if($crate_type == 'L')
+										$l++;
+										if($crate_type == 'XL')
+										$xl++;
+										if($crate_type == 'XS')
+										$xs++;
+									}
+								} else if(!empty($added_in_crates['is_shared']) && $added_in_crates['is_shared']!='0')
+								{
+										$shared++;
+								} else if(!empty($added_in_crates['in_crate_id'])==0) {
+										$no_crate++; //No Crates		
+								}		
+							}		
+						}
+					}	
+				 		
+				}	
+			}
+		}
+
+		$data =  array('pending_res'=>$count,'xs'=>$xs,'s'=>$s,'l'=>$l,'m'=>$m,'xl'=>$xl,'shared'=>$shared,'crates_id'=>$total_crates_id,'no_crate'=>$no_crate,'adoption_id'=>$val->in_adoption_id);
+		return $data;	
+    }
+	
+	public function count_total_assigned_in_crates($trid='')
+	{
+		$total_crates = array();
+		//$total_crates = $this->get_transport_crate_detail($trid);
+		
+		$total_crates_details = $this->get_transport_crate_detail($trid);
+		
+		if(count($total_crates_details)>0)
+		{
+			foreach($total_crates_details as $key=>$val)
+			{
+				$total_crates[$val['st_crate_type']] = $val['in_crate_qty'];
+			}
+		}
+		
+		$this->db->select('ts.*');
+		$this->db->from('tbl_adoption_order  ao');
+		$this->db->join('tbl_adoption  a', 'a.in_adoption_id = ao.in_adoption_id','INNER');
+        $this->db->join('tbl_animal  an', 'an.in_animal_id = ao.in_animal_id','INNER');
+        $this->db->join('tbl_trans_summary  ts', 'ts.in_id = ao.in_id','INNER');
+		$this->db->where('ao.in_transportation_id',$trid);
+		$this->db->where('ao.in_deleted',0);
+		$this->db->where('a.in_deleted',0);
+		$this->db->where('an.in_deleted',0);
+		$this->db->where('ts.in_deleted',0);
+		$query = $this->db->get();
+		
+		if($query->num_rows()>0)
+		{
+			$xs = $s= $m = $l = $xl = $shared = $no_crate = 0 ;
+			foreach($query->result() as $key=>$val)
+			{
+				if(!empty($val->in_crate_id) && $val->in_crate_id!='0')
+				{	
+					$crate_detail = $this->get_crate_detail($val->in_crate_id);
+					if(count($crate_detail)>0)
+					{
+						$crate_type = $crate_detail['st_crate_type'];
+						if($crate_type == 'S')
+							$s++;
+						if($crate_type == 'M')
+							$m++;
+						if($crate_type == 'L')
+							$l++;
+						if($crate_type == 'XL')
+							$xl++;
+						if($crate_type == 'XS')
+							$xs++;
+					}	
+				} else if(!empty($val->is_shared) && $val->is_shared!='0') 
+				{
+					$shared++;	
+				} else if(!empty($added_in_crates['in_crate_id'])==0) {
+										$no_crate++;		
+				}			
+			}		
+		}
+
+		$data =  array('total_crates'=>$total_crates,'xs'=>$xs,'s'=>$s,'l'=>$l,'m'=>$m,'xl'=>$xl,'shared'=>$shared,'no_crate'=>$no_crate);	
+		return $data;
+	}
+
+	public function added_in_crates($in_id='')
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_trans_summary');
+		$this->db->where('in_id',$in_id);
+		$query = $this->db->get();
+		return $query->row_array();
+	}	
+}

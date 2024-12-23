@@ -1,0 +1,677 @@
+<?php
+# ======================================================================================
+# Created by		: Piyali Sarkar
+# Created date		: 13-Aug-2018
+# File description	: Coalition Model for admin
+# Special - notes	: none
+# Tables used		: tbl_coalition
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class coalition_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_coalition()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of vehicle types from tbl_coalition
+	#------------------------------------------------------------
+	public function get_total_coalition($name='',$status)
+	{ 				
+					$this->db->select("tbl_coalition.in_coalition_id", false);						   	
+					$this->db->from('tbl_coalition');					
+					$this->db->where('tbl_coalition.in_deleted','0');
+		
+		
+		if(trim($name) != '') {
+							if($name=='%'){ 
+							$this->db->where("tbl_coalition.st_coalition_name RLIKE '%".$name."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_coalition.st_coalition_name LIKE '%".$name."%'", NULL, FALSE);
+						}
+					}
+		if($status=='%'){ 
+							$this->db->where("tbl_coalition.in_status RLIKE '%".$status."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_coalition.in_status LIKE '%".$status."%'", NULL, FALSE);
+						}					
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_coalition()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to get coalition details
+	#------------------------------------------------------------
+	public function get_coalition($sort,$order,$limit,$rec_per_page,$name,$status)
+	{	  
+				   $this->db->select("tl.in_coalition_id,
+									  tl.st_coalition_name,
+									  tl.in_status,
+									  tl.dt_created,
+									  tl.dt_modified", false);						   	
+					$this->db->from('tbl_coalition as tl');						
+					$this->db->where('tl.in_deleted','0');				  
+		
+		
+		if(trim($name) != '') {
+							if($name=='%'){ 
+							$this->db->where("tl.st_coalition_name RLIKE '%".$name."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tl.st_coalition_name LIKE '%".$name."%'", NULL, FALSE);
+						}
+					}
+		if($status=='%'){ 
+							$this->db->where("tl.in_status RLIKE '%".$status."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tl.in_status LIKE '%".$status."%'", NULL, FALSE);
+						}					
+					
+					switch($sort)
+					{
+						case 'id': 						
+							$this->db->order_by('tl.in_coalition_id',$order);
+						break;
+						
+						case 'name': 						
+							$this->db->order_by('tl.st_coalition_name',$order);
+						break;	
+						case 'status': 						
+							$this->db->order_by('tl.in_status',$order);
+						break;
+							
+						case 'createddate': 							
+							$this->db->order_by('tl.dt_created',$order);
+						break;
+						
+						case 'modifieddate': 							
+							$this->db->order_by('tl.dt_modified',$order);
+						break;
+						
+							 
+						default:
+						   $this->db->order_by('tl.st_coalition_name',$order);
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					//echo $this->db->last_query();  die;					
+					$arrCoalition = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+
+								$this->db->select('in_user_id');
+								$this->db->from('tbl_users');
+								$this->db->where('in_user_from', $Row->in_coalition_id);
+								$this->db->where('in_deleted',0);
+								$query = $this->db->get();	
+								$res=$query->result();
+								$count = $query->num_rows();							
+								
+									
+							$arrCoalition[$Row->in_coalition_id]	=	array('in_coalition_id'	=> $Row->in_coalition_id,
+															'st_coalition_name'				=> $Row->st_coalition_name,
+															'in_status'				=> $Row->in_status,
+															'dt_created'				=> $Row->dt_created,
+															'dt_modified'   => $Row->dt_modified,
+															'count' => $count															
+											);
+						}
+						return $arrCoalition;						
+					}
+					
+	}
+	
+	
+	#====================================================================================
+	#	Function	:	delete_coalition()
+	#   Parameter	: 	Coalition
+	#	Perpose		:	to delete single vehicle type details from tbl_coalition table
+	#------------------------------------------------------------------------------------
+	public function delete_coalition($coalitionIds)
+	{
+		$arrCoalition = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_coalition_id', $coalitionIds);
+		$this->db->update('tbl_coalition', $arrCoalition);
+		
+		$this->db->where('in_coalition_id', $coalitionIds);
+		$this->db->update('tbl_org_coalition', $arrCoalition);		
+	}
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	delete_multiple_coalition()
+	#   Parameter	: 	coalitionId
+	#	Perpose		:	to delete multiple vehicle types details from tbl_coalition table
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_coalition($coalitionIds)
+	{			
+		$arrCoalition = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_coalition_id', $coalitionIds);
+		$this->db->update('tbl_coalition', $arrCoalition);
+		
+		$this->db->where_in('in_coalition_id', $coalitionIds);
+		$this->db->update('tbl_org_coalition', $arrCoalition);				
+		return $this->db->affected_rows();
+	}
+	
+	
+	
+	#============================================================================
+	#	Function	:	get_coalition_profile()
+	#   Parameter	: 	coalitionId
+	#	Perpose		:	to get vehicle types details from tbl_coalition table
+	#----------------------------------------------------------------------------
+	public function get_coalition_profile($coalitionId)
+	{
+		$this->db->select('v.in_coalition_id,v.st_coalition_name,in_status');
+		$this->db->from('tbl_coalition as v');		
+		$this->db->where('v.in_coalition_id',$coalitionId);
+		$query = $this->db->get();
+		return $query->row_array();	
+	}
+	
+	#============================================================================
+	#	Function	:	update_coalition_info()
+	#   Parameter	: 	data,coalitionId,table
+	#	Perpose		:	to update vehicle types details tbl_coalition table
+	#----------------------------------------------------------------------------
+	public function update_coalition_info($post,$coalitionId,$table) {
+		if($post['status']=='')
+		{
+			$post['status'] ='0';
+		}
+		
+		$data =  array('st_coalition_name'		=>	$post['name'],
+						'in_status'		      =>	$post['status'],										
+						'dt_modified'		=>  date("Y-m-d H:i:s"),
+						'in_deleted'		=>  '0');	
+		$this->db->where('in_coalition_id',$coalitionId);
+		$this->db->update($table,$data);
+		return $this->db->affected_rows();	
+	}
+	
+    #============================================================================
+	#	Function	:	:insertCoalition()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert Coalition details in tbl_coalition table
+	#----------------------------------------------------------------------------
+	public function insertCoalition($post){
+		
+		if(!isset($post['status']))
+		{
+			$post['status'] ='0';
+		}
+	    $arrCoalition = array('st_coalition_name'		=>	$post['name'],
+							'in_status'		      =>	$post['status'],										
+							'dt_created'		=>  date("Y-m-d H:i:s"),
+							'in_deleted'		=>  '0'											
+							);	
+		$this->db->insert('tbl_coalition', $arrCoalition);
+		return $this->db->insert_id();												
+	}
+	
+	
+	function is_coalition_exists($coalition)
+	{ 
+		$this->db->select('in_coalition_id');
+		$this->db->from('tbl_coalition');							
+		$this->db->where("st_coalition_name",$coalition);
+		$this->db->where("in_deleted",0);
+		$query = $this->db->get();		
+		//echo $this->db->last_query(); die;	
+		
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;				
+	}
+	
+	
+	public function getUsersEmail($search='')
+	{
+		$this->db->select('st_email,in_user_id,st_display_name,st_facebook_uid');
+		$this->db->from('tbl_users');
+		$this->db->like('st_email', strtolower(trim($search)));
+		$this->db->where('in_deleted', 0);
+		$this->db->where('in_status', 1);
+		$this->db->limit('10');			
+		//$this->db->where('v.in_coalition_id',$coalitionId);
+		$query = $this->db->get();
+		return $query->result_array();	
+	}
+	
+	public function getUsersName1()
+	{
+		$this->db->select('st_display_name,in_user_id');
+		$this->db->from('tbl_users');
+							
+		//$this->db->where('v.in_coalition_id',$coalitionId);
+		$query = $this->db->get();
+		return $query->result_array();	
+	}
+	public function getUsersEmail1()
+	{
+		$this->db->select('st_email,in_user_id');
+		$this->db->from('tbl_users');		
+		//$this->db->where('v.in_coalition_id',$coalitionId);
+		$query = $this->db->get();
+		return $query->result_array();	
+	}
+	
+	public function add_coalition_user($post)
+	{
+		
+		$this->db->insert('tbl_coalition_user',$post);	
+		return $this->db->affected_rows();
+										
+	}
+	public function get_coalition_users($coalitionId)
+	{
+		$this->db->select('u.st_display_name,u.st_email,u.in_user_id,in_login_as,in_approved,in_active,in_login_id');
+		$this->db->from('tbl_coalition_user as cs');	
+		$this->db->join('tbl_coalition as ts','cs.in_coalition_id=ts.in_coalition_id');	
+		$this->db->join('tbl_users as u','u.in_user_id=cs.in_user_id');					
+		$this->db->where('cs.in_coalition_id',$coalitionId);
+		$this->db->where('cs.in_deleted','0');
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->result_array();	
+	}
+	public function delete_coalition_user($coalition_myCoalition,$coalitionIds)
+	{			
+		
+		$this->db->where('in_coalition_id', $coalitionIds);
+		$this->db->delete('tbl_coalition_user');	
+		return $this->db->affected_rows();
+	}
+	function is_user_exists($coalition,$in_coalition_id)
+	{ 
+		$this->db->select('in_coalition_id');
+		$this->db->from('tbl_coalition_user');							
+		$this->db->where("in_user_id",$coalition);
+		$this->db->where("in_coalition_id",$in_coalition_id);
+		//$this->db->where("in_delete",0);
+		$query = $this->db->get();		
+		echo $this->db->last_query(); 	
+		
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;				
+	}
+	public function get_total_coalition_new($name='',$sess_user_id,$status)
+	{ 				
+					$this->db->select("toc.in_id,toc.in_organization_id,toc.in_coalition_id", false);						   	
+					$this->db->from('tbl_org_coalition as toc');
+					$this->db->join('tbl_organization as toorg','toc.in_organization_id=toorg.in_organization_id','left');	
+					$this->db->join('tbl_coalition as tc','tc.in_coalition_id=toc.in_coalition_id','left');	
+					if($sess_user_id)
+					{
+						$this->db->join('tbl_coalition_user as tcu','tc.in_coalition_id=tcu.in_coalition_id','right');
+						$this->db->where('tcu.in_user_id',$sess_user_id);	
+					}					
+					$this->db->where('toc.in_deleted','0');	
+					$this->db->where('toorg.in_status','1');	
+					$this->db->where('toorg.in_deleted','0');
+									
+		
+		
+					if(trim($name) != '') {
+								if($name!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(toorg.st_org_name LIKE '%".addslashes($name)."%' OR toorg.st_director LIKE '%".addslashes($name)."%' OR tc.st_coalition_name LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+						
+					}
+					if($status=='%'){ 
+							$this->db->where("toc.in_status RLIKE '%".$status."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("toc.in_status LIKE '%".$status."%'", NULL, FALSE);
+						}					
+		
+					$query = $this->db->get();
+		
+											
+					$arrCoalition = array();
+						
+					$colaition = '';
+				
+					
+					if($query->num_rows() > 0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+								//echo $Row->in_coalition_id;
+							if($this->session->userdata['sess_user_id'])
+								{
+									$sqluseractivity  = "SELECT tcu.in_login_as,tcu.in_approved,tcu.in_active,tc.st_coalition_name,tc.in_coalition_id 
+									FROM tbl_coalition tc left join tbl_coalition_user  as tcu on tcu.in_coalition_id=tc.in_coalition_id
+									where tcu.in_user_id='".$this->session->userdata['sess_user_id']."' 
+									and tc.in_coalition_id = '". $Row->in_coalition_id."' and tcu.in_active='1' order by tc.in_coalition_id" ;
+								
+								}
+								else{
+									$sqluseractivity  = "SELECT tcu.in_login_as,tcu.in_approved,tcu.in_active,tc.st_coalition_name,tc.in_coalition_id 
+									FROM tbl_coalition tc left join tbl_coalition_user  as tcu on tcu.in_coalition_id=tc.in_coalition_id
+									where tc.in_coalition_id = '". $Row->in_coalition_id."' order by tc.in_coalition_id" ;
+								
+								}
+								$sqlcreateddate	    =	$this->db->query($sqluseractivity);
+								
+								$sqldtcreated		=	$sqlcreateddate->result_array();
+							
+								foreach($sqldtcreated as $data)
+								{								
+								 $arrCoalition[$Row->in_id]	=	array('in_id'	=> $Row->in_id);
+								}
+						}
+						//echo "<br>";
+						//die();
+						
+						return count($arrCoalition);						
+					}
+		//echo $this->db->last_query(); die;			
+		//return $query->num_rows();
+	}
+public function get_coalition_new($sort,$order,$limit,$rec_per_page,$name,$sess_user_id,$status)
+	{	  
+	
+				    $this->db->select("toc.in_organization_id,toc.in_id,toc.in_coalition_id,toc.dt_created,toc.in_status,toorg.st_org_type,toorg.st_org_name,toorg.st_director,tc.st_coalition_name,toorg.in_user_id,toorg.st_email_address", false);						   	
+					$this->db->from('tbl_org_coalition as toc');
+					$this->db->join('tbl_organization as toorg','toc.in_organization_id=toorg.in_organization_id','left');	
+					$this->db->join('tbl_coalition as tc','tc.in_coalition_id=toc.in_coalition_id','right');
+					if($sess_user_id)
+					{
+						$this->db->join('tbl_coalition_user as tcu','tc.in_coalition_id=tcu.in_coalition_id','right');
+						$this->db->where('tcu.in_user_id',$sess_user_id);	
+					}
+					$this->db->where('toc.in_deleted','0');	
+					$this->db->where('toorg.in_status','1');	
+					$this->db->where('toorg.in_deleted','0');
+										
+					
+		
+					if(trim($name) != '') {
+					if($name!= '') { 
+						
+						$this->db->where("(toorg.st_org_name LIKE '%".addslashes($name)."%' OR toorg.st_director LIKE '%".addslashes($name)."%' OR tc.st_coalition_name LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					}
+					if($status=='%'){ 
+							$this->db->where("toc.in_status RLIKE '%".$status."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("toc.in_status LIKE '%".$status."%'", NULL, FALSE);
+						}						
+					
+					switch($sort)
+					{
+						case 'id': 						
+							$this->db->order_by('toc.in_organization_id',$order);
+						break;
+						
+						case 'org_type': 						
+							$this->db->order_by('toorg.st_org_type',$order);
+						break;	
+						case 'org_name': 						
+							$this->db->order_by('toorg.st_org_name',$order);
+						break;
+						case 'mname': 						
+							$this->db->order_by('toorg.st_director',$order);
+						break;
+						case 'org_email': 						
+							$this->db->order_by('toorg.st_email_address',$order);
+						break;
+						case 'colname': 						
+							$this->db->order_by('tc.st_coalition_name',$order);
+						break;						
+						case 'createddate': 							
+							$this->db->order_by('toc.dt_created',$order);
+						break;
+						default:
+						   $this->db->order_by('toc.dt_created','DESC');
+						   break;
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$this->db->order_by('tc.in_coalition_id','DESC');							
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					//echo $this->db->last_query();  die;
+					//echo "<pre>";
+					//print_r($query->result());  die();						
+					$arrCoalition = array();
+						
+					$colaition = '';
+					if($query->num_rows() > 0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+							$sqluseractivity1  = "SELECT dt_created FROM tbl_user_activity  where in_user_id = '".$Row->in_user_id."' order by dt_created desc limit 1";
+							$sqlcreateddate1	    =	$this->db->query($sqluseractivity1);							
+							$numrowprostat		=	$sqlcreateddate1->num_rows($sqlcreateddate1);	
+							$sqldtcreated1		=	$sqlcreateddate1->result();										
+							$lastlogin			=	@$sqldtcreated1[0]->dt_created;
+							
+							
+							if($this->session->userdata['sess_user_id'])
+								{
+									$sqluseractivity  = "SELECT tcu.in_login_as,tcu.in_approved,tcu.in_active,tc.st_coalition_name,tc.in_coalition_id 
+									FROM tbl_coalition tc left join tbl_coalition_user  as tcu on tcu.in_coalition_id=tc.in_coalition_id
+									where tcu.in_user_id='".$this->session->userdata['sess_user_id']."' 
+									and tc.in_coalition_id = '". $Row->in_coalition_id."' and tcu.in_active='1' order by tc.in_coalition_id" ;
+								
+								}
+								else{
+									$sqluseractivity  = "SELECT tcu.in_login_as,tcu.in_approved,tcu.in_active,tc.st_coalition_name,tc.in_coalition_id 
+									FROM tbl_coalition tc left join tbl_coalition_user  as tcu on tcu.in_coalition_id=tc.in_coalition_id
+									where tc.in_coalition_id = '". $Row->in_coalition_id."' order by tc.in_coalition_id" ;
+								
+								}
+								$sqlcreateddate	    =	$this->db->query($sqluseractivity);
+								
+								$sqldtcreated		=	$sqlcreateddate->result_array();
+							
+								foreach($sqldtcreated as $data)
+								{								
+								$arrCoalition[$Row->in_id]	=	array('in_id'				=> $Row->in_id,
+																'in_organization_id'		=> $Row->in_organization_id,
+																'in_user_id'				=> $Row->in_user_id,
+																'in_coalition_id'			=> $Row->in_coalition_id,
+																'st_coalition_name'			=> $data['st_coalition_name'],
+																'st_org_type'				=> $Row->st_org_type,
+																'st_org_name'				=> $Row->st_org_name,
+																'dt_created'				=> $Row->dt_created,
+																'in_status'                 => $Row->in_status,
+																'in_approved'               => $data['in_approved'],
+																'in_login_as'               => $data['in_login_as'],
+																'in_active'               	=> $data['in_active'],
+																'st_director'   			=> $Row->st_director,
+																'st_email_address'   		=> $Row->st_email_address,
+																'lastlogin' 				=> $lastlogin
+												);
+								}
+						}
+						//die();
+						
+						return $arrCoalition;						
+					}
+					
+	}
+	public function delete_org_coalition($coalitionIds)
+	{
+		$arrCoalition = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_id', $coalitionIds);
+		$this->db->update('tbl_org_coalition', $arrCoalition);	
+		
+		
+	}
+	
+	
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_org_coalition($coalitionIds)
+	{			
+		$arrCoalition = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_id', $coalitionIds);
+		$this->db->update('tbl_org_coalition', $arrCoalition);		
+		return $this->db->affected_rows();
+	}
+	function isValid($username, $password) {
+        $arrData['error'] = '';
+        $is_admin = '0';
+
+        $this->db->select('in_user_id, 
+						   st_email, 
+						   st_password,
+						   st_display_name						  
+						  ');
+        $this->db->where('st_email', $username);
+        $this->db->where('st_password', md5($password));
+        $this->db->where('in_deleted', 0);
+		$this->db->where('in_status', 1);
+        $this->db->from('tbl_users');
+        $query = $this->db->get();
+		
+       // echo $this->db->last_query(); die;
+
+		if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+				
+				$sqluseractivity  = "SELECT in_login_id,in_coalition_id FROM tbl_coalition_user  where in_user_id = '".$Row->in_user_id."' order by in_login_id" ;
+				$sqlcreateddate	    =	$this->db->query($sqluseractivity);							
+				$numrowprostat		=	$sqlcreateddate->num_rows($sqlcreateddate);		
+				if($numrowprostat > 0)
+				{
+				 $arrData = array('in_user_id' => $Row->in_user_id,
+								'email' => $Row->st_email,
+								'password' => $Row->st_password,
+								'name' => $Row->st_display_name
+							);
+							$is_admin = $Row->in_user_id;
+					}	
+					else{
+						
+								$arrData['error'] = "Invalid Email or Password.";
+								//return $arrData;
+					}
+						   
+					}
+				
+            return $arrData;
+        } else {
+            $arrData['error'] = "Invalid Email or Password.";
+            return $arrData;
+        }
+    }
+	public function org_staus_active($org_id)
+	{
+		$arrCoalition = 	array('in_status' 	=> '1' );		
+		//$this->db->where('in_id', $coalitionIds);
+		$this->db->where('in_id', $org_id);
+		$this->db->update('tbl_org_coalition', $arrCoalition);	
+		
+		
+	}
+	public function org_staus_reject($org_id)
+	{
+		$arrCoalition = 	array('in_status' 	=> '2' );		
+		//$this->db->where('in_id', $coalitionIds);
+		$this->db->where('in_id', $org_id);
+		$this->db->update('tbl_org_coalition', $arrCoalition);	
+		
+		
+	}
+	public function get_organization_admin($org_id)
+	{
+		$this->db->select('us.in_user_id,us.st_display_name,us.st_email,oc.in_coalition_id,og.st_org_name,og.in_organization_id');
+		$this->db->from('tbl_org_coalition as oc');
+		$this->db->join('tbl_organization as og','og.in_organization_id=oc.in_organization_id','LEFT');	
+		$this->db->join('tbl_users as us','us.in_user_id=og.in_user_id','LEFT');		
+		$this->db->where('oc.in_id',$org_id);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		//die();
+		return $query->row_array();	
+	}
+	public function get_organization_admin_new($coalition_ids)
+	{
+		$this->db->select('oc.st_coalition_name,us.in_user_id,us.st_display_name,us.st_email,oc.in_coalition_id');
+		$this->db->from('tbl_coalition as oc');
+		$this->db->join('tbl_coalition_user as og','og.in_coalition_id=oc.in_coalition_id','LEFT');	
+		$this->db->join('tbl_users as us','us.in_user_id=og.in_user_id','LEFT');
+		$this->db->where(array('oc.in_coalition_id'=>$coalition_ids,'oc.in_status'=>'1','og.in_active'=>'1','og.in_approved'=>'1'));		
+	
+		$query = $this->db->get();
+		
+		return $query->result_array();	
+	}
+	public function get_organization_admin_multiple($coalitionIds)
+	{			
+		$this->db->select('oc.st_coalition_name,us.in_user_id,us.st_display_name,us.st_email,oc.in_coalition_id');
+		$this->db->from('tbl_coalition as oc');
+		$this->db->join('tbl_coalition_user as og','og.in_coalition_id=oc.in_coalition_id','LEFT');	
+		$this->db->join('tbl_users as us','us.in_user_id=og.in_user_id','LEFT');
+		$this->db->where_in('oc.in_coalition_id',$coalitionIds);
+		$this->db->where(array('oc.in_status'=>'1','og.in_active'=>'1','og.in_approved'=>'1'));		
+		
+		$query = $this->db->get();
+		
+		return $query->result_array();
+	}
+	
+	public function get_organization_name($org_id)
+	{			
+		$this->db->select('st_org_name,st_email_address');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$query = $this->db->get();
+		
+		return $query->result_array();
+	}
+	public function coalition_delete_admin($coalitionIds)
+	{
+		$arrCoalition = 	array('in_deleted' 	=> '1' );		
+		//$this->db->where('in_id', $coalitionIds);
+		$this->db->where('in_login_id', $coalitionIds);
+		$this->db->update('tbl_coalition_user', $arrCoalition);
+
+
+		
+	}
+}
+?>

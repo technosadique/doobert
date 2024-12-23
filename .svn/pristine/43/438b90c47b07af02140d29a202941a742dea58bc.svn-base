@@ -1,0 +1,1667 @@
+<?php $base_url = $this->config->item('base_url'); 
+
+$orgcode = ($transport_details['st_org_code'] != '')? '#'.$transport_details['st_org_code'] : '#DBT';
+
+$check_per_flag = '';
+$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	
+	
+	
+$tc_user = array();
+if(!empty($user_permission)) 
+{
+	$tc_user = unserialize($user_permission);
+}
+if(empty($profile_setting))
+{
+	$first ='yes';
+}
+else
+{
+	$first ='no';
+}
+
+if(isset($profile_setting['st_contact'])!='')
+{ 			  
+	$contact = unserialize($profile_setting['st_contact']); 							   
+} 
+else 
+{
+	$contact = '';
+}	
+
+$tc_permission = ''; 
+if(isset($tc_user) && !empty($tc_user))
+{ 
+	if(array_key_exists('transport',$tc_user))
+	{
+		$tc_permission = 'Y';								 
+	}	
+}
+
+	$org_list = $this->common_model->get_organization_list($this->session->userdata('org_id'));
+		
+	if(empty($org_list))
+	{
+		$transport_url = 'manage-my-transports/1';
+	} else {
+		$transport_url	= 'organization-transportation';		
+	}
+	
+	$rou_tc_user = $this->common_model->get_user_profile($transport_details['accTcid']);
+	if($transport_details['dt_target'] == '0000-00-00'||$transport_details['dt_target'] == '1969-12-31' || empty($transport_details['dt_target'])  )
+	{
+		$transport_date = date('Y-m-d', strtotime("+7 day"));
+	} else {	
+		$transport_date = date('Y-m-d', strtotime($transport_details['dt_target']."+7 day"));
+	}
+	//$transport_date = date('Y-m-d', strtotime($transport_details['dt_target']."+7 day"));
+	$today_date= date('Y-m-d');
+	$today_dt = new DateTime($today_date);
+	$expire_dt = new DateTime($transport_date);	
+	if(isset($rou_tc_user) && count($rou_tc_user)>0)
+	{	
+		$coordinator_name = $rou_tc_user[0]['st_display_name'].' '.$rou_tc_user[0]['st_last_name'];
+		$telephone_number = $rou_tc_user[0]['st_primary_phone'];
+		$email_address    = $rou_tc_user[0]['st_email'];
+	} else 
+	{
+		$coordinator_name = $transport_details['st_display_name'];
+		$telephone_number = $transport_details['st_primary_phone'];
+		$email_address    = $transport_details['st_email'];
+	}
+
+?>
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<title>User Submission</title>
+<?php include APPPATH.'views/inc/header-css-js.php';?>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url();  ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/css/datepicker.css" />
+<link rel="stylesheet" type="text/css"  href="<?php echo base_url(); ?>assets/css/tipso.css">
+<link rel="stylesheet" type="text/css" href="<?php echo $base_url;?>assets/plugins/bootstrap-daterangepicker/daterangepicker-bs3.css"/>
+<link rel="stylesheet" type="text/css" href="<?php echo $base_url;?>assets/plugins/bootstrap-datetimepicker/css/datetimepicker.css"/>
+</head>
+<style>
+.error {
+    border: 2px solid #b94a48 !important;
+}	
+</style>
+<body>
+<script type="text/javascript">
+var page_id = "<?php echo isset($legs_page)?$legs_page:"1"; ?>";
+var distance 	= parseFloat("<?php echo $transport_details['cover_dis_per'];?>");
+</script>
+<?php if($this->session->userdata('userid')) { ?>
+<?php include APPPATH.'views/inc/header-myaccount.php';?>
+<?php } else { ?>
+<?php include APPPATH.'views/inc/header-login.php';?>
+<?php } ?>
+<section class="breadcrumb inner-breadcrumb">
+	<div class="container">
+		<div class="text-left">
+			<a href="<?php echo base_url(); ?>dashboard/">My Dashboard</a> <i class="fa fa-angle-right"></i>
+			 <?php if(!empty($org_list)) { ?>
+			<a href="<?php echo base_url().'org-dashboard/'.$this->session->userdata('orgid'); ?>">Org Dashboard</a><i class="material-icons">chevron_right</i>
+			 <?php } ?>
+			<a href="<?php echo base_url().$transport_url; ?>/">Transportation</a><i class="material-icons">chevron_right</i>User Submission</div>
+	</div>
+</section>
+
+<!-- BEGIN CONTAINER -->
+<section class="main-content-wrapper inner-wrapper org-transportation-container">
+        <div class="container">
+         	<div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12" id="usersubmission">
+	                <article>
+						<div class="entry-content">
+							<div class="sub-content main-container clearfix">
+								<div class="col-md-12 col-sm-12 col-xs-12 no-space">
+									<!-- Main content start -->
+									<!------------------------ Add content here ---------------------->
+									<div class="row">
+										<div class="col-md-12 col-sm-12 col-xs-12 no-space text-center">
+											<h1 class="text-center no-bdr marb5">User Submission</h1>
+											<p class="text20 marb54"><?php echo ($transport_details['st_trans_name'])?$transport_details['st_trans_name']:$orgcode.$transport_details['in_transportation_id']; ?></p>
+										</div>
+									</div>
+								  <div class="row">
+							  <div class="col-lg-8 col-md-8 col-sm-12 col-xs-12 firstcol">
+							  	<p class="sub-heading"><?php echo ($transport_details['st_org_name'])?$transport_details['st_org_name']:''; ?> <span>(<img src="<?php echo $base_url.'img/icon-airline.png'; ?>" alt="Airline" title="Airline"> Airline)</span></p>
+							  	<p class="marb4"><strong><?php echo ($transport_details['in_transportation_id'])? $orgcode.$transport_details['in_transportation_id']:''; ?>:</strong> 
+									<?php if($transport_details['dt_pickup_date'] && $transport_details['dt_pickup_date']!='1969-12-31' && $transport_details['dt_pickup_date']!='0000-00-00' && $transport_details['dt_target'] && $transport_details['dt_target']!='1969-12-31' && $transport_details['dt_target']!='0000-00-00'  ) { ?>
+									<?php echo date("D, M d",strtotime($transport_details['dt_pickup_date'])); ?> - <?php echo date("D, M d",strtotime($transport_details['dt_target'])); ?> – <?php } ?>From <?php echo ($transport_details['st_from_city'])?$transport_details['st_from_city'].' (':''; ?><?php echo ($transport_details['st_from_street'])?$transport_details['st_from_street'].')':''; ?> to <?php echo ($transport_details['st_to_city'])?$transport_details['st_to_city'].' (':''; ?><?php echo ($transport_details['st_to_street'])?$transport_details['st_to_street'].')':''; ?></p>
+							  	<p><span class="mediumweight displayblock">Coordinator:</span> <span class="displayblock"><?php echo ($coordinator_name)?$coordinator_name:''; ?></span> | <a class="tel-link displayblock" href="tel:<?php echo ($telephone_number)?$telephone_number:''; ?>"><i class="material-icons fcgrey02">call</i><?php echo ($telephone_number)?$telephone_number:''; ?></a> | <a href="mailto:<?php echo ($email_address)?$email_address:''; ?>" class="displayblock"><i class="fa fa-envelope-o fcgrey03" aria-hidden="true"></i><?php echo ($email_address)?$email_address:''; ?></a></p>
+							  </div>
+							  <div class="col-lg-4 col-md-4 col-sm-12s col-xs-12 secondcol">
+							  <div class="right-btn marb9">
+									<div class="select-style1">
+									<select name="select_status" id="select_module">
+										<option value="0">Add Leg</option>
+										<option id="add_aviation_leg" value="aviation-leg">Aviation Leg</option>
+									</select>
+									</div><?php if(isset($leg_details) && !empty($leg_details)){  ?><a href="javascript:void(0);" class="btn btn-primary grey create_leg" title="Created Legs"><i class="material-icons font-16">view_headline</i> created legs</a> <?php } ?>
+							 </div>
+							  <div class="right-btn marb9">
+									<a href="<?php echo base_url().'org_transportation/download_transportation_pdf/';?>" target='_blank' class="btn btn-primary grey mart5" title="Print Run Sheet"><i class="material-icons font-16">file_upload</i> Print run sheet</a>
+									<a href="javascript:void(0);" class="btn btn-primary map transport-view-map" title="View Map"><i class="material-icons font-16">map</i> View Map</a>
+							  </div>
+
+							  <div class="right-btn">
+									<form  role="form" onSubmit="return confirm_transportation();"  id="confirm_transport" name="confirm_transport" enctype="multipart/form-data" action="" method="post" data-ajax="false">
+									<input type='hidden' id='add_email_address' name='add_email_address' />
+									<input type="hidden" name="conf_transport" id="conf_transport" value="confirm" />
+									<a href="javascript:void(0);" class="btn btn-primary" onClick="$('#confirm_transport').submit();" title="Confirm Transport"><i class="material-icons font-16">add</i>Confirm Transport</a>
+									
+									</form>
+							  </div>
+										
+							  </div>
+							</div>
+							<?php if(count($user_airline_date_trip)>0){ ?>
+							<table id="card-table" class="table list-animal-profile animalorg">
+							  <thead>
+								<tr>
+								  <th scope="col">User Name</div>
+								 <!-- <th scope="col">Type of Leg</th>
+								  <th scope="col">Pickup / Drop off</th>-->
+								  <th scope="col">Trip Date</th>
+								  <th scope="col">&nbsp;</th>
+								</tr>
+							  </thead>
+							  <tbody>
+							   <?php foreach($user_airline_date_trip as $key=>$value){ ?>	
+								<tr  class="<?php echo ($value['leghandle'] =='1')?'completed':'';  ?>">
+								  <td><?php echo ($value['leghandle'] =='1')?'<s>':''; ?><?php echo $value['st_display_name']." ".$value['st_last_name'];  ?><?php echo ($value['leghandle'] =='1')?'</s>':''; ?></td>
+								  <td><?php echo ($value['leghandle'] =='1')?'<s>':''; ?><?php  echo date("D M d",strtotime($value['dt_trip_date']));  ?> <?php echo ($value['leghandle'] =='1')?'</s>':''; ?></td>
+								  <td>
+									<?php if($value['leghandle'] !='1') { ?>
+									<?php if(isset($value['st_info']) && !empty($value['st_info'])) {  ?>
+										<a class="btn primary btn-action" onClick="view_comment('<?php echo $value['in_id'] ?>');" href="javascript:void(0);" title="View Comments"><i class="material-icons">feedback</i></a> 
+									<?php } ?>
+										<!--<a class="btn primary btn-action" onClick="leg_map('<?php echo $value['in_transportation_id']; ?>','<?php  echo $value['in_id']; ?>');" href="javascript:void(0);" title="View Leg on Map"><i class="material-icons">remove_red_eye</i></a>--> 
+										<a class="btn primary btn-action grey"  onclick="$('#txtoemail').val('<?php echo $value['st_email']; ?>');$('#txtuser_name').val('<?php echo $value['st_display_name']." ".$value['st_last_name']; ?>');$('#txtouserid').val('<?php echo $value['in_user_id']; ?>');display_share_email_popup();"  href="javascript:void(0);" title="Send Email"><i class="material-icons">email</i></a> 
+										<?php if(isset($value['st_primary_phone']) && !empty($value['st_primary_phone'])) { ?>
+										<a class="btn primary btn-action grey" title="Create Ground/Aviation Leg" onClick="create_leg('<?php echo $value['in_id'];?>')" href="javascript:void(0);"><i class="material-icons">add_circle</i></a>
+										<?php } ?>					
+										<a class="btn primary btn-action grey" onClick="delete_leg('<?php echo $value['in_id']; ?>');" title="Delete" href="javascript:void(0);"><i class="material-icons">delete</i></a>
+								 </td>
+								 <?php } else { ?>
+								 <?php /*<a class="btn primary btn-action" onClick="leg_map('<?php echo $value['in_transportation_id']; ?>','<?php  echo $value['in_id']; ?>');" href="javascript:void(0);" title="View Leg on Map"><i class="material-icons">remove_red_eye</i></a>*/ ?> 
+								 <?php } ?>	
+								</tr>
+							   <?php } ?>
+								<!--<tr class="completed">
+									<td><s>Gerald Scott</s></td>
+									<td><s><i class="material-icons text15">local_airport</i>Aviation</s></td>
+									<td><s>Rockford, IL, 61109<i class="material-icons backspace">keyboard_backspace</i>Waukesha, WI, 53188</s></td>
+									<td><a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">feedback</i></a> <a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">remove_red_eye</i></a></td>
+								</tr>
+								<tr>
+								  <td>Daniel Ring</td>
+								  <td><i class="material-icons text15">directions_car</i>Road</td>
+								  <td>Kapaau, HI, 90001<i class="material-icons backspace">keyboard_backspace</i>Kamuela, HI, 92501</td>
+								  <td><a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">feedback</i></a> <a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">remove_red_eye</i></a> <a class="btn primary btn-action grey" href="javascript:void(0);"><i class="material-icons">email</i></a> <a class="btn primary btn-action grey" href="javascript:void(0);"><i class="material-icons">add_circle</i></a> <a class="btn primary btn-action grey" href="javascript:void(0);"><i class="material-icons">delete</i></a></td>
+							    </tr>
+							    <tr class="completed">
+									<td><s>Gerald Scott</s></td>
+									<td><s><i class="material-icons text15">local_airport</i>Aviation</s></td>
+									<td><s>Rockford, IL, 61109<i class="material-icons backspace">keyboard_backspace</i>Waukesha, WI, 53188</s></td>
+									<td><a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">feedback</i></a> <a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">remove_red_eye</i></a></td>
+								</tr>
+								<tr>
+								  <td>Daniel Ring</td>
+								  <td><i class="material-icons text15">directions_car</i>Road</td>
+								  <td>Kapaau, HI, 90001<i class="material-icons backspace">keyboard_backspace</i>Kamuela, HI, 92501</td>
+								  <td><a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">feedback</i></a> <a class="btn primary btn-action" href="javascript:void(0);"><i class="material-icons">remove_red_eye</i></a> <a class="btn primary btn-action grey" href="javascript:void(0);"><i class="material-icons">email</i></a> <a class="btn primary btn-action grey" href="javascript:void(0);"><i class="material-icons">add_circle</i></a> <a class="btn primary btn-action grey" href="javascript:void(0);"><i class="material-icons">delete</i></a></td>
+							    </tr>-->								 
+							  </tbody>
+							</table>
+							<?php }else { ?>
+								<?php if(!$leg_details || empty($leg_details)){ ?>
+									<!-- Main content end -->
+									<h4 style='text-align:center;font-size:25px !important;'>Routing Leg Information is not available
+								<?php } } ?>
+											<form class="horizontal-form" role="form" id="legs_select" name="legs_select" enctype="multipart/form-data" action="" method="post">
+				  									<?php if(isset($leg_details) && !empty($leg_details)){?>
+											<table id="card-table-submission" class="table list-animal-profile transport-legs" style='<?php echo (count($user_covering_legs)>0)?'display:none':''; ?>'>
+											<thead>
+											  <tr>
+												<!--<th class="15%">Legs</th>-->
+												<th class="w110">Legs</th>
+												<th class="25%">Date/Time</th>
+												<th width="35%">Pick up / Drop OFF</th>
+												<th class="14%">Meeting Location</th>
+												<th width="21%"></th>
+												</tr>
+											</thead>
+											<script>
+											
+											</script>
+											  <tbody>
+											  <?php 
+												$i=1;
+												$leave='n';
+												$a = 1;
+												$leave_mark = "";
+												$confirm_transport_dt_status = 0;
+												$non_doobert_users = 0;
+												foreach($leg_details as $key=>$value)
+												{
+														//$contct_legs=unserialize($value['st_contact']);
+														if(empty($value['st_contact']))
+														{
+															$first_legs ='yes';
+														}
+														else
+														{
+															$first_legs ='no';
+														}
+														$class= $this->common_function->color_class[$a];
+														if($a==8)
+														{
+															$a=1;
+														}
+														else
+														{
+															$a++;
+														}
+														if($value['user_id']==$this->session->userdata('userid'))
+														{
+															$leave='y';
+														}
+														$participants_user_ids = array();
+														foreach($value['leg_participant_details'] as $user_key=>$participants)
+														{
+																$participants_user_ids[] =  $participants['in_user_id'];
+														}
+																$prev_leg_participants_user_ids = array();
+														if (array_key_exists($key - 1, $leg_details)) 
+														{
+																foreach($leg_details[$key - 1]['leg_participant_details'] as $user_key=>$participants)
+																{
+																	$prev_leg_participants_user_ids[] =  $participants['in_user_id'];
+																}
+														}
+						
+														$next_leg_participants_user_ids = array();
+															if (array_key_exists($key + 1, $leg_details)) 
+															{
+																foreach($leg_details[$key + 1]['leg_participant_details'] as $user_key=>$participants)
+																{
+																	$next_leg_participants_user_ids[] =  $participants['in_user_id'];
+																}
+															}
+
+													$user_part_ids = array();
+														$user_part_ids = $this->common_function->get_user_part_ids_by_leg_id($value['leg_id']);
+														$onClick = '';
+														$enable_signup_for_leg = '0';
+														$enable_non_doobert_user = '0';
+														$type = '';
+														if($transport_details['in_status']=='1')
+														{
+															switch($value['route_type_id'])
+															{
+																case 0:
+																$type= '<i class="material-icons car-pink">directions_car</i>';
+																if(isset($user_profile['st_driver']) && $user_profile['st_driver']=='Y') 
+																{		
+																	$enable_signup_for_leg = '1';	
+																}	
+																break;
+																case 1:
+																$type= '<i class="material-icons airport-blue">local_airport</i>';
+																if(isset($user_profile['st_pilot']) && $user_profile['st_pilot']=='Y') 
+																{	
+																	$enable_signup_for_leg = '1';
+																	
+																}
+																break;
+																case 2:
+																$type= '<i class="material-icons hotel-green">local_hotel</i>';
+																if(empty($value['user_id']) && ($value['non_doobert_participants_cnt'] == 0))
+																{
+																	$enable_signup_for_leg = '1';
+																	if(isset($profile_info) && isset($profile_info['st_primary_phone']) && $profile_info['st_primary_phone']!='') 
+																	{
+																			$onClick = "$('#action').val('join_leg');$('#cancel_leg_id').val('".$value['leg_id']."');";
+																	} 
+																	else
+																	{
+																			$onClick = "set_phone_number('".$value['leg_id']."'); return false;";
+																	}
+																	
+																}
+																break;
+																}
+																
+																if($enable_signup_for_leg == '1' && ($value['route_type_id']=='0' || $value['route_type_id']=='1' ))
+																{	
+																	if(isset($value['in_user_num']) && isset($value['participants_cnt']) && $value['in_multi_user'] == 1 &&
+																	   ($value['in_user_num'] > ($value['participants_cnt']+$value['non_doobert_participants_cnt'])) &&
+																		!in_array($this->session->userdata('userid'),$user_part_ids))
+																		{
+																			$enable_signup_for_leg = '1';
+																			if(isset($profile_info) && isset($profile_info['st_primary_phone']) && $profile_info['st_primary_phone']!='') 
+																			{
+																				$onClick = "$('#action').val('join_leg');$('#cancel_leg_id').val('".$value['leg_id']."');";
+																			} 
+																			else
+																			{
+																				$onClick = "set_phone_number('".$value['leg_id']."'); return false;";
+																			}
+																		} else if(($value['in_multi_user'] == 0) && ($value['participants_cnt'] == 0) && ($value['non_doobert_participants_cnt'] == 0))
+																		{
+																			$enable_signup_for_leg = '1';
+																			if(isset($profile_info) && isset($profile_info['st_primary_phone']) && $profile_info['st_primary_phone']!='') 
+																			{
+																				$onClick = "$('#action').val('join_leg');$('#cancel_leg_id').val('".$value['leg_id']."');";
+																			} 
+																			else
+																			{
+																				$onClick = "set_phone_number('".$value['leg_id']."'); return false;";
+																			}
+																		}else{
+																		$enable_signup_for_leg = '0';
+																		}
+																		} 		
+																}
+																$pickup_date    = strtotime($transport_details['dt_pickup_date']);		
+																$target_date	= strtotime($transport_details['dt_target']);
+																 if(isset($value['pick_start_time']) && isset($value['drop_start_time']))
+																 {
+																	$leg_start_date = strtotime(date("Y-m-d",strtotime($value['pick_start_time'])));
+																	$leg_end_date   =  strtotime(date("Y-m-d",strtotime($value['drop_start_time'])));
+																	
+																	if((($leg_start_date < $pickup_date) || ($leg_start_date > $target_date)) || (($leg_end_date < $pickup_date) || ($leg_end_date > $target_date)) )
+																	{ 
+																			$confirm_transport_dt_status = 1;
+																	}
+																 }
+																 
+																 if($value['route_type_id']=='0' || $value['route_type_id']=='1')
+																 {
+																	if(isset($value['in_user_num']) && isset($value['participants_cnt']) && $value['in_multi_user'] == 1 &&
+																	   ($value['in_user_num'] > ($value['participants_cnt']+$value['non_doobert_participants_cnt'])))
+																	   {
+																		   $enable_non_doobert_user = 1;
+																	   } else if(($value['in_multi_user'] == 0) && ($value['participants_cnt'] == 0) && ($value['non_doobert_participants_cnt'] == 0)) {
+																		   $enable_non_doobert_user = 1;
+																	   } else {
+																		   $enable_non_doobert_user = 0;
+																	   }
+																 }	 
+																		
+														?>
+															<tr <?php echo($enable_signup_for_leg==0 && $enable_non_doobert_user == 0)?"class='filled-leg'":""; ?> style='<?php //echo($enable_signup_for_leg==0 && $enable_non_doobert_user == 0)?"display:none;":""; ?>'>
+															<?php /*<td class="leg-col"><?php echo $type; ?> Leg <?php echo $i ;?></td>*/ ?>
+															<td><?php echo $type; ?> Leg <?php echo $i ;?></td>
+															<!--<td><span class="leg-date-time">Sun, 5/27 - 02:00 PM - EST</span><span class="leg-date-time">Sun, 5/27 - 03:15 PM - EST</span></td>-->
+															<?php if($value['route_type_id'] == '1' || $value['route_type_id'] == '0' || $value['route_type_id'] == '3') { ?>
+															<td><span class="leg-date-time"><?php echo date("M d - h:i A",strtotime($value['pick_start_time']))." - ".$value['pick_timezone'];?></span><span class="leg-date-time"><?php echo date("M d - h:i A",strtotime($value['drop_start_time']))." - ".$value['drop_timezone'];?></span></td>
+															<td><?php echo (isset($value['pick_city']) ?$value['pick_city']." (":"").((isset($value['pick_street']) && $value['pick_street'] != '') ?$value['pick_street'].") ":""); ?> <i class="material-icons backspace">keyboard_backspace</i> 
+															<?php echo (isset($value['drop_city'])?$value['drop_city']." (":"").((isset($value['drop_street']) && $value['drop_street'] != '') ?$value['drop_street'].") ":""); ?>
+															<span class="dist-miles">(Distance – <?php echo round($value['leg_distance']);?> miles)</span>
+															</td>
+															<?php } else {  ?>
+															<td>&nbsp;</td>
+															<td><strong>Overnight Leg: </strong><?php echo (isset($value['st_street']) && $value['st_street'] != '' ?$value['st_street'].", ":"").(isset($value['st_city']) ?$value['st_city'].", ":"").(isset($value['st_state'])?$value['st_state']:"").(isset($value['st_zip'])?", ".$value['st_zip']:""); ?></td>
+															<?php } ?>
+															<?php if($value['route_type_id'] == '3') { ?> 
+															<?php $tc_permission = ''; 
+															if(isset($tc_user) && !empty($tc_user))
+															{ 
+																if(array_key_exists('transport',$tc_user))
+																{
+																	$tc_permission = 'Y';								 
+																}
+															}							
+															if(in_array($this->session->userdata('userid'),$participants_user_ids) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid') && $today_dt > $expire_dt) || ($tc_permission == 'Y' && $today_dt > $expire_dt ) || ($transport_details['accTcid'] == $this->session->userdata('userid') && $expire_dt  >= $today_dt) )  { ?>
+															<td class="food-mart"><span>Meeting Location:</span> <?php echo (isset($value['st_meeting_location']) && $value['st_meeting_location'] != '') ?stripslashes($value['st_meeting_location']) : '-'; ?>
+																<a href="javascript:void(0);" class="edit-meeting link-orange" onClick="$('#txt_edit_leg_id').val('<?php echo $value['leg_id']; ?>');$('#txt_edit_meeting_location').val('<?php echo addslashes($value['st_meeting_location']); ?>');$('#edit_meeting_location').modal('show');">Edit</a>
+															</td>
+															<?php } else { ?>
+																<td class="food-mart"><span>Meeting Location:</span> <?php echo (isset($value['st_meeting_location']) && $value['st_meeting_location'] != '') ?stripslashes($value['st_meeting_location']) : '-'; ?> </td>
+															<?php } ?>					
+															<?php } else {  ?>
+															 <td class="food-mart"><strong>Comments: </strong><?php echo (isset($value['st_meeting_location']) && $value['st_meeting_location'] != '') ? stripslashes($value['st_meeting_location']) : '-'; ?></td>
+															<?php } ?>
+												  
+															<?php if($transport_details['in_status']=='1'){     ?>
+															<td class="non-users text-center">
+															<?php 
+																if(isset($value['leg_participant_details']) && count($value['leg_participant_details'])>0)
+																{	
+																	foreach($value['leg_participant_details'] as $user_key=>$participants){ 
+																	if($participants['st_profile_image']!='' && file_exists($this->config->item('upload')."profile/63x63/".$participants['st_profile_image']))
+																	{
+																		$image_url  = $this->config->item('upload_url')."profile/63x63/".$participants['st_profile_image'];
+																	}
+																	else
+																	{
+																		$image_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+																	}
+														
+																	$link_name 	= $this->common_function->get_filtered_name($participants['st_display_name']);
+																	$url_link 	= base_url()."user-".$participants['in_user_id']."-".$link_name."/";
+							
+																	$pr_add = '';
+																	if(isset($participants['pr_st_city']) && $participants['pr_st_city'] != '')
+																	{
+																		$pr_add .= $participants['pr_st_city'].", ";
+																	}
+																	if(isset($participants['pr_st_state']) && $participants['pr_st_state'] != '')
+																	{
+																		$pr_add .= $participants['pr_st_state'].", ";
+																	}
+																	if(isset($participants['pr_st_zip']) && $participants['pr_st_zip'] != '')
+																	{
+																		$pr_add .= $participants['pr_st_zip'];
+																	}
+																	$check_driver_verification = $this->common_model->get_user_verified($participants['in_user_id']); 
+																	if(!empty($check_driver_verification)) 
+																	{
+																		$class = 'bg-green-logo'; 
+																		$image_url = base_url().'assets/img/green_logo.jpg'; 
+																		$title = date('F j, Y',strtotime($check_driver_verification['dt_doobert_verified']));
+																	} else {
+																		$image_url = base_url().'assets/img/gray_logo.png'; 
+																		$class = 'bg-green-logo'; $title = '';
+																	}					
+																	$check_user_arpa = $this->common_model->check_arpa_certifcate_status($participants['in_user_id']);	
+																	if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert'] =='Y') 
+																	{
+																		$arpa_title = date('F j, Y',strtotime($check_user_arpa['dt_arpa_cert']));
+																		$image_cert_url = base_url().'assets/img/arpa-certified.png'; 
+																	} else {
+																		$arpa_title = '';
+																		$image_cert_url = base_url().'assets/img/arpa-certified-grey.png'; 
+																	}
+
+																	if($participants['in_user_id']==$this->session->userdata('userid'))
+																	{
+																		$delete_flag= 1;						
+																	} else {
+																		$delete_flag= 0;
+																	}
+																	if($value['route_type_id']==0)
+																	{	 
+																		$vehicle_details = $this->common_function->get_vehicle_detail_by_id($participants['leg_vehicle_id']);
+																		if($participants['in_user_id']==$this->session->userdata('userid'))
+																		{	
+																			$vehicle_name = "<a href=\"javascript:void(0);\" onClick=\"$('#select_vehicle').val(".$participants['in_vehicle_id'].");$('#current_leg_id').val(".$value['leg_id'].");$('#transportation-vehicle').modal('show');\"  name=\"change_vehicle\" class=\"change-vehicle\" id=\"change_vehicle\">".$vehicle_details[0]['st_vehicle_type']."</a>";
+																		} else {
+																			$vehicle_name = $vehicle_details[0]['st_vehicle_type'];
+																		}	
+																	} else if($value['route_type_id']==1)
+																	{
+																		$plane_details = $this->common_function->get_plane_detail_by_id($participants['leg_plane_id']);
+																		$plane_name = $plane_details[0]['st_plane_type'];
+																		if($participants['in_user_id']==$this->session->userdata('userid'))
+																		{
+																			$vehicle_name = "<a href=\"javascript:void(0);\" onClick=\"$('#select_vehicle').val(".$participants['leg_plane_id'].");$('#current_pilot_leg_id').val(".$value['leg_id'].");$('#change_pilot_div').modal('show');\"  name=\"change_vehicle\" class=\"change-vehicle\" id=\"change_vehicle\">". $plane_name."</a>";
+																		} else {
+																			$vehicle_name = $plane_name;
+																		}	
+																	}		
+															?>
+														
+														<div class="driver-ono-user">
+														<?php if($delete_flag == 1) { ?>		
+															<button style="margin-right:0px" aria-hidden="true" onClick="$('#action').val('cancel');$('#cancel_leg_id').val('<?php echo $value['leg_id'] ;?>');" legtype='cancel' data-val="loadimg_<?php echo $i;?>" name="cancel_leg_<?php echo $i;?>" id="cancel_leg_<?php echo $i;?>" class="cancel  cancel_leg" type="submit" title="Exit From Leg"><i class="material-icons">clear</i></button>
+														<?php } ?>
+															<span><a href="<?php echo $url_link;?>" target="_blank" ><?php echo $participants['st_display_name']; ?></a></span><br><i class="fa fa-map-marker"></i> <?php echo $pr_add; ?><br> <?php echo $vehicle_name; ?><br>
+																	<?php 
+															if($transport_details['in_status']=='1' && $participants['in_user_id'] != $this->session->userdata('userid')){
+																if((isset($permission['transport']) && in_array('transport_ed',$permission['transport'])) || (isset($permission['transport']) && in_array('transport_cr',$permission['transport'])) ||($transport_details['accTcid'] == $this->session->userdata('userid')) ){ ?>
+
+															 <button type="submit"  style="margin-left:0px" aria-hidden="true" onClick="$('#action').val('remove_from_leg');$('#cancel_leg_id').val('<?php echo $value['leg_id'] ;?>');$('#remove_user_id').val('<?php echo $participants['in_user_id'] ;?>');" class="remove_doobert_user" title="Remove From Leg" title="Remove From Leg"><i class="material-icons">clear</i></button>
+															<?php }} ?>
+																 <img class="loder_cancel fr" id="loadimg_<?php echo $i;?>" style="display:none;" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /> 
+															<img class="top"  src='<?php echo $image_url; ?>' title='<?php echo $title; ?>'  alt="Doobert Verified" >
+															<?php if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert'] =='Y') { $display_user_arpa = 1; ?>	
+																<img class="arpa-img"  src='<?php echo base_url()."assets/img/arpa-app_rescue_transporter.png";  ?>' title='<?php echo date('F j, Y',strtotime($check_user_arpa['dt_arpa_cert'])); ?>' alt="ARPA Certified" />
+															<?php } ?>
+															<?php if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert_foster'] =='Y' && $display_user_arpa=='0') { $display_user_arpa = '1'; ?>	
+																<img class="arpa-img"  src='<?php echo 	base_url()."assets/img/arpa-app_foster-home.png";  ?>' title='<?php echo date('F j, Y',strtotime($check_user_arpa['dt_arpa_foster_date'])); ?>' alt="ARPA Certified" >
+															<?php } ?>
+															<?php if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert_tnr'] =='Y' && $display_user_arpa=='0') { $display_user_arpa = '1'; ?>	
+																<img class="arpa-img"  src='<?php echo base_url()."assets/img/arpa-app_tnr_professional.png";  ?>' title='<?php echo date('F j, Y',strtotime($check_user_arpa['dt_arpa_tnr_date'])); ?>' alt="ARPA Certified" >		
+															<?php } ?>
+															<!--<a href="">Display addtl drivers</a>--> 
+														</div>
+														
+													<?php } } ?>
+													<?php 
+															if(isset($value['non_doobert_leg_participant_details']) && count($value['non_doobert_leg_participant_details'])>0)
+															{	
+																foreach($value['non_doobert_leg_participant_details'] as $user_key=>$participants)
+																{
+																	$image_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+																	$pr_add = '';
+																if(isset($participants['st_city']) && $participants['st_city'] != ''){
+																	$pr_add .= $participants['st_city'].", ";
+																}
+																if(isset($participants['st_state_prefix']) && $participants['st_state_prefix'] != ''){
+																	$pr_add .= $participants['st_state_prefix'].", ";
+																}
+																if(isset($participants['st_zipcode']) && $participants['st_zipcode'] != ''){
+																	$pr_add .= $participants['st_zipcode'];
+																}
+															?>
+															<?php 
+															if($transport_details['in_status']=='1'){
+																if((isset($permission['transport']) && in_array('transport_ed',$permission['transport']) && $today_dt  > $expire_dt) || (isset($permission['transport']) && in_array('transport_cr',$permission['transport']) && $today_dt  > $expire_dt) ||($transport_details['accTcid'] == $this->session->userdata('userid') && $expire_dt >= $today_dt ) ){ ?>
+
+															 <button style="margin-left:0px" aria-hidden="true" onClick="$('#non_doobert_id').val('<?php echo $participants['in_non_doobert_user_id'] ;?>');$('#remove_non_doobert_userpopup').modal('show');return false;" class="remove_non_doobert_user" title="Remove From Leg"><i class="material-icons">clear</i></button>
+															<?php }} ?>
+															<div class="driver-ono-user">
+															<span><?php echo $participants['st_name']; ?></span><br>
+															<?php $tc_permission = ''; 
+															if(isset($tc_user) && !empty($tc_user))
+															{ 
+																if(array_key_exists('transport',$tc_user))
+																{
+																	$tc_permission = 'Y';								 
+																}
+															}							 
+															if(in_array($this->session->userdata('userid'),$participants_user_ids) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid') && $today_dt > $expire_dt) || ($tc_permission == 'Y' && $today_dt > $expire_dt ) || ($transport_details['accTcid'] == $this->session->userdata('userid') && $expire_dt  >= $today_dt) ) {
+														?>
+															<span style='word-break: break-word;word-wrap: break-word;'><?php echo $participants['st_email']; ?></span><br>
+															<span><?php echo $participants['st_phone']; ?></span><br>															
+															<?php } ?>
+															<i class="fa fa-map-marker"></i> <?php echo $pr_add; ?> <?php 
+																			$vehicle_name = $participants['st_vehicle_type'];
+																			if(isset($participants['st_license_plate']) && $participants['st_license_plate'] != '')
+																			{
+																				$vehicle_name = $participants['st_vehicle_type'].' - '.$participants['st_license_plate'];
+																			}
+																			echo $vehicle_name; ?><br><!--<a href="">Display addtl drivers</a>-->
+																	<img class="top" src="<?php echo base_url().'assets/img/gray_logo.png'; ?>" alt="Doobert Non-Verified"  />		
+															</div>
+														<?php } } ?>
+													<?php if($enable_signup_for_leg == 1 && $this->session->userdata('userid')) { ?>	
+													<a href="javascript:void(0);" data-val="loadimg_<?php echo $i;?>" id="join_leg_<?php echo $i;?>" legtype='join' aria-hidden="true" onClick="<?php echo $onClick; ?>" class="btn btn-primary cancel_leg">Sign-up for Leg</a>
+													 <img  class="loder_cancel fr loadimg_<?php echo $i;?>" id="loadimg_<?php echo $i;?>" style="display:none;" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" />
+													<?php }?>
+		
+												</td>
+													<?php } ?>	
+											</tr>
+				
+											<?php $i++; } ?>
+											 </tbody>
+										</table>
+							<?php } ?>
+								<input  type="hidden" value="" name="action" id="action" />
+								<input  type="hidden" value="0" name="photography_leg" id="photography_leg" />	
+								<input  type="hidden" value="" name="cancel_leg_id" id="cancel_leg_id" />
+								<input  type="hidden" value="" name="remove_user_id" id="remove_user_id" />
+								</form>
+					  			</div>
+					<div class="clearfix"></div>
+					  			<div id="main-transportation-route" class="view-map-cont1" style="display:none">
+                                                <div id="mylegs_s">
+                                                  <div id="my-leg">
+                                                    <div id="origin-address" style="display:none">
+                                                      <input placeholder="Pick Up Address" />
+                                                    </div>
+                                                    <div id="destination-address" style="display:none">
+                                                      <input placeholder="Drop Off Address" />
+                                                    </div>
+                                                    <div id="distance" style="display:none">Distance:&nbsp;<b><span id="miles">0</span>&nbsp;miles</b></div>
+                                                  </div>
+                                                  <div id="map-seach-wrap">
+													<form name="map_search" id="map_search" action="" method="post" class="form-horizontal form-row-seperated">
+													<div class="col-md-3 no-space select-box-wrp">
+														<div class="form-group">
+															<label class="show">Show:</label>
+																<div class="user-type">
+																	<select class="bs-select form-control white-btn" id="recent_activity" name="recent_activity">
+																			<option <?php if($this->session->userdata('recent_activity')=='1'){?> selected="selected" <?php } ?> value="1">All User Types</option>
+																					<option <?php if($this->session->userdata('recent_activity')=='D'){?> selected="selected" <?php } ?> value="D">Driver</option>
+																									<?php /*?><option value="V">Volunteer</option><?php */?>
+																							<option <?php if($this->session->userdata('recent_activity')=='P'){?> selected="selected" <?php } ?> value="P">Pilot</option>
+																									<?php /*?><option value="F">Foster Home</option>
+																											<option value="S">Shelters</option>
+																											<option value="M">Multi Role User</option><?php */?>
+																							</select>
+																						</div>
+																							</div>
+																							</div>
+																						<input type="submit" title="Go" value="Go" name="go" id="go" class="go-button" style="margin-top:10px;">
+																						<div class="clearfix"></div>
+																						</form>
+																				</div>
+																		</div>
+															<div class="view-map-cont" style="height: 620px;" data-current-user-can-join="<?php  echo $single_join;?>" data-destination-address="<?php echo ($transport_details['st_to_street']?$transport_details['st_to_street'].",":"").($transport_details['st_to_city']?$transport_details['st_to_city'].",":"").($transport_details['st_to_state']?$transport_details['st_to_state']:"").($transport_details['st_to_zip']?", ".$transport_details['st_to_zip']:""); ?>" data-origin-address="<?php echo ($transport_details['st_from_street']?$transport_details['st_from_street'].",":"").($transport_details['st_from_city']?$transport_details['st_from_city'].",":"").($transport_details['st_from_state']?$transport_details['st_from_state']:"").($transport_details['st_from_zip']?", ".$transport_details['st_from_zip']:""); ?>" id="route-map"></div>
+															<div class="transport_legend"> 
+															<div id="leg-legend">
+															<div id="legend-data"> <span class="legend-text">Legend:</span>
+															<ul>
+																	<li><span>Driver</span></li>
+																	<li class="pilot active"><span>Pilot</span></li>
+																	<li class="multi-role-user"><span>Multi Role User</span></li>
+																	<li class="yellow-pins"><span>Zoom to View</span></li>
+																	<li class="blue-pins"><span>Zoom to View</span></li>
+																	<li class="red-pins"><span>Zoom to View</span></li>
+															</ul>
+														</div>
+																</div>
+														</div>
+                                              </div>
+
+
+                                              <div class="clearfix"></div>
+
+                                              <p class="btn_div" style="text-align: center;margin: 0;margin-top: 23px;display: block;"><a href="<?php echo base_url().'org-transportation-scheduled/'.$this->session->userdata('transport_id'); ?>" class="btn btn-primary">Save &amp; Continue<i class="material-icons">arrow_forward</i></a></p>
+
+
+					  		</div>
+						</div><!-- .entry-content -->
+	
+							
+							 
+							
+					</article><!-- #post-## -->
+                </div>
+            </div>
+        </div>
+</section>
+<!-- END CONTAINER -->
+
+ 	  	  <div class="modal fade" id="assign-nondoobert-user" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <form class="horizontal-form" role="form" id="non_doobert_user_frm" name="non_doobert_user_frm" enctype="multipart/form-data" action="<?php echo base_url() ?>org_transportation/non_doobert_transport_user" method="post">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" id="close_non_doobert_user_form" data-dismiss="modal" class="close" type="button" title="Close"></button>
+          <h4 class="modal-title non-doobert_leg_srno">Assign Leg-1 to Non-Doobert User <span class="req-field">(<span>*</span> required field)</span></h4>
+        </div>
+        <div class="modal-body">
+             <div class="non-user-info">
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_name" class="control-label">Name:</label>
+             <input type="text" id="non_doobert_user_name" name="non_doobert_user_name" class="form-control" maxlength="500"> 
+             </div>
+			  <div class="form-group col-md-4 user100p">
+             <label for="non_doobert_user_email" class="control-label">E-Mail:</label>
+             <input type="text" id="non_doobert_user_email" name="non_doobert_user_email" class="form-control"  maxlength="255"> 
+             </div>
+             <div class="form-group col-md-4 user100p">
+             <label for="non_doobert_user_phone" class="control-label">Phone: <?php /*<span class="required-filed">*</span>*/ ?></label>
+             <input type="tel" id="non_doobert_user_phone" name="non_doobert_user_phone" class="form-control" > 
+             </div>
+			</div>
+            <div class="non-user-info">
+             <div class="form-group col-md-4 padl0 user100p clearfix">
+             <label for="non_doobert_user_vehicle_zipcode" class="control-label">Zipcode: <?php /*<span class="required-filed">*</span>*/ ?></label>
+             <input type="text" id="non_doobert_user_vehicle_zipcode" name="non_doobert_user_vehicle_zipcode" class="form-control" maxlength="10"> 
+             </div>
+             </div>
+             <h3>Vehicle Info</h3>
+             <div class="vehicle-info">
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_vehicle_type" class="control-label">Vehicle Type: <?php /*<span class="required-filed">*</span>*/ ?></label>
+             <input type="text" id="non_doobert_user_vehicle_type" name="non_doobert_user_vehicle_type" class="form-control"  maxlength="500"> 
+             </div>
+             <div class="form-group col-md-4 user100p">
+             <label for="non_doobert_user_vehicle_color" class="control-label">Color:</label>
+             <input type="text" id="non_doobert_user_vehicle_color" name="non_doobert_user_vehicle_color" class="form-control" maxlength="50"> 
+             </div>
+             <div class="form-group col-md-4 user100p">
+             <label for="non_doobert_user_vehicle_license_plate" class="control-label">License Plate:</label>
+             <input type="text" id="non_doobert_user_vehicle_license_plate" name="non_doobert_user_vehicle_license_plate" class="form-control" maxlength="50"> 
+             </div>
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_vehicle_license_state" class="control-label">License State:</label>
+             <input type="text" id="non_doobert_user_vehicle_license_state" name="non_doobert_user_vehicle_license_state" class="form-control" maxlength="50"> 
+             </div>
+             	 <div class="clearfix"></div>
+             <div class="col-md-12 user100p text-center no-space">             
+             <input type="hidden" id="non_doobert_user_transport_id" name="non_doobert_user_transport_id" value=""> 
+             <input type="hidden" id="non_doobert_user_transport_leg_id" name="non_doobert_user_transport_leg_id" value="">
+             <input type="hidden" id="non_doobert_user_assign_and_invite" name="non_doobert_user_assign_and_invite" value="0"> 
+			
+             <button id="non_doobert_assign_leg" type="button" class="btn orange">Assign Leg</button>
+             <button id="non_doobert_assign_leg_invite" type="button" class="btn orange">Assign Leg &amp; Invite User</button>
+             <button id="non_doobert_cancel" title="Cancel" class="btn black" data-dismiss="modal">Cancel</button>
+             </div>
+             </div>
+          <div class="clearfix"></div>
+        </div>        
+      </div>
+       <input type="hidden" name="frm_non_doobert_action" id="frm_non_doobert_action" value="submit" />
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+
+<div class="modal fade" id="match_doobert_user_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <form class="horizontal-form" role="form" id="non_doobert_match_user_frm" name="non_doobert_match_user_frm" enctype="multipart/form-data" action="<?php echo base_url() ?>org_transportation/non_doobert_match_user" method="post">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+        <h4 class="modal-title">INFORMATION</h4>
+      </div>
+      <div class="modal-body">
+        <p>The email address <span id="match_doobert_user_popup_email_add"></span> is associated with a registered user <span id="match_doobert_user_popup_email_name"></span>.  If you CONFIRM we will link their profile to this leg and let them know you added them.</p>
+      </div>
+      <div class="modal-footer text-center no-margin">
+        <button class="btn orange" type="button" id="modal_confirm_match_user">Confirm</button>
+        <button class="btn black" data-dismiss="modal" type="button">Cancel</button>
+      </div>
+    </div>
+    <!-- /.modal-content --> 
+       <input type="hidden" name="matched_doobert_user_id" id="matched_doobert_user_id" value="" />
+       <input type="hidden" name="matched_doobert_user_email" id="matched_doobert_user_email" value="" />
+       <input type="hidden" name="matched_doobert_user_name" id="matched_doobert_user_name" value="" />
+       <input type="hidden" name="matched_doobert_transport_id" id="matched_doobert_transport_id" value="" />
+       <input type="hidden" name="matched_doobert_leg_id" id="matched_doobert_leg_id" value="" />
+	   <input type="hidden" name="matched_phone_number" id="matched_phone_number" value="" />
+       <input type="hidden" name="frm_non_doobert_match_user_action" id="frm_non_doobert_match_user_action" value="submit" />
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+<div class="modal fade" id="noneuser_match_doobert_user_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+        <h4 class="modal-title">INFORMATION</h4>
+      </div>
+      <div class="modal-body">
+		  <p>The email address <span id="match_doobert_user_popup_email_add"></span> is a registered doobert user and phone number has not been provided.Please contact user for updating phone number before participating in the transportation.</p>
+      </div>
+      <div class="modal-footer text-center no-margin">
+        <!--<button class="btn light-green" title="Confirm" type="button" id="modal_confirm_match_user">Confirm</button>-->
+        <button class="btn orange" data-dismiss="modal" type="button">Close</button>
+      </div>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+  <div class="modal fade transport-created" id="non-doobert_leg_loader" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<?php /*?><div class="modal-header no-border">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+										</div><?php */?>
+										<div class="modal-body">
+                                        
+										<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin-left: 43%;">&nbsp;<span id="tran-loadertext">Doobert is assigning transport leg To Non-Doobert user</span>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div>
+	
+	  	<div class="modal fade remove_popup cancel_popup_width" id="remove_non_doobert_userpopup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+									  <div class="modal-dialog" style="480px;">
+										
+										<div class="modal-content">
+										
+										  <div class="modal-body">
+											<button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+											<h4 class="modal-title">Are you sure you want to remove this volunteer from this transport?</h4>
+											<div class="clearfix"></div>
+											<br/>
+											
+											<a class="btn orange" data-dismiss="modal" href="javascript:void(0);" onClick="$('#frm_del_non_doobert_user').submit();">Remove</a> <a class="btn black" data-dismiss="modal" href="javascript:void(0);">Cancel</a> </div>
+										</div>
+										 
+										<!-- /.modal-content --> 
+									  </div>
+									  <!-- /.modal-dialog --> 
+		</div>	
+			
+
+<div class="modal fade unconfirm_transport_popup" id="comment_popup" tabindex="-1" role="basic" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+        <h4 class="modal-title">Comments</h4>
+      </div>
+      <div class="modal-body">
+      <div class="content-comments scroller" data-always-visible="1" data-rail-visible1="1">
+        <p> </p>
+      </div>
+      </div>
+    </div>
+    <form class="horizontal-form" role="form" id="unconfirm_transport" name="unconfirm_transport" enctype="multipart/form-data" action="<?php echo base_url().'org-confirm-transport/'.$this->session->userdata('transport_id').'/'; ?>" method="post" data-ajax="false">
+      <input type="hidden" name="unconf_transport" id="unconf_transport" value="unconfirm" />
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+<!-- END Comment POPUP-->
+
+<div class="modal fade" id="createlegModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close close-ground-leg"  aria-hidden="true">×</button>
+                 <h4 class="modal-title">Create ground leg</h4>
+
+            </div>
+            <div class="modal-body">
+			<div id="form">
+			<form class="horizontal-form" role="form" id="addlegs_ground" name="addlegs_ground" enctype="multipart/form-data" action="" method="post">
+                <div class="row dobt-form no-margin">
+				 <input type="hidden" id="cover_ground_leg" name="cover_ground_leg" value='0' maxlength="50">
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 padr20 from-airport">
+                        <p class="head">Pick Up Address</p>
+                        <div class="box">
+                          <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_street">Street:</label>
+                              <input type="text" class="form-control" id="pickup_street1" name="pickup_street1" maxlength="50" placeholder="Enter Street Address">
+                              <input type="hidden" id="leg_id" name="leg_id" maxlength="50" value="" >
+                              <input type="hidden" id="update_leg" name="update_leg" maxlength="50" value="">
+                            </div>
+                          </div>
+						  
+						  <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_Location">Pick Up Location:</label>
+                              <input type="text" class="form-control" id="pickup_location1" name="pickup_location1" maxlength="250" placeholder="Enter From City, State or Zip" value="<?php //echo $P_location; ?>">
+                            </div>
+                          </div>
+						  <input type="hidden" id="pickup_city1" name="pickup_city1" maxlength="50" > 
+						   <input type="hidden"   id="pickup_state1" name="pickup_state1" maxlength="50" >
+						   <input type="hidden" id="pickup_country1"   name="pickup_country1">
+						    <input type="hidden" id="pickup_zip1"   name="pickup_zip1">
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column  marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="clockface_2_modal">Start Time:</label>
+                              <div class="input-group date from_date1 <?php /*?>form_meridian_datetime<?php */?>" data-date="">
+                                <input type="text" <?php if(count($leg_details)<=0){ ?> value="<?php echo ($transport_details['dt_pickup_date'])?date("D M d",strtotime($transport_details['dt_pickup_date']))." - 06:00 AM":"";?>" <?php } ?> size="16" name="clockface_2_modal1" id="clockface_2_modal1" readonly class="form-control ">
+                                <span class="input-group-btn">
+                                <button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+                                </span> <span class="input-group-btn">
+                                <button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+                                </span> </div>
+                            </div>
+                          </div>
+						  <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="pickup_zone1" name="pickup_zone1" class="form-control">
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select>
+								</div>
+                            </div>
+                          </div>
+
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 to-airport">
+                        <p class="head">Drop Off Address</p>
+                        <div class="box">
+                          <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_street">Street:</label>
+                              <input type="text" class="form-control"  id="dropoff_street1" name="dropoff_street1" maxlength="50" placeholder="Enter Street Address">
+                            </div>
+                          </div>
+						  
+						  <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_location">Drop Off Location:</label>
+                              <input type="text" class="form-control" id="dropoff_location1" name="dropoff_location1" maxlength="50" placeholder="Enter To City, State or Zip">
+                            </div>
+                          </div>
+                            <input type="hidden" value="" id="dropoff_city1" name="dropoff_city1" maxlength="50">
+						   <input type="hidden"  value="" id="dropoff_state1" name="dropoff_state1" maxlength="50">
+						   <input type="hidden" id="dropoff_country1"  value="" name="dropoff_country1">
+						    <input type="hidden" id="dropoff_zip1"  value="" name="dropoff_zip1">
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="clockface_3_modal">End Time:</label>
+                              <div class="input-group date to_date1" data-date="">
+                                <input type="text" name="clockface_3_modal1" id="clockface_3_modal1" size="16" readonly class="form-control">
+                                <span class="input-group-btn">
+                                <button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+                                </span> <span class="input-group-btn">
+                                <button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+                                </span> </div>
+
+
+                            </div>
+                          </div>
+						   <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="dropoff_zone1" name="dropoff_zone1" class="form-control">
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select> 
+								</div>                           </div>
+                          </div>
+						    </div>
+                      </div>
+                      <div class="clearfix"></div>
+				</div>
+			  
+                          <div class="clearfix"></div>
+						      <div id="meeting_location_div" style="display:block;">
+								<div class="row dobt-form no-margin">
+									<div class="gr-wrap col-md-12">
+										<div class="col-md-6 meeting-location-info padl0 padr20">
+											<div class="form-group">
+												<label class="control-label" for="meeting_location">Meeting Location:</label>
+													<input type="text" id="meeting_location" name="meeting_location1" class="form-control" placeholder="Enter your meeting location here..." maxlength="500">
+											</div>
+										</div>
+			
+										<div class="col-md-6 assigned-to-info padl0">
+											<div class="form-group"><label class="control-label" for="assign-to">Assign to: <span>(Assign by User Name/Email)</span></label>
+												<input type="text" class="form-control" value="" name="assign_user_name1" maxlength="50" id ='assign_user_name1' placeholder="Assign by Username">
+															<input type='hidden' id='assignuid-driver1' name='assignuid-driver1' value='0' >
+											</div>
+									   </div>
+						   
+                           </div>                    
+						</div>
+						</div>
+						<div align="center">
+							<button aria-hidden="true" name="submit" id="submit" class="btn orange marr5" type="button" title="+ Add Leg" style="padding:7px 19px !important;"><i class="fa fa-plus"></i> Add Leg</button>
+							<button aria-hidden="true"  name="cancel_g" id="cancel_g" class="btn black" type="button">Cancel</button>
+							<?php /*?><a  id="add_legs" class="btn orange dobt-btn button" title="+ Add a Leg"><i class="fa fa-plus"></i> Add a Leg</a><?php */?>
+						</div>
+					
+                     </form> 		
+            </div>
+            <!--<div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>-->
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+	</div>
+	<div class="modal fade" id="createlegModal-pilot">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close close-aviation-leg"  aria-hidden="true">×</button>
+                 <h4 class="modal-title">Create Airline Transportation</h4>
+            </div>
+            <div class="modal-body">
+              <div id="form">
+			  <form class="horizontal-form" role="form" id="addlegs_aviation" name="addlegs_aviation" enctype="multipart/form-data" action="" method="post">
+			   <div class="row dobt-form no-margin">
+						<input type="hidden" id="cover_aviation_leg" name="cover_aviation_leg" value='0' maxlength="50">
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 padr20 from-airport">
+                        <p class="head">From Airport</p>
+                        <div class="box">
+                          <div class="col-md-12 no-space smaller column marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_airport">From Location/Airport ID:</label>
+                              <input type="text" tabindex="1" class="form-control"  placeholder="Select Airline Hub Cities" id="pickup_airport1" name="pickup_airport1" maxlength="50">	<!-- autocomplete="off" -->
+                               <input type="hidden" id="pickup_airport_identifer" name="pickup_airport_identifer" maxlength="50">
+                              
+                            </div>
+                          </div>
+                          <div class="clearfix"></div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column  marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_airport_clock">Start Time:</label>
+								<div class="clearfix"></div>
+                              <div class="input-group date from_date2" data-date="">
+                                <input type="text"  value=""   size="16" name="pickup_airport_clock1" id="pickup_airport_clock1" readonly class="form-control">
+                                <input type="hidden"  value="" name="pickup_airport_clock1_year" id="pickup_airport_clock1_year">
+								<span class="input-group-btn">
+                                <button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+                                </span> <span class="input-group-btn">
+                                <button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+                                </span> </div>
+
+                            </div>
+                          </div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <input type="hidden" id="user_time_zone1"  name="user_time_zone1" value="<?php echo $user_time_zone; ?>">
+                              <label class="control-label" for="pickup_airport_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="pickup_airport_zone1" tabindex="5" name="pickup_airport_zone1" class="form-control">
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select>
+								</div>
+                            </div>
+                          </div>
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12  to-airport">
+                        <p class="head">To Airport</p>
+                        <div class="box">
+                          <div class="col-md-12 no-space smaller column  marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport">To Location/Airport ID:</label>
+                              <input type="text" tabindex="2" class="form-control" placeholder="Select Airline Hub Cities" id="dropoff_airport1" name="dropoff_airport1" maxlength="50">
+                               <input type="hidden" id="dropoff_airport_identifer" name="dropoff_airport_identifer" maxlength="50">
+                            </div>
+                          </div>
+                          
+                          <div class="clearfix"></div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport_clock">End Time:</label>
+                              <div class="clearfix"></div>
+                              <div class="input-group date to_date1" data-date="">
+                                <input type="text" name="dropoff_airport_clock1" id="dropoff_airport_clock1" size="16" readonly class="form-control">
+                                <input type="hidden"  value="" name="dropoff_airport_clock1_year" id="dropoff_airport_clock1_year">
+								<span class="input-group-btn">
+                                <button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+                                </span> <span class="input-group-btn">
+                                <button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+                                </span> </div>
+
+
+                            </div>
+                          </div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="dropoff_airport_zone1" tabindex="6" name="dropoff_airport_zone1" class="form-control">
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select>
+								</div>
+                                </div>
+                          </div>
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+                      <div class="clearfix"></div>
+                    </div>
+                             <div id="pilot_meeting_location_div" style="display:block;">
+                       <div class="gr-wrap col-md-12 no-space">
+                        <div class="col-md-6 meeting-location-info padl0 padr20">
+                          <div class="form-group">
+                             <label class="control-label" for="pilot_meeting_location">Meeting Location:</label>
+                              <input type="text" tabindex="7" id="pilot_meeting_location1" name="pilot_meeting_location1" class="form-control" placeholder="Enter your meeting location here..." maxlength="500">
+                            </div>
+                          </div> 
+						   <?php //if(isset($covering_leg) && $transport_details['st_trans_type']=='D'){ if(count($covering_leg)>0){  ?>
+                        <div class="col-md-6 assigned-to-info padl0">
+                            <div class="form-group"><label class="control-label" for="assign-to">Assign to: <span>(Assign by User Name/Email)</span></label>
+                            <input type="text"  tabindex="8" class="form-control" value="" name="assign_user_name1" maxlength="50" id ='assign_user_name-pilot1' placeholder="Assign by Username">
+									<input type='hidden' id='assignuid-pilot1' name='assignuid-pilot1' value='0' >
+							</div>
+                          </div> 
+								  
+						</div>                
+                    </div>
+					
+                    
+                    <div align="center">
+                      <!--<button aria-hidden="true" name="airport_submit" id="airport_submit" class="btn orange marr10" type="button" title="+ Add Leg"><i class="fa fa-plus"></i> Add Leg</button><button aria-hidden="true" name="cancel_a" id="cancel_a" class="btn black" type="button">Cancel</button>-->
+					   <button aria-hidden="true"  name="cancel_a" id="cancel_a" class="btn black" type="button">Cancel</button>
+					   <button aria-hidden="true" name="airport_submit" id="airport_submit" class="btn orange marr5" type="button" title="+ Add Leg" style="padding:7px 19px !important;"><i class="fa fa-plus"></i> Add Leg</button>
+              
+                    </div>
+					</form>
+			  </div>
+            </div>
+            <!--<div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>-->
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+	
+	
+		<div class="modal fade" id="overnight-leg">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close close-overnight-leg"  aria-hidden="true">×</button>
+                 <h4 class="modal-title">Create Overnight Leg</h4>
+            </div>
+            <div class="modal-body">
+              <div id="form">
+			  <form class="horizontal-form" role="form" id="addlegs_overnight" name="addlegs_overnight" enctype="multipart/form-data" action="" method="post">
+			   <div class="row dobt-form no-margin">
+						<input type="hidden" id="cover_overnight_leg" name="cover_overnight_leg" value='0' maxlength="50">
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 padr20 from-airport">
+                        <p class="head"></p>
+                        <div class="box">
+                          <div class="col-md-12 no-space smaller column marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_airport">Street:</label>
+							    <input type="text" class="form-control in-block street" id="o_pickup_street" name="o_pickup_street" maxlength="50" placeholder="Enter Street Address">
+							</div>
+                          </div>
+                          <div class="clearfix"></div>
+                         
+                        </div>
+                      </div>
+					   <div class="gr-wrap col-lg-6 col-md-6 col-sm-12  to-airport">
+                        <p class="head"></p>
+                        <div class="box">
+                          <div class="col-md-12 no-space smaller column  marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="o_pickup_location">Overnight Location:</label>
+    
+                               <input type="text" class="form-control in-block form-city-state" id="o_pickup_location" name="o_pickup_location" maxlength="50" placeholder="Enter From City, State or Zip">
+								<input type="hidden" class="form-control" id="o_pickup_city" name="o_pickup_city" value='' maxlength="50">
+								<input type="hidden" class="form-control" id="o_pickup_state" name="o_pickup_state" value='' maxlength="50">
+								<input type="hidden" class="form-control" id="o_pickup_country" name="o_pickup_country" value='' maxlength="50">
+								<input type="hidden" class="form-control" id="o_pickup_zip" name="o_pickup_zip" value='' maxlength="50">
+
+							   
+							   </div>
+                          </div>
+                          
+                         
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+					 
+                    </div>
+                             <div id="pilot_meeting_location_div" style="display:block;">
+                       <div class="gr-wrap col-md-12 no-space">
+                        <div class="col-md-6 meeting-location-info padl0 padr20">
+                          <div class="form-group">
+                             <label class="control-label" for="pilot_meeting_location">Meeting Location:</label>
+                              <textarea id="overnight_comments" rows="3" name="overnight_comments" class="form-control" placeholder="Enter your meeting location here..."></textarea>
+                            </div>
+                          </div> 
+						   <?php //if(isset($covering_leg) && $transport_details['st_trans_type']=='D'){ if(count($covering_leg)>0){  ?>
+                        <div class="col-md-6 assigned-to-info padl0">
+                            <div class="form-group"><label class="control-label" for="assign-to">Assign to: <span>(Assign by User Name/Email)</span></label>
+                            <input type="text" class="form-control" value="" name="assign_user_name1" maxlength="50" id ='assign_user_name-overnight1' placeholder="Assign by Username">
+									<input type='hidden' id='assignuid-overnight1' name='assignuid-overnight1' value='0' >
+							</div>
+                          </div> 
+								  
+						</div>                
+                    </div>
+					
+                    
+                    <div align="center">
+                      <button aria-hidden="true" name="overnight_submit" id="overnight_submit" class="btn orange marr10" type="button" title="+ Add Leg"><i class="fa fa-plus"></i> Add Leg</button><button aria-hidden="true" name="cancel_o" id="cancel_o" class="btn black" type="button">Cancel</button>
+                    </div>
+					</form>
+			  </div>
+            </div>
+            <!--<div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>-->
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+
+   <div class="modal fade transport-created" id="create_leg_loader" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<?php /*?><div class="modal-header no-border">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+										</div><?php */?>
+										<div class="modal-body">
+                                        
+										<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin-left: 43%;">&nbsp;<span id="tran-loadertext">Doobert is creating transport leg</span>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div>
+
+<div class="modal fade" id="myMapModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                 <h4 class="modal-title">View Leg on Map</h4>
+
+            </div>
+            <div class="modal-body">
+                <div class="container">
+                    <div class="row">
+                        <div id="map-canvas" style="width:100%;height:300px;padding-bottom:5px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer text-center">
+                <button type="button" class="btn orange" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+	
+	<div class="modal fade" id="edit_meeting_location" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+ <div class="modal-dialog">
+    <form class="horizontal-form" role="form" id="frm_edit_meeting_location" name="frm_edit_meeting_location" enctype="multipart/form-data" action="" method="post">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" data-dismiss="modal" class="close empty_dates" type="button" title="Close"></button>
+          <h4 class="modal-title">Edit Meeting Location</h4>
+        </div>
+        <div class="modal-body">       
+        <div class="form-group">
+            <label class="control-label col-md-12">Meeting Location:</label>
+            <div class="col-md-12">
+                <input type="text" id="txt_edit_meeting_location" name="txt_edit_meeting_location" value="" class="form-control" placeholder="Enter your meeting location here..." maxlength="500">
+                <input type="hidden" id="txt_edit_leg_id" name="txt_edit_leg_id" value="">   
+                <input type="hidden" id="open_tab_info" name="open_tab_info" value="">             
+            </div>
+            
+        </div>
+<div class="clearfix"></div>
+        </div>
+        <div class="modal-footer no-margin">
+          <input type="hidden" name="edit_meeting_location_action" id="edit_meeting_location_action" value="update" />
+          <button class="btn orange" type="submit" name="update_metting_location" id="update_metting_location">Update</button>
+        </div>
+      </div>
+    </form>
+    <!-- /.modal-content --> 	
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+	<?php if($this->session->flashdata('google_leg')): ?>
+<!-- BEGIN Cancel Transport MODAL POPUP-->
+<div class="modal fade" id="cancel-config" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+        <h4 class="modal-title">THANK YOU</h4>
+      </div>
+      <div class="modal-body"><p><?php echo $this->session->flashdata('google_leg'); ?></p></div>
+      <div class="modal-footer text-center no-margin"> <a class="btn orange" data-dismiss="modal" href="javascript:void(0);">Close</a> </div>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+<?php endif; ?>
+
+<div class="modal fade bs-modal-lg in" id="email-config" tabindex="-1" role="basic" aria-labelledby="myModalLabel" aria-hidden="true">
+                            <form class="horizontal-form" role="form" name="tell_a_friend" id="tell_a_friend" action="<?php echo base_url() ?>org_transportation/inform_driver" method="post">
+                              <div class="modal-dialog">
+                                <div class="modal-content">
+                                	<input type="hidden" id="share_transport_id" name="share_transport_id" value="">
+                                    
+                                    <div class="modal-header">
+                                        <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+                                        <h4 class="modal-title">Send Email</h4>
+                                    </div>
+                            
+                                  <div class="modal-body">
+                                   <!--<div class="form-group "><label class="control-label" for="txttoname">To Name:</label><input type="text" class="form-control" id="txttoname" name="txttoname"></div>
+                                    
+                            <div class="form-group "><label class="control-label" for="txtemail">To Email:</label><input type="text" class="form-control" id="txtemail" name="txtemail"></div>-->
+							
+								<input type="hidden" class="form-control" id="txtoemail" name="txtoemail">
+								<input type="hidden" class="form-control" id="txtuser_name" name="txtuser_name">
+								<input type="hidden" class="form-control" id="txtouserid" name="txtouserid">
+                           <?php /*?> <div class="form-group "><label class="control-label" for="txtfrom">From <span class="required-filed">*</span></label><input type="text" class="form-control" id="txtfrom" name="txtfrom" value="<?php echo $this->session->userdata('user_name').' '.$this->session->userdata('last_name'); ?>"></div><?php */?>
+                           <input type="hidden" class="form-control" id="txtfrom" name="txtfrom" value="<?php echo $this->session->userdata('user_name').' '.$this->session->userdata('last_name'); ?>">
+                            
+                            <?php /*?><div class="form-group ">
+                            <label class="control-label" for="txtsubject">Subject <span class="required-filed">*</span></label>
+                            <input type="text" class="form-control" id="txtsubject" name="txtsubject" value="">
+                            </div><?php */?>
+                            
+                            <!--<input type="hidden" class="form-control" id="txtsubject" name="txtsubject" value="">-->
+                            
+                            <div class="form-group no-margin"><label class="control-label " for="txtMessage">Message</label><textarea id="txtMessage" name="txtMessage" class="form-control" rows="10"></textarea></div>
+                            <input type="hidden" name="frm_action" id="frm_action" value="submit" />
+                                  </div>
+                                  <div class="modal-footer no-margin no-border no-top-space text-center"><button aria-hidden="true" name="send_mail" id="send_mail" class="btn orange-small waves-effect waves-light" type="submit">Send Email</button>
+                                  <span class="display_loader" style="display:none;"> <img id="loadimg_mail" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /> </span>
+                                  </div>
+                                </div>
+                                <!-- /.modal-content --> 
+                              </div>
+                              <!-- /.modal-dialog --> 
+                              </form>
+            </div>
+			
+	 		<div class="modal fade remove_popup cancel_popup_width" id="remove_doobert_userpopup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+                          <div class="modal-dialog" style="480px;">
+                            <div class="modal-content">
+                              <div class="modal-body">
+                                <button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+                                Are you sure you want to remove this volunteer from this transport?
+                                <div class="clearfix"></div>
+                                <br/>
+								  <div class="text-center"><a class="btn orange waves-effect waves-light marr5" data-dismiss="modal" href="javascript:void(0);" onClick="remove_leg_and_transport();">Remove</a> <a class="btn black waves-effect waves-light" data-dismiss="modal" href="javascript:void(0);" onClick="$('#remove_doobert_userpopup').hide();">Cancel</a></div> </div>
+                            </div>
+                            <!-- /.modal-content --> 
+                          </div>
+                          <!-- /.modal-dialog --> 
+                        </div>
+						
+
+  <div class="modal fade cancel_popup_width" id="exit_popup_transport_leg" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+                                <div class="modal-dialog">
+                                  <div class="modal-content">
+                                    <div class="modal-body">
+                                      <button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+                                      <div class="form-group">
+                                        <div class="radio-btn">
+                                          
+                                            <span class='cancel_leg_radio' style="color:#6c6d72; font: 400 16px 'Roboto',sans-serif;">Would you like to cancel from leg? </span>
+                                        </div>
+                                      </div>
+                                      <?php /*?><div class="form-group">
+                                        <div class="radio-list">
+                                          <label class="radio-inline">
+                                            <input type="radio" name="cancel_leg_radio_<?php echo $value['leg_id'] ;?>" id="cancel_leg_all_<?php echo $value['leg_id'] ;?>" value="all">
+                                            Would you like to cancel from leg and transport? </label>
+                                        </div>
+                                      </div><?php */?>
+									  <div style="text-align:center;">
+                                      <a class="btn orange marr5" data-dismiss="modal" href="javascript:void(0);" id='cancel_leg_transport' onClick="cancel_leg_or_transport();">Continue</a> 
+									  <a class="btn black" data-dismiss="modal" href="javascript:void(0);">Cancel</a> 
+									  </div>
+									  </div>
+									  
+                                </div>
+                            <!-- /.modal-content --> 
+                     </div>
+              <!-- /.modal-dialog --> 
+      </div>
+	  
+	  <!--<div class="modal fade transport-confirmation" id="transport-confirmation" tabindex="-1" role="basic" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+                <h4 class="modal-title">INFORMATION</h4>
+            </div>
+            <div class="modal-body">
+            <p>When you confirm the transport you are locking in the legs and the system will automatically e-mail the volunteers that the transport is a go, and will unlock the run sheet so everyone in the transport can see the full run sheet.  Are you sure you want to confirm the transport?</p>
+            </div>
+            <div class="modal-footer text-center no-margin"> 
+          	<button class="btn orange" type="button" id="modal_confirm_transport">Confirm</button>
+            <button class="btn black" data-dismiss="modal" type="button">Cancel</button>
+          </div>
+        </div>
+    </div>
+</div>-->
+
+<div class="modal fade transport-confirmation" id="transport-confirmation" tabindex="-1" role="basic" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" title="Close" onClick="$('.inv_name,.inv_email').val('');" aria-hidden="true"></button>
+                <h4 class="modal-title" style="font: 600 25px 'Roboto',sans-serif;color: #f35613;">Are you sure you want to confirm this transport?</h4>
+            </div>
+            <div class="modal-body">
+            <p>When you CONFIRM the transport, this locks in the legs from changes and sign-ups, and automatically emails the volunteers the RUN SHEET.</p><p>If you would like the RUN SHEET sent to additional email addresses, enter them below and we will send when you hit CONFIRM.</p>
+			<ul>
+				<li>
+					<div class="form-group">
+                        <div class="input-inline">
+                            <input type="text"  id="addit_name0" class="form-control inv_name" placeholder="Name" maxlength="100">
+                        </div>
+						<div class="input-inline input-large">
+                            <input type="email" id="addit_email_address0" class="form-control inv_email" placeholder="Email Address" maxlength="100">
+                        </div>
+                    </div>
+				</li>
+				<li>
+					<div class="form-group">
+                        <div class="input-inline">
+                            <input type="text"  id="addit_name1" class="form-control inv_name" placeholder="Name" maxlength="100">
+                        </div>
+						<div class="input-inline input-large">
+                            <input type="email"  id="addit_email_address1" class="form-control inv_email" placeholder="Email Address" maxlength="100">
+                        </div>
+                    </div>
+				</li>
+				<li>
+					<div class="form-group">
+                        <div class="input-inline">
+                            <input type="text"  id="addit_name2" class="form-control inv_name" placeholder="Name" maxlength="100">
+                        </div>
+						<div class="input-inline input-large">
+                            <input type="email"  id="addit_email_address2" class="form-control inv_email" placeholder="Email Address" maxlength="100">
+                        </div>
+                    </div>
+				</li>	
+			</ul>	
+            </div>
+            <div class="modal-footer text-center no-margin"> 
+            <button class="btn black" data-dismiss="modal" onClick="$('.inv_name,.inv_email').val('');" type="button">Cancel</button>
+			<button class="btn orange" type="button" id="modal_confirm_transport">Confirm</button>
+          </div>
+        </div>
+        
+    </div>
+    
+</div>
+
+
+
+<form id="frm_del_non_doobert_user" name="frm_del_non_doobert_user" action="<?php echo base_url(); ?>org_transportation/delete_non_doobert_routing_user_leg" method="post"> 
+	<input type="hidden" id="non_doobert_id" name="non_doobert_id" value="">
+</form>
+
+ 
+<script type="text/javascript" src="//maps.googleapis.com/maps/api/js?v=3.14&key=<?php echo $this->config->item('googleapi_key'); ?>&sensor=false&libraries=geometry&language=en"></script>
+<script src="<?php echo base_url(); ?>map/application.js?version=2.5"></script>
+<?php include  APPPATH.'views/inc/footer-dashboard.php';?>
+<script type="text/javascript" src="<?php echo $base_url;?>assets/ckeditor/ckeditor.js"></script>
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/clockface/js/clockface.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datetimepicker/js/bootstrap-datetimepicker.min.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/jquery.ui.touch-punch.js"></script> 
+<script defer src="<?php echo base_url(); ?>assets/scripts/core/app.js"></script>
+<!-- The jQuery UI widget factory, can be omitted if jQuery UI is already included --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/vendor/jquery.ui.widget.js"></script> 
+<!-- The Templates plugin is included to render the upload/download listings --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/tmpl.min.js"></script> 
+<!-- The Load Image plugin is included for the preview images and image resizing functionality --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/load-image.min.js"></script> 
+<!-- The Canvas to Blob plugin is included for image resizing functionality --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/canvas-to-blob.min.js"></script> 
+<!-- Bootstrap JS is not required, but included for the responsive demo navigation --> 
+<?php /*?><script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script> <?php */?>
+<!-- blueimp Gallery script --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/jquery.blueimp-gallery.min.js"></script> 
+<!-- The Iframe Transport is required for browsers without support for XHR file uploads --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.iframe-transport.js"></script> 
+<!-- The basic File Upload plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload.js"></script> 
+<!-- The File Upload processing plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-process.js"></script> 
+<!-- The File Upload image preview & resize plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-image.js"></script> 
+<?php /*?><!-- The File Upload audio preview plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-audio.js"></script> 
+<!-- The File Upload video preview plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-video.js"></script> <?php */?>
+<!-- The File Upload validation plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-validate.js"></script> 
+<!-- The File Upload user interface plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-ui.js"></script> 
+<!-- The main application script --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/file_upload_main.js"></script> 
+
+
+<?php //include 'inc/footer-dashboard.php';?> 
+<script>
+  //CKEDITOR.replace( 'rescue_story' );
+</script>
+<script type="text/javascript">
+var upload_link= '<?php echo base_url(); ?>org_transportation/add_images';
+var file_divid = 'transport_locations';
+var file_divid_update = 'transport_update_info';
+var photo_upload_link = '<?php echo base_url(); ?>org_transportation/add_photos';
+var photo_divid = 'transport_photos';
+var rescue_divid = 'rescue_transport_story_frm';
+
+var distance 	= parseFloat("<?php echo $transport_details['cover_dis_per'];?>");
+var target_date = parseInt("<?php echo strtotime($transport_details['dt_target']);?>");
+var currentdate = parseInt("<?php echo strtotime(date("Y-m-d"));?>");
+var animal 		= parseInt('<?php echo $animal_transport;?>');
+var pickup_date = parseInt("<?php echo strtotime($transport_details['dt_pickup_date']);?>");
+var confirm_transport_status = "<?php echo 0; ?>";
+var date_select = "<?php echo (isset($transport_details['dt_target']))?date("m/d/Y",strtotime($transport_details['dt_target'])):'';?>";
+var pickup_select = "<?php echo (isset($transport_details['dt_pickup_date']))?date("m/d/Y",strtotime($transport_details['dt_pickup_date'])):'';?>";
+var profile_type = "<?php echo isset($profile_type) ? $profile_type : "1"; ?>";
+var trans_type =  "<?php echo $transport_details['st_trans_type']; ?>";
+var profile_post = "<?php echo isset($profile_post) ? $profile_post : "1"; ?>";
+var activity_status	= "<?php echo ($this->session->userdata('recent_activity') && ($this->session->userdata('recent_activity') == "P" || $this->session->userdata('recent_activity') == "D"))?"1":"0"; ?>";
+var transport_id =  parseInt("<?php echo $transport_details['in_transportation_id'];?>");
+var date_end = "<?php echo date('Y-m-d 23:59:59',strtotime(date("Y-m-d"))); ?>";
+var date_start = "<?php echo  date('Y-m-d 00:00:01',strtotime(date("Y-m-d"))); ?>";
+var ToEndDate = new Date('<?php echo date("m/d/Y",strtotime($transport_details['dt_target'])); ?>');
+var pick_up = "<?php echo ($transport_details['st_from_city'])?$transport_details['st_from_city'].' (':''; ?><?php echo ($transport_details['st_from_street'])?$transport_details['st_from_street'].')':''; ?>";
+var pickup_airport = "<?php echo ($transport_details['st_from_street'])?$transport_details['st_from_street']:'';  ?>";
+var drop_off = "<?php echo ($transport_details['st_to_city'])?$transport_details['st_to_city'].' (':''; ?><?php echo ($transport_details['st_to_street'])?$transport_details['st_to_street'].')':''; ?>";
+var dropoff_airport = "<?php echo ($transport_details['st_to_street'])?$transport_details['st_to_street']:'';  ?>";
+var total_legs = parseInt("<?php echo count($leg_details);  ?>");
+</script> 
+<script src="<?php echo base_url(); ?>assets/custom_jquery/user_submission_legs_airline.js?v=21.7" type="text/javascript" charset="utf-8"></script>
+<script>
+
+$(document).ready(function(){
+	$( "#card-table-submission").cardtable();
+	<?php if($transport_details['st_trans_type']=='D' && $transport_details['accTcid'] == $this->session->userdata('userid')) { ?>
+	
+	<?php } ?>
+});
+</script> 
+<script>
+$(document).on('click',".map",function() {
+	
+		$( ".view-map-cont1" ).toggle();
+		if($(".transport-view-map").html() == '<i class="material-icons font-16">map</i> View Map')
+		{
+			$(".transport-view-map").html('<i class="material-icons font-16">map</i> Hide Map'); 
+			$('#leg-legend').show();
+			$(".transport-view-map").attr('title','Hide Map');
+			initialize();			
+			<?php 
+			if($transport_details['st_trans_type']=='P' && isset($user_profile['st_driver']) && $user_profile['st_driver'] == 'Y' && isset($user_profile['st_pilot']) && $user_profile['st_pilot'] == 'Y') {
+			if($profile_type!=1 && $profile_post!=1){
+			 ?>
+				$("#main-transportation-route").attr("style", "position:relative; display: block;");
+				return false;
+			<?php } } else { ?>
+				$("#main-transportation-route").attr("style", "position:relative; display: block;");
+				<?php } ?>
+				
+		}
+		else if($(".transport-view-map").html() == '<i class="material-icons font-16">map</i> Hide Map')
+		{
+			$(".transport-view-map").html('<i class="material-icons font-16">map</i> View Map');
+			$(".view_map_tg").attr('id' , 'grid-view');
+			$(".transport-view-map").attr('title','View Map');
+			$('#leg-legend').hide();
+		}
+});
+
+function initialize() 
+{
+
+	 return Doobert.components.transportation_route.Base = flight.component(function () {
+            return this.after("initialize", function () {
+                var t = this;
+                 return void 0 !== Doobert.components.Overlay && Doobert.components.Overlay.attachTo("#main-transportation-route"), 
+				 this.trigger("map.initialize", {
+                    routeMapSelector: "#route-map"
+                })
+            })
+        }), Doobert.components.transportation_route.Base.attachTo("#main-transportation-route")
+}
+	
+function initialize_avia() 
+{
+
+ 		 return Doobert.components.transportation_avia.Base = flight.component(function () {
+            return this.after("initialize", function () {
+                return this.on("map.initializeAfter", function () {
+                    return this.on("startendairports.initializeAfter", function () {
+                        return this.trigger("legselector.initialize")
+                    }), this.on("airports.initializeAfter", function () {
+                        return this.trigger("startendairports.initialize")
+                    }), this.trigger("zone.initialize"), this.trigger("airports.initialize")
+                }), this.trigger("map.initialize", {
+                    routeMapSelector: "#map"
+                })
+            })
+        }), Doobert.components.transportation_avia.Base.attachTo("#avitaion-map")
+}
+
+$(document).ready(function(){
+	
+	<?php if($transport_details['st_trans_type']=='P') { ?>
+			$("#main-transportation-route").attr("style", "position:relative; display: none;")  
+	<?php } ?>
+				
+	<?php if((($profile_type==1 || $profile_type==0) && $profile_post==1) || ($this->session->userdata('recent_activity') && ($this->session->userdata('recent_activity') == "P" || $this->session->userdata('recent_activity') == "D"))) { ?>
+		$("#main-transportation-route").attr("style", "position:relative; display: block;");
+		$('#leg-legend').show();
+		$(".transport-view-map").html('<i class="material-icons font-16">map</i> Hide Map'); 
+		initialize();					
+	<?php } ?>
+				
+});
+		   
+
+</script> 

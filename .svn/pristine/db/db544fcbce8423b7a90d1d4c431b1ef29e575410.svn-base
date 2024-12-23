@@ -1,0 +1,458 @@
+<?php
+function register_menu() {
+	register_sidebar( array(
+		'name'          =>('Rock'),
+		'id'            => 'newsroom_blocks',
+		'before_widget' => '<div class="news-blocks">',
+		'after_widget'  => '</div>',
+		'before_title'  => '<h2 class="widget-title">',
+		'after_title'   => '</h2>',
+	) );
+	register_sidebar( array(
+		'name'          =>('Footer Menu'),
+		'id'            => 'footer_menu',
+		'before_widget' => '<div class="footer-nav">',
+		'after_widget'  => '</div>',
+		'before_title'  => '<h2 class="widget-title">',
+		'after_title'   => '</h2>',
+	) );
+}
+add_action( 'init', 'register_menu' );
+
+
+
+// Added by bhavin - 17Feb17
+// function theme_enqueue_child_style(){
+// 	wp_enqueue_style('metrojs', get_stylesheet_directory_uri(). '/css/metrojs.css',array(),'17Feb2017','all');
+// 	wp_enqueue_style('reset', get_stylesheet_directory_uri(). '/css/reset.css',array(),'17Feb2017','all');
+// 	wp_enqueue_style('common-css', get_stylesheet_directory_uri(). '/css/common.css',array(),'17Feb2017','all');
+// 	wp_enqueue_style('lightbox', get_stylesheet_directory_uri(). '/css/lightbox.css',array(),'17Feb2017','all');
+// 	wp_enqueue_style('shortcodes', get_stylesheet_directory_uri(). '/css/shortcodes.css',array(),'17Feb2017','all');
+// 	wp_enqueue_style('vector-cions', get_stylesheet_directory_uri(). '/css/vector-icons.css',array(),'17Feb2017','all');
+// }
+// add_action('wp_print_styles', 'theme_enqueue_child_style');
+
+function wpb_add_google_fonts() {
+wp_enqueue_style( 'wpb-google-fonts-roboto', 'https://fonts.googleapis.com/css?family=Roboto|Courgette', false );
+}
+add_action( 'wp_enqueue_scripts', 'wpb_add_google_fonts' );
+ // END OF Added by bhavin - 17Feb17
+ 
+
+
+
+add_action('wp_enqueue_scripts', 'add_ajax_script',200);
+function add_ajax_script() {
+	
+wp_register_script( 'ajaxscript',  get_stylesheet_directory_uri()."/js/ajax-block.js?version=07112016", array( 'jquery' ), '', true );	
+wp_localize_script( 'ajaxscript', 'ajax_post_data', array( 'ajax_url' => admin_url( 'admin-ajax.php' ) ) );	
+wp_enqueue_script( 'ajaxscript' );		
+}
+
+add_action('wp_ajax_get_post_data', 'get_post_data');
+add_action('wp_ajax_nopriv_get_post_data', 'get_post_data');	
+
+function get_post_data()
+{
+	$html ='';
+	$page = $_POST['page'];
+	$paged = $page;
+	$show_posts  =  10;
+	$postcnt=0;	
+	$latestNewPosts = query_posts('post_status=publish&post_type=post&cat=-60&posts_per_page='.$show_posts.'&paged='.$paged); 
+	//$latestNewPosts = query_posts('post_type=post&posts_per_page='.$show_posts.'&paged='.$paged); 
+	if(count($latestNewPosts)>0)
+	{
+		
+		foreach($latestNewPosts as $post){
+			$posttitle = explode(" ",$post->post_title);	 
+		//$link = has_post_format('link') ? get_post_meta($post->ID, 'wpv-post-format-link', true) :get_permalink();
+		$link = get_permalink($post->ID);
+		$content=strip_tags($post->post_content);
+		$content = preg_replace("/\[caption.*\[\/caption\]/", '', $content);
+		$newposttitle='';
+		if(count($posttitle) > 7){ 
+    		for($i=0;$i< 7;$i++){
+        		$newposttitle .= $posttitle[$i]." ";
+			}
+            $newposttitle=ucwords(strtolower($newposttitle))."...";
+	    }else{
+            $newposttitle=ucwords(strtolower($post->post_title));
+		}
+		if($postcnt%5==0){ 
+			$html.= '<div class="news-section1"> <ul class="latest-news-ul">';
+			
+		} 
+		if($postcnt%5==0)
+		{ 
+			$html.='<li class="full-width-li">
+				<div class="latest-news"><div class="left-blog-img">'; 
+				$arrImages=array();
+								//$arrImages =& get_children('post_mime_type=image&post_parent=' . $post->ID); 
+								$sImgString='';
+								//$image=getImage(1,$post->post_content);
+								$image = get_the_post_thumbnail($post->ID, 'medium');
+								//$image=strstr(substr($image,1,strlen(trim($image))-2),'wp-content');
+								if($image){
+									//$sImgString ='<img src="'.get_bloginfo('template_directory').'/timthumb.php?src=/'.$image.'&h=173&w=274&zc=1" class="big-article-img" width="274" height="173" alt="'.$post->post_title.'" title="'.$post->post_title.'" />';
+									$sImgString =	$image; 
+								}else{
+									//$sImgString = '<img src="'.site_url('/').'wp-content/uploads/2014/10/no-image_274x173.gif" class="big-article-img" width="274" height="173" alt="'.$post->post_title.'" title="'.$post->post_title.'" />';
+									  $sImgString = '<img src="'.get_stylesheet_directory_uri().'/images/no-image.jpg" class="big-article-img" width="274" height="173" alt="'.$post->post_title.'" title="'.$post->post_title.'" />';	
+								}
+								$html.= $sImgString;
+								$html.= '</div>';
+			$html.=	 '<div class="img-para">';
+			$html.=		 '<a href="'.$link.'" class="subtitle">'.$newposttitle.'</a><div class="clearfix"></div>';
+		  $html.=	'<span class="category-name">';
+						$categories = get_the_category($post->ID);
+							$separator = ',';
+							$output = '';
+							if($categories){
+								foreach($categories as $category) {
+									$output .= '<a href="'.get_category_link( $category->term_id ).'" title="' . esc_attr( sprintf( __( "View all posts in %s" ), $category->name ) ) . '">'.$category->cat_name.'</a>'.$separator;
+								}
+									$html.= trim($output, $separator);
+							}
+			$html.='</span>';
+          
+			$html.=	'<p class="excerpt-para">'.wp_trim_words($content,50).'</p><div class="clearfix"></div><a href="'.$link.'" class="readmore1">Read more <i class="fa fa-angle-right"></i></a>
+				</div></div></li>';
+   
+						$postcnt++;
+						continue;
+		}
+				
+		$html.= '<li> <a href="'.$link.'" class="subtitle">'. $newposttitle.'</a> <div class="clearfix"></div>
+				 <span class="category-name">';
+       
+		$categories = get_the_category($post->ID);
+		$separator = ',';
+		$output = '';
+		if($categories){
+		foreach($categories as $category) {
+					$output .= '<a href="'.get_category_link($category->term_id ).'" title="' . esc_attr( sprintf( __( "View all posts in %s" ), $category->name ) ) . '">'.$category->cat_name.'</a>'.$separator;
+				}
+			$html.= trim($output, $separator);
+		}
+					  
+		$html.= '</span> <p class="excerpt-para2">'.wp_trim_words($content,25).'</p><div class="clearfix"></div><a href="'.$link.'" class="readmore1">Read more <i class="fa fa-angle-right"></i></a></li>';
+		$postcnt++;
+						if($postcnt%5==0){       
+					$html.= '</ul></div>';
+	}
+			
+		}
+	} else {
+		$html .= '';
+	}	
+	wp_send_json($html);
+	//echo $html;
+	die();
+}
+
+add_action('wp_ajax_get_resuce_post_data', 'get_resuce_post_data');
+add_action('wp_ajax_nopriv_get_resuce_post_data', 'get_resuce_post_data');
+
+function get_resuce_post_data()
+{
+	$html ='';
+	$page = $_POST['page'];
+	$paged = $page;
+	$show_posts  =  10;
+	$postcnt=0;	
+	//$latestNewPosts = query_posts('post_type=post&posts_per_page='.$show_posts.'&paged='.$paged);
+	//$latestNewPosts = query_posts('post_status=publish&category_name=rescue-stories&showposts=5');
+	$latestNewPosts = query_posts('post_status=publish&cat=60&showposts=5');
+	//$latestNewPosts = query_posts('post_type=post&posts_per_page='.$show_posts.'&paged='.$paged); 	
+	if(count($latestNewPosts)>0)
+	{
+		
+		foreach($latestNewPosts as $post){
+				
+				//$created_date = date('m-d-Y',strtotime(get_post_meta($post->ID,'date_created', true)));
+				 //$date_created = ($created_date ==''|| $created_date =='00-00-0000'  || $created_date =='12-31-1969' || $created_date =='01-01-1970')?'':date("F j, Y",strtotime($created_date));
+				$date_created = get_post_meta($post->ID,'date_created', true);
+				$html .= '<li><a href="'.get_permalink($post->ID).'" class="story-heading">'.$post->post_title.'</a>
+				<span>Transport #DBT'.get_post_meta($post->ID,'transport_id', true).' | by '.get_post_meta($post->ID,'author_name', true).' on '. $date_created.'
+				</span><p>'.wp_trim_words($post->post_content,50).'&nbsp;&nbsp;<a href="'.get_permalink($post->ID).'">Read More <i class="fa fa-angle-right"></i></a></p>
+				<ul class="listing-img-video">';
+				$image_url = unserialize(get_post_meta($post->ID,'story_image', true));
+				$video_url = unserialize(get_post_meta($post->ID,'story_video', true));
+				if(count($image_url) >0 )
+				{
+					foreach($image_url as $value)
+					{
+						$html .= '<li>'.$value.'</li>';
+					}
+				}
+				if(count($video_url) >0 )
+				{
+					foreach($video_url as $value)
+					{
+						$html .= '<li>'.$value.'</li>';
+					}
+				}
+			$html.=	'</ul></li>';
+		}
+	} else {
+		$html .= 'No Rescue Stories';
+	}	
+	wp_send_json($html);
+	//echo $html;
+	//die();
+}
+
+add_action('woocommerce_before_checkout_billing_form','form_billing');
+function form_billing($checkout)
+{
+	
+	$checkout->checkout_fields['billing']['billing_first_name']['placeholder'] = "First name";
+	$checkout->checkout_fields['billing']['billing_last_name']['placeholder'] = "Last name";
+	$checkout->checkout_fields['billing']['billing_company']['placeholder'] = "Company name";
+	$checkout->checkout_fields['billing']['billing_email']['placeholder'] = "Email address";
+	$checkout->checkout_fields['billing']['billing_phone']['placeholder'] = "Phone";
+	$checkout->checkout_fields['billing']['billing_city']['placeholder'] = "City";
+	$checkout->checkout_fields['billing']['billing_postcode']['placeholder'] = "Zip";
+	//$checkout->checkout_fields['billing']['billing_state']['placeholder'] = "State*";
+	return $checkout;
+}
+
+add_action('woocommerce_checkout_order_processed','get_order_id',11,2);
+function get_order_id($order_id,$posted)
+{  
+	//$serialized_data = serialize($posted);
+	//$order = wc_get_order( $order_id );
+	
+	file_put_contents($_SERVER['DOCUMENT_ROOT'].'/doobertwp/testorder/test3.txt',$order_id,FILE_APPEND);	
+	
+	$params = array('order_id' => $order_id);
+	
+	$url = "https://app.doobert.com/wsdl/save_order"; 
+	// Generate curl request
+	$c = curl_init($url);
+	// Tell curl to use HTTP POST
+	curl_setopt ($c, CURLOPT_POST, true);
+	// Tell curl that this is the body of the POST
+	curl_setopt ($c, CURLOPT_POSTFIELDS, $params);
+	// Tell PHP not to use SSLv3 (instead opting for TLS)
+	curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+	//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+
+	// obtain response
+	$response = curl_exec($c);	
+}
+
+add_action( 'woocommerce_order_status_changed','changed_order_status',11,3 );
+
+function changed_order_status($order_id, $old_status, $new_status)
+{
+	//file_put_contents($_SERVER['DOCUMENT_ROOT'].'doobertwplive/testorder/test101.txt',$new_status,FILE_APPEND);	
+	
+	$params = array('order_id' => $order_id,'new_status' =>  $new_status);
+	
+	$url = "https://app.doobert.com/wsdl/update_order_status"; 
+	// Generate curl request
+	$c = curl_init($url);
+	// Tell curl to use HTTP POST
+	curl_setopt ($c, CURLOPT_POST, true);
+	// Tell curl that this is the body of the POST
+	curl_setopt ($c, CURLOPT_POSTFIELDS, $params);
+	// Tell PHP not to use SSLv3 (instead opting for TLS)
+	curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+	//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+	
+	$response = curl_exec($c);	
+	
+}
+
+add_action( 'woocommerce_simple_auctions_place_bid','product_placed_bid',1200,1 );
+
+function product_placed_bid($prod)
+{
+	$prod_id = $prod['product_id'];
+	$auction_bid      = get_post_meta($prod_id,'_auction_current_bid', true);
+	$user_id     	  = get_post_meta($prod_id,'_auction_current_bider', true);
+	//$author_obj      = get_user_by('id', $_POST['user_id']);
+	$author_obj      = get_user_by('id', $user_id);
+	$email_address   = $author_obj->user_email;
+	$first_name      = $author_obj->first_name;
+	$last_name       = $author_obj->last_name;
+		
+	//$params = array('bid_value' => $_POST['bid_value'],'product_id' => $prod_id,'first_name' => $first_name,'last_name' => $last_name,'email_address' => $email_address);
+	$params = array('bid_value' => $auction_bid,'product_id' => $prod_id,'first_name' => $first_name,'last_name' => $last_name,'email_address' => $email_address);
+	$url = "https://app.doobert.com/wsdl/add_product_bid"; 
+	// Generate curl request
+	$c = curl_init($url);
+	// Tell curl to use HTTP POST
+	curl_setopt ($c, CURLOPT_POST, true);
+	// Tell curl that this is the body of the POST
+	curl_setopt ($c, CURLOPT_POSTFIELDS, $params);
+	// Tell PHP not to use SSLv3 (instead opting for TLS)
+	curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+	//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+	
+	$response = curl_exec($c);
+		
+}
+add_action( 'woocommerce_simple_auction_won','product_placed_bid_winner',123,1 );
+
+function product_placed_bid_winner($product_id)
+{
+	$auction_bid      = get_post_meta($product_id,'_auction_current_bid', true);
+	$user_id     	  = get_post_meta($product_id,'_auction_current_bider', true);
+	$author_obj       = get_user_by('id', $user_id);
+	$email_address    = $author_obj->user_email;
+	$first_name       = $author_obj->first_name;
+	$last_name        = $author_obj->last_name;
+	
+	$params = array('bid_value' 	=> $auction_bid,
+					'product_id' 	=> $product_id,
+					'first_name' 	=> $first_name,
+					'last_name' 	=> $last_name,
+					'email_address' => $email_address);	
+   		
+	$url = "https://app.doobert.com/wsdl/update_product_bid"; 
+	// Generate curl request
+	$c = curl_init($url);
+	// Tell curl to use HTTP POST
+	curl_setopt ($c, CURLOPT_POST, true);
+	// Tell curl that this is the body of the POST
+	curl_setopt ($c, CURLOPT_POSTFIELDS, $params);
+	// Tell PHP not to use SSLv3 (instead opting for TLS)
+	curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+	//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+	
+	$response = curl_exec($c);
+}
+
+add_action( 'create_term','add_new_term',123,3 );
+
+function add_new_term($term_id, $tt_id, $taxonomy)
+{
+	if($taxonomy == 'product_cat')
+	{	
+		$term = get_term( $term_id, $taxonomy );
+		
+		$params = array('st_category' 	    => $term->name,
+						'wp_category_id' 	=> $term->term_taxonomy_id);	
+		
+		$url = "https://app.doobert.com/wsdl/create_product_category"; 
+		// Generate curl request
+		$c = curl_init($url);
+		// Tell curl to use HTTP POST
+		curl_setopt ($c, CURLOPT_POST, true);
+		// Tell curl that this is the body of the POST
+		curl_setopt ($c, CURLOPT_POSTFIELDS, $params);
+		// Tell PHP not to use SSLv3 (instead opting for TLS)
+		curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+		//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+	
+		$response = curl_exec($c);
+		
+	}
+}
+
+add_action( "edited_term", 'update_term',123,3 );
+ 
+function update_term($term_id, $tt_id, $taxonomy)
+{
+	if($taxonomy == 'product_cat')
+	{	
+		$term = get_term( $term_id, $taxonomy );
+		
+		$params = array('st_category' 	    => $term->name,
+						'wp_category_id' 	=> $term->term_taxonomy_id);	
+		
+		$url = "https://app.doobert.com/wsdl/update_product_category"; 
+		// Generate curl request
+		$c = curl_init($url);
+		// Tell curl to use HTTP POST
+		curl_setopt ($c, CURLOPT_POST, true);
+		// Tell curl that this is the body of the POST
+		curl_setopt ($c, CURLOPT_POSTFIELDS, $params);
+		// Tell PHP not to use SSLv3 (instead opting for TLS)
+		curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+		//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+	
+		$response = curl_exec($c);
+		
+		//file_put_contents($_SERVER['DOCUMENT_ROOT'].'doobertwplive/testorder/test1.txt',serialize($term_id),FILE_APPEND);	
+		//file_put_contents($_SERVER['DOCUMENT_ROOT'].'doobertwplive/testorder/test2.txt',serialize($taxonomy),FILE_APPEND);
+	
+	}
+}
+add_action('delete_term','delete_term_taxmony',123,5); 
+function delete_term_taxmony($term, $tt_id, $taxonomy, $deleted_term, $object_ids)
+{
+	  if($taxonomy == 'product_cat')
+	  {	
+			//$term = get_term( $term_id, $taxonomy );
+		
+			$params = array('wp_category_id' 	=> $deleted_term->term_taxonomy_id);	
+		
+			$url = "https://app.doobert.com/wsdl/delete_product_category"; 
+			// Generate curl request
+			$c = curl_init($url);
+			// Tell curl to use HTTP POST
+			curl_setopt ($c, CURLOPT_POST, true);
+			// Tell curl that this is the body of the POST
+			curl_setopt ($c, CURLOPT_POSTFIELDS, $params);
+			// Tell PHP not to use SSLv3 (instead opting for TLS)
+			curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+			//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+	
+			$response = curl_exec($c);
+	
+	 } 	
+}
+
+add_action( 'wp_enqueue_scripts', 'enqueue_font_awesome' );
+function enqueue_font_awesome() {
+
+	wp_enqueue_style( 'font-awesome', '//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css' );
+
+}
+
+
+add_filter('wp_nav_menu_items','sk_wcmenucart',3000, 2);
+function sk_wcmenucart($menu, $args) {
+
+	// Check if WooCommerce is active and add a new item to a menu assigned to Primary Navigation Menu location
+		if ( !in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) || 'primary-menu' !== $args->theme_location )
+		return $menu;
+
+		ob_start();
+		$viewing_cart = __('View your shopping cart', 'your-theme-slug');
+		$start_shopping = __('Start shopping', 'your-theme-slug');
+		$cart_url =  WC()->cart->get_cart_url();
+		$shop_page_url = get_permalink( woocommerce_get_page_id( 'shop' ) );
+		$cart_contents_count = WC()->cart->get_cart_contents_count();
+		$cart_contents = sprintf(_n('%d item', '%d items', $cart_contents_count, 'your-theme-slug'), $cart_contents_count);
+		$cart_total = WC()->cart->get_cart_total();
+		
+			if ($cart_contents_count == 0) {
+				$menu_item = '<li class="right"><a class="wcmenucart-contents" href="'. $shop_page_url .'" title="'. $start_shopping .'">';
+			} else {
+				$menu_item = '<li class="right"><a class="wcmenucart-contents" href="'. $cart_url .'" title="'. $viewing_cart .'">';
+			}
+
+			$menu_item .= '<i class="fa fa-shopping-cart"></i> ';
+
+			$menu_item .= $cart_contents.' - '. $cart_total;
+			$menu_item .= '</a></li>';
+		
+		echo $menu_item;
+	$social = ob_get_clean();
+	return $menu . $social;
+}
+
+/*
+add_filter( 'default_checkout_state', 'change_default_checkout_state' );
+  
+function change_default_checkout_state() {
+  return ''; 
+}*/
+
+
+?>

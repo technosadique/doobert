@@ -1,0 +1,1268 @@
+<?php
+$base_url = $this->config->item('base_url');
+$fb_user_email = $this->common_model->get_user_email();	
+if(empty($fb_user_email['st_email']))
+{   
+	$this->session->set_userdata('emailfbuser', 'Your Facebook profile does not contain an email address. Doobert requires an email to notify you for animal rescue activities. Please enter one below.');	
+}
+$picture = $profile_details['st_profile_image'];
+		//print_r($picture);exit;
+		$profile_image = '';
+		if(trim($picture) != '' && file_exists($this->config->item('upload').'profile/250x250/'.$picture)) 
+		{
+			$profile_image = $picture;
+			$user_profile_src = $this->config->item('upload_url').'profile/250x250/'.$profile_image; 
+		} else {
+			$profile_image = 'no_photo_icon.png';
+			$user_profile_src = $this->config->item('upload_url').'profile/250x250/'.$profile_image; 
+		}
+?> 
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard</title>
+<?php include 'inc/header-css-js.php';?>
+<?PHP //include APPPATH."views/includes/head-links-inside.php" ?>
+<link href="//arshaw.com/js/fullcalendar-1.5.3/fullcalendar/fullcalendar.css" rel="stylesheet" />
+<!--[if IE]>
+<link rel='stylesheet' id='style-ie-css'  href='./css/ie.css?ver=1.0' type='text/css' media='all' />
+<![endif]-->
+<link rel="stylesheet" type="text/css" href="<?php echo base_url();  ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+<style>
+	.ui-widget-content{ width:227px !important;}
+</style>
+</head>
+<body>
+<?php  include 'inc/header-dashboard.php';?>
+
+<?php 	$count_feedback = $this->common_model->get_feedback_count($this->session->userdata('userid'));
+
+
+?>
+<?php 			
+		
+	$invitation_count = $this->common_function->pending_invitation_cnt($this->session->userdata('userid'));	
+	$invitation_name = $this->common_function->pending_invitation_name($this->session->userdata('userid'));	
+	
+//My Notification Count
+	if($this->router->class == 'user_settings_and_notification' && $this->router->method == 'my_notifications') {
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYNOTIFICATIONS',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+	}
+	$data['created_date_user'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYNOTIFICATIONS');
+	//print_r($data['created_date_user']);die;
+	
+	if(!empty($data['created_date_user'])) {  
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'),$data['created_date_user']['dt_created']);
+		
+		
+	} else { 
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'));
+	}
+	
+	//print_r($pending_notifications_front);//die;
+	
+	$org_list = $this->common_model->get_organization_list();
+	
+	$transport_permission = $this->common_model->verify_transport_permission($this->session->userdata('userid'));
+	
+	if($transport_permission == 'true')
+		$tc_count = $this->common_model->get_tc_volunteer_count($this->session->userdata('userid'));
+	
+	$vol_count = $this->common_model->get_transaction_volunteer_count($this->session->userdata('userid'));
+	
+	$request_board_status = $this->common_model->transport_routing_enable($this->session->userdata('userid')); 
+?>
+
+<section class="">
+	<div class="container">
+            <div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12">
+	                
+					<article>
+						<div class="entry-content">
+							<div class="volunteer-detail clearfix">
+								<div class="col-md-12 col-sm-12 col-xs-12 no-space">
+									<div class="col-md-6 col-sm-6 col-xs-6 no-space">
+										<div class="volunteer-pic <?php if(isset($user_verified) && !empty($user_verified)) { ?>verified <?php } ?>">
+                                       <form  method="post" enctype="multipart/form-data" action="<?php echo base_url().'user/update_user_profile_pic'; ?>" name="user_photo_frm" id="user_photo_frm">
+                                        <div class="change-img">                                        
+                                            <img id="fileupload" src="<?php echo $user_profile_src; ?>" alt="<?php echo $profile_details['st_display_name'].' '.$profile_details['st_last_name']; ?>" title="<?php echo $profile_details['st_display_name'].' '.$profile_details['st_last_name']; ?>">											
+											</div><span class="active"><i class="material-icons">done</i></span>
+											<div class="camera-icon foobox" id="fileupload_camera"></div>
+                                           <!--<div class="foobox" id="fileupload_camera"><i class="material-icons">file_upload</i>Upload Image</div>-->
+                                            <input type="file" name="user_photo1" id="user_photo1" onChange="profile_readURL(this)" style="display:none;">
+                                            </label>  
+                                            <input type="hidden" id="rotate_angle1" name="rotate_angle1" value="0"/>
+                                            <input type="hidden" id="crop_x1" name="x1"/>
+                                            <input type="hidden" id="crop_y1" name="y1"/>
+                                            <input type="hidden" id="crop_w1" name="w1"/>
+                                            <input type="hidden" id="crop_h1" name="h1"/>          
+                                            <input type="hidden" id="user_uploaded_photo1" name="user_uploaded_photo1" value="" />
+                                            <input type="hidden" id="crop_upload_path" name="crop_upload_path" value="<?php echo base_url(); ?>user/user_profile_pic_upload" />
+                                        </form>
+                                        </div>
+										<div class="col-md-8 col-sm-8 col-xs-8 no-space-left volunteer-info">
+											<p class="heading"><?php echo $profile_details['st_display_name'].' '.$profile_details['st_last_name']; ?></p>
+										  <div class="paw-info">                                                
+                                                 <?php //print_r($tc_count);
+												  if(isset($tc_count['average_rating']) && $tc_count['average_rating'] > 0 ) { ?>
+												 <a class="fb-user-rating" href="<?php echo $base_url.'feedback/feedback_transactions/'.$this->session->userdata('userid').'/tc/';?>">
+												 <?php for($i=0; $i<$tc_count['average_rating']; $i++){ ?>
+                                                       <img src="<?php echo $base_url; ?>/img/paw-orange.png" alt="Paw" title="Paw">
+                                                 <?php } for($j=0;$j<5-$tc_count['average_rating'];$j++) { ?>
+                                                      <img src="<?php echo $base_url; ?>/img/paw-gray.png" alt="Paw" title="Paw">
+                                                 <?php } ?> 
+												 </a>
+												 <?php } else{ ?>
+                                                 <a class="fb-user-rating" href="<?php echo $base_url.'feedback/feedback_transactions/'.$this->session->userdata('userid').'/vol/';?>">
+                                                  <?php for($i=0; $i<$vol_count['average_rating']; $i++){ ?>
+                                                      <img src="<?php echo $base_url; ?>/img/paw-orange.png" alt="Paw" title="Paw">
+                                                 <?php } for($j=0;$j<5-$vol_count['average_rating'];$j++) { ?>
+                                                      <img src="<?php echo $base_url; ?>/img/paw-gray.png" alt="Paw" title="Paw">
+                                                 <?php  } ?>
+                                                 </a>
+                                                 <?php } ?>
+										  </div>
+												<div class="dashleftinfo"><p>
+                                                <?php 
+												$profile_types = '';
+												if($enabled_driver_pilot_status == '1')
+												{
+													$profile_types.= 'Transporter, ';
+												}
+												if($foster_profile_status == '1')
+												{
+													$profile_types.= 'Foster, ';
+												}
+												if($photographer_profile_status == '1')
+												{
+													$profile_types.= 'Photographer, ';
+												}					
+												$profile_types = substr($profile_types, 0, -2);						
+												echo $profile_types;
+												?>
+                                                </p>
+												<small>Saving Animals since <?php echo  date("F d, Y",strtotime($profile_details['dt_created'])); ?></small></div>
+												<?php /*?><div class="dashfacebook"><?php if($profile_details['st_facebook_uid']=='') { ?>
+<a href="javascript:void(0);" onClick="javascript:window.open('<?php echo $base_url?>fbt/link-facebook.php','Facebook','location=yes,menubar=yes,resizable=yes,scrollbars=yes,status=no,toolbar=no,top=200,left=400,width=1000,height=500');"><img src="<?php echo $base_url.'img/Facebook.jpg'; ?>" alt="Facebook" title="Facebook">Connect</a>
+<?php }else{ ?>			
+<a href="javascript:void(0);" onClick="$('#unlink_fb').modal('show')"><img src="<?php echo $base_url.'img/Facebook.jpg'; ?>">Un-Link Facebook Account</a>
+<?php } ?></div><?php */?>
+												<div class="br"></div>
+									  </div>
+									</div>
+									<div class="col-md-6 col-sm-6 col-xs-6 no-space-right text-right">
+										<div class="volunteer-right-info">
+<div class="vol-contact">
+<?php $bubblecount='';$bubblecount = $pending_notifications_front['count'] + $invitation_count; 
+if($bubblecount<=9 ) { $style='style="padding-left:7px;padding-right:7px;"';}
+else if($bubblecount>9 && $bubblecount<=99) { $style='style="padding-left:5px;padding-right:5px;"';}
+else if($bubblecount>99) { $style='style="padding-left:5px;padding-right:5px;"';}
+?>
+<p class="guide"><a href="https://www.doobert.com/getting-started-with-doobert-volunteer/" target="_blank"><img src="<?php echo base_url();?>assets/img/book-orange.png">Getting Started Guide</a></p><?php /*?><a href="https://www.doobert.com/videos" target="_blank" title="Help"><i class="material-icons font-27">help</i></a><?php */?><a href="<?php echo $base_url; ?>doobert_non_member/" title="Invite Users" class="invite"><i class="material-icons font-39">group_add</i></a><a href="#" class="notification-info dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true" title="Notification"><i class="material-icons font-30">notifications</i><?php if($bubblecount > 0){?><span class="red-circle" <?php echo $style;?>><?php echo $bubblecount;?></span><?php } ?></a><ul class="dropdown-menu notification-menu"><li class="notification-heading">You have <?php echo $invitation_count;?> <span style="font-weight:600;font-style:italic;">PENDING INVITATIONS</span></li>
+<?php if(isset($invitation_count) && $invitation_count > 0)	{ ?>
+<?php  foreach($invitation_name as $key => $value) { ?>
+<li class="pending-invet"><i class="material-icons">keyboard_arrow_right</i><?php echo $value['st_org_name']; ?></li>			
+<?php } }?>
+<li class="view-all"><a href="<?php echo base_url().'pending_invitation'; ?>">View All<i class="material-icons">keyboard_arrow_right</i></a></li>
+<li class="other-notification-heading">You have <?php echo $pending_notifications_front['count']; ?> <span style="font-weight:600;font-style:italic;">OTHER NOTIFICATIONS</span></li>
+<?php 
+if((count($pending_notifications_front['notification_msg'])>0) && is_array($pending_notifications_front['notification_msg'])) { 
+?>
+<?php foreach($pending_notifications_front['notification_msg'] as $key => $value) { ?>	
+<li class="pending-notification"><span><?php echo $value;   ?> <?php //echo "<pre>"; print_r($value); echo "</pre>"; ?></span></li>
+<?php }} ?>
+<li class="view-all"><a href="<?php echo base_url(); ?>notification/">View All<i class="material-icons">keyboard_arrow_right</i></a></li>
+<?php if($bubblecount > 0){?>
+<li class="view-all"><a href="javascript:void(0);" class="markallread">Mark All Read</a></li>
+<?php } ?>
+
+
+</ul><a href="#search-info-box" data-toggle="modal" title="Search" class="search"><i class="material-icons font-31" >search</i></a>
+<?php /*?><a href="https://www.doobert.com/contact-us/" title="Email"><i class="material-icons font-30">email</i></a><?php */?>
+</div><div class="select-style">
+												<div class="desktop-device">
+													<select id="type-org" onchange="selectval(this.value)">
+													<option value="">My Organizations</option>            
+                                                    <option value="" disabled></option>            
+                                                    <optgroup class="mart10 grey" label="ORGANIZATIONS I MANAGE" style="margin-top: 10px !important;font-weight:600;">
+                                                    <?php if(!empty($org_list)) { ?>
+                                                    <?php for($i=0;$i<count($org_list);$i++) { ?> 
+                                                    <option class=" grey" value="<?php echo base_url()."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><?php echo $org_list[$i]['st_org_name']; ?></option>
+                                                    <?php } } ?>
+                                                    </optgroup>
+                                                    <option value="" class="dashed" disabled style="font-weight:500;">_____________________________________</option>
+                                                    <!--<option value="" disabled></option>-->
+                                                    <option value="<?php echo base_url(); ?>rescue-organization/" style="font-weight:600;font-style: italic;">Apply for an Organization account</option>
+													 <option value="" class="dashed" disabled style="font-weight:500;">_____________________________________</option>
+													<!--<option value="" disabled></option>-->
+													<option  value="#userpermission#" style="font-weight:600;font-style: italic; orgper">Request user permissions to existing organization&nbsp;&nbsp;</option>
+												</select>
+												</div>
+												
+												<div class="android" style="display: none;">
+													<select id="type-org2" onchange="selectval(this.value)">
+														<option value="">My Organizations</option>   
+														<?php /*?><option style="margin-top: 10px !important;font-weight:600;"><strong>ORGANIZATIONS I MANAGE</strong></option><?php */?>
+														<?php if(!empty($org_list)) { ?>
+														<?php for($i=0;$i<count($org_list);$i++) { ?> 
+														<option value="<?php echo base_url()."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><?php echo $org_list[$i]['st_org_name']; ?></option>
+														<?php } } ?>
+														<option value="<?php echo base_url(); ?>rescue-organization/" style="font-weight:600;font-style: italic;">Apply for an Organization account&nbsp;&nbsp;</option>
+														<option  value="#userpermission#" style="font-weight:600;font-style: italic; orgper">Request user permissions to existing organization&nbsp;&nbsp;</option>
+													</select>
+												</div>
+											</div>
+                                            
+											<div class="clearfix"></div>  
+                                            											
+									</div>
+									<div class="changeview"><div class="switch-container clearfix"><span class="mv">Modern View</span><label class="switch float-r-custom"><input type="checkbox" name="allow_pics" id="allow_pics" value="1" checked><span class="slider round margin-tb0"></span></label><span class="cv selected">Classic View</span></div></div>
+								</div>	
+							</div>
+						</div><!-- .entry-content -->
+					</article><!-- #post-## -->
+                </div>
+            </div>
+        </div>
+</section>
+
+<section class="main-content-wrapper">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12">
+	                
+					<article>
+						<div class="entry-content">
+							<div class="main-container clearfix">
+								<div class="col-md-12 col-sm-12 col-xs-12 col-xs-12 no-space">
+									<div class="col-md-8 col-sm-12 dboard-left-info no-space-left">
+                                    <?php if($enabled_driver_pilot_status == '1') { ?>
+										<h1 class="pull-left transt-upcoming">My Upcoming Transports </h1>
+										<a href="<?php echo $base_url;?>manage-my-transports/1" class="btn btn-white">Manage my transports</a>
+										
+                                        <table id="card-table" class="table">
+											<thead>
+                                           
+											  <tr>
+												
+												<th><a href="<?php echo $base_url;?>user/dashboard/trid/<?php if($order=='asc'){echo 'desc';}else{echo 'asc';}?>/<?php echo $limit;?>" <?php if($this->uri->segment('3') == 'trid' && $order=='asc') { ?> class="asc" <?php }elseif($this->uri->segment('3') == 'trid' && $order=='desc'){ ?>class="des" <?php }else{ ?>class="sorting"<?php } ?>>ID</a></th>
+												<th><a href="<?php echo $base_url;?>user/dashboard/tdate/<?php if($order=='asc'){echo 'desc';}else{echo 'asc';}?>/<?php echo $limit;?>" <?php if($this->uri->segment('3') == 'tdate' && $order=='asc') { ?> class="asc" <?php }elseif($this->uri->segment('3') == 'tdate' && $order=='desc'){ ?>class="des" <?php }else{ ?>class="sorting"<?php } ?>>Date</a></th>
+												<?php /*?><th>Time</th><?php */?>
+                                                <th>Pickup / Drop off</th>
+												<th># of Legs</th>
+												<th><a href="<?php echo $base_url;?>user/dashboard/coname/<?php if($order=='asc'){echo 'desc';}else{echo 'asc';}?>/<?php echo $limit;?>" <?php if($this->uri->segment('3') == 'coname' && $order=='asc') { ?> class="asc" <?php }elseif($this->uri->segment('3') == 'coname' && $order=='desc'){ ?>class="des" <?php }else{ ?>class="sorting"<?php } ?>>Coordinator</a></th>                                               
+												
+											  </tr>                                              
+											</thead>
+											  <tbody>
+                                         <?php
+											if(!empty($all_trasport))
+											{
+												
+												//echo '<pre>'; print_r($all_trasport);
+												for($a=0;$a<count($all_trasport);$a++)
+												{			
+												
+												
+													
+													$sqlprogressstatus  = "SELECT in_photography_profile FROM tbl_transportation_participants  where in_transportation_id = '".$all_trasport[$a]['in_transportation_id']."' AND in_deleted=0";
+													$sqlprogressstat	=	$this->db->query($sqlprogressstatus);
+													$numrowprostat		=	$sqlprogressstat->num_rows($sqlprogressstat);	
+													$prostatus			=	$sqlprogressstat->result();
+													$in_photography_profile		=	$prostatus[0]->in_photography_profile;
+													
+													if($in_photography_profile == 1)
+													{														
+														$img_photographer = '<span class="photographerin">Handoff Photographer in:'.'<i id="iconr" class="material-icons">camera_alt</i></span>';
+													}
+													else  if($in_photography_profile == 0 and $all_trasport[$a]['in_airline_transport']==1)
+													{
+														$img_photographer = '<i id="iconr" class="material-icons">airplanemode_active</i>';
+													}
+													else
+													{
+														$img_photographer = '<i id="iconr" class="material-icons">directions_car</i>';
+													}
+												
+												
+												
+												$rou_tc_user = $this->common_model->get_user_profile($all_trasport[$a]['accTcid']);
+												if($all_trasport[$a]['dt_target'] == '0000-00-00'||$all_trasport[$a]['dt_target'] == '1969-12-31' || empty($all_trasport[$a]['dt_target'])  )
+												{
+													$transport_date = date('Y-m-d', strtotime("+7 day"));
+												} else {	
+													$transport_date = date('Y-m-d', strtotime($all_trasport[$a]['dt_target']."+7 day"));
+												}
+												//$transport_date = date('Y-m-d', strtotime($all_trasport[$a]['dt_target']."+7 day"));
+												$today_date= date('Y-m-d');
+												$today_dt = new DateTime($today_date);
+												$expire_dt = new DateTime($transport_date);	
+												if(	($expire_dt  >= $today_dt) && (isset($rou_tc_user) && count($rou_tc_user)>0))
+												{	
+													$coordinator_name = $rou_tc_user[0]['st_display_name'].' '.$rou_tc_user[0]['st_last_name'];
+													//$telephone_number = $rou_tc_user[0]['st_primary_phone'];
+													$email_address    = $rou_tc_user[0]['st_email'];
+												} else 
+												{
+													$coordinator_name = $all_trasport[$a]['co_name'];
+													//$telephone_number = $transport_details['st_primary_phone'];
+													$email_address    = $all_trasport[$a]['st_email'];
+												}
+												
+												$all_legs_count = 0;
+												$transport_all_legs 	= $this->common_model->get_all_legs_count($all_trasport[$a]['in_transportation_id']);
+												$joined_leg 			= $this->common_model->get_user_leg_joined($all_trasport[$a]['in_transportation_id'],$this->session->userdata('userid'));
+												if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+												{
+													$all_legs_count	= $transport_all_legs['total_count'];
+												}
+												
+												$transport_filled_data 	= $this->common_model->get_transport_filled_status($all_trasport[$a]['in_transportation_id']);
+												$total_filled_legs = 0;
+												if(isset($transport_filled_data['filled_legs_count']) && !empty($transport_filled_data['filled_legs_count']))
+												{
+													$total_filled_legs	= count($transport_filled_data['filled_legs_count']);
+												}
+												$filled_legs_count 	= $this->common_function->get_filled_legs_count($all_trasport[$a]['in_transportation_id']);
+												$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($all_trasport[$a]['in_transportation_id']);
+												if($all_trasport[$a]['perc']>0)
+												{
+													$transport_comp_perc = (($all_trasport[$a]['perc']>100)? "100%":$all_trasport[$a]['perc']."%");
+												}
+												else
+												{
+														$transport_comp_perc = "0%";
+												}
+
+												$transport_type = '';
+												$img_tag= '';
+												$trip = '';
+												if($all_trasport[$a]['st_trans_type'] == 'D')
+												{
+															if($all_trasport[$a]['in_airline_transport'] == 1)
+															{
+																$img_tag = '<img src="'.base_url().'assets/img/icon-airline.png" />';
+																$transport_type = 'Airline';
+															} else {
+																$img_tag = '<img src="'.base_url().'assets/img/icon-assisted.png" />';
+																$transport_type = 'Assisted';
+															}	
+												} else if($all_trasport[$a]['st_trans_type'] == 'R') {
+																$transport_type = 'Ride';
+																$img_tag = '<i class="fa fa-automobile" style="font-size:17px;color:#f25613" aria-hidden="true"></i>';
+																if($all_trasport[$a]['in_round']==1)
+																{
+																	$trip = '(Round Trip)';
+																}
+												} else if($all_trasport[$a]['st_trans_type'] == 'RO') {
+																$transport_type = 'Route';
+																//$img_tag = '<i class="material-icons" aria-hidden="true" style="color:#f25613;vertical-align: middle;padding-bottom: 3px;">swap_calls</i>';
+																$img_tag = '<img src="'.base_url().'modernview/images/car.png" />';
+												}else {
+																$img_tag = '<img src="'.base_url().'assets/img/prespecifylegs.png" />';
+																$transport_type = 'Pre-defined';
+												}	
+											?>
+                                            
+                                            <tr>
+												<?php /*?><td><?php if(isset($all_trasport[$a]['st_trans_name']) && $all_trasport[$a]['st_trans_name'] != '') { ?><a href="<?php echo base_url()."org-transportation-scheduled/".$all_trasport[$a]['in_transportation_id']."/";?>"><?php echo $all_trasport[$a]['st_trans_name']; ?></a><?php } else { ?><?php echo '-'; } ?></td><?php */?>
+												<td class="w120"><a href="<?php echo base_url()."org-transportation-scheduled/".$all_trasport[$a]['in_transportation_id']."/";?>"><?php echo ($all_trasport[$a]['st_org_code'])? $all_trasport[$a]['st_org_code'] : 'DBT';?><?php echo $all_trasport[$a]['in_transportation_id']; ?></a>
+												<br><?php echo $img_tag.' '.$transport_type.'<br>'.$trip; ?>	
+												</td>
+                                                
+                                                
+                                                
+												  <?php if(isset($all_trasport[$a]['dt_pickup_date']) && $all_trasport[$a]['dt_pickup_date']!='1969-12-31' && $all_trasport[$a]['dt_pickup_date']!='0000-00-00' &&
+														 isset($all_trasport[$a]['dt_target']) && $all_trasport[$a]['dt_target']!='1969-12-31' && $all_trasport[$a]['dt_target']!='0000-00-00'){ ?>
+												<td><?php /*?><?php echo date("M d/y",strtotime($all_trasport[$a]['dt_target']));?><?php */?>
+                                                <?php echo date("M d",strtotime($all_trasport[$a]['dt_pickup_date'])); ?> - <?php echo '<br>'.date("M d",strtotime($all_trasport[$a]['dt_target'])); ?>
+                                                </td>
+                                                <?php } else { ?>
+												<td>TBD - TBD</td>
+                                                <?php } ?>
+                                                
+												<?php /*?><td>12:00pm – 1:15pm</td><?php */?>
+                                                <?php if(isset($all_trasport[$a]['st_trans_type']) && $all_trasport[$a]['st_trans_type'] == 'D' && $all_trasport[$a]['in_airline_transport']=='1') {?>
+												<td class="twoway"><span class="citystreet"><?php echo $all_trasport[$a]['st_from_city'].' ('.$all_trasport[$a]['st_from_street'].')'; ?></span><?php echo $img_photographer;?> <i class="material-icons backspace">keyboard_backspace</i> <?php echo '<br>'.$all_trasport[$a]['st_to_city'].' ('.$all_trasport[$a]['st_to_street'].')'; ?> 
+                                                <?php if(isset($all_trasport[$a]['st_trans_name']) && $all_trasport[$a]['st_trans_name'] != '') { ?>
+                                                <a href="<?php echo base_url()."org-transportation-scheduled/".$all_trasport[$a]['in_transportation_id']."/";?>" class="link-orange"><?php echo '<br>'.$all_trasport[$a]['st_trans_name']; ?></a>
+												<?php } ?>
+												</td>
+												<?php }
+												
+												else if($in_photography_profile == 1)
+												{  ?>
+													<td class="twoway"><span class="citystreet"></span><?php echo $img_photographer;?>
+                                         <?php if($all_trasport[$a]['in_round']==1){?><i class="material-icons">swap_horiz</i><?php } else {?>
+                                                 <?php } echo '<br>'.$all_trasport[$a]['st_to_city'].', '.$all_trasport[$a]['st_to_state']; ?> 
+                                                <?php if(isset($all_trasport[$a]['st_trans_name']) && $all_trasport[$a]['st_trans_name'] != '') { ?>
+                                                <a href="<?php echo base_url()."org-transportation-scheduled/".$all_trasport[$a]['in_transportation_id']."/";?>" class="link-orange"><?php echo '<br>'.$all_trasport[$a]['st_trans_name']; ?></a>
+                                                <?php } ?>
+												</td>
+													
+												<?php } 
+												
+												
+												
+												else { ?>
+                                                <td class="twoway"><span class="citystreet"><?php echo $all_trasport[$a]['st_from_city'].', '.$all_trasport[$a]['st_from_state']; ?></span><?php echo $img_photographer;?>
+                                         <?php if($all_trasport[$a]['in_round']==1){?><?php /*?><?php echo $img_photographer; ?><?php */?><i class="material-icons">swap_horiz</i><?php } else {?>
+                                                 <i class="material-icons backspace">keyboard_backspace</i><?php } echo '<br>'.$all_trasport[$a]['st_to_city'].', '.$all_trasport[$a]['st_to_state']; ?> 
+                                                <?php if(isset($all_trasport[$a]['st_trans_name']) && $all_trasport[$a]['st_trans_name'] != '') { ?>
+                                                <a href="<?php echo base_url()."org-transportation-scheduled/".$all_trasport[$a]['in_transportation_id']."/";?>" class="link-orange"><?php echo '<br>'.$all_trasport[$a]['st_trans_name']; ?></a>
+                                                <?php } ?>
+												</td>
+												<?php }  ?>
+												
+												
+												
+												
+												
+												<?php if($all_trasport[$a]['st_trans_type'] == 'RO') { ?>
+												<td><?php echo $all_legs_count; ?> legs<br><small><?php echo ($all_trasport[$a]['in_tot_distance']!=''?$all_trasport[$a]['in_tot_distance']:"0");?> miles</small></td>
+												<?php } else { ?>
+												<td><?php echo $total_filled_legs; ?> of <?php echo $all_legs_count; ?> legs filled
+												<?php if($joined_leg > 0 && $all_trasport[$a]['in_status'] == 1) { ?>
+													&nbsp;
+													<a href="javascript:void(0);" title='Exit From Leg' onClick="exit_from_leg('<?php echo $all_trasport[$a]['in_transportation_id']; ?>');" class="link-orange highlight_off"><i class="material-icons">highlight_off</i></a>
+													<?php } ?>
+												<br><small>
+                                                <?php if($all_trasport[$a]['st_trans_type'] == 'P')
+													{
+														$legs_filled =  ($total_filled_legs/$all_legs_count)*100;
+														echo number_format($legs_filled,"2",".","")."%";
+													} else {
+														if($all_trasport[$a]['perc']>0)
+														{
+															echo (($all_trasport[$a]['perc']>100)? "100%":$all_trasport[$a]['perc']."%");
+														}
+														else
+														{
+																echo "0%";
+														} 
+													} ?> of <?php echo ($all_trasport[$a]['in_tot_distance']!=''?$all_trasport[$a]['in_tot_distance']:"0");?> miles covered</small>
+													
+												</td> <?php } ?>
+												<td class="text-break"><?php echo $coordinator_name; ?><br><a href="mailto:<?php echo $email_address; ?>"><?php echo $email_address; ?></a></td>
+												<?php /*?><td class="text-center"><a href="<?php echo $base_url."org-transportation-scheduled/".$all_trasport[$a]['in_transportation_id']."/";?>" class="btn primary btn-action" title="View Transport"><i class="material-icons font-14">visibility</i></a></td><?php */?>
+                                            </tr>
+                                              
+										
+										<?php } 
+											}
+											else
+											{
+												?>
+                                               <tr>
+                                               <td class="" colspan="6" align="center"> 
+										No Transportation found.
+                                        </td>
+                                        </tr>
+										<?php    
+											}
+										?>
+                                        
+                                        </tbody>
+										</table>
+                                        
+                                        <div class="dataTables_paginate dobt-pagination paging_bootstrap pull-right">
+											  <?php echo $pagination; ?>
+                                        </div>
+                                    <?php } ?>    
+										<div class="clearfix"></div>
+										<div class="col-md-12 col-sm-12 col-xs-12 no-space get-involved">
+											<div class="col-md-4 col-sm-4 col-xs-4 no-space-left">
+												<h2>Get Involved</h2>
+												<ul class="block-listing">
+													<li><a class="orange-block open-legs-view" href="<?php echo $base_url.'open_leg/'; ?>">View transports near me</a></li>
+													<li><a class="orange-block" href="<?php echo $base_url.'upcoming-trips/'; ?>"><i class="material-icons">directions_car</i> MANAGE MY TRIPS</a></li>
+													<li><a class="orange-block-grey" href="<?php echo $base_url.'help/'; ?>"><i class="material-icons">help</i> OTHER WAYS TO HELP</a></li>
+													<li><a class="orange-block-grey" href="<?php echo $base_url.'resources/'; ?>"><i class="material-icons">library_books</i> DOOBERT RESOURCES</a></li>
+													<li><a class="orange-block-grey" href="<?php echo $base_url.'shop/';?>"><i class="material-icons">shopping_cart</i> SHOP THE RESCUE STORE</a></li>
+												</ul>
+											</div>
+											<div class="col-md-4 col-sm-4 col-xs-4 right-coln no-space-right">
+                                            <?php if(isset($request_board_status) && $request_board_status == 2) { ?>
+
+												<ul class="block-listing myanimals-listing last-block text-center">
+													<li><a class="orange-block" href="<?php echo $base_url.'org_transportation/submitted_routing_request'; ?>">TC REQUEST BOARD</a></li>
+												</ul>									
+                                            <?php } else if(isset($request_board_status) && $request_board_status ==1) { 
+                                            	?>
+												<ul class="block-listing myanimals-listing last-block text-center">
+													<li>
+													<a class="orange-block" href="<?php echo $base_url.'org_transportation/request_assigned_to_me'; ?>">TC REQUEST BOARD</a></li>
+												</ul>									
+                                            <?php } else {?>
+											
+											<div class="comingsoon-banner atr">	
+											<?php if(isset($q1) && !empty($q1)){ 
+											
+											//foreach($q1 as $qr){
+												
+											if(!empty($q1[0]['st_code']))
+											{   
+													$leftbanner	= $q1[0]['st_code'];														
+											}
+											
+											else if(!empty($q1[0]['st_image']))
+											{
+													
+												//$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+												$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$q1[0]['st_image'];
+												$imgtitle   =   $q1[0]['st_banner_name']; 
+												$imgurl     =   $q1[0]['st_url'];	
+												$leftbanner	    = '<a href='.$q1[0]['st_url'].' target="_blank"><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+													
+											}
+											echo $leftbanner; 
+											} /*else{											
+											<img src="<?php echo $base_url.'assets/img/coming-soon-assisted-transport-routing.jpg'; ?>" />											
+											}*/ ?>
+																						</div>											
+											<?php } ?>
+											</div>
+											
+											
+											<?php if(isset($q2) && !empty($q2)){ 
+											//print_r($q2[0]);?>
+											<div class="col-md-4 col-sm-4 col-xs-4 right-coln no-space-right">											
+											<div class="comingsoon-banner favorite">											
+											<?php
+											if(!empty($q2[0]['st_code']))
+											{   
+													$rightbanner	= $q2[0]['st_code'];		
+											}											
+											else if(!empty($q2[0]['st_image']))
+											{
+													
+													//$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$q2[0]['st_image'];
+													$imgtitle   =   $q2[0]['st_banner_name']; 	
+													$imgurl     =   $q2[0]['st_url']; 	
+													$rightbanner	    = '<a href='.$q2[0]['st_url'].' target="_blank"><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+											}
+											
+											echo $rightbanner;												  
+											?>										
+											</div>
+											</div>
+											<?php } /*else{
+											<div class="col-md-4 col-sm-4 col-xs-4 right-coln no-space-right">										<div class="comingsoon-banner favorite">		
+											<img src="<?php echo $base_url.'assets/img/coming-soon-assisted-transport-routing.jpg'; ?>" />					</div>
+											</div>						
+											 	}*/ ?>										
+																				
+																					
+										</div>	
+									</div>
+									<div class="col-md-4 col-sm-4 col-xs-4 dboard-right-info no-space-right">
+									<?php include 'inc/my-account.php';?>
+									</div>
+								</div>
+							</div>
+						</div><!-- .entry-content -->
+					</article><!-- #post-## -->
+                </div>
+            </div>
+        </div>
+</section>
+
+<div class="modal fade" id="user_crop_img_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+            <h4 class="modal-title">Profile Picture</h4>
+          </div>
+          <div class="modal-body">
+          <div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%;overflow-y: scroll; overflow-x: scroll;">
+
+          	<p>Select an area of an image and then click on Save Photo button to save photo.<img id="ajax-loader-bar-rotate1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+            <div class="crop-img-here1">
+            	<img id="ajax-loader-bar1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/>
+            </div>
+            </div>
+          </div>
+          <div class="modal-footer text-center no-margin"> 
+          <button class="btn orange-small waves-effect waves-light save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Save Photo">Save Photo</button>
+          <button class="btn black waves-effect waves-light cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Cancel">Cancel</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+	</div>
+	
+	<div class="modal fade" id="deleted-leg" role="dialog">
+	 <form class="horizontal-form" role="form" id="delete_leg_transport" name="delete_leg_transport" enctype="multipart/form-data" action="<?php echo base_url(); ?>org_transportation/delete_user_legs/" method="post">
+      <input type="hidden" name="transport_id" id="transport_id" value="">
+      <input type="hidden" name="do_action" id="do_action" value="delete_leg" />
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal">&times;</button>
+          <h4 class="modal-title">Please select the leg you want to remove yourself from.</h4>
+        </div>
+        <div class="modal-body text-center" style='height:247px;'> 
+		<table id="deleted_leg_listing" class="table transport-table">
+			<thead>
+                <tr>
+                    <th></th>
+					<th>LEGS</th>
+                    <th class="w190">DATE/TIME</th>
+                    <th>PICK UP / DROP OFF</th>                             
+                </tr>
+            </thead> 
+			<tbody>
+                    
+            </tbody>
+        </table>			
+        </div>
+        <div class="modal-footer text-center no-margin">
+			<a href="javascript:void(0);" class="btn orange-small waves-effect waves-light" id="delete_leg_btn">Continue</a>
+		 </div>
+       </div>
+      
+    </div>
+	 </form>
+  </div>
+  
+    <?php if($this->session->flashdata('google_leg')){ ?>
+<!-- BEGIN Cancel Transport MODAL POPUP-->
+<div class="modal fade" id="cancel-config" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+        <h4 class="modal-title">Thank You</h4>
+      </div>
+		<div class="modal-body"><p><?php echo $this->session->flashdata('google_leg'); ?></p></div>
+      <div class="modal-footer text-center no-margin"> <a class="btn orange" data-dismiss="modal" href="javascript:void(0);">Close</a> </div>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+<?php } ?>
+
+
+
+<div class="modal fade" id="fb_user_email" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header none">
+					<?php /* ?><button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button><?php */ ?>
+					<h4 class="modal-title marb0">Email Address</h4>
+				</div>
+				<div class="modal-body">
+					<p><?php echo $this->session->userdata('emailfbuser');?></p>
+					 <div class="form-group col-md-12 padl0 padr0">
+                            <input type='email' id="fb_emailid" name="fb_emailid"  class="form-control" Placeholder="Enter email address" />
+                    </div>
+					<div class="modal-footer text-center no-margin lesser">
+						<a class="btn black" href="<?php echo base_url();?>user/logout/">CANCEL</a>
+						<a class="btn orange" style='opacity: .65;' id='submit-fbuser-email-unchecked' onClick='alert("Please enter email address.");' href="javascript:void(0);">Save</a>
+						<a class="btn orange" style='display:none' id='submit-fbuser-email' href="javascript:void(0);">Save</a>  
+					</div>		
+				</div> 
+			</div>
+		</div>
+	</div>
+
+<div class="modal fade" id="fb_user_email_thankyou" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <!--<button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>-->
+            <h4 class="modal-title">THANK YOU</h4>
+          </div>
+          <div class="modal-body"><p class="text16">Email address updated successfully.</p></div>
+          <div class="modal-footer text-center no-margin"> 
+          	<button class="btn orange" data-dismiss="modal"  type="button">OK</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+
+
+<div class="modal fade existingorg" id="per_frm" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+<div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"> 
+        <a href="javascript:void(0);" aria-hidden="true" data-dismiss="modal" class="close" type="button" title="Close"></a><h3>If you work with or for an existing Doobert organization, you can request security privileges to act on behalf of the organization.</h3>
+      </div>		
+      <div class="modal-body border-bottom">
+      <form class="horizontal-form" role="form" method="post" action="" name="invite_frm" id="invite_frm">
+		  <div class="form-group">
+		  <label class="control-label" for="pick_org">Select the organization:</label><input type="text" class="form-control" id="pick_org" value="" name="pick_org" maxlength="50"><div class="clearfix"></div> 							  
+		</div>
+	   <p class="modal-title">Indicate the permissions you are requesting</p>
+          <div class="form-body doobert-form no-space"> 
+          
+              <div class="row no-space margin-bottom-10 roll-wrapp"><span class="org-certificats">Transport Coordinator</span>
+<div class="custom-checkbox margin-top-6"><input type="checkbox" name="transport[]" class="access_level" id="tr_create" value="transport_cr"><label for="tr_create">Create</label><input type="checkbox" name="transport[]" class="access_level" id="tr_edit" value="transport_ed"><label for="tr_edit">Edit</label><input type="checkbox" name="transport[]" class="access_level" id="tr_confirm" value="transport_cnf"><label for="tr_confirm">Confirm</label><input type="checkbox" name="transport[]" class="access_level" id="tr_delete" value="transport_del"><label for="tr_delete">Delete</label></div>
+</div>
+<div class="row no-space margin-bottom-10 roll-wrapp"><span class="org-certificats">Fundraiser</span>
+<div class="custom-checkbox margin-top-6"><input type="checkbox" name="fundraiser[]" class="access_level" id="fn_create" value="fundraiser_cr"><label for="fn_create">Create</label><input type="checkbox" name="fundraiser[]" class="access_level" id="fn_edit" value="fundraiser_ed"><label for="fn_edit">Edit</label><input type="checkbox" name="fundraiser[]" class="access_level" id="fn_confirm" value="fundraiser_cnf"><label for="fn_confirm">Confirm</label><input type="checkbox" name="fundraiser[]" class="access_level" id="fn_delete" value="fundraiser_del"><label for="fn_delete">Delete</label></div></div>
+<div class="row no-space margin-bottom-10 roll-wrapp"><span class="org-certificats">Animal Profile Manager</span>
+<div class="custom-checkbox margin-top-6"><input type="checkbox" name="profile_manager[]" class="access_level" id="pr_create" value="pr_manager_cr"><label for="pr_create">Create</label><input type="checkbox" name="profile_manager[]" class="access_level" id="pr_edit" value="pr_manager_ed"><label for="pr_edit">Edit</label><input type="checkbox" name="profile_manager[]" class="access_level" id="pr_confirm" value="pr_manager_cnf"><label for="pr_confirm">Confirm</label><input type="checkbox" name="profile_manager[]" class="access_level" id="pr_delete" value="pr_manager_del"><label for="pr_delete">Delete</label><input type="checkbox" name="profile_manager[]" class="access_level" id="pr_transefer" value="pr_manager_trf"><label for="pr_transefer">Transfer</label></div></div>
+                    <br />                    
+<div class="row no-space margin-bottom-10 roll-wrapp">
+<span class="org-certificats">VIEW ONLY</span>
+<div class="custom-checkbox margin-top-6"><input type="checkbox" name="view_only" class="view_only access_level" id="view_only" value="view_only"><label for="view_only">View Only</label></div>
+</div>
+             
+              </div>
+              <input type="hidden" name="invite_frm_action" value="invite_frm_value" />
+              <input type="hidden" name="invite_user_id" id="invite_user_id" value="" />
+              <input type="hidden" name="display_name" id="display_name" value="" />
+			  <input type="hidden" name="org_id" id="org_id" value="" />
+			  
+              <input type="hidden" name="org_email_address" id="org_email_address" value="" />
+              <input type="hidden" name="sess_user_id" id="sess_user_id" value="<?php echo $this->session->userdata('userid'); ?>" />             
+              <input type="hidden" name="user_access_level" id="user_access_level" value="" />
+              </form> </div>
+      <div class="modal-footer no-border no-space dobt-text-center margin-bottom-10 margin-top-20">  
+	  <button aria-hidden="true" name="cancel" id="cancel" class="btn black marr5  marb10 cancelbtn" type="button" data-dismiss="modal">Cancel</button>
+      <a class="btn orange waves-effect waves-light marr5  marb10 send_invitation" href="javascript:void(0);">Submit</a>	  
+      <span class="display_loader" style="display:none;"> <img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /> </span>     
+      </div> </div>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+<!-- END THANK YOU MODAL POPUP-->
+
+<?php if($this->session->flashdata('message')):?>
+            <!-- BEGIN THANK YOU MODAL POPUP-->
+<div class="modal fade" id="message" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <!--<button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>-->
+            <h4 class="modal-title">THANK YOU</h4>
+          </div>
+          <div class="modal-body"><p><?php echo $this->session->flashdata('message'); ?></p></div>
+          <div class="modal-footer text-center no-margin"> 
+          	<button class="btn orange" data-dismiss="modal" type="button">OK</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+<!-- END THANK YOU MODAL POPUP-->
+<?php endif; ?>
+
+<?php if($this->session->flashdata('invitation_error')):?>
+            <!-- BEGIN THANK YOU MODAL POPUP-->
+<div class="modal fade" id="invitation_error" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <!--<button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>-->
+            <h4 class="modal-title">Alert!</h4>
+          </div>
+          <div class="modal-body"><p><?php echo $this->session->flashdata('invitation_error'); ?></p></div>
+          <div class="modal-footer text-center no-margin"> 
+          	<button class="btn orange" data-dismiss="modal" type="button">OK</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+<!-- END THANK YOU MODAL POPUP-->
+<?php endif; ?>
+
+<div class="modal fade" id="markallread" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+            <h4 class="modal-title">Information</h4>
+          </div>
+          <div class="modal-body"><p>All notifications marked as read.</p></div>
+          <div class="modal-footer text-center no-margin"> 
+          	<button class="btn orange" data-dismiss="modal" type="button" onclick="javascript:window.location='<?php echo base_url();?>'">OK</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+
+<?php if(!isset($_COOKIE['appuser'])):?>
+            <!-- BEGIN THANK YOU MODAL POPUP-->
+<div class="modal fade" id="message_app" style="display:none;" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal appbox">
+        <div class="modal-content">
+          <!--<div class="modal-header"></div>-->
+          <div class="modal-body">
+<div class="applogo"><img src="<?php echo $base_url; ?>/img/app-logo.jpg" alt="Doobert - animal rescue made simple" title="Doobert - animal rescue made simple"></div><div class="didyou">Did you know that Doobert has a mobile app?</div><div class="br"></div>
+<div class="app-detail">
+	<div class="dash-app-info"><a href="https://play.google.com/store/apps/details?id=app.doobert" target="_blank"><img src="<?php echo $base_url; ?>/img/google-play-small.jpg" class="marr24" alt="Google Play" title="Google Play"></a><a href="https://itunes.apple.com/us/app/doobert-user-app/id1047733391" target="_blank"><img src="<?php echo $base_url; ?>/img/app-store-small.jpg" alt="App Store" title="App Store"></a></div>
+	<a href="javascript:void(0);" class="continue" data-dismiss="modal">Continue with mobile web</a>
+	<div class="custom-checkbox"><input type="checkbox" name="dontshow" value="1" id="dontshow"/><label for="dontshow">Don’t show this again</label></div><div class="br"></div>
+</div>
+</div></div>
+        <!-- /.modal-content --> <?php /*  ?><div class="modal-footer text-center no-margin"><button class="btn orange" data-dismiss="modal" type="button" onclick="javascript:window.location='<?php echo base_url();?>user/setdownloadcookie'">Skip and proceed</button></div><button class="btn orange" data-dismiss="modal" type="button">Skip and continue</button><?php */ ?>
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+<!-- END THANK YOU MODAL POPUP-->
+<?php endif; ?>
+
+<form action="<?php echo base_url().'dashboard_modern/'; ?>" id="submit_board_view_type" method="post">
+<input type="hidden" id="dashboard_view_type" name="dashboard_view_type"  value="N">
+</form>
+<script>
+$(document).ready(function(){	
+$('#partners-table').cardtable();
+});
+</script>
+
+<?php include 'inc/footer-dashboard.php';?>
+
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/ajaxfileupload.js"></script>
+<script src="<?php echo base_url(); ?>assets/cropper.js" type="text/javascript" ></script>
+<!--<script src="<?php echo base_url(); ?>assets/custom_jquery/profile_photo_new.js" type="text/javascript" ></script>-->
+<script src="<?php echo base_url(); ?>js/css_browser_selector.js" type="text/javascript" ></script>
+<script src="<?php echo base_url(); ?>assets/plugins/bootstrap-hover-dropdown/bootstrap-hover-dropdown.min.js" type="text/javascript"></script>
+
+<script src="<?php echo $base_url; ?>assets/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+<script src="<?php echo $base_url; ?>assets/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+<script src="<?php echo $base_url; ?>assets/plugins/jquery.cokie.min.js" type="text/javascript"></script>
+<script src="<?php echo $base_url; ?>assets/plugins/uniform/jquery.uniform.min.js" type="text/javascript"></script>
+<script>
+$(document).on('keyup','#fb_emailid',function(){
+	
+	if($('#fb_emailid').val()!='')
+	{
+		
+		$('#submit-fbuser-email-unchecked').hide();
+		$('#submit-fbuser-email').show();
+	} else {
+		//$('#submit-term-condition').addClass('disabled');
+		$('#submit-fbuser-email-unchecked').show();
+		$('#submit-fbuser-email').hide();
+	}	
+	
+});
+
+$(document).on('click','#submit-fbuser-email',function()
+{
+		if($('#fb_emailid').val()!='')
+		{
+			var emailReg = /^([\w-\.\+]+@([\w-]+\.)+[\w-]{2,4})?$/;
+			var useremail = $("#fb_emailid").val();
+			var error_message = '';			
+			if(emailReg.test(useremail))
+			{
+				$.ajax({
+						type:'POST',
+						 url: "<?php echo base_url(); ?>user/update_email/",
+						 dataType: "json",
+						 async:false,
+						 data:{
+							fb_emailid:useremail,
+						 },
+						 success:function(data) 
+						 {
+							if(data==0)
+							{
+									alert('Email already exist, please specify other one.');
+							} else {	 
+							$('#fb_user_email').modal('hide');
+							$('#fb_user_email_thankyou').modal('show');
+							}
+						 }
+					});	
+			} else 
+			{				
+				error_message = 'Please enter valid email address. \n';
+				alert(error_message);
+			}										
+		} else {
+			alert('Please enter email address.');
+		}	
+});
+</script>
+
+<script>
+    $(function(){
+      // bind change event to select
+      $('#type-org').on('change', function () { 
+          var url = $(this).val(); // get selected value
+          if (url) { // require a URL
+              window.location = url; // redirect
+          }
+          return false;
+      });
+	  
+	   $('#type-org2').on('change', function () { 
+          var url = $(this).val(); // get selected value
+          if (url) { // require a URL
+              window.location = url; // redirect
+          }
+          return false;
+      });
+    });
+</script>
+
+<script>
+$(document).ready(function(){
+		<?php if($this->session->userdata('emailfbuser')){ ?>
+$('#fb_user_email').modal('show');
+
+<?php  $this->session->unset_userdata('emailfbuser');
+ } ?>
+$('#type-org').val('');
+   $('#type-org[value=""]').prop("selected", true);	
+});
+
+$(document).ready(function(){
+<?php if($this->session->flashdata('google_leg')){ ?>
+$('#cancel-config').modal('show');
+<?php } ?>	
+	
+if(navigator.userAgent.match(/Android/i)){  
+   $('.android').css("display", "block");
+   $('.desktop-device').remove();
+   }
+   else
+   {
+   $('.android').remove();
+   $('.desktop-device').css("display", "block");
+   }
+  });  
+</script>
+<script src="<?php echo $base_url; ?>assets/plugins/bootstrap/js/bootstrap.js" type="text/javascript"></script>
+<script>
+$(window).resize(function() { 
+if($( window ).width() <= 767) {  
+			$('.st-key').hide();
+			$('.small-only').show(); 			
+		}
+  //resize just happened, pixels changed
+});
+$(document).ready(function(){
+$(document).on('click','#delete_leg_btn',function()
+{
+	if($('[name="delete_leg[]"]:checked').val()==undefined)
+	{
+		alert('Please select one of the leg to delete');
+		return false;
+	} else {	
+		$('#delete_leg_transport').submit();
+	}
+});
+
+$(document).ready(function()
+  {
+		$(document).on('click','#close_deleted_leg',function()
+		{
+			if(767 > $( window ).width()) //767
+			{
+							window.location = '<?php echo base_url() ?>';
+			} 
+			
+		});
+	});
+
+});
+</script>
+<script>
+function exit_from_leg(transport_id)
+{
+	$.ajax({
+			type: "POST",
+				  url: '<?php echo base_url(); ?>org_transportation/get_user_legs',
+				  beforeSend: function() {
+					//$('#delete_account').modal('show');
+				  },
+				  dataType:"json",
+				  data: {
+					  transport_id: transport_id
+				  },
+				  complete: function() {
+					 $('#delete_account').modal('hide');
+				  },
+				  success:function(data) {
+					 //var pa_legs = jQuery.parseJSON(data);
+					 console.log(data.length);
+					 console.log(data);
+					 var html = '';
+					if(data.status == 1)
+					{
+						/*for(var i=0;i<data.length;i++)
+						{
+							html +='<option value="'+data[i]['in_leg_id']+'">Leg'+data[i]['sort_order']+'</option>';
+						}*/
+						if(data.leg_details!='')
+						{	
+							$('#deleted-leg #deleted_leg_listing tbody').html(' ');
+							$('#transport_id').val(transport_id);
+							$('#deleted-leg #deleted_leg_listing tbody').append(data.leg_details);
+							$('#deleted_leg_listing').cardtable();
+							$('#deleted-leg').modal('show');
+							if($( window ).width() < 767) //767
+							{
+								$('#deleted_leg_listing .large-only').html(" ");
+							} else {
+							$('#deleted-leg .small-only').html(" ");
+							}	
+						}	 
+					}  else {
+						if(data.status == 2)
+						alert('You cannot exit from the leg  as transport is confirmed');	
+					}     
+				  }
+		  });
+}
+</script>
+
+<script>
+
+$('#pick_org').autocomplete({ 
+	source: function (request, response)
+    {
+    	 var term= request.term;
+			term = $.trim(term);
+			var str	= term;
+			var letters = /^[a-zA-Z ]+$/;	
+			if(str.match(letters))
+			{
+				request.term = str; 
+			} else {
+				str = str.toUpperCase();
+				request.term = str.replace(/\s/g, ''); 
+			}		
+		$.ajax(
+        {
+            url: "<?php echo base_url(); ?>org_animal/get_org/",
+            dataType: "json",
+            data:
+            {
+				term: request.term				
+            },
+            success: function (data)
+            {  
+            	if(data=="1")
+				{
+					window.location.href="<?php echo base_url() ?>";
+				}
+				else
+				{
+                	response(data);
+				}
+            }
+        });
+    },
+	minLength:1,
+	delay: 0,
+	open: function() { $('.ui-menu').width($("#pick_org").width())},
+	focus: function( event, ui ){
+			var org_name = ui.item.value;	
+			var org_id = ui.item.org_id;	
+			var org_email_address = ui.item.org_email_address;	
+			var invite_user_id = ui.item.in_user_id;
+			$("#pick_org" ).val(org_name);	
+			$("#org_id" ).val(org_id);	
+			$("#org_email_address" ).val(org_email_address);	
+			$("#invite_user_id" ).val(invite_user_id);			
+			return false;
+	},     
+	select: function( event, ui ) {
+		var org_name = ui.item.value;			
+		$("#pick_org" ).val(org_name);		
+		return false;
+	}
+	});
+	
+$(document).on('change','#pick_org',function(){
+	var selected_zipcode = $.trim($(this).val());
+	if(selected_zipcode!='')
+	{
+	  $.ajax({
+            url: "<?php echo base_url(); ?>org_animal/get_org/",
+            dataType: "json",
+            data:
+            {
+                term: selected_zipcode,
+				city: $("#pickup_city" ).val(),
+				state: $("#pickup_state" ).val()
+            },
+            success: function (data)
+            {
+				if(data)
+				{
+					var org_name = data[0].value;	
+					var org_id = data[0].org_id;	
+					var org_email_address = data[0].org_email_address;	
+					var invite_user_id = data[0].in_user_id;
+					$("#pick_org" ).val(org_name);	
+					$("#org_id" ).val(org_id);	
+					$("#org_email_address" ).val(org_email_address);	
+					$("#invite_user_id" ).val(invite_user_id);
+				}
+				else
+				{
+					if($("#pick_org").val().indexOf(',') == -1)
+					{
+						alert('Please enter valid doobert organization');
+						$("#pick_org" ).val('');	
+						$("#org_id" ).val('');	
+						$("#org_email_address" ).val('');	
+						$("#invite_user_id" ).val('');
+					}
+				}
+				
+            }
+        });
+	} else {
+		alert('Please enter valid doobert organization');
+						$("#pick_org" ).val('');	
+						$("#org_id" ).val('');	
+						$("#org_email_address" ).val('');	
+						$("#invite_user_id" ).val('');
+	}		
+
+	});
+
+$('.send_invitation').click(function(){ 	
+		var access_level = $('.access_level').is(':checked');
+		var orgid= $('#pick_org').val();
+		if(access_level == false) {
+			alert('Please select at least one permission level.');
+			return false;
+		} 
+		
+		else if(orgid == '')
+		{
+			alert('Please select organization name.');
+			return false;
+		}
+		else {
+			$('#user_access_level').val('true');
+		}
+		
+	   $('#invite_frm').attr('action','<?php echo base_url(); ?>user/invite_user_direct/');
+	   $('#per_frm').modal('hide');
+	   
+	   if($.browser.msie) {
+				$('.display_loader').html('<img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" />');
+			}
+	   $('.display_loader').show();
+	   
+	   $('#loadimg').show();
+	   $('.view_user_profile').hide();
+	   $('.send_invitation').hide();
+	   
+	   $('#invite_frm').submit();
+   });
+  
+<?php if($this->session->flashdata('message')){?>
+	$('#message').modal('show');
+<?php } ?> 
+
+<?php if($this->session->flashdata('invitation_error')){?>
+	$('#invitation_error').modal('show');
+	<?php } ?> 
+   
+</script>
+<script>
+function selectval(id)
+{
+	if(id=='#userpermission#')
+	{
+		$('#per_frm').modal('show');	
+		$('#type-org').prop('selectedIndex',0);
+		$('#type-org2').prop('selectedIndex',0);
+	}
+	
+}
+
+$('.markallread').on('click',function() 
+{  					
+	
+	$.ajax({
+		type: "POST",
+		url: '<?php echo base_url(); ?>user/markallread', 
+		
+		success:function(data) 
+		{   
+			$('#markallread').modal('show');			
+			
+		}
+	});
+	
+});
+
+$(document).ready(function(){
+		$('#allow_pics').on('change',function(){
+		$('#submit_board_view_type').submit();
+		//window.location.href= "<?php echo base_url().'org-dashboard/'.$this->session->userdata('org_id'); ?>";		
+		});
+	});
+
+/*$('.switch-container input[type="checkbox"]').on('click', function () {
+				
+		if ($(this).is(':checked')) {
+			window.location='<?php echo base_url();?>dashboard';
+		   
+		}
+		else{ 
+			window.location='<?php echo base_url();?>dashboard_modern';	 
+		}
+});*/
+</script>
+<script>
+var isMobile = {
+    Android: function() {
+        return navigator.userAgent.match(/Android/i);
+    },
+    BlackBerry: function() {
+        return navigator.userAgent.match(/BlackBerry/i);
+    },
+    iOS: function() {
+        return navigator.userAgent.match(/iPhone|iPad|iPod/i);
+    },
+    Opera: function() {
+        return navigator.userAgent.match(/Opera Mini/i);
+    },
+    Windows: function() {
+        return navigator.userAgent.match(/IEMobile/i);
+    },
+    any: function() {
+        return (isMobile.Android() || isMobile.BlackBerry() || isMobile.iOS() || isMobile.Opera() || isMobile.Windows());
+    }
+};
+if( isMobile.any() ){
+	jQuery('#message_app').modal('show');
+}	
+
+
+  	$('#dontshow').on('click',function() 
+               	{  						
+               		
+               		$.ajax({
+               			type: "POST",
+               			url: '<?php echo base_url(); ?>user/setdownloadappcookie',               									
+               			success:function(data) 
+               			{   
+               				jQuery('#message_app').modal('hide');							
+               			}
+               		});
+               		
+               	});
+</script>

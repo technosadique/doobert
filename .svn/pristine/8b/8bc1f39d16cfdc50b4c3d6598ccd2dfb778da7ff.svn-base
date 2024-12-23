@@ -1,0 +1,180 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class User_profile_setting extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	public function __construct()
+    {
+		parent::__construct();		
+			$this->load->library('common_function');		
+			
+			$this->load->model('user_profile_setting_model');	
+			$this->load->model('user_model');		
+			$this->load->model('common_model');		
+			$this->load->library('form_validation');
+			$this->load->helper('url');
+			$this->load->helper('cookie');			
+	}	
+	 
+	public function index()
+	{  	
+		if(!$this->session->userdata('userid')){
+			redirect($this->config->item('base_url'));
+		}	
+			$data['user_org_dtls']	 					= $this->common_model->get_organization_list();	
+			$data['user_vehicle_detail']    			= $this->user_model->get_user_vehicle_detail($this->session->userdata('userid'));	
+			$data['user_profile_setting_details'] 		= $this->user_profile_setting_model->get_user_profile_setting($this->session->userdata('userid'));	
+			$data['user_profile'] 						= $this->user_model->get_user_profile_front($this->session->userdata('userid'));				
+			$data['foster_home']						= $data['user_profile']['st_foster_home'];
+				
+			//added by ghanshyam on 5Nov2014	
+			$data['arrPlane']							= $this->user_model->get_plane_detail($this->session->userdata('userid')); 
+			
+			$data['arr_foster']							= $this->user_model->get_foster_home_detail($this->session->userdata('userid')); 
+			
+			$data['arr_foster_ref']	 = array();
+			if(isset($data['arr_foster']) && !empty($data['arr_foster']))
+			{			
+				$data['arr_foster_ref']							= $this->user_model->get_foster_home_ref_detail($data['arr_foster']['in_foster_id']); 
+			}
+			//echo '<pre>'; print_r($data['arr_foster_ref']); die;
+			
+			
+			
+		
+		if($this->input->post('frm_action') == 'frm_post') {
+			
+			$foster_ref = array();
+			
+			if(isset($data['arr_foster_ref']) && !empty($data['arr_foster_ref']))
+			{
+				foreach($data['arr_foster_ref'] as $fos_ref)
+				{
+					//print_r($fos_ref);exit;
+					if($this->input->post('reference_'.$fos_ref['in_fosters_ref_id']))
+					{
+						$foster_ref[$fos_ref['in_fosters_ref_id']] = $this->input->post('reference_'.$fos_ref['in_fosters_ref_id']);
+					}
+				}
+			}
+			
+			
+			//print_r($foster_ref);exit;
+			//print_r($_POST);exit;
+			
+			$form_fields	=	array('contact'		=>array(0 =>''),
+							      	'driver'		=>array(0 =>''),
+									'pilot'			=>array(0 =>''),		//added by ghanshyam on 05Nov2014
+							      	'foster'		=>array(0 =>''),
+									'fosterhome'	=>array(0 =>''),
+									'fosterfamily'	=>array(0 =>''),
+									'photographer'	=>array(0 =>''),
+									'volunteer'		=>array(0 =>''),
+									'virtual_vol'	=>array(0 =>''),
+									'lost_animal'	=>array(0 =>''),
+									'profile_type'  =>'', 
+							      	'org'		    =>array(0 =>'')								   
+								  );
+								  
+			$this->form_validation->set_rules($form_fields);
+			$this->form_validation->set_rules('contact[]',	'Contact details', 	'trim');
+			if(!empty($data['user_vehicle_detail'] )){
+			//$this->form_validation->set_rules('driver[]',	'Driver details', 	'');
+			}
+			
+			if(!empty($data['user_org_dtls'] )){
+			//$this->form_validation->set_rules('org[]',	'Organization details', '');
+			}
+			if($data['foster_home']=='Y'){ 
+			//$this->form_validation->set_rules('foster[]',	'Foster details', 	'');
+			}
+			if ($this->form_validation->run() == FALSE) {
+			// Validation error				
+			$data['error_msg'] = validation_errors();
+			$this->load->view('user_profile_setting',$data);
+			}
+			else{
+			
+			$user_setting_info 		= array();			
+			
+			$user_setting_info['st_contact'] 	=	$this->input->post('contact')? serialize($this->input->post('contact')):'';	
+			$user_setting_info['st_driver'] 	=	$this->input->post('driver')? serialize($this->input->post('driver')):'';
+			
+			$user_setting_info['st_pilot'] 		=	$this->input->post('pilot')? serialize($this->input->post('pilot')):'';	//added by ghanshyam on 05Nov2014
+				
+			$user_setting_info['st_foster'] 		=	$this->input->post('foster')?serialize($this->input->post('foster')):'';
+			$user_setting_info['st_foster_home'] 	=	$this->input->post('fosterhome')?serialize($this->input->post('fosterhome')):'';
+			$user_setting_info['st_foster_family'] 	=	$this->input->post('fosterfamily')? serialize($this->input->post('fosterfamily')):'';
+			$user_setting_info['st_photographer'] 	=	$this->input->post('photographer')? serialize($this->input->post('photographer')):'';	
+			$user_setting_info['st_in_person_vol'] 	=	$this->input->post('volunteer')? serialize($this->input->post('volunteer')):'';
+			$user_setting_info['st_in_virtual_vol'] =	$this->input->post('virtual_vol')? serialize($this->input->post('virtual_vol')):'';
+			$user_setting_info['st_foster_ref'] 	=	serialize($foster_ref);	
+			$user_setting_info['st_lost_animal'] 	=	$this->input->post('lost_animal')? serialize($this->input->post('lost_animal')):'';
+			$user_setting_info['in_user_id'] 	=	$this->session->userdata('userid');		
+			$user_setting_info['st_org'] 		=	serialize($this->input->post('org'));
+			$user_setting_info['in_public'] 	=	$this->input->post('profile_type');
+			$user_setting_info['dt_created'] 	= 	date('Y-m-d H:i:s');
+			
+			$data['user_info']					=	$this->user_profile_setting_model->update_user($user_setting_info,$this->session->userdata('userid'),'tbl_users');	
+			
+			if(empty($data['user_profile_setting_details']))
+			{
+				$data['user_info']					=	$this->user_profile_setting_model->add_user_profile_setting($user_setting_info,'tbl_user_profile_setting');					
+			}
+			else{				
+				$user_setting_info_private['in_public'] 	=	$this->input->post('profile_type');	
+				$data['user_info']					=	$this->user_profile_setting_model->update_user_profile_setting($this->input->post('profile_type')==1?$user_setting_info:$user_setting_info_private,$this->session->userdata('userid'),'tbl_user_profile_setting');	
+			}
+			
+			$this->session->set_flashdata('message', 'Profile privacy setting updated successfully.');
+			redirect(base_url().'profile-privacy-setting');
+			}
+		}
+		else
+		{		
+			$this->load->view('user_profile_setting',$data);
+		}
+	}
+	
+	public function account_settings()
+	{
+		$data= array();
+		if(!$this->session->userdata('userid')){
+			redirect($this->config->item('base_url'));
+		}
+		
+		$common_profile = $this->common_function->get_user_profile($this->session->userdata('userid'));
+		$total_leg_partictants = $this->common_model->get_user_legs_participants($this->session->userdata('userid'));
+		//$data['facebook_uid'] = $common_profile['st_facebook_uid'];
+		$data['common_profile'] = $common_profile;
+		if(count($total_leg_partictants) >0)
+		{
+			$data['error_message'] = 'We show you are currently signed up to transport. If you remove your profile we will remove your signed up legs and notify the transport coordinator. Are you sure you want to do this?';
+		} else {
+			$data['error_message'] = 'Are you sure you want to delete your account?';
+		}
+		//echo "<pre>"; print_r($common_profile);
+		//die;
+		
+		$this->load->view('account-settings',$data);	
+	}
+		
+}
+
+/* End of file User_profile_setting.php */
+/* Location: ./application/controllers/user_profile_setting.php */

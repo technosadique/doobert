@@ -1,0 +1,205 @@
+<?php
+# ======================================================================================
+# Created by		: Piyali Sarkar
+# Created date		: 13-Aug-2018
+# File description	: Coalition Model for admin
+# Special - notes	: none
+# Tables used		: tbl_coalition
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class org_metric_model extends CI_Model 
+{
+	function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_coalition()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of vehicle types from tbl_coalition
+	#------------------------------------------------------------
+	public function get_orgnization($sort,$order,$limit,$rec_per_page,$name='')
+	{ 		
+		$result = array();
+		$org_metric_detail = array();
+		$this->db->select("SQL_CALC_FOUND_ROWS o.in_organization_id as rows,o.st_org_name,o.in_organization_id,o.st_city,o.st_state", false);
+		$this->db->from('tbl_organization o');
+		//$this->db->join('tbl_organization o','o.in_organization_id=tr.in_organization_id','INNER');
+		$this->db->join('tbl_users u','u.in_user_id=o.in_user_id','INNER');
+		$this->db->where('o.in_status','1');
+		$this->db->where('o.in_deleted','0');  
+		$this->db->where('u.in_deleted','0');
+		//$this->db->where('o.st_referred_by','BFAS');
+		if($name!= '') 
+		{ 
+			$name = str_replace("%","\%",$name);	
+			$this->db->where("(o.st_org_name LIKE '%".addslashes($name)."%')", NULL, FALSE);	
+		}
+		//$this->db->order_by('o.in_organization_id',$order);
+		$this->db->group_by('o.in_organization_id');
+		switch($sort)
+						{					
+							case 'name': 								
+								$this->db->order_by('o.st_org_name',$order);
+							break;	
+							
+							case 'city':								
+								$this->db->order_by('o.st_city',$order);
+							break;
+							
+							case 'state':								
+								$this->db->order_by('o.st_state',$order);
+							break;	
+							
+							default:							
+							$this->db->order_by('o.st_org_name',$order);
+							break;								         
+						}
+		
+		if(!isset($limit))
+						{
+							$limit=0;
+						}
+				
+					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+		//echo $this->db->last_query();die;
+		$result['total_count']	= $this->db->query('SELECT FOUND_ROWS() as count;')->row()->count;
+		if($query->num_rows() > 0 )
+		{	
+			foreach($query->result_array() as $key=>$row)
+			{
+					$transport_completed = $this->transport_completed_by_org($row['in_organization_id']);
+					$transport_canceled  = $this->transport_canceled_by_org($row['in_organization_id']);
+					$transport_animals   = $this->transport_animals_by_org($row['in_organization_id']);
+					$org_metric_detail[] = array('st_org_name'		   => $row['st_org_name'],
+												 'transport_completed' => $transport_completed,
+												 'transport_canceled'  => $transport_canceled,
+												 'transport_animals'   => $transport_animals,
+												 'in_organization_id'  => $row['in_organization_id'],
+												 'st_city'		   => $row['st_city'],
+												 'st_state'		   => $row['st_state'],
+												 );
+			}
+		}
+		$result['org_metric_detail'] = 	$org_metric_detail;
+		return $result;
+	}
+	
+	public function transport_completed_by_org($org_id)
+	{ 		
+		$completed_transport = 0;
+		$this->db->select("count(tr.in_transportation_id) as total_transport_count", false);						   	
+		$this->db->from('tbl_transportation tr');
+		$this->db->where('tr.in_deleted','0');
+		$this->db->where('tr.in_status','2');
+		$this->db->where('tr.in_organization_id',$org_id);
+		$query = $this->db->get();
+		if($query->num_rows() > 0)
+		{	
+			$row = $query->row_array();
+			$completed_transport = $row['total_transport_count'];
+		}	
+		return $completed_transport;
+	}
+	
+	public function transport_canceled_by_org($org_id)
+	{ 
+		$cancel_transport = 0;
+		$this->db->select("count(tr.in_transportation_id) as total_transport_count", false);						   	
+		$this->db->from('tbl_transportation tr');
+		$this->db->where('tr.in_deleted','0');
+		$this->db->where('tr.in_status','3');
+		$this->db->where('tr.in_organization_id',$org_id);
+		$query = $this->db->get();
+		if($query->num_rows() > 0)
+		{	
+			$row = $query->row_array();
+			$cancel_transport = $row['total_transport_count'];
+		}		
+		return $cancel_transport;
+	}
+	
+	public function transport_animals_by_org($org_id)
+	{ 	
+		$ani_transported = 0;
+		$this->db->select("count(a.in_animal_id) as total_animal_count", false);						   	
+		$this->db->from('tbl_animal a');
+		$this->db->join('tbl_animal_transportation an','an.in_animal_id=a.in_animal_id','JOIN');
+		$this->db->join('tbl_transportation t','an.in_transportation_id=t.in_transportation_id','JOIN');
+		$this->db->where('a.in_deleted','0');
+		$this->db->where('an.in_deleted','0');
+		$this->db->where('t.in_deleted','0');
+		$this->db->where('t.in_status','2');
+		$this->db->where('a.in_organization_id',$org_id);
+		$this->db->group_by('a.in_animal_id');
+		$query = $this->db->get();
+		if($query->num_rows() > 0)
+		{	
+			$row = $query->row_array();
+			$ani_transported = $query->num_rows();
+		}		
+		return $ani_transported;
+	}
+	
+	/*public function volunteers_joined_bfas()
+	{
+		$result = array();
+		$user_metric_detail = array();
+		$this->db->select("SQL_CALC_FOUND_ROWS in_user_id as rows,in_user_id,st_display_name,st_last_name,st_email",false);						   	
+		$this->db->from('tbl_user');
+		$this->db->where('st_referred_by','BFAS');	
+		$this->db->where('in_deleted','0');
+		$query = $this->db->get();
+		$result['total_count']	= $this->db->query('SELECT FOUND_ROWS() as count;')->row()->count;
+		if($query->num_rows() > 0 )
+		{	
+			foreach($query->result_array() as $key=>$row)
+			{
+					$transport_joined = $this->volunteers_joined_transport_bfas($row['in_user_id']);
+					$user_metric_detail[] = array('st_email'		   	   => $row['st_email'],
+												 'transport_joined'    => $transport_joined,
+												 'display_name' 	   => $row['st_display_name'].' '.$row['st_last_name'],
+												 );
+			}
+		}
+		$result['user_metric_detail'] = 	$user_metric_detail;
+		return $result;
+	}
+	
+	public function volunteers_joined_transport_bfas($user_id='')
+	{	 
+		$transport_joined = 0;
+		$this->db->select("count(in_tr_pr_id) as total_join",false);
+		$this->db->from('tbl_transportation_participants');
+		$this->db->where('in_deleted','0');
+		$this->db->where('in_user_id',$user_id);
+		$query = $this->db->get();
+		if($query->num_rows() > 0)
+		{	
+			$row = $query->row_array();
+			$transport_joined = $row['total_join'];
+		}		
+		return $transport_joined;	
+	}*/
+	
+	/*public function volunteers_joined_transport_bfas()
+	{	  
+		$this->db->select("count(u.in_user_id) as total_user",false);						   	
+		$this->db->from('tbl_user u');
+		$this->db->join('tbl_transportation_participants p','p.in_user_id = u.in_user_id','INNER');
+		$this->db->where('u.st_referred_by','BFAS');
+		//$this->db->where("u.st_browser_info LIKE '%BFAS%'");	
+		$this->db->where('u.in_deleted','0');
+		$this->db->where('p.in_deleted','0');
+		$query = $this->db->get();
+		return $query->row_array();	
+	}*/
+	
+	
+}
+?>

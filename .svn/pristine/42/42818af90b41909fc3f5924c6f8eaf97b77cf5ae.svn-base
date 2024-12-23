@@ -1,0 +1,459 @@
+<?php 
+	$base_url = $this->config->item('base_url');
+	$web_url = $this->config->item('web_url');
+	$request_board_status = $this->common_model->transport_routing_enable($this->session->userdata('userid'));	
+	//require $_SERVER['DOCUMENT_ROOT'].'/fbt/facebook/facebook.php';
+	//require $_SERVER['DOCUMENT_ROOT'].'/fbt/config/fbconfig.php';
+	//$this->load->library('facebook');	
+	require $this->config->item('doc_root').'/fbt/facebook/facebook.php';
+	
+	$facebook = new Facebook(array(
+	  'appId'  => '316015238585967',
+	  'secret' => '439ac5dba5430eaa546d9584f33b01ea',
+	));
+	
+	$make_array_user = array();
+	$check_per_flag = '';
+	$draft			= '';
+	$transport_cancel = '';
+	
+	$org_list = $this->common_model->get_organization_list();
+	$default_org_url  = '';
+	$result = $this->common_model->check_direct_login($this->session->userdata('userid'));
+	//print_r($result);die;
+	if($result['in_login_direct']== 1)
+	{	
+		if(count($org_list)>0 and is_array($org_list))
+		{	
+			$default_org_url = base_url()."org-dashboard/".$org_list[0]['in_organization_id']."/";									
+		}										
+	}
+
+	$user_verified = $this->common_model->get_user_verified($this->session->userdata('userid'));
+		
+	$user_full_details = $this->common_function->get_user_profile($this->session->userdata('userid'));
+
+	if($user_full_details['in_public']=='0')
+	{
+		$lock_icon = "fa-lock";
+	}
+	elseif($user_full_details['in_public']=='1')
+	{
+		$lock_icon = "fa-unlock";
+	}
+	
+	//My Notification Count
+	if($this->router->class == 'user_settings_and_notification' && $this->router->method == 'my_notifications') {
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYNOTIFICATIONS',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+	}
+
+	$data['created_date_user'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYNOTIFICATIONS');
+	//print_r($data['created_date_user']);die;
+	if(!empty($data['created_date_user'])) {  
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'),$data['created_date_user']['dt_created']);
+		//print_r($pending_notifications_front);die;
+		
+	} else { 
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'));
+	}
+	//echo $pending_notifications_front;die;
+	//End My Notification Count
+	$count_feedback = $this->common_model->get_feedback_count($this->session->userdata('userid'));
+	
+	//My Transportation Count
+	if($this->router->class == 'transportation' && $this->router->method == 'transport_list') {
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYTRANSPORTATION',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+	}
+	
+	$data['created_transport'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYTRANSPORTATION');
+	//print_r($data['created_transport']);die;
+
+	//End My Transportation Count
+	
+	$transport_permission = $this->common_model->verify_transport_permission($this->session->userdata('userid'));
+	
+	if($transport_permission == 'true')
+		$tc_count = $this->common_model->get_tc_volunteer_count($this->session->userdata('userid'));
+	
+	$vol_count = $this->common_model->get_transaction_volunteer_count($this->session->userdata('userid'));
+	
+	//$user_sub_details = $this->common_function->get_user_subscription_detail($this->session->userdata('userid'));
+	//echo 'user_sub_details';print_r($user_sub_details);
+	//echo 'user_sub_details count';
+	//echo count($user_sub_details);
+	
+	$common_profile = $this->common_function->get_user_profile($this->session->userdata('userid'));
+	
+	$invitation_count = $this->common_function->pending_invitation_cnt($this->session->userdata('userid'));	
+	$invitation_name = $this->common_function->pending_invitation_name($this->session->userdata('userid'));	
+		
+	if(!isset($owner_id))
+	{
+		$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	}
+		
+	$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	if(isset($user_permission) && !empty($user_permission)) {
+		$make_array_user = unserialize($user_permission);
+	}
+
+	$web_url = $this->config->item('web_url');		 	
+	$check_user_arpa = $this->common_model->check_arpa_certifcate_status($this->session->userdata('userid'));	
+	$check_paypal_id = $this->common_model->check_paypal_id($this->session->userdata('org_id')); 
+	
+	$verify_org_user = $this->common_model->get_organization_list($this->session->userdata('org_id'));
+	
+	$picture = $common_profile['st_profile_image'];
+	//print_r($picture);exit;
+	$profile_image = '';
+	if(trim($picture) != '' && file_exists($this->config->item('upload').'profile/250x250/'.$picture)) 
+	{
+		$profile_image = $picture;
+		$user_profile_src = $this->config->item('upload_url').'profile/250x250/'.$profile_image; 
+	} else {
+		$profile_image = 'no_photo_icon.png';
+		$user_profile_src = $this->config->item('upload_url').'profile/250x250/'.$profile_image; 
+	}
+	
+	
+	$picture2 = $this->common_function->get_picture($this->session->userdata('org_id'));
+	
+		$profile_image = '';
+		if(trim($picture2) != '' && file_exists($this->config->item('upload').'org_doc/thumb/'.$picture2)) 
+		{
+			$profile_image = $picture2;
+			$org_profile_src = $this->config->item('upload_url').'org_doc/thumb/'.$profile_image; 
+		} else {
+			$profile_image = 'temp-logo.jpg';
+			$org_profile_src = $this->config->item('upload_url').'org_doc/thumb/'.$profile_image; 
+		}
+?>
+<div id="wrapper" class="dashboard-page">
+    <header id="header-info" >
+        <div class="container">
+            <div class="dashboard-left-cont">
+			
+			
+				<?php
+			$go_back = htmlspecialchars($_SERVER['HTTP_REFERER']);
+			
+			  if(!$this->session->userdata('wsdltoken')){				  
+			 if($go_back != base_url().'user/my_doobert_volunteer_pin'){			 
+			  if($go_back == base_url().'organization-privacy-setting'){?>
+			  <a href="javascript:window.close();" class="back"><i class="material-icons">keyboard_backspace</i>Back</a>
+			  <?php } else{ ?>		 
+			  <a href="<?php echo $go_back;?>" class="back"><i class="material-icons">keyboard_backspace</i>Back</a>
+		      <?php } ?>
+			  <?php  } ?>		
+				
+				
+			  <?php if($go_back == base_url().'user/my_doobert_volunteer_pin'){?>
+			  <a href="<?php echo base_url();?>my-profile" class="back"><i class="material-icons">keyboard_backspace</i>Back</a>			 
+		      <?php } ?>
+			  
+			  <?php  } ?>
+		   
+		   
+		   
+		   	<?php if(!empty($small_image_path) && isset($small_image_path)) { ?>			
+			<?php if($small_image_path == base_url().'assets/img/not-rated.png'){ ?>
+			<a href="#notrated" data-toggle="modal"><img src='<?php echo $small_image_path; ?>' /></a>
+			<?php } else{  ?>			
+				<img src='<?php echo $small_image_path; ?>' />
+				<?php } ?>
+			<?php } ?>
+			
+			
+		   
+            </div>
+
+            <div class="clearfix dashboard-right-cont">
+
+            <nav class="navbar navbar-inverse">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <button type="button" class="overlay">
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                        </button>
+                    </div>
+                    <?php if(!$this->session->userdata('org_id')){?>					
+					<div class="overlayp" id="myNavbar">
+							<div class="menu-menu-1-container">
+								<ul id="primary-menu" class="menu">
+									<li class="wpactive"><a href="http://dev.doobert.com/wp" target="_blank"><i class="material-icons">home</i>Doobert.com</a></li>
+                                	<li><a href="<?php echo $base_url.'dashboard'; ?>" class="active"><i class="material-icons">dashboard</i>My Dashboard</a></li>
+									<li>
+                                    <?php if($this->session->userdata('org_id')){ ?>
+                                    <a href="<?php echo $base_url.'org-dashboard/'.$this->session->userdata('org_id'); ?>"><i class="material-icons">account_balance</i>My Organization Dashboard</a>
+                                    <?php }else if(isset($default_org_url) && $default_org_url != '') { ?>
+                                    <a href="<?php echo $default_org_url; ?>"><i class="material-icons">account_balance</i>My Organization Dashboard</a>
+                                    <?php } else { ?>
+                                    <a class="inactive"><i class="material-icons">account_balance</i>My Organization Dashboard</a>
+                                    <?php } ?>
+                                    </li>                                
+									
+                                   <li class="last dropdown dropdown-user">
+									<a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+									<img id="fileupload" src="<?php echo $user_profile_src; ?>" alt="<?php echo $common_profile['st_display_name'].' '.$common_profile['st_last_name']; ?>" title="<?php echo $common_profile['st_display_name'].' '.$common_profile['st_last_name']; ?>"><i class="material-icons">keyboard_arrow_down</i></a>
+										<ul class="dropdown-menu dropdown-menu-default">
+											<li><a href="<?php echo $base_url.'notification-overview/'; ?>">Notifications</a></li>
+											<?php	if($this->session->userdata('userid')){ ?>
+											<li><a href="<?php echo base_url(); ?>profile-privacy-setting/" class="">Privacy Settings</a></li>
+											<?php } ?>
+											<?php if(isset($common_profile['st_facebook_uid']) && !empty($common_profile['st_facebook_uid'])) { ?>
+											<li><a class="orange-block" href="javascript:void(0);" onClick="$('#unlink_fb').modal('show')" >Un-link Facebook</a></li>
+											<?php } else { ?>
+											<li><a class="orange-block" href="javascript:void(0);" onClick="javascript:window.open('<?php echo $base_url?>fbt/link-facebook.php','Facebook','location=yes,menubar=yes,resizable=yes,scrollbars=yes,status=no,toolbar=no,top=200,left=400,width=1000,height=500');">Link Facebook</a></li>
+											<?php } ?>
+											<li><a href="<?php echo $base_url.'account-setting/'; ?>">Update Email/Password</a></li>
+											<?php if(isset($request_board_status) && $request_board_status == 2) { ?>
+											<li><a  href="<?php echo $base_url.'org_transportation/submitted_routing_request'; ?>">TC Request Board</a></li>
+											<?php } else if(isset($request_board_status) && $request_board_status ==1) { ?>
+											<li><a href="<?php echo $base_url.'org_transportation/request_assigned_to_me'; ?>">TC Request Board</a></li>
+											<?php } ?>
+											<li><a href="<?php echo $base_url.'user/logout'; ?>">Log Out</a></li>
+										</ul>
+									</li>									
+									
+								</ul>
+							</div>
+                    </div>
+						<form  method="post" enctype="multipart/form-data" action="<?php echo base_url().'user/update_user_profile_pic'; ?>" name="user_photo_frm" id="user_photo_frm">
+						<input type="file" name="user_photo1" id="user_photo1" onChange="profile_readURL(this)" style="display:none;">
+						<input type="hidden" id="rotate_angle1" name="rotate_angle1" value="0"/>
+						<input type="hidden" id="crop_x1" name="x1"/>
+						<input type="hidden" id="crop_y1" name="y1"/>
+						<input type="hidden" id="crop_w1" name="w1"/>
+						<input type="hidden" id="crop_h1" name="h1"/>          
+						<input type="hidden" id="user_uploaded_photo1" name="user_uploaded_photo1" value="" />
+						<input type="hidden" id="crop_upload_path" name="crop_upload_path" value="<?php echo base_url(); ?>user/user_profile_pic_upload" />
+						</form>
+						
+						<div class="modal fade" id="user_crop_img_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+						<div class="modal-dialog message-modal">
+							<div class="modal-content">
+								<div class="modal-header"> 
+										<button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+										<h4 class="modal-title">Profile Picture</h4>
+								</div>
+								<div class="modal-body">
+									<div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%;overflow-y: scroll; overflow-x: scroll;">
+										<p>Select an area of an image and then click on Save Photo button to save photo.<img id="ajax-loader-bar-rotate1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+									<div class="crop-img-here1">
+										<img id="ajax-loader-bar1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/>
+									</div>
+									</div>
+								</div>
+								<div class="modal-footer text-center no-margin"> 
+									<button class="btn orange-small waves-effect waves-light save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Save Photo">Save Photo</button>
+									<button class="btn black waves-effect waves-light cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Cancel">Cancel</button>
+								</div>
+							</div>
+        <!-- /.modal-content --> 
+						</div>
+      <!-- /.modal-dialog --> 
+						</div>
+					<?php } 
+					
+					
+					 else if ($owner_id != $this->session->userdata('userid')){?>
+
+							<div class="overlayp" id="myNavbar">
+							<div class="menu-menu-1-container">
+								<ul id="primary-menu" class="menu">
+									<li class="wpactive"><a href="http://dev.doobert.com/wp" target="_blank"><i class="material-icons">home</i>Doobert.com</a></li>
+                                	<li><a href="<?php echo $base_url.'dashboard'; ?>" class="active"><i class="material-icons">dashboard</i>My Dashboard</a></li>
+									<li>
+                                    <?php if($this->session->userdata('org_id')){ ?>
+                                    <a href="<?php echo $base_url.'org-dashboard/'.$this->session->userdata('org_id'); ?>"><i class="material-icons">account_balance</i>My Organization Dashboard</a>
+                                    <?php }else if(isset($default_org_url) && $default_org_url != '') { ?>
+                                    <a href="<?php echo $default_org_url; ?>"><i class="material-icons">account_balance</i>My Organization Dashboard</a>
+                                    <?php } else { ?>
+                                    <a class="inactive"><i class="material-icons">account_balance</i>My Organization Dashboard</a>
+                                    <?php } ?>
+                                    </li>                                
+									
+                                   <li class="last dropdown dropdown-user">
+									<a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+									<img id="fileupload" src="<?php echo $user_profile_src; ?>" alt="<?php echo $common_profile['st_display_name'].' '.$common_profile['st_last_name']; ?>" title="<?php echo $common_profile['st_display_name'].' '.$common_profile['st_last_name']; ?>"><i class="material-icons">keyboard_arrow_down</i></a>
+										<ul class="dropdown-menu dropdown-menu-default">
+											<li><a href="<?php echo $base_url.'notification-overview/'; ?>">Notifications</a></li>
+											<?php	if($this->session->userdata('userid')){ ?>
+											<li><a href="<?php echo base_url(); ?>profile-privacy-setting/" class="">Privacy Settings</a></li>
+											<?php } ?>
+											<?php if(isset($common_profile['st_facebook_uid']) && !empty($common_profile['st_facebook_uid'])) { ?>
+											<li><a class="orange-block" href="javascript:void(0);" onClick="$('#unlink_fb').modal('show')" >Un-link Facebook</a></li>
+											<?php } else { ?>
+											<li><a class="orange-block" href="javascript:void(0);" onClick="javascript:window.open('<?php echo $base_url?>fbt/link-facebook.php','Facebook','location=yes,menubar=yes,resizable=yes,scrollbars=yes,status=no,toolbar=no,top=200,left=400,width=1000,height=500');">Link Facebook</a></li>
+											<?php } ?>
+											<li><a href="<?php echo $base_url.'account-setting/'; ?>">Update Email/Password</a></li>
+											<?php if(isset($request_board_status) && $request_board_status == 2) { ?>
+											<li><a  href="<?php echo $base_url.'org_transportation/submitted_routing_request'; ?>">TC Request Board</a></li>
+											<?php } else if(isset($request_board_status) && $request_board_status ==1) { ?>
+											<li><a href="<?php echo $base_url.'org_transportation/request_assigned_to_me'; ?>">TC Request Board</a></li>
+											<?php } ?>
+											<li><a href="<?php echo $base_url.'user/logout'; ?>">Log Out</a></li>
+										</ul>
+									</li>									
+									
+								</ul>
+							</div>
+							</div>
+							<form  method="post" enctype="multipart/form-data" action="<?php echo base_url().'user/update_user_profile_pic'; ?>" name="user_photo_frm" id="user_photo_frm">
+							<input type="file" name="user_photo1" id="user_photo1" onChange="profile_readURL(this)" style="display:none;">
+							<input type="hidden" id="rotate_angle1" name="rotate_angle1" value="0"/>
+							<input type="hidden" id="crop_x1" name="x1"/>
+							<input type="hidden" id="crop_y1" name="y1"/>
+							<input type="hidden" id="crop_w1" name="w1"/>
+							<input type="hidden" id="crop_h1" name="h1"/>          
+							<input type="hidden" id="user_uploaded_photo1" name="user_uploaded_photo1" value="" />
+							<input type="hidden" id="crop_upload_path" name="crop_upload_path" value="<?php echo base_url(); ?>user/user_profile_pic_upload" />
+							</form>
+						
+							<div class="modal fade" id="user_crop_img_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+							<div class="modal-dialog message-modal">
+							<div class="modal-content">
+								<div class="modal-header"> 
+										<button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+										<h4 class="modal-title">Profile Picture</h4>
+								</div>
+								<div class="modal-body">
+									<div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%;overflow-y: scroll; overflow-x: scroll;">
+										<p>Select an area of an image and then click on Save Photo button to save photo.<img id="ajax-loader-bar-rotate1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+									<div class="crop-img-here1">
+										<img id="ajax-loader-bar1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/>
+									</div>
+									</div>
+								</div>
+								<div class="modal-footer text-center no-margin"> 
+									<button class="btn orange-small waves-effect waves-light save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Save Photo">Save Photo</button>
+									<button class="btn black waves-effect waves-light cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Cancel">Cancel</button>
+								</div>
+							</div>
+							</div> 
+							</div>
+								
+							
+					<?php }	else {?>
+
+					<div class="overlayp" id="myNavbar">
+							<div class="menu-menu-1-container">
+								<ul id="primary-menu" class="menu">
+									<li class="wpactive"><a href="http://dev.doobert.com/wp" target="_blank"><i class="material-icons">home</i>Doobert.com</a></li>
+									<?php if($this->session->userdata('org_id') && !empty($verify_org_user)){ ?>
+                                    <li><a href="<?php echo $base_url.'dashboard'; ?>"><i class="material-icons">dashboard</i>My Dashboard</a></li>
+                                    <li><a href="<?php echo $base_url.'org-dashboard/'.$this->session->userdata('org_id'); ?>"  class="active"><i class="material-icons">account_balance</i>My Organization Dashboard</a></li>
+                                    <?php }else if(isset($default_org_url) && $default_org_url != '' && !empty($verify_org_user)) { ?>
+                                    <li><a href="<?php echo $base_url.'dashboard'; ?>" class="active"><i class="material-icons">dashboard</i>My Dashboard</a></li>
+                                    <li><a href="<?php echo $default_org_url; ?>"><i class="material-icons">account_balance</i>My Organization Dashboard</a></li>
+                                    <?php } else { ?>
+                                    <li><a href="<?php echo $base_url.'dashboard'; ?>" class="active"><i class="material-icons">dashboard</i>My Dashboard</a></li>
+                                    <li><a class="inactive"><i class="material-icons">account_balance</i>My Organization Dashboard</a></li>
+                                    <?php } ?>                                   								
+                                     <li class="last dropdown dropdown-user">
+									<a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+									<img src="<?php echo $org_profile_src; ?>" alt="<?php echo $this->session->userdata('org_name'); ?>" title="<?php echo $this->session->userdata('org_name'); ?>" id="org_fileupload"><i class="material-icons">keyboard_arrow_down</i></a>
+										<ul class="dropdown-menu dropdown-menu-default">
+											<?php	if($owner_id == $this->session->userdata('userid')){ ?>
+											<li><a href="<?php echo base_url(); ?>organization-account-settings/">Org Account Settings</a></li>
+											<?php } ?>								
+											<?php if($this->session->userdata('org_id')){?>
+											<li><a href="<?php echo base_url(); ?>organization-<?php echo $this->session->userdata('org_id');?>-<?php echo $this->common_function->get_filtered_name($this->session->userdata('org_name')); ?>">View our public page</a></li>
+											
+											<?php } ?>
+											<?php if ($owner_id == $this->session->userdata('userid')) {?>
+											<li><a href="<?php echo base_url(); ?>org_info/org_notify/">Org Notifications</a></li>
+											<li><a href="<?php echo base_url(); ?>org_info/edit_organization_profile#disasterlink">Disaster mode</a></li>
+											<?php } ?>								
+											<?php if($owner_id == $this->session->userdata('userid')){ ?>
+											<li><a href="<?php echo base_url(); ?>manage-volunteer-users/">Manage people</a></li>
+											<?php /*  ?><li><a href="<?php echo base_url();?>org_dashboard/organization_fb_groups/">Our Facebook groups</a></li><?php */  ?>
+											<?php } ?>
+											
+											<li><a href="<?php echo $base_url.'user/logout'; ?>">Log Out</a></li>
+										</ul>
+									</li>								
+								</ul>								
+							</div>
+                    </div>
+					<form  method="post" enctype="multipart/form-data" action="<?php echo base_url().'org_dashboard/update_org_profile_pic'; ?>" name="org_photo_frm" id="org_photo_frm">
+                                              <?php /*?>  <label class="fileContainer" for="org_photo_1"><i class="fa fa-file-picture-o"></i><span class="picture-text">Change Org Profile Picture</span><?php */?>
+                                                <input type="file" name="org_photo_1" id="org_photo_1" onChange="profile_readURL(this)" style="display:none;">
+                                                </label>
+                                                <input type="hidden" id="org_rotate_angle1" name="org_rotate_angle1" value="0"/>
+                                                <input type="hidden" id="org_crop_x1" name="org_x1"/>
+                                                <input type="hidden" id="org_crop_y1" name="org_y1"/>
+                                                <input type="hidden" id="org_crop_w1" name="org_w1"/>
+                                                <input type="hidden" id="org_crop_h1" name="org_h1"/>
+                                                <input type="hidden" id="org_uploaded_photo1" name="org_uploaded_photo1" value="" />
+                                                <input type="hidden" id="org_crop_upload_path" name="org_crop_upload_path" value="<?php echo base_url(); ?>org_dashboard/org_profile_pic_upload" />
+                    </form>
+					  <div class="modal fade" id="org_crop_img_popup1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+						<div class="modal-dialog message-modal">
+							<div class="modal-content">
+								<div class="modal-header"> 
+									<button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+									<h4 class="modal-title">Profile Picture</h4>
+								</div>
+							<div class="modal-body">
+								<div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%;overflow-y: scroll; overflow-x: scroll;">
+									<p>Select an area of an image and then click on Save Photo button to save photo.<img id="org-ajax-loader-bar-rotate1" src="<?php echo base_url(); ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+									<div class="org-crop-img-here1">
+										<img id="org-ajax-loader-bar1" src="<?php echo base_url(); ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/>
+									</div>
+								</div>
+							</div>
+							<div class="modal-footer text-center no-margin"> 
+								<button class="btn orange org_save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button">Save Photo</button>
+								<button class="btn black cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button">Cancel</button>
+							</div>
+							</div>
+							<!-- /.modal-content --> 
+						</div>
+						<!-- /.modal-dialog --> 
+					</div>
+					<?php } ?>				
+                </div>
+            </nav>
+			</div>
+
+            <?php /*?><!-- Device view login start-->
+            <a href="javascript:void(0);" id="user-login"><i class="material-icons">person</i></a>
+            <!-- Device view login end--><?php */?>
+        </div>
+    </header>
+
+
+<?php 
+//My Notification Count
+	if($this->router->class == 'user_settings_and_notification' && $this->router->method == 'my_notifications') {
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYNOTIFICATIONS',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+	}
+	$data['created_date_user'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYNOTIFICATIONS');
+	//print_r($data['created_date_user']);die;
+	
+	if(!empty($data['created_date_user'])) {  
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'),$data['created_date_user']['dt_created']);
+		//print_r($pending_notifications_front);die;
+		
+	} else { 
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'));
+	}
+?>

@@ -1,0 +1,2238 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 25-March-2014
+# File description	: Organization Model for admin
+# Special - notes	: none
+# Tables used		: tbl_organization
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class organization_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#=====================================================================
+	#	Function	:	get_total_organization()
+	#  Parameter	: 	name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to check valid user login
+	#---------------------------------------------------------------------
+	
+	public function get_total_organization($name='',$zip='',$certified='',$contract='',$fromdate='',$todate='',$state='',$country='',$orgid='',$emailid='')
+	{ 			
+			
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					$this->db->select("usr.in_user_id,org.in_organization_id", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','1');
+					$this->db->where('org.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');
+					$this->db->where("st_country IS NOT NULL");
+					
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);	
+					}
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}	
+					
+					if(trim($orgid) != '') {
+							$this->db->where("org.in_organization_id", $orgid);
+					}
+					
+					if(trim($emailid) != '') {
+							//$this->db->where("usr.st_email", $emailid);
+							$this->db->where("org.st_email_address", $emailid);
+					}
+					
+					$query = $this->db->get();
+					
+					
+					
+					
+		
+		//$query = $this->db->query($sql);
+		//echo $this->db->last_query(); die;	
+		
+		return $query->num_rows();
+	}
+	
+	#====================================================================================================
+	#	Function	:	get_organization()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get organization details
+	#----------------------------------------------------------------------------------------------------
+	public function get_organization($sort,$order,$limit,$rec_per_page,$name,$zip,$certified,$contract,$fromdate,$todate,$state,$country,$orgid,$emailid)
+	{
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }		
+					  
+					$this->db->select(" usr.in_user_id,
+										concat(usr.st_display_name,' ',usr.st_last_name) as st_display_name,
+										usr.st_email,
+										org.in_organization_id,
+										org.st_org_name,
+										org.st_org_type,
+										org.st_has_501c3,
+										org.st_has_contract,								
+										org.in_user_id,		
+										org.dt_modified,							
+										org.dt_created,
+										org.in_display_home,	
+										org.st_email_address,
+										org.st_director,org.st_city,org.st_state", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','1');
+					$this->db->where('org.in_deleted','0');  
+					$this->db->where('usr.in_deleted','0');
+					$this->db->where("st_country IS NOT NULL");
+					  
+					  
+				
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}	
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}	
+					
+					if(trim($orgid) != '') {
+							$this->db->where("org.in_organization_id", $orgid);
+					}
+					
+					if(trim($emailid) != '') {
+							//$this->db->where("usr.st_email", $emailid);
+							$this->db->where("org.st_email_address", $emailid);
+					}
+					
+		
+					switch($sort)
+						{
+							
+							case 'id': 								
+								$this->db->order_by('org.in_organization_id',$order);
+							break;	
+							case 'type':								
+								$this->db->order_by('org.st_org_type',$order);
+							break;
+							case 'name': 								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							case 'certified':								
+								$this->db->order_by('org.st_has_501c3',$order);
+							break;
+							
+							case 'contract':							
+								$this->db->order_by('org.st_has_contract',$order);
+							break;
+							
+							case 'email':							
+								//$this->db->order_by('usr.st_email',$order);
+								$this->db->order_by("org.st_email_address", $order);
+							break;
+							
+							case 'mname':							
+								$this->db->order_by('org.st_director',$order);
+							break;
+							
+							case 'createdby': 								
+								$this->db->order_by('st_display_name',$order);
+							break;	
+							case 'createdat': 								
+								$this->db->order_by('org.dt_created',$order);
+							break;
+							
+							case 'modifieddate': 								
+								$this->db->order_by('org.dt_modified',$order);
+							break;
+							
+							case 'city':								
+								$this->db->order_by('org.st_city',$order);
+							break;
+							
+							case 'state':								
+								$this->db->order_by('org.st_state',$order);
+							break;
+							
+							default:							
+							$this->db->order_by('org.in_organization_id',$order);
+							break;
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					//$query = $this->db->query($sql);
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+				
+					
+					//echo $this->db->last_query();  die;					
+					$arrOrganization = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+								
+
+							$sqluseractivity  = "SELECT dt_created,st_device_info FROM tbl_user_activity  where in_user_id = '".$Row->in_user_id."' order by dt_created desc limit 1";
+							$sqlcreateddate	    =	$this->db->query($sqluseractivity);							
+							$numrowprostat		=	$sqlcreateddate->num_rows($sqlcreateddate);	
+							$sqldtcreated		=	$sqlcreateddate->result();										
+							$lastlogin			=	$sqldtcreated[0]->dt_created;
+							$deviceinfo			=	$sqldtcreated[0]->st_device_info;
+							
+							$arrOrganization[$Row->in_organization_id]	= array('in_organization_id'	=> $Row->in_organization_id,
+											'st_org_name'				=> htmlspecialchars_decode($Row->st_org_name),
+											'st_org_type'				=> $Row->st_org_type,
+											'st_has_501c3'				=> $Row->st_has_501c3,
+											'st_email'					=> $Row->st_email,
+											'st_has_contract'			=> $Row->st_has_contract,											
+											'in_user_id' 				=> $Row->in_user_id,
+											'dt_created' 				=> $Row->dt_created,
+											'dt_modified' 				=> $Row->dt_modified,
+											'st_display_name' 			=> $Row->st_display_name,
+											'in_display_home' 		   	=> $Row->in_display_home,
+											'st_email_address' 			=> $Row->st_email_address,
+											'st_director' 				=> $Row->st_director,
+											'lastlogin'					=> $lastlogin,
+											'deviceinfo'				=> $deviceinfo,
+											'st_city'                   => $Row->st_city,
+											'st_state'                   => $Row->st_state
+											);
+						}
+						return $arrOrganization;
+						
+					}
+					
+	}
+	
+	
+	#============================================================
+	#	Function	:	delete_org()
+	#   Parameter	: 	orgId
+	#	Perpose		:	to delete single organization details
+	#------------------------------------------------------------
+	function delete_org($orgId)
+	{
+		$arrOrg = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);		
+	}
+	
+	
+	#================================================================
+	#	Function	:	update_status_accept()
+	#  Parameter	: 	orgId
+	#	Perpose		:	updating status as accept in tbl_organization
+	#----------------------------------------------------------------
+	function update_status_accept($orgId)
+	{
+		$arrOrg = 	array('in_status' 	=> '1','in_deleted' => '0' );		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);		
+	}
+	
+	
+	
+	#================================================================
+	#	Function	:	update_status_reject()
+	#   Parameter	: 	orgId
+	#	Perpose		:	updating status as reject in tbl_organization
+	#----------------------------------------------------------------
+	function update_status_reject($orgId)
+	{
+		$arrOrg = 	array('in_status' 	=> '3' ,'in_deleted' => '0' );		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);		
+	}
+	
+	function update_status($shelter_id,$org_type,$orgId)
+	{
+		$arrOrg = 	array('in_status' 	=> '3' );		
+		$this->db->where("in_organization_id <> $orgId",NULL,FALSE);
+		$this->db->where('st_org_type', $org_type);
+		$this->db->where('in_shelter_id', $shelter_id);
+		$this->db->update('tbl_organization', $arrOrg);		
+	}
+	
+	
+	
+	
+	
+	#================================================================
+	#	Function	:	block_org()
+	#   Parameter	: 	orgId
+	#	Perpose		:	updating status as blocked in tbl_organization
+	#----------------------------------------------------------------	
+	function block_org($orgId)
+	{  
+		$arrOrg = 	array('in_status' 	=> '2');		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);		
+	}
+	
+	
+	
+	
+	
+	#=====================================================================
+	#	Function	:	unblock_org()
+	#   Parameter	: 	orgId
+	#	Perpose		:	updating status as unblocked in tbl_organization
+	#---------------------------------------------------------------------	
+	function unblock_org($orgId)
+	{
+		$arrOrg = 	array('in_status' 	=> '1');		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);	
+	}
+	
+	
+	
+	
+	#============================================================
+	#	Function	:	delete_multiple_org()
+	#   Parameter	: 	orgIds
+	#	Perpose		:	to delete multiple organization details
+	#------------------------------------------------------------
+	function delete_multiple_org($orgIds)
+	{
+		//echo '<pre>'; print_r($orgIds); die;
+		
+		$arrOrg = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_organization_id', $orgIds);
+		$this->db->update('tbl_organization', $arrOrg);		
+		return $this->db->affected_rows();
+	}
+	
+	#============================================================
+	#	Function	:	undelete_multiple_org()
+	#   Parameter	: 	orgIds
+	#	Perpose		:	to undelete multiple organization details
+	#------------------------------------------------------------
+	function undelete_multiple_org($orgIds)
+	{
+		//echo '<pre>'; print_r($orgIds); die;
+		
+		$arrOrg = 	array('in_deleted' 	=> '0' );
+		$this->db->where_in('in_organization_id', $orgIds);
+		$this->db->update('tbl_organization', $arrOrg);		
+		return $this->db->affected_rows();
+	}
+	
+	
+	
+	
+	#====================================================================
+	#	Function	:	get_total_rejected_organization()
+	#   Parameter	: 	name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to count rejected organization details
+	#--------------------------------------------------------------------
+	public function get_total_rejected_organization($name='',$zip='',$certified='',$contract='',$fromdate='',$todate='',$state='',$country='')
+	{ 	
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					
+		$this->db->select("usr.in_user_id,org.in_organization_id", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','3');
+					$this->db->where('org.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');
+					
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					$query = $this->db->get();
+		//echo $this->db->last_query(); die;	
+		
+		return $query->num_rows();
+	}
+	
+	#==================================================================================================
+	#	Function	:	get_rejected_organization()
+	#   Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get rejected organization details
+	#--------------------------------------------------------------------------------------------------
+	public function get_rejected_organization($sort,$order,$limit,$rec_per_page,$name,$zip,$certified,$contract,$fromdate,$todate,$state,$country)
+	{
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					
+		$this->db->select(" usr.in_user_id,
+							concat(usr.st_display_name,' ',st_last_name) as st_display_name, 
+							org.in_organization_id,
+							org.st_org_name,
+							org.st_org_type,
+							org.st_has_501c3,
+							org.st_has_contract,								
+							org.in_user_id,	
+							org.dt_modified,							
+							org.dt_created,
+							org.st_email_address,
+							org.st_director,
+							org.st_city,
+							org.st_state,
+							usr.st_email", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','3');
+					$this->db->where('org.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');  
+					  
+					  
+				
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					
+		
+					switch($sort)
+						{
+							
+							case 'id': 								
+								$this->db->order_by('org.in_organization_id',$order);
+							break;	
+							case 'type':								
+								$this->db->order_by('org.st_org_type',$order);
+							break;
+							case 'name': 								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							case 'certified':								
+								$this->db->order_by('org.st_has_501c3',$order);
+							break;
+							case 'contract':							
+								$this->db->order_by('org.st_has_contract',$order);
+							break;
+							case 'email':							
+								//$this->db->order_by('usr.st_email',$order);
+								$this->db->order_by('org.st_email_address',$order);
+							break;
+							case 'mname':							
+								$this->db->order_by('org.st_director',$order);
+							break;
+							case 'createdby': 								
+								$this->db->order_by('st_display_name',$order);
+							break;	
+							case 'createdat': 								
+								$this->db->order_by('org.dt_created',$order);
+							break;
+							
+							case 'modifiedat':								
+								$this->db->order_by('org.dt_modified',$order);
+							break;
+							
+							case 'city':							
+								$this->db->order_by('org.st_city',$order);
+							break;
+							
+							case 'state':							
+								$this->db->order_by('org.st_state',$order);
+							break;
+							
+							default:							
+							$this->db->order_by('org.in_organization_id',$order);
+							break;
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					//$query = $this->db->query($sql);
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 				
+					
+					//echo $this->db->last_query();  die;					
+					$arrOrganization = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrOrganization[$Row->in_organization_id]	= array('in_organization_id'	=> $Row->in_organization_id,
+											'st_org_name'				=> $Row->st_org_name,															
+											'st_org_type'				=> $Row->st_org_type,
+											'st_has_501c3'				=> $Row->st_has_501c3,
+											'st_has_contract'			=> $Row->st_has_contract,
+											'in_user_id' 				=> $Row->in_user_id,
+											'dt_created' 				=> $Row->dt_created,
+											'dt_modified' 				=> $Row->dt_modified,
+											'st_display_name' 			=> $Row->st_display_name,
+											'st_email'					=> $Row->st_email,
+											'st_email_address' 			=> $Row->st_email_address,
+											'st_director' 				=> $Row->st_director,
+											'st_city' 					=> $Row->st_city,
+											'st_state' 					=> $Row->st_state
+											);
+						}
+						return $arrOrganization;						
+					}					
+	}
+	
+	
+	
+	
+	
+	
+	#==================================================================================================
+	#	Function	:	get_total_blocked_organization()
+	#   Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get total no of blocked organization
+	#--------------------------------------------------------------------------------------------------
+	public function get_total_blocked_organization($name='',$zip='',$certified='',$contract='',$fromdate='',$todate='',$state='',$country='')
+	{ 			
+			
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					
+					
+		$this->db->select("usr.in_user_id,org.in_organization_id", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','2');
+					$this->db->where('org.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');
+					
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}			
+					
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					$query = $this->db->get();
+		//echo $this->db->last_query(); die;		
+		return $query->num_rows();
+	}
+	
+	
+	
+	
+	#==================================================================================================
+	#	Function	:	get_blocked_organization()
+	#   Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get blocked organization details
+	#--------------------------------------------------------------------------------------------------
+	public function get_blocked_organization($sort,$order,$limit,$rec_per_page,$name,$zip,$certified,$contract,$fromdate,$todate,$state,$country)
+	{
+		
+					if($fromdate=='1969-12-31'){ $fromdate='';  }
+					if($todate=='1969-12-31'){ $todate='';  }
+					
+					
+					
+		$this->db->select(" usr.in_user_id,
+										concat(usr.st_display_name, ' ',st_last_name) as st_display_name, 
+										org.in_organization_id,
+										org.st_org_name,
+										org.st_org_type,
+										org.st_has_501c3,
+										org.st_has_contract,								
+										org.in_user_id,	
+										org.dt_modified,							
+										org.dt_created,
+										usr.st_email,
+										org.st_email_address,
+										org.st_director,org.st_city,org.st_state", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','2');
+					$this->db->where('org.in_deleted','0');  
+					$this->db->where('usr.in_deleted','0');  
+					  
+				
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					
+		
+					switch($sort)
+						{
+							
+							case 'id': 								
+								$this->db->order_by('org.in_organization_id',$order);
+							break;	
+							case 'type':								
+								$this->db->order_by('org.st_org_type',$order);
+							break;
+							case 'name': 								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							case 'certified':								
+								$this->db->order_by('org.st_has_501c3',$order);
+							break;
+							case 'contract':							
+								$this->db->order_by('org.st_has_contract',$order);
+							break;
+							case 'email':							
+								$this->db->order_by('org.st_email_address',$order);
+							break;
+							case 'mname':							
+								$this->db->order_by('org.st_director',$order);
+							break;
+							case 'createdby': 								
+								$this->db->order_by('st_display_name',$order);
+							break;	
+							case 'createdat': 								
+								$this->db->order_by('org.dt_created',$order);
+							break;
+							
+							case 'modifiedat': 								
+								$this->db->order_by('org.dt_modified',$order);
+							break;
+							case 'city': 								
+								$this->db->order_by('org.st_city',$order);
+							break;
+							case 'state': 								
+								$this->db->order_by('org.st_state',$order);
+							break;
+							
+							default:							
+							$this->db->order_by('org.in_organization_id',$order);
+							break;
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					//$query = $this->db->query($sql);
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+				
+					
+					//echo $this->db->last_query();  die;					
+					$arrOrganization = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrOrganization[$Row->in_organization_id]	= array('in_organization_id'	=> $Row->in_organization_id,
+											'st_org_name'				=> $Row->st_org_name,															
+											'st_org_type'				=> $Row->st_org_type,
+											'st_has_501c3'				=> $Row->st_has_501c3,
+											'st_has_contract'			=> $Row->st_has_contract,											
+											'in_user_id' 				=> $Row->in_user_id,
+											'dt_created' 				=> $Row->dt_created,
+											'dt_modified' 				=> $Row->dt_modified,
+											'st_display_name' 			=> $Row->st_display_name,
+											'st_email'					=> $Row->st_email,
+											'st_email_address' 			=> $Row->st_email_address,
+											'st_director' 				=> $Row->st_director,
+											'st_city' 					=> $Row->st_city,
+											'st_state' 					=> $Row->st_state
+											);
+						}
+						return $arrOrganization;
+						
+					}
+					
+	}
+	
+	
+	
+	
+	
+	
+	#=====================================================================
+	#	Function	:	get_total_pending_organization()
+	#   Parameter	: 	name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get total no of pending organizations
+	#---------------------------------------------------------------------
+	public function get_total_pending_organization($name='',$zip='',$certified='',$contract='',$fromdate='',$todate='',$state='',$country='',$app_type='',$orgid='',$emailid='')
+	{ 			
+				    //echo $app_type;die;
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					if($app_type == '1')
+					{ $app_type = '0';  }
+					if($app_type == '2')
+					{ $app_type = '1';  }
+					if($app_type == '')
+					{ $app_type = '0';  }
+					
+					
+					
+									
+					
+		$this->db->select("usr.in_user_id,org.in_organization_id", false);						   	
+					$this->db->from('tbl_users usr');
+					$this->db->join('tbl_organization org', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','0');
+					$this->db->where('org.in_deleted',$app_type);
+					$this->db->where('usr.in_deleted','0');
+					
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+				
+				
+				if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					
+					if(trim($orgid) != '') {
+							$this->db->where("org.in_organization_id", $orgid);
+					}
+					
+					if(trim($emailid) != '') {
+							//$this->db->where("usr.st_email", $emailid);
+							$this->db->where("org.st_email_address", $emailid);
+					}
+					
+					$query = $this->db->get();
+		//echo $this->db->last_query(); die;	
+		
+		return $query->num_rows();
+	}
+	
+	#==================================================================================================
+	#	Function	:	get_pending_organization()
+	#   Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get pending organization details
+	#--------------------------------------------------------------------------------------------------
+	public function get_pending_organization($sort,$order,$limit,$rec_per_page,$name,$zip,$certified,$contract,$fromdate,$todate,$state,$country,$app_type,$orgid,$emailid)
+	{
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					if($app_type == '1')
+					{ $app_type = '0';  }
+					if($app_type == '2')
+					{ $app_type = '1';  }
+					
+					if($app_type == '')
+					{ $app_type = '0';  }				
+					
+					
+		$this->db->select(" usr.in_user_id,
+										concat(usr.st_display_name,' ',usr.st_last_name) as st_display_name,
+										org.in_organization_id,
+										org.st_org_name,
+										org.st_org_type,
+										org.st_has_501c3,
+										org.st_has_contract,								
+										org.in_user_id,			
+										org.dt_modified,							
+										org.dt_created,
+										org.st_email_address,
+										org.st_director,
+										usr.st_email,org.st_city,org.st_state", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','0');
+					$this->db->where('org.in_deleted',$app_type);  
+					$this->db->where('usr.in_deleted','0'); 
+					  
+				
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);							
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}					
+					
+					
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					
+					if(trim($orgid) != '') {
+							$this->db->where("org.in_organization_id", $orgid);
+					}
+					
+					if(trim($emailid) != '') {
+							//$this->db->where("usr.st_email", $emailid);
+							$this->db->where("org.st_email_address", $emailid);
+					}
+					
+					switch($sort)
+						{
+							
+							case 'id': 								
+								$this->db->order_by('org.in_organization_id',$order);
+							break;	
+							case 'type':								
+								$this->db->order_by('org.st_org_type',$order);
+							break;
+							case 'name': 								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							case 'certified':								
+								$this->db->order_by('org.st_has_501c3',$order);
+							break;
+							case 'contract':							
+								$this->db->order_by('org.st_has_contract',$order);
+							break;
+							
+							case 'email':							
+								//$this->db->order_by('usr.st_email',$order);
+								$this->db->order_by('org.st_email_address',$order);
+							break;
+							
+							case 'mname':							
+								$this->db->order_by('org.st_director',$order);
+							break;
+							
+							case 'createdby': 								
+								$this->db->order_by('st_display_name',$order);
+							break;	
+							case 'createdate': 								
+								$this->db->order_by('org.dt_created',$order);
+							break;
+							
+							case 'modifieddate': 								
+								$this->db->order_by('org.dt_modified',$order);
+							break;
+							case 'city':								
+								$this->db->order_by('org.st_city',$order);
+							break;
+							
+							case 'state':								
+								$this->db->order_by('org.st_state',$order);
+							break;
+							
+							
+							default:							
+							$this->db->order_by('org.in_organization_id',$order);
+							break;
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					//$query = $this->db->query($sql);
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+				
+					
+					//echo $this->db->last_query();  die;					
+					$arrOrganization = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrOrganization[$Row->in_organization_id]	= array('in_organization_id'	=> $Row->in_organization_id,
+											'st_org_name'				=> $Row->st_org_name,															
+											'st_org_type'				=> $Row->st_org_type,
+											'st_has_501c3'				=> $Row->st_has_501c3,
+											'st_has_contract'			=> $Row->st_has_contract,											
+											'in_user_id' 				=> $Row->in_user_id,
+											'dt_created' 				=> $Row->dt_created,
+											'dt_modified' 				=> $Row->dt_modified,
+											'st_display_name' 			=> $Row->st_display_name,
+											'st_email' 					=> $Row->st_email,
+											'st_email_address' 			=> $Row->st_email_address,
+											'st_director' 				=> $Row->st_director,
+											'st_city' 				    => $Row->st_city,
+											'st_state' 				    => $Row->st_state
+											);
+						}
+						return $arrOrganization;					
+					}
+					
+	}
+	
+	
+	
+	#===============================================
+	#	Function	:	get_org_details()
+	#   Parameter	: 	orgId
+	#	Perpose		:	to get organization details
+	#-----------------------------------------------
+	function get_org_details($orgId)
+	{   
+		$this->db->select(" usr.st_display_name,
+							usr.st_last_name,
+							usr.in_user_id,
+						    org.in_organization_id,
+							org.st_org_code,
+						    org.st_org_name,
+							org.st_what_type_org,							
+							org.in_shelter_id,
+							org.st_org_type,
+							org.st_org_ein,
+							org.st_director,
+							org.st_address1,
+							org.st_address2, 
+							org.st_country,
+							org.st_city,
+							org.st_state,
+							org.st_paypal_email,
+							org.st_zip,
+							org.st_primary_phone,
+							org.st_secondary_phone,
+							org.st_fax,
+							org.st_email_address,
+							org.st_website,
+							org.st_has_501c3,
+							org.st_organization_501c3,
+							org.st_has_contract,
+							org.st_org_adoption,
+							org.st_guideline,
+							org.st_additional_info,
+							org.st_profile_desc,
+							org.dt_created", false);
+						   	
+		$this->db->from('tbl_organization org');
+		$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');
+		$this->db->where('org.in_organization_id',$orgId);
+		$this->db->where('org.in_status','0');
+		//$this->db->where('org.in_deleted','0');
+		$this->db->where('usr.in_deleted','0');
+		$results = $this->db->get()->result_array();	
+		//echo $this->db->last_query(); die;	
+		return $results;		
+	}
+	
+	
+	
+	
+	
+	#=============================================
+	#	Function	:	get_org_info()
+	#   Parameter	: 	orgId
+	#	Perpose		:	to get organization info
+	#---------------------------------------------
+	function get_org_info($orgId)
+	{  
+		$this->db->select(" usr.st_display_name,
+							usr.st_last_name,
+						    org.in_organization_id,
+							org.st_org_code,
+							org.st_org_type,
+						    org.st_org_name,
+							org.st_what_type_org,
+							org.st_has_contract,
+							org.st_org_adoption,							
+							org.st_director,
+							org.st_address1,
+							org.st_address2, 
+							org.st_country,
+							org.st_city,
+							org.st_state,
+							org.st_zip,
+							org.st_primary_phone,
+							org.st_secondary_phone,
+							org.st_fax,
+							org.st_email_address,
+							org.st_website,
+							org.st_has_501c3,
+							org.st_organization_501c3,	
+							org.st_guideline,						
+							org.st_additional_info,
+							org.st_profile_desc,
+							org.st_paypal_email,
+							org.in_status,
+							org.dt_created,org.dt_modified", false);
+						   	
+		$this->db->from('tbl_organization org');
+		$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');
+		$this->db->where('org.in_organization_id',$orgId);
+		//$this->db->where('org.in_status','1');
+		$this->db->where('org.in_deleted','0');
+		$results = $this->db->get()->result_array();
+		
+		//echo $this->db->last_query(); die;	
+		return $results;	
+	}
+	
+	
+	function get_org_approve_letter($orgId)
+	{		
+		$this->db->select("org.st_file_name", false);						   	
+		$this->db->from('tbl_organization_upload org');		
+		$this->db->where('org.in_organization_id',$orgId);	
+		$this->db->where('org.in_deleted','0');
+		$this->db->where('org.in_doc_type',0);
+		$results = $this->db->get()->result_array();		
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	
+	
+	
+	
+	#===================================================
+	#	Function	:	get_pending_org_details()
+	#   Parameter	: 	orgId
+	#	Perpose		:	to get pending organization info
+	#---------------------------------------------------
+	function get_pending_org_details($orgId)
+	{  
+	
+		$this->db->select("usr.st_display_name,						    
+						    org.st_org_name,
+						    org.st_director,							
+							org.st_email_address,
+							org.in_shelter_id,
+							org.st_zip,
+							org.st_org_type,org.in_user_id,org.in_direct_signup,org.in_new_org_notification_miles", false);
+						   	
+		$this->db->from('tbl_organization org');
+		$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');
+		$this->db->where('org.in_status','0');
+		$this->db->where('org.in_deleted','0');
+		$this->db->where('usr.in_deleted','0');
+		$this->db->where('org.in_organization_id',$orgId);
+		$results = $this->db->get()->result_array();	
+		//echo $this->db->last_query(); die;	
+		return $results;		
+	}
+	
+	
+	#===================================================
+	#	Function	:	get_organization_profile()
+	#   Parameter	: 	orgId
+	#	Perpose		:	to get organization info
+	#---------------------------------------------------	
+	function get_organization_profile($orgId)
+	{
+		$this->db->select(" org.in_organization_id,
+						    org.st_org_name,
+							org.st_what_type_org,
+							org.st_director,
+							org.st_has_501c3,
+							org.st_organization_501c3,
+							org.st_org_adoption,
+							org.st_has_contract,
+							org.st_org_type,
+							org.st_address1,
+							org.st_address2, 
+							org.st_country,
+							org.st_city,
+							org.st_state,
+							org.st_zip,							
+							org.st_primary_phone,
+							org.st_secondary_phone,
+							org.st_fax,
+							org.st_paypal_email,
+							org.st_email_address,
+							org.st_website,
+							org.st_additional_info,
+							org.st_org_ein,
+							org.st_guideline,
+							org.st_profile_desc,
+							ou.st_file_name,
+							ou.in_org_upload_id,
+							ou.in_deleted as approval_delete", false);
+						   	
+		$this->db->from('tbl_organization org');
+		$this->db->join('tbl_organization_upload ou','org.in_organization_id = ou.in_organization_id AND ou.in_deleted = 0' ,'LEFT');		
+		$this->db->where('org.in_organization_id',$orgId);		
+		$this->db->where('org.in_deleted','0');
+		$results = $this->db->get()->result_array();	
+		//echo $this->db->last_query(); die;	
+		return $results;		
+	}
+	
+	function update_organization_info($data,$orgId,$table)
+	{
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $data);		
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_ref_details	
+	#	Purpose		:	Getting Organization Referances
+	# *******************************************************************************************	
+	function get_ref_details($orgId)
+	{
+		$this->db->select("ref.in_org_ref_id,	
+						   ref.st_ref_type,
+						   ref.st_ref_name,
+						   ref.st_ref_email,
+						   ref.st_ref_phone", false);						   	
+		$this->db->from('tbl_organization_ref ref');
+		$this->db->join('tbl_organization org', 'ref.in_organization_id = org.in_organization_id','INNER');
+		$this->db->where('org.in_organization_id',$orgId);	
+		$this->db->where('ref.in_deleted','0');
+		$this->db->where('org.in_deleted','0');
+		$results = $this->db->get()->result_array();
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_references	
+	#	Purpose		:	Add Organization Referances
+	# *******************************************************************************************		
+	function organization_references($arrData)
+	{   
+		$this->db->insert('tbl_organization_ref', $arrData);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_references_update	
+	#	Purpose		:	Update Organization Referances
+	# *******************************************************************************************		
+	function organization_references_update($orgId)
+	{
+		$arrOrg = 	array('in_deleted' 	=> '1' );
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization_ref', $arrOrg);		
+	}
+	
+	function get_existing_shelter($shelter_id,$type,$org_id)
+	{
+		$this->db->select("org.in_organization_id", false);						   	
+		$this->db->from	('tbl_organization org');
+		$this->db->where('org.in_shelter_id',$shelter_id);	
+		$this->db->where('org.st_org_type',$type);
+		$this->db->where('org.in_deleted','0');
+		$this->db->where('org.in_status','0');
+		$this->db->where("org.in_organization_id<>'$org_id'",NULL,FALSE);
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->result_array();
+		//return $query->num_rows();
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_guideline_links	
+	#	Purpose		:	Getting Organization Guidelines links details
+	# *******************************************************************************************	
+	function get_guideline_links($orgId)
+	{
+		$this->db->select("link.in_org_link_id,	
+						   link.st_org_link", false);						   	
+		$this->db->from('tbl_organization_link link');
+		$this->db->where('link.in_organization_id',$orgId);	
+		$this->db->where('link.in_deleted','0');
+		$results = $this->db->get()->result_array();
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_link_update	
+	#	Purpose		:	Update Organization Link Details
+	# *******************************************************************************************		
+	function organization_link_update($org_link_id)
+	{
+		$arrOrg = 	array('in_deleted' 	=> '1' );
+		$this->db->where('in_org_link_id', $org_link_id);
+		return $this->db->update('tbl_organization_link', $arrOrg);		
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_references	
+	#	Purpose		:	Add Organization Referances
+	# *******************************************************************************************		
+	function organization_links_detail($org_links_data)
+	{   
+		$this->db->insert('tbl_organization_link', $org_links_data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_images	
+	#	Purpose		:	add organization images
+	# *******************************************************************************************		
+	function organization_images($arrData)
+	{
+		$this->db->insert('tbl_organization_upload', $arrData);
+		return  $this->db->insert_id();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_org_files	
+	#	Purpose		:	Retriving organization user guidelines files
+	# *******************************************************************************************
+	
+	public function get_org_guideline_files($orgId) {
+		$this->db->select('in_org_upload_id,st_file_name,in_doc_type');
+		$this->db->from('tbl_organization_upload');
+		$this->db->where('in_organization_id',$orgId);
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_doc_type',1);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_organization_files	
+	#	Purpose		:	Deleting org files
+	# *******************************************************************************************
+	
+	public function delete_organization_files($id) {
+		$this->db->where('in_org_upload_id',$id);
+		$data = array('in_deleted' => 1);
+		$this->db->update('tbl_organization_upload',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	upload_files	
+	#	Purpose		:	Uplaod file in 
+	# *******************************************************************************************	
+	function upload_approval_files($file_name)
+	{  
+		ini_set("post_max_size",'256M');
+		ini_set("upload_max_filesize",'128M');
+
+		$config['upload_path'] = $this->config->item('upload')."shelter_approval/";
+		$config['allowed_types'] = 'doc|docx|pdf';
+		$config['max_size']	= '51200';
+		$config['file_name'] = time();
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		if (!$this->upload->do_upload($file_name)) {
+			//return $this->upload->display_errors();
+			return "";
+		}
+		else {
+			$arrImageInfo = $this->upload->data();
+		   return $arrImageInfo;
+			
+		}	
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	shelter_approval_letter	
+	#	Purpose		:	Add shelter Approval letter
+	# *******************************************************************************************		
+	function shelter_approval_letter($data,$id)
+	{
+		$this->db->where('in_organization_id',$id);
+		$this->db->update('tbl_organization_upload',$data);
+	}
+	
+	#=========================================================
+	#	Function : delete_approval_letter
+	#	Purpose  : Deleting approval letter
+	#=========================================================
+	
+	public function delete_approval_letter($data,$id) {
+		$this->db->where('in_org_upload_id',$id);
+		$this->db->update('tbl_organization_upload',$data);
+		
+		return $this->db->affected_rows();
+	}
+	
+	public function update_orgs($orgIds)
+	{
+					$arrOrg = 	array('in_display_home' 	=> '0');
+					$this->db->update('tbl_organization', $arrOrg);											
+					$arrOrg = 	array('in_display_home' 	=> '1');
+					$this->db->where_in('in_organization_id', $orgIds);
+					$this->db->update('tbl_organization', $arrOrg);																	
+					return $this->db->affected_rows();
+	}
+	
+	
+	public function update_org()
+	{  
+					$arrOrg = 	array('in_display_home' 	=> '0');
+					$this->db->update('tbl_organization', $arrOrg);						
+					return $this->db->affected_rows();
+	}
+	
+	
+	
+	#====================================================================
+	#	Function	:	get_total_rejected_organization()
+	#   Parameter	: 	name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to count rejected organization details
+	#--------------------------------------------------------------------
+	public function get_total_incomplete_organization($name='',$zip='',$certified='',$contract='',$fromdate='',$todate='',$state='',$country='',$orgid='',$emailid='')
+	{ 	
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					
+		$this->db->select("usr.in_user_id,org.in_organization_id", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','4');
+					$this->db->where('org.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');
+					
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					if(trim($orgid) != '') {
+							$this->db->where("org.in_organization_id", $orgid);
+					}
+					
+					if(trim($emailid) != '') {
+							//$this->db->where("usr.st_email", $emailid);
+							$this->db->where("org.st_email_address", $emailid);
+					}
+					$query = $this->db->get();
+		//echo $this->db->last_query(); die;	
+		
+		return $query->num_rows();
+	}
+	
+	#==================================================================================================
+	#	Function	:	get_rejected_organization()
+	#   Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get rejected organization details
+	#--------------------------------------------------------------------------------------------------
+	public function get_incomplete_organization($sort,$order,$limit,$rec_per_page,$name,$zip,$certified,$contract,$fromdate,$todate,$state,$country,$orgid,$emailid)
+	{
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					
+					
+		$this->db->select(" usr.in_user_id,
+							concat(usr.st_display_name,' ',st_last_name) as st_display_name, 
+							org.in_organization_id,
+							org.st_org_name,
+							org.st_org_type,
+							org.st_has_501c3,
+							org.st_has_contract,								
+							org.in_user_id,	
+							org.dt_modified,							
+							org.dt_created,
+							org.st_email_address,
+							org.st_city,
+							org.st_state,
+							org.st_director,
+							usr.st_email", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','4');
+					$this->db->where('org.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');  
+					  
+					  
+				
+					if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					/*if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					
+					if(trim($orgid) != '') {
+							$this->db->where("org.in_organization_id", $orgid);
+					}
+					
+					if(trim($emailid) != '') {
+							//$this->db->where("usr.st_email", $emailid);
+							$this->db->where('org.st_email_address',$emailid);
+					}
+					
+					switch($sort)
+						{
+							
+							case 'id': 								
+								$this->db->order_by('org.in_organization_id',$order);
+							break;	
+							case 'type':								
+								$this->db->order_by('org.st_org_type',$order);
+							break;
+							case 'name': 								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							case 'certified':								
+								$this->db->order_by('org.st_has_501c3',$order);
+							break;
+							case 'contract':							
+								$this->db->order_by('org.st_has_contract',$order);
+							break;
+							case 'email':							
+								$this->db->order_by('org.st_email_address',$order);
+							break;
+							case 'mname':							
+								$this->db->order_by('org.st_director',$order);
+							break;
+							case 'createdby': 								
+								$this->db->order_by('st_display_name',$order);
+							break;	
+							case 'createdat': 								
+								$this->db->order_by('org.dt_created',$order);
+							break;
+							
+							case 'modifiedat':								
+								$this->db->order_by('org.dt_modified',$order);
+							break;
+							case 'city': 								
+								$this->db->order_by('org.st_city',$order);
+							break;
+							case 'state': 								
+								$this->db->order_by('org.st_state',$order);
+							break;
+							
+							default:							
+							$this->db->order_by('org.in_organization_id',$order);
+							break;
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					//$query = $this->db->query($sql);
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 				
+					
+					//echo $this->db->last_query();  die;					
+					$arrOrganization = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrOrganization[$Row->in_organization_id]	= array('in_organization_id'	=> $Row->in_organization_id,
+											'st_org_name'				=> $Row->st_org_name,		
+											'st_org_type'				=> $Row->st_org_type,
+											'st_has_501c3'				=> $Row->st_has_501c3,
+											'st_has_contract'			=> $Row->st_has_contract,
+											'in_user_id' 				=> $Row->in_user_id,
+											'dt_created' 				=> $Row->dt_created,
+											'dt_modified' 				=> $Row->dt_modified,
+											'st_display_name' 			=> $Row->st_display_name,
+											'st_email'					=> $Row->st_email,
+											'st_email_address' 			=> $Row->st_email_address,
+											'st_director' 				=> $Row->st_director,
+											'st_city' 				    => $Row->st_city,
+											'st_state' 				    => $Row->st_state
+											);
+						}
+						return $arrOrganization;						
+					}					
+	}
+	
+	#==================================================================================================
+	#	Function	:	update_user_direct_signup()
+	#   Parameter	: 	user_id
+	#	Perpose		:	update the user profile
+	#--------------------------------------------------------------------------------------------------
+	
+		function update_user_direct_signup($user_id)
+		{
+			$arrOrg = 	array('in_login_direct' => '1');	
+			$this->db->where('in_user_id', $user_id);
+			$this->db->update('tbl_users', $arrOrg);		
+		}
+		
+		public function add_org_privacy_setting($data){
+		//echo '<pre>'; print_r($data); die;
+		
+			$org_psettings	 = 	  array('in_organization_id'	=> $data['in_organization_id'],
+				                     	'st_general_info'		=> $data['st_general_info'],									
+										'st_org_ref'			=> isset($data['st_org_ref']) ? $data['st_org_ref'] : '',
+										'in_public'				=> $data['in_public'],
+										'dt_updated'			=> $data['dt_updated']
+										);																
+			$this->db->insert('tbl_organization_setting', $org_psettings);			    		
+	}
+	
+	public function get_lat_long($zipcode)
+	{
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get()->result_array();
+		return $query;	
+	}	
+	function get_nearby_organization($orgId,$zipcode='')
+	{
+		$near_by_organization = array();
+		if(!empty($zipcode))
+		{	
+			$lat_long = $this->get_lat_long($zipcode);
+		}	
+		$miles = 25;
+		$this->db->select('o.st_email_address,o.st_director');
+		$this->db->from('tbl_organization o');
+		if(isset($lat_long))
+		{
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'left');	
+			if (sizeof($lat_long) > 0)
+			{
+				$where1 = "((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+				$this->db->where($where1);
+			} else {
+				$this->db->where('o.st_zip',$zipcode);
+			}
+			
+		} else {
+			$this->db->where('o.st_zip',$zipcode);
+		}	
+		 $this->db->where('o.in_organization_id <>',$orgId);
+		 $this->db->where('o.in_status','1');
+		 $this->db->where('o.in_deleted','0');
+		 $query = $this->db->get();
+		 if($query->num_rows() > 0 )
+		 {	 
+			foreach($query->result_array() as $key=>$value)
+			{
+				$near_by_organization[] = array('email_address' => $value['st_email_address'],
+												'reference_name' => $value['st_director'],
+											   );
+			}
+		 }
+		 
+		$this->db->select('o.stOrgName,o.stOrgEmail');
+		$this->db->from('tbl_non_doobert_org o');
+		//$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.stZip', 'left');
+		if(isset($lat_long))
+		{
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.stZip', 'left');	
+			if (sizeof($lat_long) > 0)
+			{
+				$where1 = "((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+				$this->db->where($where1);
+			} else {
+				$this->db->where('o.stZip',$zipcode);
+			}
+			
+		} else {
+			$this->db->where('o.stZip',$zipcode);
+		}
+		 $this->db->where('o.inDeleted','0');
+		 $query = $this->db->get();
+		 if($query->num_rows() > 0 )
+		 {	 
+			foreach($query->result_array() as $key=>$value)
+			{
+				$near_by_organization[] = array('email_address' => $value['stOrgEmail'],
+												'reference_name' => trim($value['stOrgName']),
+											   );
+			}
+		 }	
+
+		return $near_by_organization;	 		
+	}
+	
+	
+	
+	
+	public function pending_doobert_org_cron()
+	{			
+		$this->db->select("tbo.in_organization_id,						   
+						   u.st_email",false);					   	
+		$this->db->from('tbl_organization tbo');	
+		$this->db->join('tbl_users u', 'u.in_user_id=tbo.in_user_id AND u.in_deleted=0','INNER');		
+		$this->db->where('tbo.in_status', '0');			
+		$this->db->where('tbo.in_deleted', '0');						
+		$this->db->order_by('tbo.in_organization_id','asc');
+		//$this->db->limit('2');		
+		$query = $this->db->get(); 
+		//echo $this->db->last_query();  die;					
+		$pending_org = $query->result_array();
+		//print_r($pending_apps);exit;
+		return $pending_org;
+	}
+	
+	
+	#====================================================================================================
+	#	Function	:	Export All Organization ()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get organization details
+	#----------------------------------------------------------------------------------------------------
+	public function export_all_organization($sort,$order,$limit,$rec_per_page)
+	{
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }		
+					  
+					$this->db->select(" usr.in_user_id,
+										concat(usr.st_display_name,' ',usr.st_last_name) as st_display_name,
+										usr.st_email,
+										org.in_organization_id,
+										org.st_org_name,
+										org.st_org_type,
+										org.st_has_501c3,
+										org.st_has_contract,								
+										org.in_user_id,		
+										org.dt_modified,							
+										org.dt_created,
+										org.in_display_home,	
+										org.st_email_address,
+										org.st_director", false);						   	
+					$this->db->from('tbl_organization org');
+					$this->db->join('tbl_users usr', 'usr.in_user_id = org.in_user_id','INNER');					
+					$this->db->where('org.in_status','1');
+					$this->db->where('org.in_deleted','0');  
+					$this->db->where('usr.in_deleted','0');
+					$this->db->where("st_country IS NOT NULL");
+					  
+					  
+				
+					/*if(trim($name)!= '') { 
+						$name = str_replace("%","\%",$name);	
+						$this->db->where("(org.st_org_name LIKE '%".addslashes($name)."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '".addslashes($name)."%' OR org.st_director LIKE '%".addslashes($name)."%')", NULL, FALSE);		
+					}
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if(trim($certified) != '') {
+							$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}	
+					if(trim($contract) != '') {
+							$this->db->where("org.st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}
+					if(trim($state) != '') {
+							$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}
+					if(trim($country) != '') {
+							$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("org.dt_created >= '".$fromdate."' AND org.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}	
+					
+					if(trim($orgid) != '') {
+							$this->db->where("org.in_organization_id", $orgid);
+					}
+					
+					if(trim($emailid) != '') {
+							//$this->db->where("usr.st_email", $emailid);
+							$this->db->where("org.st_email_address", $emailid);
+					}*/
+					
+		
+					switch($sort)
+						{
+							
+							case 'id': 								
+								$this->db->order_by('org.in_organization_id',$order);
+							break;	
+							case 'type':								
+								$this->db->order_by('org.st_org_type',$order);
+							break;
+							case 'name': 								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							case 'certified':								
+								$this->db->order_by('org.st_has_501c3',$order);
+							break;
+							
+							case 'contract':							
+								$this->db->order_by('org.st_has_contract',$order);
+							break;
+							
+							case 'email':							
+								//$this->db->order_by('usr.st_email',$order);
+								$this->db->order_by("org.st_email_address", $order);
+							break;
+							
+							case 'mname':							
+								$this->db->order_by('org.st_director',$order);
+							break;
+							
+							case 'createdby': 								
+								$this->db->order_by('st_display_name',$order);
+							break;	
+							case 'createdat': 								
+								$this->db->order_by('org.dt_created',$order);
+							break;
+							
+							case 'modifieddate': 								
+								$this->db->order_by('org.dt_modified',$order);
+							break;
+							
+							default:							
+							$this->db->order_by('org.in_organization_id',$order);
+							break;
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					//$query = $this->db->query($sql);
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+				
+					
+					//echo $this->db->last_query();  die;					
+					$arrOrganization = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+						
+							$sqluseractivity  = "SELECT dt_created,st_device_info FROM tbl_user_activity  where in_user_id = '".$Row->in_user_id."' order by dt_created desc limit 1";
+							$sqlcreateddate	    =	$this->db->query($sqluseractivity);							
+							$numrowprostat		=	$sqlcreateddate->num_rows($sqlcreateddate);	
+							$sqldtcreated		=	$sqlcreateddate->result();										
+							$lastlogin			=	$sqldtcreated[0]->dt_created;
+							$deviceinfo			=	$sqldtcreated[0]->st_device_info;
+									
+							$arrOrganization[$Row->in_organization_id]	= array('in_organization_id'	=> $Row->in_organization_id,
+											'st_org_name'				=> htmlspecialchars_decode($Row->st_org_name),
+											'st_org_type'				=> $Row->st_org_type,
+											'st_has_501c3'				=> $Row->st_has_501c3,
+											'st_email'					=> $Row->st_email,
+											'st_has_contract'			=> $Row->st_has_contract,											
+											'in_user_id' 				=> $Row->in_user_id,
+											'dt_created' 				=> $Row->dt_created,
+											'dt_modified' 				=> $Row->dt_modified,
+											'st_display_name' 			=> $Row->st_display_name,
+											'in_display_home' 		   	=> $Row->in_display_home,
+											'st_email_address' 			=> $Row->st_email_address,
+											'st_director' 				=> $Row->st_director,
+											'lastlogin'					=> $lastlogin,
+											'deviceinfo'				=> $deviceinfo
+											);
+						}
+						return $arrOrganization;
+						
+					}
+					
+	}
+	
+	
+	function get_nearby_organization1($orgId,$zipcode)
+	{
+		$lat_long	=	$this->get_lat_long($zipcode);
+		
+		//$lat1 = $first_lat[0]['lat'];
+		//$lon1 = $first_lat[0]['lng'];
+	
+		$near_by_organization = array();		
+		if(isset($lat_long) && sizeof($lat_long) > 0)
+		{
+			$this->db->select('o.in_organization_id,o.in_user_id,o.st_email_address,o.st_director,o.in_new_org_notification_miles,o.st_zip');
+			$this->db->from('tbl_organization o');		
+			$this->db->where('o.in_organization_id <>',$orgId);
+			$this->db->where('o.in_status','1');
+			$this->db->where('o.in_new_org_notification','1'); 	 
+			$this->db->where('o.in_deleted','0');
+		
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'INNER');	
+			
+			$where1 = "((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < o.in_new_org_notification_miles)";
+			$this->db->where($where1);			
+			$query = $this->db->get();
+			//echo $this->db->last_query();
+			if($query->num_rows() > 0 )
+			{
+				foreach($query->result_array() as $key=>$value)
+				{
+					$near_by_organization[] = array('in_organization_id' => $value['in_organization_id'],
+												'in_user_id' => $value['in_user_id'],
+												'email_address' => $value['st_email_address'],
+												'reference_name' => $value['st_director'],
+												'in_new_org_notification_miles' =>$value['in_new_org_notification_miles'],
+												'distance' => 45,
+												'zip' => $value['st_zip']
+											   );
+				}
+			}		
+		}		 			
+		//print_r($near_by_organization); exit;
+		return $near_by_organization;	 		
+	}
+	
+	
+	
+	public function check_org_upload($orgId='')
+	{
+		$this->db->select('in_org_upload_id');
+        $this->db->where('in_organization_id', $orgId);         
+        $this->db->where('in_deleted', 0);
+        $query = $this->db->get('tbl_organization_upload');
+        if ($query->num_rows() > 0) {
+            return true;
+        } else {
+            return false;
+        }
+	}
+	
+	public function add_shelter_approval_letter($data)
+	{
+		$this->db->insert('tbl_organization_upload', $data);
+	}
+	
+	
+	/*
+	public function getDistance($zip1,$zip2,$unit)
+	{		
+		$first_lat = $this->get_lat_long($zip1);
+		$next_lat = $this->get_lat_long($zip2);
+		$lat1 = $first_lat[0]['lat'];
+		//$lon1 = $first_lat[0]['lng'];
+		$lon1 = $first_lat[0]['lon'];
+		$lat2 = $next_lat[0]['lat'];
+		//$lon2 = $next_lat[0]['lng'];
+		$lon2 = $next_lat[0]['lon'];		
+		$theta=$lon1-$lon2;
+		$dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +
+		cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+		cos(deg2rad($theta));
+		$dist = acos($dist);
+		$dist = rad2deg($dist);
+		$miles = $dist * 60 * 1.1515;
+		$unit = strtoupper($unit);
+
+		if ($unit == "K"){
+		return ($miles * 1.609344);
+		}
+		else if ($unit =="N"){
+		return ($miles * 0.8684);
+		}
+		else{
+		return $miles." ";
+		}	
+	}
+	
+	*/
+	
+	
+}
+?>

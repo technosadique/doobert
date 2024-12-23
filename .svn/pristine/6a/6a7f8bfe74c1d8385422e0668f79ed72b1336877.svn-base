@@ -1,0 +1,672 @@
+<?php
+# =======================================================
+# Created by		: Nirav Motta
+# Created date		: 16-May-2014
+# File description	: Account Model Model for admin
+# Special - notes	: none
+# Tables used		: tbl_transportation
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class volunteer_email_checksum_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+		
+	public function get_users_count($transport_id)
+	{
+		$sql = 'select count(DISTINCT(in_user_id)) as total_count from tbl_user_transport_cron where in_transport_id = "'.$transport_id.'" ';
+		$query = $this->db->query($sql);
+		$query_result = $query->result_array();
+		$total_count = $query_result[0]['total_count'];	
+		return $total_count; 
+	}
+	
+	
+	public function get_users_count1($transport_id)
+	{
+		$user_data = array();
+		$total_user_id = array();
+		$total_count = '';
+		
+		$sql = 'select user_detail from tbl_new_transportation_cron where in_transport_id  = "'.$transport_id.'" ';
+		$query = $this->db->query($sql);
+		
+		if($query->num_rows() > 0)
+		{
+			 foreach($query->result_array() as $key=>$row)
+			 {
+				 $user_data = unserialize($row['user_detail']);
+				 if(!empty($user_data['user_id']))
+				 {
+					 array_push($total_user_id,$user_data['user_id']);
+				 }
+				  
+			 }
+		}
+		if(count($total_user_id)> 0)
+		{		
+			$total_count = (count(array_count_values($total_user_id)));
+		} else {
+			$total_count =  0;
+		}	
+		return $total_count;	
+	}
+	
+	
+	public function get_email_notification($transport_id,$trans_type)
+	{
+		if($trans_type == 'D')
+		{	
+			$sql = 'select in_type,count(DISTINCT(in_user_id))  as total_users 
+					from  tbl_notification   where in_transportation_id = "'.$transport_id.'"
+					AND in_type IN (22,13,9,12) 	group by in_type';
+		} else {				
+			$sql = 	'select in_type,count(DISTINCT(in_user_id))  as total_users 
+					from  tbl_notification   where in_transportation_id = "'.$transport_id.'"
+					AND in_type IN (22,13,9,12) 	group by in_type
+					UNION
+					select in_type,count(DISTINCT(in_non_doobert_user_id))  as total_users 
+					from  tbl_notification   where in_transportation_id = "'.$transport_id.'"
+					AND in_type = 25 	group by in_type';
+		}		
+							
+		return $sql;
+	}
+	
+	
+	public function get_transport_email_checksum($transport_id='',$from_date='',$to_date='',$sort,$order)
+	{
+			
+			$transportsql = '';
+			if($from_date=='1969-12-31' || empty($from_date) ){ $from_date='';  }
+			if($to_date=='1969-12-31' || empty($to_date) ){$to_date='';  }
+			
+						$transport_data_list = array();
+			//$transportsql .= 'SELECT * FROM tbl_transportation Where in_status IN ("1","2","3")';
+			$transportsql .= 'SELECT * FROM tbl_transportation Where in_status IN ("1","2")';
+			if(!empty($transport_id))
+			{
+				$transportsql .= ' AND in_transportation_id = "'.$transport_id.'"';
+			} 
+			
+			/*
+			if(!empty($transport_id) &&(!empty($from_date) || !empty($to_date) ))
+			{
+				$transportsql .= 'AND';	
+			} else if(empty($trasnport_id) &&(!empty($from_date) || !empty($to_date) ))
+			{
+				$transportsql .= 'Where';	
+			}	
+			*/
+			
+			if(!empty($from_date) && !empty($to_date) )
+			{
+				$transportsql .= ' AND Date(dt_created) >="'.date('Y-m-d',strtotime($from_date)).'" AND Date(dt_created) <= "'.date('Y-m-d',strtotime($to_date)).'"';
+			} else if(!empty($from_date) && empty($to_date) )
+			{
+				$transportsql .= ' AND Date(dt_created) >="'.date('Y-m-d',strtotime($from_date)).'"';
+			} else if(empty($from_date) && !empty($to_date) )
+			{
+				$transportsql .= ' AND Date(dt_created) <= "'.date('Y-m-d',strtotime($to_date)).'"';
+			}	
+			
+			$query = $this->db->query($transportsql);
+			//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+			//exit;
+			if($query->num_rows() > 0 )
+			{
+				foreach($query->result_array() as $key=>$row)
+				{
+					$transport_data_list[] = array('transport_id'=>$row['in_transportation_id'],
+												   'dt_created'=>$row['dt_created'],
+												   'st_trans_type' =>$row['st_trans_type']); 
+				}
+			}
+
+			foreach($transport_data_list as $key=>$value)
+			{
+				if($value['st_trans_type'] == 'P')
+				{
+					$total_count = $this->get_users_count($value['transport_id']);
+					$checksum_email_type[]=array('Transport_id'  		=>  $value['transport_id'],
+														 'dt_created'       	=>  $value['dt_created'],
+													     'total_users'  		=>  $total_count,
+													     'email_type'			=>  'New transport email notification',
+													     'in_type'				=>  0, 
+														);
+				} else {
+					$total_count = $this->get_users_count1($value['transport_id']);
+					$checksum_email_type[]=array('Transport_id'  		=>  $value['transport_id'],
+													 'dt_created'       	=>  $value['dt_created'],
+													 'total_users'  		=>  $total_count,
+													 'email_type'			=>  'New transport email notification',
+													 'in_type'				=>  0, 
+													);
+				}
+					$sql = $this->get_email_notification($value['transport_id'],$value['st_trans_type']);
+					$query = $this->db->query($sql);
+					if($query->num_rows() > 0 )
+					{
+						foreach($query->result_array() as $key=>$row)
+						{
+							$email_type = '';
+							if($row['in_type'] == 12)
+							{	
+								$email_type = 'User Created leg and joined transport';
+							} else if($row['in_type'] == 13){
+								$email_type = 'User left leg from transport';
+							} else if($row['in_type'] == 9){
+								$email_type = 'User joined transport';
+							} else if($row['in_type'] == 22){
+								$email_type = 'User removed from transport';
+							} else if($row['in_type'] == 25){
+								$email_type = 'Non-doobert User joined transport';
+							}	
+								
+								
+							$checksum_email_type[]=array('Transport_id'  		=>  $value['transport_id'],
+														 'dt_created'       	=>  $value['dt_created'],
+													     'total_users'  		=>  $row['total_users'],
+													     'email_type'			=>  $email_type,
+													     'in_type'				=>  $row['in_type'], 
+														);
+						}
+				
+					}
+			}
+			$sort_order_data = array(); 
+			if(!empty($sort))
+			{
+				if($sort == 'transport_id')
+				{		
+					foreach($checksum_email_type as $key=>$value)
+					{
+						array_push($sort_order_data,$value['Transport_id']);
+					}
+				}
+				if($sort == 'email_type')
+				{		
+					foreach($checksum_email_type as $key=>$value)
+					{
+						array_push($sort_order_data,$value['email_type']);
+					}
+				}
+				if($sort == 'created_date')
+				{		
+					foreach($checksum_email_type as $key=>$value)
+					{
+						array_push($sort_order_data,$value['dt_created']);
+					}
+				}
+				if($sort == 'count')
+				{		
+					foreach($checksum_email_type as $key=>$value)
+					{
+						array_push($sort_order_data,$value['total_users']);
+					}
+				}
+				if($order =='asc')
+				{	
+					array_multisort($sort_order_data, SORT_ASC,$checksum_email_type);
+				} else {
+					array_multisort($sort_order_data, SORT_DESC,$checksum_email_type);
+				}	
+			}	
+					
+			//array_slice($input, 2); 
+			//echo "<pre>"; print_r($checksum_email_type); echo "</pre>";			
+			return $checksum_email_type;		
+	}
+	
+	public function get_all_users_for_email_type($transport_id,$email_type_id)
+	{
+		$this->db->select("vec.*");
+		$this->db->from('tbl_transport_email_checksum vec');
+		$this->db->where("vec.in_transport_id",$transport_id);
+		$this->db->where("vec.in_email_type",$email_type_id);
+		$query = $this->db->get();
+		//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+		
+		$user_counts = array();
+		$all_user_counts = 0;
+		if($query->num_rows() > 0 )
+		{
+			foreach($query->result_array() as $key=>$row)
+			{
+				if(isset($row['st_user_details']) && !empty($row['st_user_details']))
+				{
+					$user_counts[] = count(unserialize($row['st_user_details']));
+				}
+				
+			}
+		}
+		$all_user_counts = array_sum($user_counts);
+		//print_r($user_counts);
+		//exit;
+		return  $all_user_counts;
+	}
+	
+	public function get_all_users_for_email_type2($email_type_id)
+	{
+		$this->db->select("vec.*");
+		$this->db->from('tbl_volunteer_email_checksum vec');		
+		$this->db->where("vec.in_email_type",$email_type_id);
+		$query = $this->db->get();
+		//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";die;
+		
+		$user_counts = array();
+		$all_user_counts = 0;
+		if($query->num_rows() > 0 )
+		{
+			foreach($query->result_array() as $key=>$row)
+			{
+				if(isset($row['st_email_address']) && !empty($row['st_email_address']))
+				{
+					$user_counts[] = count($row['st_email_address']);
+				}
+				
+			}
+		}
+		$all_user_counts = array_sum($user_counts);
+		//print_r($user_counts);
+		//exit;
+		return  $all_user_counts;
+	}
+	
+	public function get_volunteer_email_details($transport_id='',$from_date='',$to_date='',$sort,$order,$limit,$rec_per_page)
+	{	
+			if($from_date=='1969-12-31' || empty($from_date) ){ $from_date='';  }
+			if($to_date=='1969-12-31' || empty($to_date) ){$to_date='';  }
+			
+			$transport_data_list = array();
+			$this->db->select("vec.*,COUNT(vec2.id) AS same_email_cat_cnt");
+			$this->db->from('tbl_volunteer_email_checksum vec');
+			$this->db->join('tbl_volunteer_email_checksum vec2','vec2.id = vec.id','INNER');			
+			
+			
+			if(!empty($from_date) && !empty($to_date) )
+			{
+				$this->db->where('vec.dt_created >= ',date('Y-m-d 00:00:00',strtotime($from_date)));
+				$this->db->where('vec.dt_created <= ',date('Y-m-d 23:59:59',strtotime($to_date)));
+			} 
+			else if(!empty($from_date) && empty($to_date) )
+			{
+				$this->db->where('vec.dt_created >= ',date('Y-m-d',strtotime($from_date)));
+			} 
+			else if(empty($from_date) && !empty($to_date) )
+			{
+				$this->db->where('vec.dt_created <= ',date('Y-m-d',strtotime($to_date)));
+			}	
+			
+			$this->db->group_by('vec.in_email_type');
+			
+			switch($sort)
+			{							
+				case 'email_type':								
+					$this->db->order_by('vec.in_email_type',$order);
+				break;
+				
+				case 'email_cat':								
+					$this->db->order_by('vec.st_email_cat',$order);
+				break;
+
+				case 'created_date':							
+					$this->db->order_by('vec.dt_created',$order);
+				break;
+								
+				default: 								
+					$this->db->order_by('vec.id',$order);
+				break;		 
+			}
+			
+			$this->db->limit($rec_per_page,$limit);	
+			
+			$query = $this->db->get();
+			//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+			//exit;
+			if($query->num_rows() > 0 )
+			{
+				foreach($query->result_array() as $key=>$row)
+				{
+					if(isset($row['st_user_details']) && !empty($row['st_user_details']))
+					{
+						$user_counts = count(unserialize($row['st_user_details']));
+					}
+					
+					if(isset($row['st_category_detail']) && $row['st_category_detail'] != '')
+					{
+						//echo "category_detail";
+						//print_r(unserialize($row['st_category_detail']));
+						$cat_details =	unserialize($row['st_category_detail']);
+						if(isset($cat_details) && !empty($cat_details) && isset($cat_details[0]) && !empty($cat_details[0]))
+						{
+							$delivered = $cat_details[0]['delivered'];
+							$invalid_email = $cat_details[0]['invalid_email'];
+							$bounces	= $cat_details[0]['bounces'];
+							$blocked	= $cat_details[0]['blocked'];
+							$requests	= $cat_details[0]['requests'];
+						}
+					}else{
+						//echo 'no category_detail';
+						$delivered = 0;
+						$invalid_email = 0;
+						$bounces	= 0;
+						$blocked	= 0;
+						$requests	= 0;
+					}
+					
+				$user_counts  = $this->get_all_users_for_email_type2($row['in_email_type']);
+					
+					//print_r($user_counts);
+					
+					$checksum_email_type[]=array('id'  				=>  $row['id'],											
+											 'dt_created'       	=>  $row['dt_created'],
+											 'total_users'  		=>  $user_counts,
+											 'email_type'			=>  $row['in_email_type'],
+											 'email_cat'			=>  $row['st_email_cat'],
+											 'delivered'			=>  isset($delivered) ? $delivered : 0,
+											 'invalid_email'		=>  isset($invalid_email) ? $invalid_email : 0,
+											 'bounces'				=>  isset($bounces) ? $bounces : 0,
+											 'blocked'				=>  isset($blocked) ? $blocked : 0,
+											 'requests'				=>  isset($requests) ? $requests : 0,
+											);
+				}
+			}
+			
+			//array_slice($input, 2); 
+			//echo "<pre>"; print_r($checksum_email_type); echo "</pre>";			exit;
+			return $checksum_email_type;		
+	
+	}
+	
+	public function get_total_volunteer_email_details($transport_id='',$from_date='',$to_date='',$sort,$order)
+	{	
+			$transportsql = '';
+			if($from_date=='1969-12-31' || empty($from_date) ){ $from_date='';  }
+			if($to_date=='1969-12-31' || empty($to_date) ){$to_date='';  }
+			
+			
+			$transport_data_list = array();
+			$this->db->select("vec.*,COUNT(vec2.id) AS same_email_cat_cnt");
+			$this->db->from('tbl_volunteer_email_checksum vec');
+			$this->db->join('tbl_volunteer_email_checksum vec2','vec2.id = vec.id','INNER');	
+			
+			
+			
+			if(!empty($from_date) && !empty($to_date) )
+			{
+				$this->db->where('vec.dt_created >= ',date('Y-m-d 00:00:00',strtotime($from_date)));
+				$this->db->where('vec.dt_created <= ',date('Y-m-d 23:59:59',strtotime($to_date)));
+			} 
+			else if(!empty($from_date) && empty($to_date) )
+			{
+				$this->db->where('vec.dt_created >= ',date('Y-m-d',strtotime($from_date)));
+			} 
+			else if(empty($from_date) && !empty($to_date) )
+			{
+				$this->db->where('vec.dt_created <= ',date('Y-m-d',strtotime($to_date)));
+			}	
+			
+			$this->db->group_by('vec.in_email_type');
+			
+			switch($sort)
+			{							
+				case 'email_type':								
+					$this->db->order_by('vec.in_email_type',$order);
+				break;
+
+				case 'created_date':							
+					$this->db->order_by('vec.dt_created',$order);
+				break;
+								
+				default: 								
+					$this->db->order_by('vec.id',$order);
+				break;		 
+			}
+			
+			//$this->db->limit($rec_per_page,$limit);	
+			
+			$query = $this->db->get();
+			//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+			//exit;
+			if($query->num_rows() > 0 )
+			{
+				foreach($query->result_array() as $key=>$row)
+				{
+					if(isset($row['st_user_details']) && !empty($row['st_user_details']))
+					{
+						$user_counts = count(unserialize($row['st_user_details']));
+					}
+					$checksum_email_type[]=array('id'  				=>  $row['id'],											
+											 'dt_created'       	=>  $row['dt_created'],
+											 'total_users'  		=>  $user_counts,
+											 'email_type'			=>  $row['in_email_type'],
+											);
+				}
+			}
+			
+			//array_slice($input, 2); 
+			//echo "<pre>"; print_r($checksum_email_type); echo "</pre>";			
+			return $checksum_email_type;		
+	
+	}
+	
+	
+	function get_users_transport_email_checksum($transport_id,$type_id,$search_email_address='',$sort,$order,$limit,$rec_per_page)
+	{
+		$sql ='';
+		$sql1 = '';
+		/*echo $sort;
+		echo "<br>";
+		echo $order;
+		echo "<br>";
+		echo $limit;
+		echo "<br>";
+		echo $rec_per_page;*/
+		//exit(0);
+		if($type_id == 0)
+		{
+			$sqltransport = 'SELECT * FROM `tbl_transportation` WHERE in_transportation_id = "'.$transport_id.'" ';
+			$query = $this->db->query($sqltransport);
+			$transport_data = $query->result_array();
+			if($transport_data[0]['st_trans_type'] == 'P')
+			{
+				    $sql .= 'select st_username ,st_useremail from tbl_user_transport_cron where in_transport_id = "'.$transport_id.'" ';
+				if(!empty($search_email_address))
+				{
+					$sql .= 'AND st_useremail = "'.$search_email_address.'"';
+				}
+					$sql .= 'group by in_user_id';
+				if($sort == 'name')
+				{
+					$sql .= ' order by st_username '.$order;
+				}
+				if($sort == 'emailaddress')
+				{
+					$sql .= ' order by st_useremail '.$order;;
+				}
+					
+				//$query = $this->db->query($sql);
+				$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+				$query = $this->db->query($sql1);
+				//echo "<pre>"; print_r($this->db->last_query()); echo"</pre>";
+				//exit(0);
+				$querytotal = $this->db->query($sql);	
+				if($query->num_rows() > 0 )
+				{
+					foreach($query->result_array() as $key=>$row)
+					{
+								
+							$checksum_user_email[]=array('user_name'  		=>  $row['st_username'],
+														 'email_address'    =>  $row['st_useremail'],
+														);
+					}
+				}
+			} else {
+					$sql .= 'select user_detail from tbl_new_transportation_cron where in_transport_id  = "'.$transport_id.'"';
+					//$query = $this->db->query($sql);
+						$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+						$query = $this->db->query($sql1);
+						$querytotal = $this->db->query($sql);	
+					
+					if($query->num_rows() > 0 )
+					{	
+						foreach($query->result_array() as $key=>$row)
+						{
+							$user_data = unserialize($row['user_detail']);
+							 if(!empty($user_data['user_id']))
+							 {	 
+								if(!empty($search_email_address))
+								{
+									if($user_data['email_address'] == $search_email_address )
+									{
+										$checksum_user_email[]=array('user_name'  		   =>  $user_data['name'],
+															'email_address'        =>  $user_data['email_address'],
+															);
+									}	
+								}	
+								else{	
+								$checksum_user_email[]=array('user_name'  		   =>  $user_data['name'],
+															'email_address'        =>  $user_data['email_address'],
+															);
+								}							
+							 }							
+						}
+					}	
+				}	
+				
+		}	
+		else if($type_id == 25)
+		{
+			$sql .= 'select u.st_name as user_name,u.st_email as email_address   
+					   from tbl_non_doobert_transport_users u                        
+					   join tbl_notification ntf on u.in_non_doobert_user_id  = ntf.in_non_doobert_user_id 
+				       where ntf.in_type ='.$type_id.' AND ntf.in_transportation_id ='.$transport_id.' ';
+			if(!empty($search_email_address))
+			{
+				$sql .= 'AND u.st_email = "'.$search_email_address.'"';
+			}
+				$sql .= 'group by u.in_non_doobert_user_id';
+			 	if($sort == 'name')
+				{
+					$sql .= ' order by u.st_name '.$order." ";
+				}
+				if($sort == 'emailaddress')
+				{
+					$sql .= ' order by u.st_email '.$order." ";;
+				}		
+			//$query = $this->db->query($sql);
+			$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+			$query = $this->db->query($sql1);
+			$querytotal = $this->db->query($sql);	
+			/*echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+			exit;*/
+			if($query->num_rows() > 0 )
+			{
+				foreach($query->result_array() as $key=>$row)
+				{
+								$checksum_user_email[]=array('user_name'  		=>  $row['user_name'],
+														     'email_address'    =>  $row['email_address'],
+														     );
+				}
+			}	
+			
+		} else 
+		{	
+			$sql = 'select CONCAT(u.st_display_name," ",u.st_last_name) as user_name,u.st_email as email_address   
+					from tbl_users u
+					join tbl_notification ntf on u.in_user_id = ntf.in_user_id 
+				    where ntf.in_type ='.$type_id.' AND ntf.in_transportation_id ='.$transport_id.' ';
+			if(!empty($search_email_address))
+			{
+				$sql .= 'AND u.st_email = "'.$search_email_address.'"';
+			}
+				$sql .= 'group by u.in_user_id';
+			if($sort == 'name')
+			{
+					$sql .= ' order by u.st_display_name '.$order." ";;
+			}
+			if($sort == 'emailaddress')
+			{
+					$sql .= ' order by u.st_email '.$order." ";;
+			}
+				
+				$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+				$query = $this->db->query($sql1);
+				$querytotal = $this->db->query($sql);			
+				//$query = $this->db->query($sql);
+				if($query->num_rows() > 0 )
+				{
+					foreach($query->result_array() as $key=>$row)
+					{
+								
+							$checksum_user_email[]=array('user_name'  		=>  $row['user_name'],
+														 'email_address'    =>  $row['email_address'],
+														);
+					}
+				}	   
+		}
+		/*$sort_order_data = array(); 
+			if(!empty($sort))
+			{
+				if($sort == 'name')
+				{		
+					foreach($checksum_user_email as $key=>$value)
+					{
+						array_push($sort_order_data,$value['user_name']);
+					}
+				}
+				if($sort == 'emailaddress')
+				{		
+					foreach($checksum_user_email as $key=>$value)
+					{
+						array_push($sort_order_data,$value['email_address']);
+					}
+				}
+				if($order =='asc')
+				{	
+					array_multisort($sort_order_data, SORT_ASC,$checksum_user_email);
+				} else {
+					array_multisort($sort_order_data, SORT_DESC,$checksum_user_email);
+				}	
+			}*/		
+		 $result['checksum_user_email'] = $checksum_user_email;
+		 $result['total'] = $querytotal->num_rows();
+		 	//return $checksum_user_email;
+			return $result;
+	}
+	
+	public function get_users_transport_email_list($id)
+	{
+		$this->db->select("vec.in_email_type,vec.st_user_name,vec.st_email_address");
+		$this->db->from('tbl_volunteer_email_checksum vec');
+		if(!empty($id))
+		{
+			$this->db->where('vec.in_email_type',$id);
+		} 		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		$query_result = $query->result_array();	
+		return $query_result; 
+	}
+	
+	public function get_user_email_detail($id,$email_address)
+	{  
+		$this->db->select("vec.st_email_address,vec.st_user_name");
+		$this->db->from('tbl_volunteer_email_checksum vec');
+		if(!empty($id))
+		{
+			$this->db->where('vec.in_email_type',$id);
+		} 
+		$this->db->where('vec.st_email_address',$email_address);
+		$query = $this->db->get();
+		$query_result = $query->result_array();
+		return $query_result; 
+	}
+}
+?>

@@ -1,0 +1,551 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 11-Apr-2014
+# File description: Dameanor(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Demeanor extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');
+		$this->load->library('upload');
+		$this->load->model('common_model');	
+		$this->load->model('demeanor_model');
+		$this->load->helper(array('form', 'url'));		 	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');		
+		$this->session->unset_userdata('searchadmin1');		
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';		
+		$name				=	'';
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='type';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearch'); die;
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');			
+				
+			$name = trim(addslashes($this->input->post('txtsearch')));	
+			$this->session->set_userdata('searchadmin',$name);						
+		}		
+		
+		
+		if($this->input->post('animaltype') || ($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearch'); die;
+			
+			if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');			
+				
+			$animaltype = trim(addslashes($this->input->post('animaltype')));	
+			$this->session->set_userdata('searchadmin1',$animaltype);						
+		}	
+
+		$rec_per_page 		=	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->demeanor_model->get_total_demeanor($this->session->userdata('searchadmin'),$this->session->userdata('searchadmin1'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['demeanor_list']	= $this->demeanor_model->get_demeanor($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'),$this->session->userdata('searchadmin1'));
+		
+		//echo '<pre>'; print_r($data['demeanor_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'demeanor/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Demeanor Information Available.';
+		}
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		$this->load->view('demeanor-manage',$data);
+	}
+	
+	
+	function demeanor_delete($demeanorId=false)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->demeanor_model->delete_demeanor($demeanorId);			
+		$this->session->set_flashdata('success', 'Demeanor information has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'demeanor');
+		
+	}
+	
+	
+		
+		
+	function delete_multiple_demeanor()
+	{   
+	    
+		$demeanor_ids = $this->input->post('demeanorid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($demeanor_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->demeanor_model->delete_multiple_demeanor($demeanor_ids);
+			
+			$this->session->set_flashdata('success', 'Demeanor(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'demeanor/page/'.$sort.'/'.$order.'/'.$limit);			
+	}
+	
+	
+		
+	
+	function demeanor_edit($demeanorId=false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array('animaltype'		=> "",
+							  'demeanor'		=> "",
+							  'demeanorimage'	=> "",
+							  'desc'		    => "",
+							  'color'		    => "",							  
+							  'active'		    => ""		  
+							);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+						$data['animal_type'] = $this->common_model->get_animal_types();		
+						$data['demeanor_details'] = $this->demeanor_model->get_demeanor_profile($demeanorId);		
+		
+		//echo '<pre>'; print_r($data['demeanor_details']); die;
+		if($this->input->post('action')=='Edit')
+		{  
+			//Validation rules
+						$demeanorId			      = $this->input->post('demeanorId');									
+						$this->form_validation->set_rules('animaltype', 	'Animal type',    'required');	
+						$this->form_validation->set_rules('demeanor',   	'Demeanor',       'trim|required');						
+						//$this->form_validation->set_rules('demeanorimage',  'Demeanor image', 'required');											
+						$this->form_validation->set_rules('desc', 		    'Description',    'trim|required');	
+						$this->form_validation->set_rules('color', 		    'Color',          'required');						
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{  
+						$data['Err_Msg'] = validation_errors();						
+						$data['demeanor_details'] = $this->demeanor_model->get_demeanor_profile($demeanorId);				
+						$this->load->view('demeanor-edit',$data);	
+				}
+			
+			else
+			{ 		 
+						
+						
+						if($_FILES['demeanorimage']['name']!=''){ 
+							$demeanorimage		        = time().'_'.$_FILES['demeanorimage']['name'];
+							//upload image start
+							
+							$config['upload_path']  	= $this->config->item('upload').'demeanor/orig/';
+							$config['max_size']			= '2048';  // 2 MB
+							$config['width']	 		= 60;
+							$config['height']			= 60;
+							$config['allowed_types']	= 'jpg|jpeg|png|gif';
+							$config['remove_spaces']  	= TRUE;
+							$config['file_name'] 		= $demeanorimage;
+							
+							//Initialization
+							$this->upload->initialize($config);
+								
+							//RW permission to upload folder.
+							//chmod($this->config->item('upload')."demeanor/", 0777);	
+							//Upload image by calling do_upload method.
+							$this->upload->do_upload("demeanorimage"); 
+							$file_errors = array('errors' => $this->upload->display_errors());
+							
+							//Display errors of file upload.
+							if(!empty($file_errors['errors'])) {  
+								//$data = array('upload_error' => strip_tags($file_errors['errors']));								
+								//$this->session->set_flashdata($data);
+								//redirect(site_url('demeanor/demeanor_edit'));
+								$data = array('upload_error' => strip_tags($file_errors['errors']));								
+								$this->session->set_flashdata($data);								
+								//$data['Err_Msg'] = strip_tags($file_errors['errors']);								
+								//$this->load->view('demeanor-edit',$data);
+								redirect(site_url('demeanor/demeanor_edit/'.$demeanorId));
+							}
+							
+							
+									
+							//Resize the image with ratio (Thumbnail)
+							$config['image_library'] 	= 'gd2';
+							$config['source_image']		= $this->config->item('upload').'demeanor/orig/'.$config['file_name'];
+							$config['new_image']		= $this->config->item('upload').'demeanor/31x31/'.$config['file_name'];
+							$config['maintain_ratio'] 	= TRUE;
+							$config['width']	 		= 31;
+							$config['height']			= 31;
+							
+							$this->load->library('image_lib');
+							$this->load->library('image_lib', $config);
+							$this->image_lib->initialize($config);
+							$this->image_lib->resize();
+							
+							
+							//thumb image
+							$config['image_library'] 	= 'gd2';
+							$config['source_image']		= $this->config->item('upload').'demeanor/orig/'.$config['file_name'];
+							$config['new_image']		= $this->config->item('upload').'demeanor/60x60/'.$config['file_name'];
+							$config['maintain_ratio'] 	= TRUE;
+							$config['width']	 		= 60;
+							$config['height']			= 60;
+							
+							$this->load->library('image_lib');
+							$this->load->library('image_lib', $config); 
+							$this->image_lib->initialize($config);
+							$this->image_lib->resize();							
+							//upload image end							
+						}
+						
+						
+						$demeanor_info 								=   array();						
+						$demeanor_info['in_animal_type_id'] 		=	$this->input->post('animaltype');
+						$demeanor_info['st_demeanor_name'] 			=	$this->input->post('demeanor');
+						if($_FILES['demeanorimage']['name']!=''){
+						$demeanor_info['st_demeanor_image'] 		=	$demeanorimage;
+						}
+						$demeanor_info['st_demeanor_desc'] 			=	$this->input->post('desc');
+						$demeanor_info['st_css_class'] 			    =	$this->input->post('color');
+						$demeanor_info['in_status'] 				=	$this->input->post('active');								
+						$demeanor_info['dt_modified'] 				= 	date('Y-m-d H:i:s');				
+			
+						//Updating admin data
+						
+						$demeanor1	=	$this->input->post('demeanor1'); 		
+						$demeanor	=	$this->input->post('demeanor'); 
+						$animaltype =   $this->input->post('animaltype');	
+						 if($demeanor!=$demeanor1)
+						{  							
+							$check	=	$this->demeanor_model->is_demeanor_exists($this->input->post('demeanor'),$animaltype);							
+						}
+						if($check){
+						$data['demeanor_details'] = $this->demeanor_model->get_demeanor_profile($demeanorId);	
+						$data['Err_Msg'] = 'Demeanor already exist.';									
+						$this->load->view('demeanor-edit',$data);		
+						}
+						else
+						{
+						$this->demeanor_model->update_demeanor_info($demeanor_info,$demeanorId,'tbl_demeanor');					
+						$this->session->set_flashdata('success', 'You have successfully updated demeanor!');					
+						redirect(site_url('demeanor/demeanor_edit/'.$demeanorId));
+						}
+						
+				
+			}
+		}
+		
+		else
+		{			
+						$this->load->view('demeanor-edit',$data);
+		}
+	}
+	
+	
+	
+
+
+	function demeanor_add()
+	{		 
+	    if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();
+		$this->session->unset_userdata('field1');	
+		$this->session->unset_userdata('field2');	
+		$this->session->unset_userdata('field3');
+		$this->session->unset_userdata('field4');
+		//$this->load->library('upload'); 
+		$form_field	=	array('animaltype'		=> "",
+							  'demeanor'		=> "",
+							  'demeanorimage'	=> "",
+							  'desc'		    => "",
+							  'color'		    => "",							  
+							  'active'		    => ""		  
+							);
+		$data['animal_type'] = $this->common_model->get_animal_types();		
+			foreach($form_field as $key => $value)	
+			{	
+						$data['add'][$key] = $value;	
+			}	
+								
+		
+		if($this->input->post('action')=='Add')
+		{  
+					
+			if($this->session->userdata('field1'))
+				$this->session->unset_userdata('field1');			
+				$demeanor = trim($this->input->post('demeanor'));					
+				$this->session->set_userdata('field1',$demeanor);	
+				
+			if($this->session->userdata('field2'))
+				$this->session->unset_userdata('field2');			
+				$desc = $this->input->post('desc');					
+				$this->session->set_userdata('field2',$desc);	
+			
+			if($this->session->userdata('field3'))
+				$this->session->unset_userdata('field3');			
+				$color = $this->input->post('color');					
+				$this->session->set_userdata('field3',$color);
+				
+			if($this->session->userdata('field4'))
+				$this->session->unset_userdata('field4');			
+				$animaltype = $this->input->post('animaltype');					
+				$this->session->set_userdata('field4',$animaltype);			
+				
+			
+			
+			// validation starts
+				foreach ($form_field as $key => $value) {	
+						$data['add'][$key] = $this->input->post($key);	
+				}
+				
+				
+			
+						$this->form_validation->set_rules('animaltype', 	'Animal type',    'required');	
+						$this->form_validation->set_rules('demeanor',   	'Demeanor',       'trim|required');	
+						
+						if(empty($_FILES['demeanorimage']['name']))	 {
+							$this->form_validation->set_rules('demeanorimage',  'Demeanor image', 'required');
+						}
+							
+						$this->form_validation->set_rules('desc', 		    'Description',    'trim|required');	
+						$this->form_validation->set_rules('color', 		    'Color',          'required');	
+					
+			
+			if($this->form_validation->run() == FALSE)
+				{
+					foreach ($form_field as $key => $value) {	
+						$data['add'][$key] = $this->input->post($key);	
+					}
+				
+						$data['Err_Msg'].= validation_errors();												
+						$this->load->view('demeanor-add',$data);	
+				}
+			else
+			{  		
+			
+			
+							
+					 	    $demeanorimage		        = time().'_'.$_FILES['demeanorimage']['name'];
+							//upload image start
+							
+							$config['upload_path']  	= $this->config->item('upload').'demeanor/orig/';
+							$config['max_size']			= '2048';  // 2 MB
+							//$config['width']	 		= 60;
+							//$config['height']			= 60;
+							$config['allowed_types']	= 'jpg|jpeg|png|gif';
+							$config['remove_spaces']  	= TRUE;
+							$config['file_name'] 		= $demeanorimage;
+							
+							//Initialization
+							$this->upload->initialize($config);
+								
+							//RW permission to upload folder.
+							//chmod($this->config->item('upload')."demeanor/", 0777);
+							
+							//Upload image by calling do_upload method.
+							$this->upload->do_upload("demeanorimage"); 							
+							$file_errors = array('errors' => $this->upload->display_errors());
+							
+							//Display errors of file upload.
+							
+							if(!empty($file_errors['errors'])) { 								
+							
+								$data = array('upload_error' => strip_tags($file_errors['errors']));								
+								$this->session->set_flashdata($data);								
+								$data['Err_Msg'] = strip_tags($file_errors['errors']);
+								$data['animal_type'] = $this->common_model->get_animal_types();	
+								$this->load->view('demeanor-add',$data); 								
+								//redirect(site_url('demeanor/demeanor_add'));
+							}
+							else
+							{
+									
+							//Resize the image with ratio (Thumbnail)
+							$config['image_library'] 	= 'gd2';
+							$config['source_image']		= $this->config->item('upload').'demeanor/orig/'.$config['file_name'];
+							echo $config['new_image']		= $this->config->item('upload').'demeanor/31x31/'.$config['file_name'];
+							$config['maintain_ratio'] 	= TRUE;
+							$config['width']	 		= 31;
+							$config['height']			= 31;
+							
+							$this->load->library('image_lib');
+							$this->load->library('image_lib', $config); 
+							$this->image_lib->initialize($config);
+							$this->image_lib->resize();
+							
+							
+							//thumb image
+							$config['image_library'] 	= 'gd2';
+							$config['source_image']		= $this->config->item('upload').'demeanor/orig/'.$config['file_name'];
+							$config['new_image']		= $this->config->item('upload').'demeanor/60x60/'.$config['file_name'];
+							$config['maintain_ratio'] 	= TRUE;
+							$config['width']	 		= 60;
+							$config['height']			= 60;
+							
+							$this->load->library('image_lib');
+							$this->load->library('image_lib', $config); 
+							$this->image_lib->initialize($config);
+							$this->image_lib->resize();							
+							//upload image end	
+							
+							
+							$demeanor	=	$this->input->post('demeanor'); 
+							$animaltype	=	$this->input->post('animaltype');
+							$check		=	$this->demeanor_model->is_demeanor_exists($demeanor,$animaltype);
+							if($check)
+							{  
+								$data['Err_Msg']	=	'Demeanor already exist.';
+								$this->load->view('demeanor-add',$data);	
+							}		
+							else
+							{		
+							
+							$data['add']['demeanorimage'] = $config['file_name'];																				
+							$this->demeanor_model->insertDemeanor($data['add'],$demeanorimage);							
+							$this->session->set_flashdata('success', 'You have successfully created demeanor!');							
+							redirect(site_url('demeanor/demeanor_add'));
+							}	
+							}
+			}			
+		}
+		else
+		{	
+			    
+			if($this->session->userdata('demeanor')==''){ 
+			$this->load->view('demeanor-add',$data);			
+			}
+		}		
+	}
+	
+}
+
+/* End of file demeanor.php */
+/* Location: ./application/controllers/demeanor.php */

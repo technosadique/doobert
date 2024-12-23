@@ -1,0 +1,845 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# =====================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 5-May-2014
+# File description		: sponsorship controller 
+# Special- notes		: 
+# Tables used			: 
+# Stored procedures		: none 
+# Triggers used			: none
+# ======================================================================================
+
+class Donation extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->model('donation_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');
+		$this->load->helper('captcha');
+	}	
+
+	
+	#=========================================================
+	#	Function : campaign_page
+	#	Purpose  : Displaying campaign page
+	#=========================================================
+	
+	public function campaign_page() {
+		
+		$data = array();
+		$page_details			= $this->donation_model->get_sponsorshipdetails($this->uri->segment(2));
+		//echo "<pre>";print_r($page_details);die;
+		if(empty($page_details)) {
+			redirect(base_url());
+		}
+		$data['page_details']		= $page_details;
+		$campaign_cost 				= $this->donation_model->get_campaign_cost_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$donation_sum 				= $this->donation_model->get_campaign_donation_sum($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$cost_sum					= $this->donation_model->get_campaign_cost_sum($page_details['in_campaign_id']);
+		$data['get_animal_photos'] 	= $this->donation_model->get_animal_photos($page_details['in_animal_id']);
+		
+		$data['get_campaign_photos'] 	= $this->donation_model->get_campaign_photos($page_details['in_campaign_id']);
+		
+		$post_details 				= $this->donation_model->get_campaign_post($page_details['in_campaign_id']);
+		$campaign_donation 			= $this->donation_model->get_campaign_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$data['post_details'] 		= $post_details;
+		$data['cost_sum'] 			= $cost_sum;
+		$data['donation_sum'] 		= $donation_sum;
+		$data['campaign_cost'] 		= $campaign_cost;
+		$data['campaign_donation'] 	= $campaign_donation;
+		$data['post_send']			= '0';
+		//echo "<pre>";print_r($page_details);die;
+		if($this->session->userdata('userid'))
+		{
+			$access = $this->donation_model->get_user_access($page_details['in_organization_id'],$this->session->userdata('userid'));
+			//echo "<pre>";print_r($access);die;
+			if($access['o_user_id']==$this->session->userdata('userid') || $access['p_st_fundraiser']=='Y' || $access['ou_st_fundraiser']=='Y')
+			{
+				$data['post_send']='1';
+			}
+		}
+		$data['Err_Msg'] 			= '';
+		$form_field	=	array('title'		=> "",
+							  'description'	=> ""
+							 );
+		foreach($form_field as $key => $value)	
+		{	
+			$data['post_data'][$key] = $value;	
+		}
+		if($this->input->post('action'))
+		{ 
+			if($data['post_send']=='1')
+			{
+				foreach ($form_field as $key => $value)
+				{	
+					$data['post_data'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+				}
+				$this->form_validation->set_rules('title', 'Title', 'trim|required');
+				$this->form_validation->set_rules('description', 'Description', 'trim|required');
+				if($this->form_validation->run()==FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();
+						$this->load->view('sponsorship/donation-preview-page',$data);	
+				}
+				else
+				{
+					$post_data = array(	"in_campaign_id"		=>	$page_details['in_campaign_id'],
+										"in_posted_by_id" 		=> 	$this->session->userdata('userid'),
+										"st_posted_by_name"		=> 	$access['st_display_name'],
+										"st_title"				=>	$data['post_data']['title'],
+										"st_desc"				=>	$data['post_data']['description'],
+										"dt_created"			=> date("Y-m-d H:i:s"),
+										"in_deleted"			=> "0"
+									   );
+					$this->donation_model->add_post($post_data);
+					//echo "<pre>";print_r($this->input->post());die;
+					redirect(base_url().'campaign/'.$data['page_details']['st_custom_url']);
+				}
+			}
+			else
+			{
+				$this->session->set_flashdata('error_post', 'You dont have to acess to add post.');
+			}
+		}
+		else
+		{
+			$post_details 			= $this->donation_model->get_campaign_post($page_details['in_campaign_id']);
+			$data['post_details'] 	= $post_details;
+			$data['get_page_details'][] =$page_details;
+			$data['sponsorship_detail'] = $data['get_page_details'];
+					
+			$this->load->view('sponsorship/donation-preview-page',$data);
+		}
+	}
+	
+	#=========================================================
+	#	Function : sponsorship_payment
+	#	Purpose  : Sponsorship payment form
+	#=========================================================
+	
+	public function sponsorship_payment() {	
+		$data = array();
+		$data['Err_Msg'] 		= '';
+		$page_details			= $this->donation_model->get_sponsorshipdetails($this->uri->segment(2));
+		if(empty($page_details)) {
+			redirect(base_url());
+		}
+		//echo "<pre>";print_r($page_details);die;
+		$data['page_details']		= $page_details;
+		$campaign_cost 				= $this->donation_model->get_campaign_cost_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$donation_sum 				= $this->donation_model->get_campaign_donation_sum($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$cost_sum					= $this->donation_model->get_campaign_cost_sum($page_details['in_campaign_id']);
+		$data['get_animal_photos'] 	= $this->donation_model->get_animal_photos($page_details['in_animal_id']);
+		$post_details 				= $this->donation_model->get_campaign_post($page_details['in_campaign_id']);
+		$campaign_donation 			= $this->donation_model->get_campaign_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$data['post_details'] 		= $post_details;
+		$data['cost_sum'] 			= $cost_sum;
+		$data['donation_sum'] 		= $donation_sum;
+		$data['campaign_cost'] 		= $campaign_cost;
+		$data['campaign_donation'] 	= $campaign_donation;
+		$data['post_send']			= '0';
+		$data['sponsorship_detail'][] =$page_details;
+		//echo "<pre>";print_r($campaign_cost);die;
+		$state_list 			= $this->common_function->state_list;
+		$data['state_list'] 	= $state_list;
+		$shortCountry 			= $this->common_function->shortCountry;
+		$data['shortCountry'] 	= $shortCountry;
+		
+		$form_field	=	array('optionsAmount'		=> "",
+							  "txtOtherAmount"		=> "",
+							  "extra_amt_doobert"	=> "",
+							  "optionsDonationFor"	=> "",
+							  "DonationFor"			=> "",
+							  "DonationCondition"	=> "",
+							  "txtFirstName"		=> "",
+							  "txtLastName"			=> "",
+							  "chkAnonymous"		=> "",
+							  "txtEmail"			=> "",
+							  "ddlCountry"			=> "",
+							  "ddlState"			=> "",
+							  "txtCity"				=> "",
+							  "txtZipCode"			=> "",
+							  "txtComment"			=> ""
+							  
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['post_data'][$key] = $value;	
+		}
+		if($this->input->post('action'))
+		{
+			foreach ($form_field as $key => $value)
+			{	
+				$data['post_data'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+			}
+			//echo "<pre>";print_r($data['post_data']);die;
+				$this->form_validation->set_rules('txtFirstName', 'First Name', 'trim|required');
+				$this->form_validation->set_rules('txtLastName', 'Last Name', 'trim|required');
+				$this->form_validation->set_rules('txtEmail', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('ddlCountry', 'Country', 'trim|required');
+				$this->form_validation->set_rules('optionsAmount', 'Option Amount', 'trim|required');
+				if($this->input->post("ddlCountry")=='US')
+				{
+					$this->form_validation->set_rules('ddlState', 'State', 'trim|required');
+				}
+				if($this->input->post("optionsAmount")=='other')
+				{
+					$this->form_validation->set_rules('txtOtherAmount', 'Amount', 'trim|required|numeric');
+				}
+				if($this->input->post("optionsDonationFor")=='specificarea')
+				{
+					$this->form_validation->set_rules('DonationFor', 'Specify what the money must be used for', 'trim|required');
+				}
+				
+				$this->form_validation->set_rules('txtCity', 'City', 'trim|required');
+				$this->form_validation->set_rules('txtZipCode', 'Zip code', 'trim|required');
+			
+			
+			if($this->form_validation->run()==FALSE)
+			{
+					$data['Err_Msg'] = validation_errors();
+					$this->load->view('sponsorship/donation-collect-funds-form',$data);	
+			}
+			else
+			{
+				if($data['post_data']["optionsAmount"]=='other')
+				{
+					$amount = $data['post_data']["txtOtherAmount"];
+				}
+				else
+				{
+					$amount = $data['post_data']["optionsAmount"];
+				}
+				if($data['post_data']["optionsDonationFor"]=='specificarea')
+				{
+					$DonationFor = $data['post_data']["DonationFor"];
+				}
+				else
+				{
+					$DonationFor = "0";
+				}
+				#get 5% amount#
+				$doobert_amount  = (5*$amount)/100;
+				$actual_amount	 = $amount-$doobert_amount;
+				$full_amount	  = $amount;
+				if($data['post_data']["extra_amt_doobert"]!='')
+				{
+					$doobert_amount  = $doobert_amount;
+					$actual_amount	 = $amount;
+					$full_amount = $amount+$doobert_amount;
+				}
+				//echo "Doobert Amount===>".$doobert_amount."<br />Actual Amount===>".$actual_amount;
+				//die;
+				$insert_data = array("in_campaign_id" 		=> $page_details['in_campaign_id'],
+									 "st_donation_type"		=> $page_details['st_campaign_type'],
+									 "in_donation_amount"	=> $actual_amount,
+									 "in_donation_for"		=> $DonationFor,
+									 "flg_refund"			=> $data['post_data']["DonationCondition"],
+									 "st_firstname"			=> $data['post_data']["txtFirstName"],
+									 "st_lastname"			=> $data['post_data']["txtLastName"],
+									 "st_hide"				=> ($data['post_data']["chkAnonymous"])?$data['post_data']["chkAnonymous"]:"0",
+									 "st_email"				=> $data['post_data']["txtEmail"],
+									 "st_country"			=> $data['post_data']["ddlCountry"],
+								 	 "st_state"				=> $data['post_data']["ddlState"],
+									 "st_city"				=> $data['post_data']["txtCity"],
+									 "st_zipcode"			=> $data['post_data']["txtZipCode"],
+									 "st_comment"			=> $data['post_data']["txtComment"],
+									 "dt_created"			=> date("Y-m-d H:i:s"),
+									 "in_status"			=> ($page_details['st_campaign_type']=='D')?"0":"2",
+									 "in_deleted"			=> "0",
+									 "in_doobert_amt"		=> $doobert_amount,
+									 "in_extra_amount"		=> ($data['post_data']["extra_amt_doobert"])?$data['post_data']["extra_amt_doobert"]:"0",
+									 );				 
+				$campaign_donation 			= $this->donation_model->insert_donation($insert_data);
+				if($page_details['st_campaign_type']=='P')
+				{
+					$url  = $this->config->item('base_url')."thank-you/".$page_details['st_custom_url'];
+					redirect($url);
+				}
+				#=================================Paypal Payment Process=================================#
+				/*this code is workimng for primary reiver and secondar reciver*/
+				$paypal_details = array("paypal_email"		=> $page_details['st_paypal_email'],
+										"doobert_amount"	=> number_format($doobert_amount,"2",".",""),
+										"user_amount"		=>  number_format($actual_amount,"2",".",""),
+										"fullamount"		=> number_format($full_amount,"2",".",""), 
+										"tracking_id"		=> time()."doobertdonation".$campaign_donation,
+										"st_custom_url"		=> $page_details['st_custom_url'],
+										);					 		
+				/*this code is workimng for primary reiver and secondar reciver*/
+				
+				/*$paypal_details = array("paypal_email"		=> $page_details['st_paypal_email'],
+										"doobert_amount"	=> number_format($doobert_amount,"2",".",""),
+										"fullamount"		=> number_format($actual_amount,"2",".",""), 
+										"tracking_id"		=> time()."doobertdonation".$campaign_donation,
+										"st_custom_url"		=> $page_details['st_custom_url'],
+										);		
+											*/								 
+				$paypal_error = $this->paypal_payment($paypal_details);	
+				if(isset($paypal_error['error']) && !empty($paypal_error['error']))
+				{
+					$data['Err_Msg'] = $paypal_error['error'];
+					$this->load->view('sponsorship/donation-collect-funds-form',$data);	
+				}
+				#==========================================End===========================================#
+			}
+		}
+		else
+		{
+			$this->load->view('sponsorship/donation-collect-funds-form',$data);
+		}
+	}
+	
+	
+	#=========================================================
+	#	Function : sponsorship_payment
+	#	Purpose  : Sponsorship payment form
+	#=========================================================
+	
+	public function sponsorship_thankyou() {
+		$data = array();
+		
+		$data = array();
+		$data['Err_Msg'] 		= '';
+		$page_details			= $this->donation_model->get_sponsorshipdetails($this->uri->segment(2));
+		//echo "<pre>";print_r($page_details);die;
+		if(empty($page_details)) {
+			redirect(base_url());
+		}
+		$data['page_details']		= $page_details;
+		$campaign_cost 				= $this->donation_model->get_campaign_cost_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$donation_sum 				= $this->donation_model->get_campaign_donation_sum($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$cost_sum					= $this->donation_model->get_campaign_cost_sum($page_details['in_campaign_id']);
+		$data['get_animal_photos'] 	= $this->donation_model->get_animal_photos($page_details['in_animal_id']);
+		$post_details 				= $this->donation_model->get_campaign_post($page_details['in_campaign_id']);
+		$campaign_donation 			= $this->donation_model->get_campaign_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$data['post_details'] 		= $post_details;
+		$data['cost_sum'] 			= $cost_sum;
+		$data['donation_sum'] 		= $donation_sum;
+		$data['campaign_cost'] 		= $campaign_cost;
+		$data['campaign_donation'] 	= $campaign_donation;
+		$data['post_send']			= '0';
+		$data['sponsorship_detail'][] =$page_details;
+		//echo "<pre>";print_r($campaign_cost);die;
+		$state_list 			= $this->common_function->state_list;
+		$data['state_list'] 	= $state_list;
+		$shortCountry 			= $this->common_function->shortCountry;
+		$data['shortCountry'] 	= $shortCountry;
+		
+		$this->load->view('sponsorship/donation-thank-you',$data);
+	}
+	
+	
+	function paypal_payment($paypal_detail)
+	{
+			
+		$this->load->model('paypal_model');		
+		//-------------------------------------------------
+		// When you integrate this code
+		// look for TODO as an indication
+		// that you may need to provide a value or take action
+		// before executing this code
+		//-------------------------------------------------
+		
+		//require_once ("paypalplatform.php");
+		// ==================================
+		// PayPal Platform Parallel Payment Module
+		// ==================================
+		
+		// Request specific required fields
+		$actionType            	= "PAY";
+		if(isset($paypal_detail['pladge']) && $paypal_detail['pladge']=='yes')
+		{
+			$cancelUrl				= $this->config->item('base_url')."campaign/".$paypal_detail['st_custom_url'];//"http://crystal9/Jigar/session.php?success=no";    // TODO - If you are not executing the Pay call for a preapproval,
+		}
+		else
+		{
+			$cancelUrl				= $this->config->item('base_url')."payment/".$paypal_detail['st_custom_url'];//"http://crystal9/Jigar/session.php?success=no";    // TODO - If you are not executing the Pay call for a preapproval,
+		}
+														//        then you must set a valid cancelUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$returnUrl  			= $this->config->item('base_url')."thank-you/".$paypal_detail['st_custom_url'];//"http://crystal9/Jigar/session.php?success=yes";    // TODO - If you are not executing the Pay call for a preapproval,
+														//        then you must set a valid returnUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$currencyCode        	=  $this->config->item('currency_code');
+		
+		
+		if($this->config->item('doobert_paypal_acc') == $paypal_detail['paypal_email'])
+		{
+		$receiverEmailArray    = array(
+				$paypal_detail['paypal_email']
+				);
+		
+		// TODO - specify the receiver amounts as the amount of money, for example, '5' or '5.55'
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		//$full_amount =		$paypal_detail['doobert_amount']+$paypal_detail['user_amount'];
+		$receiverAmountArray = array(
+				$paypal_detail['fullamount']
+				);
+		
+		// for parallel payment, no primary indicators are needed, so set empty array
+		//$receiverPrimaryArray = array("false","true");
+		$receiverPrimaryArray = array();
+		
+		$feesPayer                        	= "";
+		
+		}
+		else{
+		// A parallel payment can be made among two to six receivers
+		// TODO - specify the receiver emails
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		$receiverEmailArray    = array(
+				$this->config->item('doobert_paypal_acc'),
+				$paypal_detail['paypal_email']
+				);
+		
+		// TODO - specify the receiver amounts as the amount of money, for example, '5' or '5.55'
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		//$full_amount =		$paypal_detail['doobert_amount']+$paypal_detail['user_amount'];
+		$receiverAmountArray = array(
+				$paypal_detail['doobert_amount'],
+				$paypal_detail['fullamount']
+				);
+		
+		// for parallel payment, no primary indicators are needed, so set empty array
+		$receiverPrimaryArray = array("false","true");
+		//$receiverPrimaryArray = array();
+		
+		$feesPayer                        	= "PRIMARYRECEIVER";
+		
+		}
+		
+		// TODO - Set invoiceId to uniquely identify the transaction associated with each receiver
+		//        set the array entries with value for receivers that you have
+		//          each of the array values must be unique
+		$receiverInvoiceIdArray = array(
+				'',
+				'',
+				'',
+				'',
+				'',
+				''
+				);
+		
+		// Request specific optional fields
+		//   Provide a value for each field that you want to include in the request, if left as an empty string the field will not be passed in the request
+		$senderEmail                    	= "";        // TODO - If you are executing the Pay call against a preapprovalKey, you should set senderEmail
+													//        It is not required if the web approval flow immediately follows this Pay call
+		//$feesPayer                        	= "PRIMARYRECEIVER";
+		//$ipnNotificationUrl                	= $this->config->item('base_url')."donation/ipn_notification/";//"http://9277.us/doobert/session1.php";
+		$ipnNotificationUrl         		= ($_SERVER['HTTP_HOST']!='crystal9')?$this->config->item('base_url')."donation/ipn_notification/":"http://9277.us/doobert/session1.php";
+		$memo                            	= "";        // maxlength is 1000 characters
+		$pin                           		= "";        // TODO - If you are executing the Pay call against an existing preapproval
+													//        the requires a pin, then you must set this
+		$preapprovalKey                    	= "";        // TODO - If you are executing the Pay call against an existing preapproval, set the preapprovalKey here
+		$reverseAllParallelPaymentsOnError  = "";    // TODO - Set this to "true" if you would like each parallel payment to be reversed if an error occurs
+													//        defaults to "false" if you don't specify
+		$trackingId                        	= $paypal_detail['tracking_id'];//$this->generateTrackingID();    // generateTrackingID function is found in paypalplatform.php
+		
+		//-------------------------------------------------
+		// Make the Pay API call
+		//
+		// The CallPay function is defined in the paypalplatform.php file,
+		// which is included at the top of this file.
+		//-------------------------------------------------
+		//echo "<pre>";print_r($receiverAmountArray);die;
+		//@mail('ghanshyam.maurya@pulsesolutions.net',"Paypal Details",$actionType.' '.$cancelUrl.' '.$returnUrl.' '.$currencyCode.' '.print_r($receiverEmailArray).' '.print_r($receiverAmountArray).' '.print_r($receiverPrimaryArray).' '.print_r($receiverInvoiceIdArray).' '.print_r($feesPayer).' '.$ipnNotificationUrl.' '.$memo.' '.$pin.' '.$preapprovalKey.' '.$reverseAllParallelPaymentsOnError.' '.$senderEmail.' '.$trackingId);	exit;
+		$resArray = $this->paypal_model->CallPay($actionType, $cancelUrl, $returnUrl, $currencyCode, $receiverEmailArray,
+								$receiverAmountArray, $receiverPrimaryArray, $receiverInvoiceIdArray,
+								$feesPayer, $ipnNotificationUrl, $memo, $pin, $preapprovalKey,
+								$reverseAllParallelPaymentsOnError, $senderEmail, $trackingId
+		);
+		//echo "<pre>";print_r($resArray);die;
+		
+		//@mail('ghanshyam.maurya@pulsesolutions.net',"Paypal resArray",$resArray);	
+		
+		if(isset($resArray) && !empty($resArray))
+		{
+			$ack = strtoupper($resArray["responseEnvelope.ack"]);
+			
+			if($ack=="SUCCESS")
+			{
+				if ("" == $preapprovalKey)
+				{
+					// redirect for web approval flow
+					$cmd = "cmd=_ap-payment&paykey=" . urldecode($resArray["payKey"]);
+					$this->paypal_model->RedirectToPayPal ( $cmd );
+			
+				}
+				else
+				{
+					//echo "<pre>elsecnd";print_r($resArray);die;
+					// payKey is the key that you can use to identify the result from this Pay call
+					$payKey = urldecode($resArray["payKey"]);
+					// paymentExecStatus is the status of the payment
+					$paymentExecStatus = urldecode($resArray["paymentExecStatus"]);
+				}
+			}
+			else  
+			{
+				//Display a user friendly Error on the page using any of the following error information returned by PayPal
+				//TODO - There can be more than 1 error, so check for "error(1).errorId", then "error(2).errorId", and so on until you find no more errors.
+				$ErrorCode = urldecode($resArray["error(0).errorId"]);
+				$ErrorMsg = urldecode($resArray["error(0).message"]);
+				$ErrorDomain = urldecode($resArray["error(0).domain"]);
+				$ErrorSeverity = urldecode($resArray["error(0).severity"]);
+				$ErrorCategory = urldecode($resArray["error(0).category"]);
+			   
+				/*echo "Preapproval API call failed. "."<br />";
+				echo "Detailed Error Message: " . $ErrorMsg."<br />";
+				echo "Error Code: " . $ErrorCode."<br />";
+				echo "Error Severity: " . $ErrorSeverity."<br />";
+				echo "Error Domain: " . $ErrorDomain."<br />";
+				echo "Error Category: " . $ErrorCategory."<br />";die;*/
+				$error['error'] = $ErrorMsg;
+				return $error;
+			}
+		}
+		else
+		{
+			$error['error'] = "Invalid paypal email address configure";
+			return $error;
+		}
+	}
+	
+	function ipn_notification()
+	{
+		$postData = file_get_contents('php://input');
+		$postData = urldecode($postData);
+		$rawPostArray = explode('&', $postData);
+		
+		//@mail('ghanshyam.maurya@pulsesolutions.net',"Paypal Notification",serialize($rawPostArray));		
+		//@mail('rupesh.kumar@pulsesolutions.net',"Paypal Notification",serialize($rawPostArray));	
+		
+		if(isset($rawPostArray) && $rawPostArray != '')
+		{
+			$message  	= 	serialize($rawPostArray);	
+			$to			=	'rupesh.kumar@pulsesolutions.net';
+			$subject	=	'Paypal Notification';
+			$this->load->library('email');
+			$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='ghanshyam.maurya@pulsesolutions.net', $this->config->item('admin_from_name'));
+		}
+		
+		$data_arr= array();	
+		foreach($rawPostArray as $key=>$value)
+		{
+			
+			$data_val = explode("=",$value);		
+			
+			if(isset($data_val[0]) && $data_val[0] == "transaction[0].id")
+			{
+				$data_arr['st_doobert_trans_id'] = $data_val[1];
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "transaction[1].id")
+			{
+				$data_arr['st_transaction_id'] = $data_val[1];
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "transaction[1].status" && $data_val[1]=="Completed")
+			{
+				$data_arr['transaction_1'] = "1";
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "transaction[0].status" && $data_val[1]=="Completed")
+			{
+				$data_arr['transaction_0'] = "1";
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "tracking_id")
+			{
+				$track = explode("doobertdonation",$data_val[1]);
+				$data_arr['donation_id'] = str_replace("doobertdonation","",$track[1]);
+			}
+				
+			//echo "<pre>";print_r($data_val);
+		}
+		//echo "<pre>";print_r($data_arr);die;
+		if(isset($data_arr) && !empty($data_arr))
+		{
+			$id = $data_arr['donation_id'];
+			$status = 0;
+			if($data_arr['transaction_1']=='1' && $data_arr['transaction_0']=='1')
+			{
+				$status = 1;
+			}
+			$update_details = array("st_doobert_trans_id"	=> $data_arr['st_doobert_trans_id'],
+									"st_transaction_id"		=> $data_arr['st_transaction_id'],
+									"st_pp_response"		=>	serialize($rawPostArray),
+									"dt_modified"			=> date("Y-m-d H:i:s"),
+									"in_status"				=> $status);
+			
+			$donation_details = $this->donation_model->get_donation_details($id);
+			
+			$this->donation_model->update_donation_details($id,$update_details);
+			
+			$email_details = $this->common_model->get_email_containt("25");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+				if(isset($q) && !empty($q)){					   		
+						foreach($q as $qr)
+						{		 
+							  
+							if(!empty($qr['st_image']))
+							{
+									$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+									$imgtitle   =   $qr['st_banner_name']; 				
+									$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+									alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+								  
+								  
+							}
+							else
+							{
+								   $donation='';								 
+							}							  
+								
+						}
+					}			
+					   
+				   else
+				   {
+					  $donation='';
+				   }
+			if(isset($email_details[0]['st_email_body']) && ($data_arr['st_transaction_id'] != $donation_details['st_transaction_id']))
+			{
+				$category  	=   $email_details[0]['st_category'];
+				$templete	= 	$email_details[0]['st_email_body'];
+				$templete  	= 	str_replace("##url##",$this->config->item('base_url'),$templete);
+				$templete  	= 	str_replace("##user_display_name##",$donation_details['st_firstname']." ".$donation_details['st_lastname'],$templete);
+				$templete  	= 	str_replace("##transction_id##",$data_arr['st_transaction_id'],$templete);
+				$templete  	= 	str_replace("##DONATION##",$donation,$templete);
+				$message  	= 	$templete;	
+				$to			=	$donation_details['st_email'];
+				$subject	=	$email_details[0]['st_email_subject'];
+				$this->load->library('email');
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'), $this->email, $category);
+			}			
+		}
+	}
+	
+	function pladge_payment($dination_id_en=false)
+	{
+		$donation_id = $this->common_function->decode_base64($dination_id_en);	
+		if($donation_id<=0)
+		{
+			//echo "not found";
+			redirect($this->config->item('base_url'));
+		}
+		//echo "ok";die;
+		$donation_details = $this->donation_model->get_donation_details($donation_id);
+		if($donation_details['st_transaction_id']!='')
+		{
+			$url  = $this->config->item('base_url')."thank-you/".$donation_details['st_custom_url'];
+			redirect($url);
+		}
+		//echo "<pre>";print_r($donation_details);
+		if(empty($donation_details))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$doobert_amount  = $donation_details['in_doobert_amt'];
+		$actual_amount	 = $donation_details['in_donation_amount'];
+		$full_amount = $donation_details['in_donation_amount']+$donation_details['in_doobert_amt'];
+		#=================================Paypal Payment Process=================================#
+		/*this code is workimng for primary reiver and secondar reciver*/
+		$paypal_details = array("paypal_email"		=> $donation_details['st_paypal_email'],
+								"doobert_amount"	=> number_format($doobert_amount,"2",".",""),
+								"user_amount"		=> number_format($actual_amount,"2",".",""),
+								"fullamount"		=> number_format($full_amount,"2",".",""), 
+								"tracking_id"		=> time()."doobertdonation".$donation_details['in_donation_id'],
+								"st_custom_url"		=> $donation_details['st_custom_url'],
+								"pladge"			=> "yes"
+								);		
+		//echo "<pre>";print_r($paypal_details);die;														 					 
+		$paypal_error = $this->paypal_payment($paypal_details);	
+		/*this code is workimng for primary reiver and secondar reciver*/
+		/*$paypal_details = array("paypal_email"		=> $donation_details['st_paypal_email'],
+								"doobert_amount"	=> number_format($doobert_amount,"2",".",""),
+								"fullamount"		=> number_format($actual_amount,"2",".",""), 
+								"tracking_id"		=> time()."doobertdonation".$donation_details['in_donation_id'],
+								"st_custom_url"		=> $donation_details['st_custom_url'],
+								"pladge"			=> "yes"
+								);		
+		//echo "<pre>";print_r($paypal_details);die;														 					 
+		$paypal_error = $this->paypal_payment($paypal_details);	*/
+		if(isset($paypal_error['error']) && !empty($paypal_error['error']))
+		{
+			$this->session->set_flashdata('error_post', $paypal_error['error']);	
+			$url  = $this->config->item('base_url')."campaign/".$donation_details['st_custom_url'];
+			redirect($url);
+		}
+		else
+		{
+			$url  = $this->config->item('base_url')."campaign/".$donation_details['st_custom_url'];
+			redirect($url);
+		}
+	}
+	
+	#=========================================================
+	#	Function : tell_a_friend
+	#	Purpose  : Sending email to friend
+	#=========================================================
+	
+	public function tell_a_friend($url) {
+		$data = array();
+		$data['campaign_id'] =	$this->donation_model->get_campaign_id($url); 
+		
+		if($data['campaign_id'] == 0) {
+			redirect(base_url());
+		}
+		
+		$this->load->library('email');
+		
+		if($this->input->post('frm_action')=='submit') {
+			//Getting email body
+			$email_body = $this->common_model->get_email_containt('20');
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			
+			$this->email->subject($email_body[0]['st_email_subject']);
+			
+			$patterns = array('%##url##%','%##user_email##%','%##user_msg##%','%##sender_name##%','%##campaign_title##%','%##mailto_text##%');
+			$replacements = array(base_url(),$this->input->post('txtemail'),nl2br($this->input->post('txtMessage')),$this->input->post('txtfrom'),base_url()."campaign/".$url,"info@doobert.com");
+			
+			$content = preg_replace($patterns,$replacements,$email_body[0]['st_email_body']);
+			$content  	= 	str_replace("##DONATION##",$donation,$content);
+			
+			$data['send_mail_data'] = array('in_campaign_id'	=>	$data['campaign_id'],
+											'st_to'				=>	$this->input->post('txtemail'),		
+											'st_from'			=>	$this->input->post('txtfrom'),
+											'st_subject'		=>	$this->input->post('txtsubject'),	
+											'st_message'		=>	$this->input->post('txtMessage')
+											);
+											
+			$data['send_mail'] = $this->donation_model->send_mail_save($data['send_mail_data']);
+			
+			if($data['send_mail'] == 1) {
+			
+			$category  	=  $email_body[0]['st_category'];
+				
+			$this->common_function->send_mail($this->email, $this->input->post('txtemail'), $this->input->post('txtsubject'), $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'), $this->email, $category);
+				
+				$this->session->set_flashdata('success_mail','Mail Sent Successfully.');
+				redirect(base_url().'campaign/'.$url);
+			} else {
+				$this->session->set_flashdata('success_mail','There is a problem in sending email,Please try again.');
+				redirect(base_url().'campaign/'.$url);
+			}
+		}
+	}
+	
+	public function testpage() {
+		$data = array();
+		$page_details			= $this->donation_model->get_sponsorshipdetails($this->uri->segment(3));
+		//echo "<pre>";print_r($page_details);die;
+		if(empty($page_details)) {
+			redirect(base_url());
+		}
+		$data['page_details']		= $page_details;
+		$campaign_cost 				= $this->donation_model->get_campaign_cost_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$donation_sum 				= $this->donation_model->get_campaign_donation_sum($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$cost_sum					= $this->donation_model->get_campaign_cost_sum($page_details['in_campaign_id']);
+		$data['get_animal_photos'] 	= $this->donation_model->get_animal_photos($page_details['in_animal_id']);
+		
+		$data['get_campaign_photos'] 	= $this->donation_model->get_campaign_photos($page_details['in_campaign_id']);
+		
+		$post_details 				= $this->donation_model->get_campaign_post($page_details['in_campaign_id']);
+		$campaign_donation 			= $this->donation_model->get_campaign_donation($page_details['in_campaign_id'],$page_details['st_campaign_type']);
+		$data['post_details'] 		= $post_details;
+		$data['cost_sum'] 			= $cost_sum;
+		$data['donation_sum'] 		= $donation_sum;
+		$data['campaign_cost'] 		= $campaign_cost;
+		$data['campaign_donation'] 	= $campaign_donation;
+		$data['post_send']			= '0';
+		//echo "<pre>";print_r($page_details);die;
+		if($this->session->userdata('userid'))
+		{
+			$access = $this->donation_model->get_user_access($page_details['in_organization_id'],$this->session->userdata('userid'));
+			//echo "<pre>";print_r($access);die;
+			if($access['o_user_id']==$this->session->userdata('userid') || $access['p_st_fundraiser']=='Y' || $access['ou_st_fundraiser']=='Y')
+			{
+				$data['post_send']='1';
+			}
+		}
+		$data['Err_Msg'] 			= '';
+		$form_field	=	array('title'		=> "",
+							  'description'	=> ""
+							 );
+		foreach($form_field as $key => $value)	
+		{	
+			$data['post_data'][$key] = $value;	
+		}
+		if($this->input->post('action'))
+		{ 
+			if($data['post_send']=='1')
+			{
+				foreach ($form_field as $key => $value)
+				{	
+					$data['post_data'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+				}
+				$this->form_validation->set_rules('title', 'Title', 'trim|required');
+				$this->form_validation->set_rules('description', 'Description', 'trim|required');
+				if($this->form_validation->run()==FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();
+						$this->load->view('sponsorship/donation-preview-page',$data);	
+				}
+				else
+				{
+					$post_data = array(	"in_campaign_id"		=>	$page_details['in_campaign_id'],
+										"in_posted_by_id" 		=> 	$this->session->userdata('userid'),
+										"st_posted_by_name"		=> 	$access['st_display_name'],
+										"st_title"				=>	$data['post_data']['title'],
+										"st_desc"				=>	$data['post_data']['description'],
+										"dt_created"			=> date("Y-m-d H:i:s"),
+										"in_deleted"			=> "0"
+									   );
+					$this->donation_model->add_post($post_data);
+					//echo "<pre>";print_r($this->input->post());die;
+					redirect(base_url().'campaign/'.$data['page_details']['st_custom_url']);
+				}
+			}
+			else
+			{
+				$this->session->set_flashdata('error_post', 'You dont have to acess to add post.');
+			}
+		}
+		else
+		{
+			$post_details 			= $this->donation_model->get_campaign_post($page_details['in_campaign_id']);
+			$data['post_details'] 	= $post_details;
+			$data['get_page_details'][] =$page_details;
+			$data['sponsorship_detail'] = $data['get_page_details'];
+					
+			$this->load->view('sponsorship/test-preview-page',$data);
+		}
+	
+	}
+}

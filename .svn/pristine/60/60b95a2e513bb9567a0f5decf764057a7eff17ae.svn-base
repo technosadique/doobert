@@ -1,0 +1,420 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Apr-2014
+# File description: transportation(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class transportation extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');	
+		//error_reporting(E_ALL);	
+		$this->load->library('pagination');
+		$this->load->library('form_validation');		
+		$this->load->model('transportation_model');
+		$this->load->model('common_model');
+		$this->load->helper(array('form', 'url'));		
+	}	
+	
+	function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$this->session->unset_userdata('searchadmin1');	
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('searchadmin5');			
+		$this->session->unset_userdata('searchadmin6');							
+		$this->page();	
+		
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+	     if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$zip				=	'';
+		$state				=	'';		
+		$fromdate			=	'';
+		$todate				=	'';
+		$status				=	1;
+		
+		
+		
+			
+		//print "<pre>";print_r($this->session->userdata);print "</pre>";
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtname') || ($this->input->post('action') == 'search'))
+		{			
+			//if($this->session->userdata('searchadmin1'))
+				//$this->session->unset_userdata('searchadmin1');			
+				//$name = trim(addslashes($this->input->post('txtname')));	 
+				//$this->session->set_userdata('searchadmin1',$name);		
+				
+				if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');						
+				
+			$name = trim(addslashes($this->input->post('txtname')));				
+			$this->session->set_userdata('searchadmin1',$this->common_function->custom_htmlentities($name));				
+				
+		}		
+		
+		if($this->input->post('txtzipcode') || ($this->input->post('action') == 'search'))
+		{
+			
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');	
+
+				$zip_code = $this->input->post('txtzipcode');
+				$zip_code = str_replace(" ","",$zip_code);
+				$_POST['txtzipcode'] = strtoupper($zip_code);
+			
+				$zip = trim(addslashes($this->input->post('txtzipcode')));	
+				$this->session->set_userdata('searchadmin2',$zip);			
+				
+		}
+		
+		
+		if($this->input->post('txtstate') || ($this->input->post('action') == 'search'))
+		{
+			
+			if($this->session->userdata('searchadmin3'))
+				$this->session->unset_userdata('searchadmin3');			
+				$state = trim($this->input->post('txtstate'));	
+				$this->session->set_userdata('searchadmin3',$state);			
+			
+		}
+		if($this->input->post('country') || ($this->input->post('action') == 'search'))
+		{
+			
+			if($this->session->userdata('searchadmin6'))
+				$this->session->unset_userdata('searchadmin6');			
+				$country = trim($this->input->post('country'));	
+				$this->session->set_userdata('searchadmin6',$country);	
+				
+			
+		}
+		
+		if($this->input->post('txtfrom') || ($this->input->post('action') == 'search'))
+		{	
+			
+			if($this->session->userdata('searchadmin4'))
+				$this->session->unset_userdata('searchadmin4');										
+			 	$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 				
+				$this->session->set_userdata('searchadmin4',$fromdate);
+		}
+		
+		if($this->input->post('txtto') || ($this->input->post('action') == 'search'))
+		{  
+			if($this->session->userdata('searchadmin5'))
+				$this->session->unset_userdata('searchadmin5');			
+				$todate = date('Y-m-d',strtotime($this->input->post('txtto')));
+				$this->session->set_userdata('searchadmin5',$todate);
+		}
+		
+		if($this->input->post('transport_type') || ($this->input->post('action') == 'search'))
+		{  
+			if($this->session->userdata('searchadmin7'))
+				$this->session->unset_userdata('searchadmin7');			
+				$this->session->set_userdata('searchadmin7',$this->input->post('transport_type'));
+		}
+		
+		
+		$rec_per_page =	 $this->config->item('per_page');			
+		
+		// GET COUNT of TOTAL RECORDS
+		 $totalrecord		= $this->transportation_model->get_total_transportation($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin6'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$status,$this->session->userdata('searchadmin7'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['transportation_list']	= $this->transportation_model->get_transportation($status,$sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin6'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin7'));
+		//echo '<pre>'; print_r($data['transportation_list']); die;
+		
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'transportation/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Transportation Information Available.';
+		}	
+		$data['adminId']	=	$this->session->userdata('sess_admin_id');	
+		$this->load->view('active-transportation',$data);
+	}
+	
+	
+	function transportation_delete()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		$transId	=	$this->uri->segment(3);
+		$this->transportation_model->delete_transportation($transId);			
+		$this->session->set_flashdata('success', 'Transportation information has been deleted successfully.');
+		//$sort 	= $this->session->userdata('a_sort');
+//		$order  = $this->session->userdata('a_order');
+//		$limit	= $this->session->userdata('a_limit');		
+		redirect($this->config->item('admin_base_url').'transportation');
+		
+	}
+	
+	
+	function delete_multiple_transportation()
+	{   
+		$trans_ids = $this->input->post('transportationid');
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+	
+		if(!empty($trans_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->transportation_model->delete_multiple_transportation($trans_ids);
+			
+			$this->session->set_flashdata('success', 'Transportation(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'transportation/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	function transportation_view($transId=false)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }				
+			
+			$data['trans_details'] = $this->transportation_model->get_transportation_info($transId); 			
+			
+			if(count($data['trans_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}
+			//echo '<pre>'; print_r($data['trans_details']); die;
+					
+			$this->load->view('view-transportation',$data);			
+	}
+	
+	function transportation_routing_view($transId=false)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+			
+			$data['trans_details'] = $this->transportation_model->get_transportation_info($transId); 			
+			
+			if(count($data['trans_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}
+			//echo '<pre>'; print_r($data['trans_details']); die;
+					
+			$this->load->view('view-transportation-routing',$data);			
+	}
+	
+	
+	function transportation_edit($transportationId=false)
+	{		
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 			=	array();
+		$data['Err_Msg']			=	'';	
+		$state_list 			= $this->common_function->state_list;	
+		$data['state_list'] 	= $state_list;	
+		$data['organization_list']  = $this->common_model->get_organization_list();		
+		$form_field	=	array('orgname'				=> "",	
+							  'trdate'				=> "",
+							  'frdate'				=> "",
+							  'transportationtype'	=> "",
+							  'fromcountry'			=> "",
+							  'fromstate'			=> "",
+							  'fromcity'			=> "",
+							  'fromzipcode'			=> "",
+							  'tocountry'			=> "",
+							  'tostate'				=> "",
+							  'tocity'				=> "",
+							  'tozipcode'			=> "",
+							  'distance'			=> ""							  						  							  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+						$data['transportation'] = $this->transportation_model->get_transportation_profile($transportationId);	
+						//echo '<pre>'; print_r($data['transportation']); die;
+		
+		if($this->input->post('action')=='Edit')
+		{   
+	
+			if($this->input->post('tozipcode'))
+			{	
+				$zip_code = $this->input->post('tozipcode');
+				$zip_code = str_replace(" ","",$zip_code);
+				$_POST['tozipcode'] = strtoupper($zip_code);		
+			}
+			
+			if($this->input->post('fromzipcode'))
+			{	
+				$zip_code = $this->input->post('fromzipcode');
+				$zip_code = str_replace(" ","",$zip_code);
+				$_POST['fromzipcode'] = strtoupper($zip_code);		
+			}
+			//Validation rules
+						$transportationId			      = $this->input->post('transportationId');
+						$data['transportation']			  = $this->transportation_model->get_transportation_profile($transportationId);	
+			
+			foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+				}
+						$this->form_validation->set_rules('orgname',        'Organization Name',  'trim|required');
+						$this->form_validation->set_rules('frdate',         'Transportation From Date', 'trim|required');
+						$this->form_validation->set_rules('trdate',         'Transportation To Date', 'trim|required');						
+						$this->form_validation->set_rules('transportationtype',     'Transport Type',  'trim|required');
+						$this->form_validation->set_rules('fromstate',      'From State',  'trim|required');
+						$this->form_validation->set_rules('fromcountry',       'From Country',  'trim|required');		
+						$this->form_validation->set_rules('fromcity',       'From City',  'trim|required');	
+						$this->form_validation->set_rules('fromzipcode',    'From Zip[ Code',  'trim|required');	
+						$this->form_validation->set_rules('tostate',        'To State',  'trim|required');
+						$this->form_validation->set_rules('tocity',         'To City',  'trim|required');
+						$this->form_validation->set_rules('tocountry',      'To Country',  'trim|required');
+						$this->form_validation->set_rules('tozipcode',      'To Zip Code',  'trim|required');			
+						$this->form_validation->set_rules('distance',       'Distance in miles',  'trim|required');			
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$data['transportation'] = $this->transportation_model->get_transportation_profile($transportationId);			
+						$this->load->view('transportation-edit',$data);
+				}
+			
+				else
+				{ 			
+						$transportation_info 						    =   array();
+						$transportation_info['in_organization_id'] 		=	$this->input->post('orgname');	
+						$transportation_info['dt_pickup_date'] 			=	date('Y-m-d',strtotime($this->input->post('frdate')));				
+						$transportation_info['dt_target'] 				=	date('Y-m-d',strtotime($this->input->post('trdate')));								
+						$transportation_info['st_trans_type'] 		    =	$this->input->post('transportationtype');
+						$transportation_info['in_tot_distance'] 		=	$this->input->post('distance');	
+						$transportation_info['st_from_country'] 		=	$this->input->post('fromcountry');
+						$transportation_info['st_from_state'] 		    =	$this->input->post('fromstate');	
+						$transportation_info['st_from_city'] 		    =	$this->input->post('fromcity');	
+						$transportation_info['st_from_zip'] 		    =	$this->input->post('fromzipcode');	
+						$transportation_info['st_to_state'] 		    =	$this->input->post('tostate');	
+						$transportation_info['st_to_country'] 		    =	$this->input->post('tocountry');
+						$transportation_info['st_to_city'] 		        =	$this->input->post('tocity');	
+						$transportation_info['st_to_zip'] 		        =	$this->input->post('tozipcode');	
+						$transportation_info['dt_modified'] 		    = 	date('Y-m-d H:i:s');							
+						//Updating organization data
+						$this->transportation_model->update_transportation_info($transportation_info,$transportationId,'tbl_transportation');					
+						$this->session->set_flashdata('message', 'You have successfully updated transportation details!');					
+						redirect(site_url('transportation/transportation_edit/'.$transportationId));						
+				}
+		}
+		
+		else
+		{			
+						$this->load->view('transportation-edit.php',$data);
+		}
+	}
+}
+
+/* End of file organization.php */
+/* Location: ./application/administration/controllers/organization.php */

@@ -1,0 +1,1804 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 18-Apr-2014
+# File description: Animals(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Animals extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');
+		//error_reporting(E_ALL);		
+		$this->load->library('pagination');
+		$this->load->library('form_validation');		
+		$this->load->model('animal_model');
+		$this->load->library('upload');
+		$this->load->model('common_model');
+		$this->load->library('user_agent');		
+		$this->load->helper(array('form', 'url'));
+		//$this->common_function->check_admin_logged_in($this);	
+		$this->load->library('nativesession');
+	}	
+	
+	function index()
+	{
+		 if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+	    if($this->nativesession->get('searchadmin4')){$this->nativesession->delete('searchadmin4'); }
+		if($this->nativesession->get('searchadmin5')){$this->nativesession->delete('searchadmin5'); }
+		if($this->nativesession->get('searchadmin6')){$this->nativesession->delete('searchadmin6'); }
+		if($this->nativesession->get('searchadmin7')){$this->nativesession->delete('searchadmin7'); }	
+		if($this->nativesession->get('searchadmin8')){$this->nativesession->delete('searchadmin8'); }
+		$this->page();	
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 	
+	    
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$animalname			=	'';
+		$animaltype			=	'';
+		$animalbreed		=	'';
+		$organization		=	'';
+		$demeanor			=	'';
+		$fromdate			=	'';
+		$todate				=	'';
+		
+		$data['organization_list'] = $this->common_model->get_organization_list();	
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		$data['animal_breed'] = $this->common_model->get_animal_breed_list();
+		$data['demeanor_list'] = $this->common_model->get_demeanor_list();
+		//echo '<pre>'; print_r($data['demeanor']); die;
+			
+		//print "<pre>";print_r($this->session->userdata);print "</pre>";
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='orgname';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('animalname') && ($this->input->post('action') == 'search'))
+		{					
+			$animalname = trim(addslashes($this->input->post('animalname')));				
+			$this->nativesession->set('searchadmin1',$this->common_function->custom_htmlentities($animalname));				
+		}		
+		
+		if($this->input->post('animaltype') && ($this->input->post('action') == 'search'))
+		{			
+			$animaltype = trim($this->input->post('animaltype'));	
+			$this->nativesession->set('searchadmin2',$animaltype);
+		}
+		
+		
+		if($this->input->post('animalbreed') && ($this->input->post('action') == 'search'))
+		{			
+			$animalbreed = trim($this->input->post('animalbreed'));	
+			$this->nativesession->set('searchadmin3',$animalbreed);					
+		}
+		
+		if($this->input->post('organization') && ($this->input->post('action') == 'search'))
+		{
+			$organization = trim($this->input->post('organization'));	
+			$this->nativesession->set('searchadmin4',$organization);
+		}	
+		
+		if($this->input->post('txtfrom') && ($this->input->post('action') == 'search'))
+		{	
+			$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 				
+			$this->nativesession->set('searchadmin5',$fromdate);			
+		}
+		
+		if($this->input->post('txtto') && ($this->input->post('action') == 'search'))
+		{
+			$todate = date('Y-m-d',strtotime($this->input->post('txtto'))); 				
+			$this->nativesession->set('searchadmin6',$todate);						
+		}
+		
+		if($this->input->post('demeanor') && ($this->input->post('action') == 'search'))
+		{
+			$demeanor = trim($this->input->post('demeanor'));	
+			$this->nativesession->set('searchadmin7',$demeanor);							
+		}
+		
+		if($this->input->post('apptype') && ($this->input->post('action') == 'search'))
+		{  
+			$status = $this->input->post('apptype'); 				
+			$this->nativesession->set('searchadmin8',$status);
+		}
+		
+		if($this->nativesession->get('apptype'))
+		{
+			$status = $this->nativesession->get('apptype');
+			$this->nativesession->delete('apptype');		
+		}
+		
+		$rec_per_page =	  $this->config->item('per_page');			
+		
+		// GET COUNT of TOTAL RECORDS
+		 $totalrecord		= $this->animal_model->get_total_animal($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin8')); 
+		// GET PAGE LIST RESULT HERE
+		
+		$data['animal_list']	= $this->animal_model->get_animal($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin8')); 
+		
+		//echo '<pre>'; print_r($data['animal_list']); die;
+		
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'animals/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];	
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Animal Information Available.';
+		}
+		
+		$status_type_array = array(''=>'Select','1'=>'Archive','2'=>'Un-archive');
+		$data['status_type_array'] = $status_type_array;
+		
+		$data['status_type'] = $status;
+		
+		$this->load->view('animals-manage',$data);
+	}
+	
+	
+	
+	function animal_delete()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		$animalId	=	$this->uri->segment(3);
+		$this->animal_model->delete_animal($animalId);			
+		$this->session->set_flashdata('success', 'Animal information has been deleted successfully.');
+		//$sort 	= $this->session->userdata('a_sort');
+//		$order  = $this->session->userdata('a_order');
+//		$limit	= $this->session->userdata('a_limit');		
+		redirect($this->config->item('admin_base_url').'animals');		
+	}
+	
+	
+	function delete_multiple_animal()
+	{   
+	     if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$animal_ids = $this->input->post('animalid');
+		//echo '<pre>'; print_r($animal_ids); die;
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+	
+		if(!empty($animal_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->animal_model->delete_multiple_animal($animal_ids);
+			
+			$this->session->set_flashdata('success', 'Animals(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'animals/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	function animal_view($animalId=false)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }			
+			
+			$data['animal_details'] = $this->animal_model->get_animal_detail($animalId); 
+			$data['transport_date']	=  $this->animal_model->get_animal_transport_date($animalId);
+			$data['animal_images']  = $this->animal_model->get_animal_photos($animalId);
+			$data['animal_doc']  	= $this->animal_model->get_animal_doc($animalId);
+			$data['get_social_pages']= $this->animal_model->get_social_pages($animalId);
+			$data['get_shelter_contact']= $this->animal_model->get_shelter_contact($animalId);
+			//Getting cost details
+			$data['cost_to_org'] = $this->animal_model->cost_to_org($animalId);			
+			//echo '<pre>'; print_r($data['get_shelter_contact']); die;			
+			if(count($data['animal_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}
+								
+			$this->load->view('manage-animals-view',$data);			
+	}
+	
+	
+	
+	function animal_add()
+	{		 
+	     if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data						=	array();
+		$usa_states					=   array();
+		$canada_states				=   array();
+		$data['Err_Msg']			=   '';
+		$data['organization_list']  = $this->common_model->get_organization_list();	
+		$data['animal_type'] 		= $this->common_model->get_animal_types();
+		$data['progress_status'] 	= $this->common_model->get_progress_status();
+		$usa_states =  array_keys($this->common_function->state_list);		        // added by sadiq on 5-1-15          
+		$canada_states =  array_keys($this->common_function->canadian_state_list); // added by sadiq on 5-1-15
+		//$data['animal_breed'] 		= $this->common_model->get_animal_breed();
+		//$data['demeanor_list'] 		= $this->common_model->get_demeanor();
+		
+		$form_field	=	array('organization'	=> "",
+							  'animalname'		=> "",	
+							  'gender'	        => "",
+							  'animaltype'	    => "",	
+							  'visibility'	    => "",							 
+							  'animalbreed'		=> "",
+							  'animalbreed2'	=> "",
+							  'animalbreed3'	=> "",
+							  'neutered'		=> "",
+							  'weight'			=> "",							  
+							  'current_stat'	=> "",
+							  'next_stat'		=> "",
+							  'crates'			=> "",
+							  'flight'			=> "",	
+							  'barrier'			=> "",
+							  'ok'				=> "",
+							  'ok_desc'			=> "",
+							  'micro'			=> "",
+							  'micro_desc'		=> "",
+							  'medicalissues'	=> "",
+							  'medical_desc'	=> "",
+							  'profilestory'	=> "",
+							  'age'		        => "",							  
+							  'demeanor'		=> "",
+							  'dt_date'		    => "",
+							  "image_file"		=> "",
+							  "vaccns"			=> "",
+							  "vacc_date"		=> "",
+							  "cvi"			    => "",
+							  "cvi_date"		=> "",
+							  "good_with_dogs"	=> "",
+							  "good_with_cats"	=> "",
+							  "good_with_kids"	=> "",
+							  "house_trained"	=> "",
+							  "declawed"		=> "",
+							  'enterage'		=> "",
+							  'city'		    => "",
+							  'state'	        => "",
+							  'generalcomments' => "",
+							  'chipped_animals' => "", 
+							  'onclock'		    => ""							  				  							  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}	
+			
+		
+		if($this->input->post('action')=='Add')
+		{  
+			
+			// validation starts
+			foreach ($form_field as $key => $value) {	
+				$data['add'][$key] = $this->input->post($key);	
+			}
+			
+			//echo '<pre>'; print_r($data['add']); die;
+						$this->form_validation->set_rules('organization',    'Organization Name',  'trim|required');
+			   			$this->form_validation->set_rules('animalname',      'Animal Name',  'trim|required');
+						$this->form_validation->set_rules('gender',          'Gender',  'trim|required');
+						$this->form_validation->set_rules('visibility',       'Animal profile visibility',  'trim|required');
+						
+						$this->form_validation->set_rules('animaltype',      'Animal Type',  'trim|required');							
+						$this->form_validation->set_rules('animalbreed',     'Animal Breed',  'trim|required');	
+						//$this->form_validation->set_rules('animalbreed2',    'Secondary breed',  'trim|required');	
+						//$this->form_validation->set_rules('animalbreed3',    'Tertiary breed',  'trim|required');						
+						$this->form_validation->set_rules('age',             'Age',  'trim|required');
+						$this->form_validation->set_rules('city',             'City',  '');
+						$this->form_validation->set_rules('state',             'State',  '');
+						$this->form_validation->set_rules('generalcomments',   'General comment',  '');
+						
+						$this->form_validation->set_rules('demeanor',        'Demeanor',  'trim|required');	
+						$this->form_validation->set_rules('enterage',        'Enter Age',  'trim');	
+						$this->form_validation->set_rules('current_stat',        'Current status',  'trim');	
+						$this->form_validation->set_rules('next_stat',        'Next status',  'trim');						
+						$this->form_validation->set_rules('neutered',        'Neutered/Spayed',  'trim|required');	
+						
+						//$this->form_validation->set_rules('weight',          'Weight',  'trim|required');	
+						$this->form_validation->set_rules('crates',          'Crates Well',  '');	
+						$this->form_validation->set_rules('flight',          'Flight',  '');	
+						$this->form_validation->set_rules('barrier',         'Barrier aggressive',  '');	
+						$this->form_validation->set_rules('vaccns',           'Recent Vaccination',  '');	
+						$this->form_validation->set_rules('cvi',              'CVI',  '');	
+						$this->form_validation->set_rules('good_with_dogs',   'Good with  dogs',  '');	
+						$this->form_validation->set_rules('good_with_cats',   'Good with  cats',  '');	
+						$this->form_validation->set_rules('good_with_kids',   'Good with  kids',  '');	
+						$this->form_validation->set_rules('house_trained',    'Good with  kids',  '');	
+						$this->form_validation->set_rules('declawed',   	'Declawed',  '');	
+						
+						
+						
+						//$this->form_validation->set_rules('ok',              'Ok with others',  'trim|required');	
+						//if($this->input->post('ok')=='N'){
+						//$this->form_validation->set_rules('ok_desc',         'Ok description',  'trim|required');
+						//}
+						//$this->form_validation->set_rules('micro',           'Micro-chip',     'trim|required');
+						
+						//if($this->input->post('micro')=='Y'){	
+						//$this->form_validation->set_rules('micro_desc',      'Micro chip description',  'trim|required');
+						//}
+						//$this->form_validation->set_rules('medicalissues',   'Known medical issues',  '');
+						//if($this->input->post('medicalissues')=='Y'){	
+						
+						$this->form_validation->set_rules('medical_desc',    'Medical description',  'trim');		
+						//}		
+						if($this->input->post('chipped_animals') == 'Y') {
+							$this->form_validation->set_rules('chipped_animals_id', 'Company/Service ID', 'required|trim');
+						}	
+						
+						if($this->input->post('onclock') == 'Y') {
+							$this->form_validation->set_rules('dt_date', 'Please select on clock date', 'required|trim');
+						}
+						
+						if($this->input->post('quarantine') == 'Y') {
+						$this->form_validation->set_rules('quarantine_end_date', 'Quarantine End Date', 'required|trim');
+						}					
+						
+						$this->form_validation->set_rules('profilestory',    'Profile story',  '');						
+						
+						($this->input->post('rabiesvac') == 'Y')?$this->form_validation->set_rules('rabiesvac_date', 'Rabies Vaccin date', 'required|trim'):'';
+						($this->input->post('fecaltest') == 'Y')?$this->form_validation->set_rules('fecaltest_date', 'Fecal Test Vaccine date', 'required|trim'):'';
+						($this->input->post('heartworm') == 'Y')?$this->form_validation->set_rules('heartworm_date', 'Heart worm Vaccine date', 'required|trim'):'';
+						($this->input->post('bordatella') == 'Y')?$this->form_validation->set_rules('bordatella_date', 'Bordatella Vaccin date', 'required|trim'):'';
+						($this->input->post('surgery') == 'Y')?$this->form_validation->set_rules('surgery_date', 'Surgery date', 'required|trim'):'';
+						($this->input->post('heartworm') == 'Y')?$this->form_validation->set_rules('heartworm_brand', 'Heartworm Brand', 'required|trim'):'';
+						($this->input->post('bordatella') == 'Y')?$this->form_validation->set_rules('bordatella_brand', 'Bordatella Brand', 'required|trim'):'';					
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						foreach ($form_field as $key => $value) {	
+						$data['add'][$key] = $this->input->post($key);	
+						}
+						
+						$data['Err_Msg'] = validation_errors();												
+						$this->load->view('animal-add',$data);	
+				}
+			else
+			{
+									$country='';  	
+				   					 if (in_array($this->input->post('state'), $usa_states))  // added by sadiq on 5-1-15
+										  {
+										 	$country="USA";
+										  }
+										else if(in_array($this->input->post('state'), $canada_states))
+										  {
+										 	$country="CANADA";  
+										  }
+			           
+						$animal_info['in_organization_id']  	= $this->input->post('organization');
+						$animal_info['st_animal_name'] 			= $this->input->post('animalname');
+						$animal_info['in_animal_type_id']   	= $this->input->post('animaltype');
+						$animal_info['st_gender']    			= $this->input->post('gender');
+						$animal_info['in_animal_public']    	= $this->input->post('visibility');
+						$animal_info['in_primary_breed_id'] 	= $this->input->post('animalbreed');
+						$animal_info['in_secondry_breed_id'] 	= $this->input->post('animalbreed2');
+						$animal_info['in_tertiary_breed_id'] 	= $this->input->post('animalbreed3');
+						$animal_info['in_neutered_id'] 		 	= $this->input->post('neutered');
+						$animal_info['in_weight'] 			 	= $this->input->post('weight');
+						$animal_info['st_crates_well'] 		 	= $this->input->post('crates');
+						$animal_info['st_flight_risk'] 		 	= $this->input->post('flight');
+						$animal_info['st_barrier_aggressive']	= $this->input->post('barrier');
+						// new fields
+						$animal_info['st_recent_vaccination']	= $this->input->post('vaccns');
+						
+						if($this->input->post('vaccns')=='Y'){
+						$animal_info['dt_vaccination']			= date('Y-m-d',strtotime($this->input->post('vacc_date')));
+						}
+						
+						$animal_info['st_cvi']					= $this->input->post('cvi');
+						if($this->input->post('cvi')=='Y'){
+						$animal_info['dt_cvi']					= date('Y-m-d',strtotime($this->input->post('cvi_date')));
+						}
+						
+						$animal_info['st_good_with_dogs']		= $this->input->post('good_with_dogs');
+						$animal_info['st_good_with_cats']		= $this->input->post('good_with_cats');
+						$animal_info['st_good_with_kids']		= $this->input->post('good_with_kids');
+						$animal_info['st_house_trained']		= $this->input->post('house_trained');
+						$animal_info['st_declawed']				= $this->input->post('declawed');						
+						
+						//if($this->input->post('medicalissues')=='Y'){
+						$animal_info['st_medical_desc'] 		= $this->input->post('medical_desc');	
+						//}
+						
+						
+						$animal_info['st_profile_story'] 		= $this->input->post('profilestory');						
+						$animal_info['in_age'] 					= $this->input->post('age');
+						$animal_info['in_enter_age'] 			= $this->input->post('enterage');
+						$animal_info['st_city'] 				= $this->input->post('city');
+						$animal_info['st_state'] 				= $this->input->post('state');		
+						$animal_info['st_country'] 				= $country;					
+																	
+						$animal_info['in_dog_where'] 			= $this->input->post('dogfrmshelter');
+						$animal_info['st_quarantine'] 			= $this->input->post('quarantine');
+						$animal_info['dt_quarantine_end_date'] 	= ($this->input->post('quarantine')=='Y')?date('Y-m-d',strtotime($this->input->post('quarantine_end_date'))):'0000-00-00';						
+						$animal_info['st_timeout'] 			    = $this->input->post('timeout');							
+						
+						$animal_info['dt_target_tr_date'] 		= ($this->input->post('target_tr_date')!='')?date('Y-m-d',strtotime($this->input->post('target_tr_date'))):'0000-00-00';
+						$animal_info['st_travel_with'] 			= ($this->input->post('travel_with'))?implode(',',$this->input->post('travel_with')):'';			 
+						$animal_info['st_tr_comment'] 			= $this->input->post('transportcomments');
+						
+						$animal_info['st_foster_comment'] 		= $this->input->post('fostercomments');
+																	
+					    $animal_info['st_rabies_vaccine'] 		= $this->input->post('rabiesvac');
+						$animal_info['st_fecal_test'] 			= $this->input->post('fecaltest');
+						$animal_info['st_dlhhp'] 				= $this->input->post('dlhpp');
+						$animal_info['st_heartworm_vaccine'] 	= $this->input->post('heartworm');
+						$animal_info['st_bordatella_vaccine'] 	= $this->input->post('bordatella');
+						$animal_info['st_surgery'] 				= $this->input->post('surgery');
+						$animal_info['st_micro_chipped'] 		= ($this->input->post('chipped_animals')=='Y')?'Y':($this->input->post('chipped_animals')=='N'?'N':'U');
+																
+						
+						$animal_info['st_micro_chip_comp'] 		= $this->input->post('chipped_animals_id');
+						
+						
+						$animal_info['dt_rabiesvac_date'] 		= ($this->input->post('rabiesvac')=='Y')?date('Y-m-d',strtotime($this->input->post('rabiesvac_date'))):'';
+						
+						$animal_info['dt_fecal_test_date'] 		= ($this->input->post('fecaltest')=='Y')?date('Y-m-d',strtotime($this->input->post('fecaltest_date'))):'';
+						$animal_info['dt_heartworm_vaccine_date'] 		= ($this->input->post('heartworm')=='Y')?date('Y-m-d',strtotime($this->input->post('heartworm_date'))):'';
+						
+						$animal_info['dt_bordatella_vaccine_date'] 		= ($this->input->post('bordatella')=='Y')?date('Y-m-d',strtotime($this->input->post('bordatella_date'))):'';
+						
+						$animal_info['dt_surgery_date'] 		= ($this->input->post('surgery')=='Y')?date('Y-m-d',strtotime($this->input->post('surgery_date'))):'';
+						
+						$animal_info['st_heartworm_brand'] 		= ($this->input->post('heartworm')=='Y')?$this->input->post('heartworm_brand'):'';
+						
+						$animal_info['st_bordatella_brand'] 	= ($this->input->post('bordatella')=='Y')?$this->input->post('bordatella_brand'):'';
+						
+						$animal_info['st_birdsex'] 				= $this->input->post('birdsex');
+						$animal_info['st_general_comment'] 		= $this->input->post('generalcomments');					
+						
+						$animal_info['in_status'] 				= '0';
+						$animal_info['in_progress_status'] 		= $this->input->post('current_stat');
+						$animal_info['in_next_status'] 			= $this->input->post('next_stat');
+						$animal_info['in_demeanor_id'] 			= $this->input->post('demeanor');
+						$animal_info['st_on_clock']  			= $this->input->post('onclock')!='' ? 'Y' : 'N';	
+						if($animal_info['st_on_clock']=='N')
+						{							
+							$animal_info['dt_date']	=	'0000-00-00';
+						}
+						if($animal_info['st_on_clock']=='Y')
+						{
+							$animal_info['dt_date']	=	date('Y-m-d',strtotime($this->input->post('dt_date')));
+						}					
+						$animal_info['dt_created'] = date('Y-m-d H:i:s');
+						
+						
+						$this->load->library('upload');
+			
+			$date = date('Y-m-d H:i:s');
+			
+			$photos = array('photo1' => '',
+							'photo2' => '',
+							'photo3' => '',
+							'photo4' => ''
+							);
+			
+				$xaxis = '';
+				$yaxis = '';
+				$height = '';
+				$width = '';
+							
+			//if($_FILES['photo1']['name'] != '') {
+			if($this->input->post('uploaded_photo1') != '') {
+				$photos['photo1'] = $this->input->post('uploaded_photo1');//$_FILES['photo1']['name'];
+			}
+			//if($_FILES['photo2']['name'] != '') {
+			if($this->input->post('uploaded_photo2') != '') {
+				$photos['photo2'] = $this->input->post('uploaded_photo2');//$_FILES['photo2']['name'];
+			}
+			//if($_FILES['photo3']['name'] != '') {
+			if($this->input->post('uploaded_photo3') != '') {
+				$photos['photo3'] = $this->input->post('uploaded_photo3');//$_FILES['photo3']['name'];
+			}
+			//if($_FILES['photo4']['name'] != '') {
+			if($this->input->post('uploaded_photo4') != '') {
+				$photos['photo4'] = $this->input->post('uploaded_photo4');//$_FILES['photo4']['name'];
+			}		
+						//echo "<pre>";print_r($_FILES);print_r($photos);die;
+						
+						
+						$animalId	=	$this->animal_model->insertAnimal($animal_info);
+						
+						// Foster contacts 
+						
+						$shelter_contact_name = $this->input->post('sheltername');
+						$shelter_contact_email = $this->input->post('shelteremail');
+						$shelter_contact_phone = $this->input->post('shelterphno');
+			
+						//Adding animal contact information
+						for($i=0;$i<count($shelter_contact_name);$i++) {
+						if($shelter_contact_name[$i]!='' || $shelter_contact_email[$i]!='' || $shelter_contact_phone[$i]!='') {
+							$data['shelter_contact'] = array('in_animal_id' => $animalId,
+														 'st_shelter_name' => $shelter_contact_name[$i],
+														 'st_shelter_email' => $shelter_contact_email[$i],
+														 'st_shelter_phone' => $shelter_contact_phone[$i]
+														);
+							$this->animal_model->add_shelter_contact($data['shelter_contact']);
+						}
+					}
+						
+						//Add youtube URLS
+						$url_link = array(	'url_link_one'		=>	'',
+											'url_link_two'		=>	'',
+											'url_link_three'	=>	'',
+											'url_link_four'		=>	''
+										);
+						
+						if($this->input->post('url_link_one') != '') {
+							$url_link['url_link_one'] = $this->input->post('url_link_one'); 
+						}
+						if($this->input->post('url_link_two') != '') {
+							$url_link['url_link_two'] = $this->input->post('url_link_two'); 
+						}
+						if($this->input->post('url_link_three') != '') {
+							$url_link['url_link_three'] = $this->input->post('url_link_three'); 
+						}
+						if($this->input->post('url_link_four') != '') {
+							$url_link['url_link_four'] = $this->input->post('url_link_four'); 
+						}
+						
+						foreach($url_link as $key => $value) {
+							if($value != '') {	
+								$data['animal_links'] = array(	'in_animal_id'	=>	$animalId,
+																'st_file_name'	=>	$value,
+																'st_file_type'	=>	'V',
+																'dt_created'	=>	$date
+																);
+													  
+								$data['add_animal_link']	=	$this->animal_model->add_animal_images($data['animal_links']);
+							}
+						}
+						
+						$thumb = array(	'315x315'	=>	'315X315',
+										//'140x140'	=>	'140X140',
+										'70x70'		=>	'70X70',
+										'36x36'		=>	'36X36'
+										);
+			
+			//Adding animal images			
+			
+			$rotate_angle1	=	0;
+			$rotate_angle2	=	0;
+			$rotate_angle3	=	0;
+			$rotate_angle4	=	0;
+			
+			$this->load->library('image_lib');
+			foreach($photos as $key => $row) {
+				
+				$config = array();	
+				//echo "<pre>";print_r($_POST);die;
+				if(trim($row) != '') {
+					$count_photo = substr($key,-1);
+					if($key == 'photo1') {
+						$rotate_angle = $this->input->post('rotate_angle1');
+						$xaxis = $this->input->post('x1');
+						$yaxis = $this->input->post('y1');
+						$height = $this->input->post('h1');
+						$width = $this->input->post('w1');
+					} else if($key == 'photo2'){
+						$rotate_angle = $this->input->post('rotate_angle2');
+						$xaxis = $this->input->post('x2');
+						$yaxis = $this->input->post('y2');
+						$height = $this->input->post('h2');
+						$width = $this->input->post('w2');
+					} else if($key == 'photo3'){
+						$rotate_angle = $this->input->post('rotate_angle3');
+						$xaxis = $this->input->post('x3');
+						$yaxis = $this->input->post('y3');
+						$height = $this->input->post('h3');
+						$width = $this->input->post('w3');
+					} else if($key == 'photo4'){
+						$rotate_angle = $this->input->post('rotate_angle4');
+						$xaxis = $this->input->post('x4');
+						$yaxis = $this->input->post('y4');
+						$height = $this->input->post('h4');
+						$width = $this->input->post('w4');
+					}
+					
+					########################		
+					
+					$config['file_name'] = $row;
+					
+					if($rotate_angle < 0 )
+					{
+						$rotate_angle	=	360+$rotate_angle;
+					}
+					
+					/*echo 'xaxis:'.$xaxis;
+					echo '<br/>';
+					echo 'yaxis:'.$yaxis;
+					echo '<br/>';
+					echo 'height:'.$height;
+					echo '<br/>';
+					echo 'width:'.$width;*/
+					//exit;
+					
+					//rotate image if 90 or 270 deg rotation 
+					//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+					if($rotate_angle > 0 )
+					{
+						if($rotate_angle == 90)
+						{
+							$rotate_angle = 270;
+						}
+						else if($rotate_angle == 270){
+							$rotate_angle = 90;
+						}
+						
+						$config['image_library'] = 'gd2';
+						$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+						$config['rotation_angle'] = $rotate_angle;
+						
+						$this->image_lib->initialize($config);
+						if ( ! $this->image_lib->rotate()) {
+							echo $this->image_lib->display_errors();
+						}
+					}
+					$this->image_lib->clear();
+					
+					if(isset($_POST['set_default']) && $_POST['set_default'] == $key) {
+						$profile_pic = 1;
+					} else {
+						$profile_pic = 0;
+					}
+					
+					//Cropping Image
+					/*$config['image_library'] = 'gd2';
+					$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+					$config['new_image']	= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+					$config['maintain_ratio'] 	= FALSE;
+					$config['x_axis'] = $xaxis;
+					$config['y_axis'] = $yaxis;					
+					$config['width'] = $width;
+					$config['height'] = $height;*/
+					
+					/*$config['x_axis'] = isset($xaxis) ? $xaxis : 200 ;
+					$config['y_axis'] = isset($yaxis) ? $yaxis : 200 ;					
+					$config['width'] = isset($width) ? $width : 200;
+					$config['height'] = isset($height) ? $height : 200;*/
+					//$config['rotation_angle'] = $rotate_angle;					
+					//print_r($config);exit;
+										
+					/*$this->image_lib->initialize($config); 
+					if ( ! $this->image_lib->crop()) {
+						echo $this->image_lib->display_errors();
+					}
+					$this->image_lib->clear();
+						*/
+					
+					foreach($thumb as $key => $value) {
+						$exp_value = explode('X',$value);
+						
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'animal_images/'.$key.'/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= $exp_value[0];
+						$config['height']			= $exp_value[1];
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					}
+					
+					//echo 'resize success';exit;						
+					
+					$data['animal_images'] = array(	'in_animal_id'	=>	$animalId,
+													'st_file_name'	=>	$config['file_name'],
+													'st_file_type'	=>	'P',
+													'in_profile_pic'	=>	$profile_pic,
+													'dt_created'	=>	$date
+													);											  
+					$data['add_animal_images']	=	$this->animal_model->add_animal_images($data['animal_images']);
+				}
+			}						
+						
+						
+						
+						//Adding animal costs			
+							$cost_desc	= array();
+							$cost_price = array();
+							$pet_video  = array();
+							
+							$cost_desc	= $this->input->post('cost_desc');
+							$cost_price = $this->input->post('cost_price');
+							$pet_video = $this->input->post('petvideo');
+							//echo '<pre>'; print_r($pet_video); die;
+							$date = date('Y-m-d'); 
+							
+							
+							for($i=0;$i<count($cost_desc);$i++) {
+								if(trim($cost_desc[$i]) != '' && trim($cost_price[$i]) != '') {
+									$data['animal_cost'] = array(	'in_animal_id'	=>	$animalId,
+																	'st_cost_desc'	=>	$cost_desc[$i],
+																	'in_amount'		=>	$cost_price[$i],
+																	'dt_created'	=>	$date
+																);
+									$data['add_animal_cost'] = $this->animal_model->add_animal_cost($data['animal_cost']);
+								}
+							}	
+							
+							// add social pages starts
+							$social_page_title = array();
+							$social_page_url = array();
+							
+							$social_page_title = $this->input->post('social_page_title');
+							$social_page_url = $this->input->post('social_page_url');
+			
+						for($i=0;$i<count($social_page_title);$i++) {
+							if(trim($social_page_title[$i]) != '' && trim($social_page_url[$i]) != '') {
+								$data['social_pages'] = array('in_animal_id'		 =>	$animalId,
+															  'st_social_page_title' =>	$social_page_title[$i],
+															  'st_social_page_url'	 =>	$social_page_url[$i],
+															  'dt_created'		     =>	$date
+															);
+						
+								$data['add_social_pages'] = $this->animal_model->add_social_pages($data['social_pages']);
+							}
+						}
+						
+						// add social pages end
+			
+							
+							
+							
+						// attach doc files
+					    $animal_doc = explode(",",$data['add']['image_file']);		
+						//echo '<pre>'; print_r($animal_doc); die;
+						//echo count($animal_doc); die;	
+						for($a=0;$a<count($animal_doc);$a++)
+						{
+							$file_details = array();
+							if($animal_doc[$a]!='')
+							{  
+								$file_details = array(	"in_animal_id"		=> $animalId, 
+														"st_file_name"		=> $animal_doc[$a],
+														'st_file_type'		=>	'O', 
+														"dt_created"		=> date("Y-m-d H:i:s"),  
+														"in_deleted"		=> "0"
+													);
+								$this->animal_model->add_animal_file($file_details);
+							}
+						}
+						// attach doc files	
+						
+						$this->session->set_flashdata('message', 'You have successfully added animal profile!');							
+						redirect(site_url('animals/animal_add'));						
+			}			
+		}
+		else
+		{		     
+						$this->load->view('animal-add',$data);
+			
+		}		
+	}
+	
+	
+	
+	
+	function animal_edit($animalId=false)
+	{		
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 			=	array();
+		$usa_states					=   array();
+		$canada_states				=   array();
+		$data['Err_Msg']			=	'';		
+		$data['organization_list']  = $this->common_model->get_organization_list();	
+		$data['animal_type'] 		= $this->common_model->get_animal_types();
+		$data['progress_status'] 	= $this->common_model->get_progress_status();
+		$usa_states =  array_keys($this->common_function->state_list);		        // added by sadiq on 5-1-15          
+		$canada_states =  array_keys($this->common_function->canadian_state_list); // added by sadiq on 5-1-15
+		//$data['animal_breed'] 		= $this->common_model->get_animal_breed();
+		//$data['demeanor_list'] 		= $this->common_model->get_demeanor();
+		
+		$form_field	=	array('organization'	=> "",
+							  'animalname'		=> "",	
+							  'gender'	        => "",
+							  'animaltype'	    => "",			
+							  'visibility'	    => "",						 
+							  'animalbreed'		=> "",
+							  'animalbreed2'	=> "",
+							  'animalbreed3'	=> "",
+							  'neutered'		=> "",
+							  'weight'			=> "",
+							  'crates'			=> "",
+							  'flight'			=> "",	
+							  'barrier'			=> "",
+							  'ok'				=> "",
+							  'ok_desc'			=> "",
+							  'micro'			=> "",
+							  'micro_desc'		=> "",
+							  'medicalissues'	=> "",
+							  'medical_desc'	=> "",
+							  'profilestory'	=> "",
+							  'age'		        => "",							 
+							  'demeanor'		=> "",
+							  'dt_date'		    => "",
+							  "image_file"		=> "",
+							  "vaccns"			=> "",
+							  "vacc_date"		=> "",
+							  "cvi"			    => "",
+							  "cvi_date"		=> "",
+							  "good_with_dogs"	=> "",
+							  "good_with_cats"	=> "",
+							  "good_with_kids"	=> "",
+							  "house_trained"	=> "",
+							  "declawed"		=> "",
+							  "current_stat"	=> "",
+							  "next_stat"		=> "",
+							  'onclock'		    => "",
+							  'enterage'		=> "",
+							  'city'		    => "",
+							  'state'	        => "",
+							  'generalcomments' => "",
+							  'chipped_animals' => "",
+							  'chipped_animals_id'=> "", 
+							  'quarantine'      => "",
+							  'quarantine_end_date'=> "",
+							  'set_default'=> "" 												  				  							  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+			
+						$data['animal_details']  = $this->animal_model->get_animal_profile($animalId);
+						
+						//echo '<pre>'; print_r($data['animal_details']); die;
+						$data['transport_date']	=  $this->animal_model->get_animal_transport_date($animalId);
+						
+						
+						$data['get_social_pages']= $this->animal_model->get_social_pages($animalId);
+						
+						$data['get_shelter_contact']= $this->animal_model->get_shelter_contact($animalId);
+						
+						//echo '<pre>'; print_r($data['get_shelter_contact']); die;
+						$data['animal_images']  = $this->animal_model->get_animal_photos($animalId);
+						$data['animal_doc']  	= $this->animal_model->get_animal_doc($animalId);
+						$data['arrCost']		= $this->animal_model->get_animal_cost($animalId); 
+						//echo '<pre>'; print_r($data['animal_doc']); die;
+						$data['arrDocCnt']  	= count($data['animal_doc']);
+						
+						//echo '<pre>'; print_r($data['animal_images']); die;
+						
+						
+		
+		if($this->input->post('action')=='Edit')
+		{   
+			//Validation rules
+						$animalId			      = $this->input->post('animalId');
+						$data['animal_details']   = $this->animal_model->get_animal_profile($animalId);
+						$data['transport_date']	=  $this->animal_model->get_animal_transport_date($animalId);
+						$data['get_social_pages'] = $this->animal_model->get_social_pages($animalId);
+						$data['animal_images']  = $this->animal_model->get_animal_photos($animalId);
+						$data['animal_doc']  	= $this->animal_model->get_animal_doc($animalId);
+						
+						
+						
+						
+						
+						
+			
+			foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+				}
+				
+				//echo '<pre>'; print_r($data['edit']); die;
+				
+						$this->form_validation->set_rules('animalname',      'Animal Name',  'trim|required');
+						$this->form_validation->set_rules('animaltype',      'Animal Type',  'trim|required');
+						$this->form_validation->set_rules('visibility',      'Animal profile visibility',  'trim|required');
+												
+						$this->form_validation->set_rules('organization',    'Organization Name',  'trim|required');
+						$this->form_validation->set_rules('gender',          'Gender',  'trim|required');
+						$this->form_validation->set_rules('animalbreed',     'Animal Breed',  'trim|required');	
+						//$this->form_validation->set_rules('animalbreed2',    'Secondary breed',  'trim|required');	
+						//$this->form_validation->set_rules('animalbreed3',    'Tertiary breed',  'trim|required');						
+						$this->form_validation->set_rules('age',             'Age',  'trim|required');
+						$this->form_validation->set_rules('city',             'City',  '');
+						$this->form_validation->set_rules('state',             'State',  '');
+						
+						$this->form_validation->set_rules('demeanor',        'Demeanor',  'trim|required');	
+						$this->form_validation->set_rules('current_stat',     'Current status',  'trim');	
+						$this->form_validation->set_rules('next_stat',        'Next status',  'trim');	
+						$this->form_validation->set_rules('neutered',        'Neutered/Spayed',  'trim');	
+						//$this->form_validation->set_rules('weight',          'Weight',  'trim|required');	
+						$this->form_validation->set_rules('crates',          'Crates Well',  '');	
+						$this->form_validation->set_rules('flight',          'Flight',  '');	
+						$this->form_validation->set_rules('barrier',         'Barrier aggressive',  '');	
+						$this->form_validation->set_rules('vaccns',           'Recent Vaccination',  '');	
+						$this->form_validation->set_rules('cvi',              'CVI',  '');	
+						$this->form_validation->set_rules('good_with_dogs',   'Good with  dogs',  '');	
+						$this->form_validation->set_rules('good_with_cats',   'Good with  cats',  '');	
+						$this->form_validation->set_rules('good_with_kids',   'Good with  kids',  '');	
+						$this->form_validation->set_rules('house_trained',    'Good with  kids',  '');	
+						$this->form_validation->set_rules('declawed',   	'Declawed',  '');	
+						$this->form_validation->set_rules('set_default',   	'Set Default',  '');	
+						
+						
+						
+												
+						//if($this->input->post('medicalissues')=='Y'){							
+						$this->form_validation->set_rules('medical_desc',    'Medical description',  'trim');		
+						//}
+						//$this->form_validation->set_rules('profilestory',    'Profile story',  'trim|required');	
+						
+						
+						if($this->input->post('chipped_animals') == 'Y') {
+							$this->form_validation->set_rules('chipped_animals_id', 'Company/Service ID', 'required|trim');
+						}	
+						if($this->input->post('quarantine') == 'Y') {
+						$this->form_validation->set_rules('quarantine_end_date', 'Quarantine End Date', 'required|trim');
+						}
+						
+						if($this->input->post('onclock') == 'Y') {
+							$this->form_validation->set_rules('dt_date', 'Please select on clock date', 'required|trim');
+						}	
+									
+						
+						$this->form_validation->set_rules('profilestory',    'Profile story',  '');						
+						
+						($this->input->post('rabiesvac') == 'Y')?$this->form_validation->set_rules('rabiesvac_date', 'Rabies Vaccin date', 'required|trim'):'';
+						($this->input->post('fecaltest') == 'Y')?$this->form_validation->set_rules('fecaltest_date', 'Fecal Test Vaccine date', 'required|trim'):'';
+						($this->input->post('heartworm') == 'Y')?$this->form_validation->set_rules('heartworm_date', 'Heart worm Vaccine date', 'required|trim'):'';
+						($this->input->post('bordatella') == 'Y')?$this->form_validation->set_rules('bordatella_date', 'Bordatella Vaccin date', 'required|trim'):'';
+						($this->input->post('surgery') == 'Y')?$this->form_validation->set_rules('surgery_date', 'Surgery date', 'required|trim'):'';
+						($this->input->post('heartworm') == 'Y')?$this->form_validation->set_rules('heartworm_brand', 'Heartworm Brand', 'required|trim'):'';
+						($this->input->post('bordatella') == 'Y')?$this->form_validation->set_rules('bordatella_brand', 'Bordatella Brand', 'required|trim'):'';									
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$data['animal_details'] = $this->animal_model->get_animal_profile($animalId);	
+						$data['get_social_pages']=$this->animal_model->get_social_pages($animalId);	
+						$this->load->view('manage-animals-edit',$data);
+				}
+			
+				else
+				{ 						$country='';
+				        				if (in_array($this->input->post('state'), $usa_states))  // added by sadiq on 5-1-15
+										  {
+										 	$country="USA";
+										  }
+										else if(in_array($this->input->post('state'), $canada_states))
+										  {
+										 	$country="CANADA";  
+										  }
+				
+						$animal_info 						    =  array();
+						$animal_info['st_animal_name'] 		    =  $this->input->post('animalname');			
+						$animal_info['in_animal_type_id'] 		=  $this->input->post('animaltype');							
+						$animal_info['in_organization_id'] 		=  $this->input->post('organization');							
+						$animal_info['st_gender'] 				=  $this->input->post('gender');	
+						$animal_info['in_animal_public'] 		=  $this->input->post('visibility');
+						$animal_info['in_primary_breed_id'] 	=  $this->input->post('animalbreed'); 						
+						$animal_info['in_secondry_breed_id'] 	=  $this->input->post('animalbreed2');
+						$animal_info['in_tertiary_breed_id'] 	=  $this->input->post('animalbreed3');
+						$animal_info['in_neutered_id'] 		 	=  $this->input->post('neutered');
+						$animal_info['in_weight'] 			 	=  $this->input->post('weight');
+						$animal_info['st_city'] 			 	=  $this->input->post('city');
+						$animal_info['st_state'] 			 	=  $this->input->post('state');
+						$animal_info['st_crates_well'] 		 	=  $this->input->post('crates');
+						$animal_info['st_flight_risk'] 		 	=  $this->input->post('flight');
+						$animal_info['st_barrier_aggressive']	=  $this->input->post('barrier');						
+						//$animal_info['st_medical_issue'] 		= $this->input->post('medicalissues')!='' ? 'Y' : 'N'; 						
+						//if($this->input->post('medicalissues')=='Y'){
+						$animal_info['st_medical_desc'] 		= $this->input->post('medical_desc');
+						//}
+						
+						
+						
+						
+						$animal_info['st_profile_story'] 		= $this->input->post('profilestory');				
+												
+						$animal_info['in_age'] 		        	=	$this->input->post('age');									
+						$animal_info['in_demeanor_id'] 			=	$this->input->post('demeanor');							
+						$animal_info['st_on_clock'] 			=	$this->input->post('onclock')!='' ? 'Y' : 'N';																								
+						$animal_info['dt_modified'] 			= 	date('Y-m-d H:i:s');
+						
+						
+						// new fields
+						$animal_info['st_recent_vaccination']	= $this->input->post('vaccns');	
+											
+										
+						$animal_info['st_cvi']					= $this->input->post('cvi');
+						
+							
+										
+						$animal_info['st_good_with_dogs']		= $this->input->post('good_with_dogs');
+						$animal_info['st_good_with_cats']		= $this->input->post('good_with_cats');
+						$animal_info['st_good_with_kids']		= $this->input->post('good_with_kids');
+						$animal_info['st_house_trained']		= $this->input->post('house_trained');
+						$animal_info['st_declawed']				= $this->input->post('declawed');
+						$animal_info['in_progress_status'] 		= $this->input->post('current_stat');		
+						$animal_info['in_next_status'] 		    = $this->input->post('next_stat');	
+						
+						// additional fields start
+						$animal_info['in_enter_age'] 			= $this->input->post('enterage');
+						$animal_info['st_city'] 				= $this->input->post('city');
+						$animal_info['st_state'] 				= $this->input->post('state');	
+						
+						$animal_info['st_country'] 				= $country;					
+																	
+						$animal_info['in_dog_where'] 			= $this->input->post('dogfrmshelter');
+						$animal_info['st_quarantine'] 			= $this->input->post('quarantine');
+						$animal_info['dt_quarantine_end_date'] 	= ($this->input->post('quarantine')=='Y')?date('Y-m-d',strtotime($this->input->post('quarantine_end_date'))):'0000-00-00';						
+						$animal_info['st_timeout'] 			    = $this->input->post('timeout');							
+						
+						$animal_info['dt_target_tr_date'] 		= ($this->input->post('target_tr_date')!='')?date('Y-m-d',strtotime($this->input->post('target_tr_date'))):'0000-00-00';
+						$animal_info['st_travel_with'] 			= ($this->input->post('travel_with'))?implode(',',$this->input->post('travel_with')):'';			 
+						$animal_info['st_tr_comment'] 			= $this->input->post('transportcomments');
+						
+						$animal_info['st_foster_comment'] 		= $this->input->post('fostercomments');
+																	
+					    $animal_info['st_rabies_vaccine'] 		= $this->input->post('rabiesvac');
+						$animal_info['st_fecal_test'] 			= $this->input->post('fecaltest');
+						$animal_info['st_dlhhp'] 				= $this->input->post('dlhpp');
+						$animal_info['st_heartworm_vaccine'] 	= $this->input->post('heartworm');
+						$animal_info['st_bordatella_vaccine'] 	= $this->input->post('bordatella');
+						$animal_info['st_surgery'] 				= $this->input->post('surgery');
+						$animal_info['st_micro_chipped'] 		= ($this->input->post('chipped_animals')=='Y')?'Y':($this->input->post('chipped_animals')=='N'?'N':'U');
+						
+						$animal_info['st_micro_chip_comp'] 		= $this->input->post('chipped_animals_id');
+						
+						
+						$animal_info['dt_rabiesvac_date'] 		= ($this->input->post('rabiesvac')=='Y')?date('Y-m-d',strtotime($this->input->post('rabiesvac_date'))):'';
+						
+						$animal_info['dt_fecal_test_date'] 		= ($this->input->post('fecaltest')=='Y')?date('Y-m-d',strtotime($this->input->post('fecaltest_date'))):'';
+						$animal_info['dt_heartworm_vaccine_date'] 		= ($this->input->post('heartworm')=='Y')?date('Y-m-d',strtotime($this->input->post('heartworm_date'))):'';
+						
+						$animal_info['dt_bordatella_vaccine_date'] 		= ($this->input->post('bordatella')=='Y')?date('Y-m-d',strtotime($this->input->post('bordatella_date'))):'';
+						
+						$animal_info['dt_surgery_date'] 		= ($this->input->post('surgery')=='Y')?date('Y-m-d',strtotime($this->input->post('surgery_date'))):'';
+						
+						$animal_info['st_heartworm_brand'] 		= ($this->input->post('heartworm')=='Y')?$this->input->post('heartworm_brand'):'';
+						
+						$animal_info['st_bordatella_brand'] 	= ($this->input->post('bordatella')=='Y')?$this->input->post('bordatella_brand'):'';
+						
+						$animal_info['dt_cvi'] 		            = ($this->input->post('cvi')=='Y')?date('Y-m-d',strtotime($this->input->post('cvi_date'))):'';
+						
+						$animal_info['dt_vaccination'] 		    = ($this->input->post('vaccns')=='Y')?date('Y-m-d',strtotime($this->input->post('vacc_date'))):'';
+						$animal_info['dt_date'] 		        = ($this->input->post('onclock')=='Y')?date('Y-m-d',strtotime($this->input->post('dt_date'))):'';
+						
+						
+						$animal_info['st_birdsex'] 				= $this->input->post('birdsex');
+						$animal_info['st_general_comment'] 		= $this->input->post('generalcomments');						
+						
+						// additional fields	 end						
+						//echo '<pre>'; print_r($animal_info); die;
+						
+						$data['update_animal_info']				=	$this->animal_model->update_animal_info($animal_info,$animalId,'tbl_animal');	
+						
+						//Deleting shelter contact
+						$data['delete_contact'] = $this->animal_model->delete_contact($animalId);
+						
+						//Adding Animal Contact
+						$shelter_contact_name = $this->input->post('sheltername');
+						$shelter_contact_email = $this->input->post('shelteremail');
+						$shelter_contact_phone = $this->input->post('shelterphno');						
+						
+						//Adding Shelter Contact
+						for($i=0;$i<count($shelter_contact_name);$i++) {
+							if($shelter_contact_name[$i]!='' || $shelter_contact_email[$i]!='' || $shelter_contact_phone[$i]!='') {
+									$data['shelter_contact'] = array('in_animal_id' => $animalId,
+																	 'st_shelter_name' => $shelter_contact_name[$i],
+																	 'st_shelter_email' => $shelter_contact_email[$i],
+																	 'st_shelter_phone' => $shelter_contact_phone[$i]
+																	);
+							
+									$this->animal_model->add_shelter_contact($data['shelter_contact']);
+							}
+						}	
+						
+						
+						
+						
+			$date = date('Y-m-d H:i:s');
+			
+						//Add animal Images
+			
+			$this->load->library('upload');
+			
+			$date = date('Y-m-d H:i:s');
+			
+			$xaxis = '';
+			$yaxis = '';
+			$height = '';
+			$width = '';
+			
+			$photos = array('photo1' => '',
+							'photo2' => '',
+							'photo3' => '',
+							'photo4' => ''
+							);
+			
+			//if($_FILES['photo1']['name'] != '') {
+			if($this->input->post('uploaded_photo1') != '') {
+				$photos['photo1'] = $this->input->post('uploaded_photo1');//$_FILES['photo1']['name'];
+			}
+			//if($_FILES['photo2']['name'] != '') {
+			if($this->input->post('uploaded_photo2') != '') {
+				$photos['photo2'] = $this->input->post('uploaded_photo2');//$_FILES['photo2']['name'];
+			}
+			//if($_FILES['photo3']['name'] != '') {
+			if($this->input->post('uploaded_photo3') != '') {
+				$photos['photo3'] = $this->input->post('uploaded_photo3');//$_FILES['photo3']['name'];
+			}
+			//if($_FILES['photo4']['name'] != '') {
+			if($this->input->post('uploaded_photo4') != '') {
+				$photos['photo4'] = $this->input->post('uploaded_photo4');//$_FILES['photo4']['name'];
+			}
+			//echo "<pre>";print_r($_FILES);print_r($photos);die;
+			//print_r($_POST);die;
+			//Add youtube URLS
+			$url_link = array(	'url_link_one'		=>	'',
+								'url_link_two'		=>	'',
+								'url_link_three'	=>	'',
+								'url_link_four'		=>	''
+							);
+			
+			if($this->input->post('url_link_one') != '') {
+				$url_link['url_link_one'] = $this->input->post('url_link_one'); 
+			}
+			if($this->input->post('url_link_two') != '') {
+				$url_link['url_link_two'] = $this->input->post('url_link_two'); 
+			}
+			if($this->input->post('url_link_three') != '') {
+				$url_link['url_link_three'] = $this->input->post('url_link_three'); 
+			}
+			if($this->input->post('url_link_four') != '') {
+				$url_link['url_link_four'] = $this->input->post('url_link_four'); 
+			}
+						
+						foreach($url_link as $key => $value) {
+							if($value != '') {	
+								$data['animal_links'] = array(	'in_animal_id'	=>	$animalId,
+																'st_file_name'	=>	$value,
+																'st_file_type'	=>	'V',
+																'dt_created'	=>	$date
+																);													  
+								$data['add_animal_link']	=	$this->animal_model->add_animal_images($data['animal_links']);
+							}
+						}
+						
+						//Resize the image with ratio (4 Thumbnails)
+			$thumb = array(	'315x315'	=>	'315X315',
+							//'140x140'	=>	'140X140',
+							'70x70'		=>	'70X70',
+							'36x36'		=>	'36X36'
+							);
+
+			$profile_pic = '';
+			$rotate_angle1	=	0;
+			$rotate_angle2	=	0;
+			$rotate_angle3	=	0;
+			$rotate_angle4	=	0;
+			//echo "<pre>";print_r($_POST);die;
+			
+			$this->load->library('image_lib');
+			//echo "<pre>";print_r($this->input->post('uploaded_photo1'));die;
+			
+			//echo "<pre>";print_r($photos);die;
+			
+			foreach($photos as $key => $row) { 
+				$config = array();		
+				if(trim($row) != '') { 
+					$replace_array = array(" ");
+					
+					$count_photo = substr($key,-1);
+					if($key == 'photo1') {
+						$rotate_angle = $this->input->post('rotate_angle1');
+						$xaxis = $this->input->post('x1');
+						$yaxis = $this->input->post('y1');
+						$height = $this->input->post('h1');
+						$width = $this->input->post('w1');
+					} else if($key == 'photo2'){
+						$rotate_angle = $this->input->post('rotate_angle2');
+						$xaxis = $this->input->post('x2');
+						$yaxis = $this->input->post('y2');
+						$height = $this->input->post('h2');
+						$width = $this->input->post('w2');
+					} else if($key == 'photo3'){
+						$rotate_angle = $this->input->post('rotate_angle3');
+						$xaxis = $this->input->post('x3');
+						$yaxis = $this->input->post('y3');
+						$height = $this->input->post('h3');
+						$width = $this->input->post('w3');
+					} else if($key == 'photo4'){
+						$rotate_angle = $this->input->post('rotate_angle4');
+						$xaxis = $this->input->post('x4');
+						$yaxis = $this->input->post('y4');
+						$height = $this->input->post('h4');
+						$width = $this->input->post('w4');
+					}
+					
+					########################		
+					
+					
+					//rotate image if 90 or 270 deg rotation 
+					//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+					$config['file_name'] 		= $row;
+					//$rotate_angle = $this->input->post('rotate_angle'.$count_photo);
+					if($rotate_angle < 0 )
+					{
+						$rotate_angle	=	360+$rotate_angle;
+					}
+
+						
+					
+					if($rotate_angle > 0 )
+					{
+						if($rotate_angle == 90)
+						{
+							$rotate_angle = 270;
+						}
+						else if($rotate_angle == 270){
+							$rotate_angle = 90;
+						}
+						
+						$config['image_library'] = 'gd2';
+						$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+						//$config['new_image']	= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+						
+						$config['rotation_angle'] = $rotate_angle;
+						
+						$this->image_lib->initialize($config);
+						if ( ! $this->image_lib->rotate()) {
+							echo $this->image_lib->display_errors();
+						}
+					}
+					$this->image_lib->clear();					
+				
+					//if(isset($_POST['set_default']) && $_POST['set_default'] == $key) {
+					//	$profile_pic = 1;
+					//} else {
+					//	$profile_pic = 0;
+					//}
+					
+					
+				//	echo $config['file_name'];die;
+					//Cropping Image
+					/*$config['image_library'] = 'gd2';
+					$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+					$config['new_image']	= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];					
+					$config['maintain_ratio'] 	= FALSE;
+					$config['x_axis'] = $xaxis;
+					$config['y_axis'] = $yaxis;					
+					$config['width']	= $width;
+					$config['height']	= $height;
+					
+					$this->image_lib->initialize($config); 
+					if ( ! $this->image_lib->crop()) {
+						echo $this->image_lib->display_errors();
+					}
+					$this->image_lib->clear();
+					*/
+					
+					foreach($thumb as $key => $value) {
+						$exp_value = explode('X',$value);
+						
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'animal_images/'.$key.'/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= $exp_value[0];
+						$config['height']			= $exp_value[1];
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					}
+											
+									$data['animal_images'] = array(	'in_animal_id'	=>	$animalId,
+																	'st_file_name'	=>	$config['file_name'],
+																	'st_file_type'	=>	'P',
+																	'in_profile_pic'=>	$profile_pic,
+																	'dt_created'	=>	$date
+																	);
+															  
+									$data['add_animal_images']	=	$this->animal_model->add_animal_images($data['animal_images']);
+									
+								}
+					}
+						
+						
+					if($this->input->post('set_default') != '') { 
+					$profile_pic_array = array('in_profile_pic'	=>	1);
+					$remove_profile_pic_array = array('in_profile_pic'	=>	0);
+					
+					$data['remove_profile_pic'] = $this->animal_model->remove_profile_pic($remove_profile_pic_array,$animalId);
+				
+					$data['update_primary_pic'] = $this->animal_model->update_primary_pic($profile_pic_array,$this->input->post('set_default'));
+				}
+			
+			//End of add animal images
+						
+						
+						// add cost
+						
+								$date		 =	date('Y-m-d H:i:s');
+								$cost_desc2	 =	$this->input->post('cost_desc2');
+								$cost_price2 =	$this->input->post('cost_price2');
+								$costId		 =	$this->input->post('costId');
+								//echo '<pre>'; print_r($costId); die;
+								//echo count($cost_desc2); die;
+								for($i=0;$i<count($cost_desc2);$i++) { 
+								if(trim($cost_desc2[$i]) != '' && trim($cost_price2[$i]) != '') {  
+									if(trim($costId[$i]) != '') {
+										$data['update_animal_cost'] = array('st_cost_desc'	=>	$cost_desc2[$i],
+																			'in_amount'		=>	$cost_price2[$i],
+																			'dt_modified'	=>	$date
+																		);
+							
+										$data['update_animal_cost'] = $this->animal_model->update_animal_cost($data['update_animal_cost'],$costId[$i]);
+									} else { 
+										$data['add_animal_cost'] = array('in_animal_id'	=>	$animalId,
+																		 'st_cost_desc'	=>	$cost_desc2[$i],
+																		 'in_amount'	=>	$cost_price2[$i],
+																		 'dt_created'	=>	$date
+																		);							
+										$data['insert_animal_cost'] = $this->animal_model->add_animal_cost($data['add_animal_cost']);
+									}
+								}
+								}
+						
+						// add cost	end
+						
+						
+						// add social pages	start
+						$social_page_title = array();
+						$social_page_url = array();
+						
+						$social_page_title = $this->input->post('social_page_title');
+						$social_page_url   = $this->input->post('social_page_url');
+						
+						
+						
+						$data['delete_social_pages'] = $this->animal_model->delete_social_pages($animalId);
+						
+						for($i=0;$i<count($social_page_title);$i++) {
+							if(trim($social_page_title[$i]) != '' && trim($social_page_url[$i]) != '') {
+								$data['social_pages'] = array(	'in_animal_id'			=>	$animalId,
+																'st_social_page_title'	=>	$social_page_title[$i],
+																'st_social_page_url'	=>	$social_page_url[$i],
+																'dt_created'			=>	$date
+															);
+						
+								$data['add_social_pages'] = $this->animal_model->add_social_pages($data['social_pages']);
+							}
+						}
+						
+						/*if($this->input->post('update_default_pic') != '') {
+						$profile_pic_array = array('in_profile_pic'	=>	1);
+						$remove_profile_pic_array = array('in_profile_pic'	=>	0);
+						
+						$data['remove_profile_pic'] = $this->animal_model->remove_profile_pic($remove_profile_pic_array,$animalId);
+					
+						$data['update_primary_pic'] = $this->animal_model->update_primary_pic($profile_pic_array,$this->input->post('update_default_pic'));
+			}*/
+						// add social pages	end
+						
+						
+						
+						
+						// attach doc files
+					    $animal_doc = explode(",",$data['edit']['image_file']);		
+						//echo '<pre>'; print_r($animal_doc); die;
+						//echo count($animal_doc); die;	
+						for($a=0;$a<count($animal_doc);$a++)
+						{
+							$file_details = array();
+							if($animal_doc[$a]!='')
+							{  	$file_details = array(	"in_animal_id"		=> $animalId, 
+														"st_file_name"		=> $animal_doc[$a],
+														'st_file_type'		=>	'O', 
+														"dt_created"		=> date("Y-m-d H:i:s"),  
+														"in_deleted"		=> "0"
+													);
+								$this->animal_model->add_animal_file($file_details);
+							}
+						}
+						// attach doc files	
+						
+						
+						
+						$this->session->set_flashdata('message', 'You have successfully updated animal details!');					
+						redirect(site_url('animals/animal_edit/'.$animalId));				
+				}
+		}
+		
+		else
+		{		
+						//echo '<pre>'; print_r($data); die;
+						$this->load->view('manage-animals-edit',$data);
+		}
+	}		
+	
+	
+	
+	function generate_download($doc)
+    {	
+		$document = $this->common_function->decode_base64($doc);		
+        $file = $this->config->item('upload')."animal_images/large/".$document;
+		
+		if ($document!='' && file_exists($file)) {
+		
+		$this->load->helper('download');
+		$data = file_get_contents($file); // Read the file's contents
+		$name = $document;
+		force_download($name, $data);
+		}
+		else
+		{   		
+			$this->session->set_flashdata('docmsg', 'File does not exist.');
+			redirect($this->agent->referrer());		
+			
+		}
+    }
+	
+	public function delete_file() {
+		 if(!$this->session->userdata('sess_admin_id')){
+			redirect($this->config->item('admin_base_url'));	
+		}		
+		
+		$data = $this->animal_model->delete_file($this->input->post('file_id'));
+		//chmod("/upload/animal_images", 0777);
+		//unlink('./upload/animal_images/'.$this->input->post('file_name'));
+		return $data;
+	}
+	
+	public function delete_cost() {
+		 if(!$this->session->userdata('sess_admin_id')){
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data = $this->animal_model->delete_cost($this->input->post('cost_id'));
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : get_animal_breed
+	#	Purpose  : Get Animal breeds by id
+	#=========================================================	
+	
+	public function get_animal_breed() {
+		 if(!$this->session->userdata('sess_admin_id')){
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data['get_animal_breed']  = $this->common_model->get_animal_breed($this->input->post('animal_type'));
+		echo json_encode($data);
+	}
+	
+	public function get_demeanor() {
+		$data['get_demeanor'] = $this->common_model->get_demeanor($this->input->post('animal_type'));
+		echo json_encode($data);
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	add_images
+	#	Purpose		:	For Adding Product Images
+	# *******************************************************************************************
+	
+	public function add_images() 
+	{  
+		
+		if(!isset($_FILES['files']['name'])) {
+			return false;
+		}
+		ini_set("post_max_size",'256M');
+		ini_set("upload_max_filesize",'128M');
+		$config['upload_path'] = $this->config->item('upload')."animal_images/large/";
+		//$config['allowed_types'] = 'jpg|jpeg|doc|docx|xls|xlsx|pdf'; //'jpg|jpeg|gif|png';
+		$config['allowed_types'] = 'jpg|jpeg|gif|png';
+		$config['max_size']	= '51200';
+		$config['remove_spaces']  	= TRUE;
+		$config['file_name'] 		= str_replace(" ","_",$this->session->userdata('sess_admin_id').'_'.mt_rand().'_'.$_FILES['files']['name']);
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		$this->upload->do_upload('files');
+
+		
+		$file_errors = array('errors' => $this->upload->display_errors());
+			
+		//Display errors of file upload.
+		if(!empty($file_errors['errors'])){
+			$data = array('error' => strip_tags($file_errors['errors']));
+			echo json_encode(array('files' => array($data) ));
+			return false;
+		}		
+		$data = array(	'name' => $config['file_name'],
+						'size' => $_FILES['files']['size'],
+						'type' => $_FILES['files']['type'],
+						"url"  => $this->config->item('upload_url')."animal_images/large/".urlencode($config['file_name']),
+						"deleteUrl"  => $this->config->item('admin_base_url')."animals/delete_files/?files=".urlencode($config['file_name']),
+						"deleteType"=>"DELETE"
+					);
+		echo json_encode(array('files' => array($data) ));
+		//return $data;
+	}
+	
+	function delete_files($path)
+	{
+		
+		if($this->input->get('files')!='')
+		{
+			$files = $this->input->get('files');
+			@unlink($this->config->item('upload').$path."/".$files);
+			//delete_files($this->config->item('upload').$path."/".$files);
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	ajax_file_upload
+	#	Purpose		:	Uploading files with ajax
+	# *******************************************************************************************
+	
+	public function ajax_file_upload() {
+		
+		$this->load->library('upload');
+		
+		$config['upload_path']  	= $this->config->item('upload').'animal_images/';
+		$config['max_size']			= '5120';
+		$config['allowed_types']	= 'jpg|png|gif|jpeg';
+		$config['remove_spaces']  	= TRUE;
+		$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','', str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES[$this->input->post('file_name')]['name']));
+		
+		
+		//Initialization
+		$this->upload->initialize($config);
+			
+		//Display errors of file upload.
+		//Upload image by calling do_upload method.
+		$this->upload->do_upload($this->input->post('file_name'));
+		$file_errors = array('errors' => $this->upload->display_errors());
+		
+		if(!empty($file_errors['errors'])) {
+			$data = array('upload_error' => strip_tags($file_errors['errors']));
+			echo json_encode($data);
+			return false;
+		} 
+		
+		echo "{";
+		echo "file_name: '" . $config['file_name'] . "'\n";
+		echo "}";
+	}
+	
+	
+	public function cropped_image_ajax_file_upload() {
+		
+			$this->load->library('image_lib');
+			
+			$rotate_angle1	=	0;
+			$rotate_angle = $this->input->post('rotate_angle');
+			$xaxis = $this->input->post('x');
+			$yaxis = $this->input->post('y');
+			$height = $this->input->post('h');
+			$width = $this->input->post('w');
+			
+			$config['file_name'] = $this->input->post('uploaded_photo');
+			
+			if($rotate_angle < 0 )
+			{
+				$rotate_angle	=	360+$rotate_angle;
+			}
+			
+			if($rotate_angle > 0 )
+			{
+				if($rotate_angle == 90)
+				{
+					$rotate_angle = 270;
+				}
+				else if($rotate_angle == 270){
+					$rotate_angle = 90;
+				}
+				
+				$config['image_library'] = 'gd2';
+				$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+				//$config['new_image']	= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+				
+				$config['rotation_angle'] = $rotate_angle;
+				
+				$this->image_lib->initialize($config);
+				if ( ! $this->image_lib->rotate()) {
+					//echo $this->image_lib->display_errors();
+					$file_errors = array('errors' => $this->image_lib->display_errors());
+				}
+				if(!empty($file_errors['errors'])) {
+					$data = array('upload_error' => strip_tags($file_errors['errors']));
+					echo json_encode($data);
+					return false;
+				} 
+				
+			}
+			
+			
+			$this->image_lib->clear();
+			
+			
+			//Cropping Image
+			$config['image_library'] = 'gd2';
+			$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+			$config['new_image']	= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];					
+			$config['maintain_ratio'] 	= FALSE;
+			$config['x_axis'] = $xaxis;
+			$config['y_axis'] = $yaxis;					
+			$config['width']	= $width;
+			$config['height']	= $height;
+			
+			$this->image_lib->initialize($config); 
+			if ( ! $this->image_lib->crop()) {
+				//echo $this->image_lib->display_errors();
+				$file_errors = array('errors' => $this->image_lib->display_errors());
+			}
+			if(!empty($file_errors['errors'])) {
+				$data = array('upload_error' => strip_tags($file_errors['errors']));
+				echo json_encode($data);
+				return false;
+			} 
+			$this->image_lib->clear();
+			//Resizing Image
+			$config['image_library'] 	= 'gd2';
+			$config['source_image']		= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+			$config['new_image']		= $this->config->item('upload').'animal_images/140x140/'.$config['file_name'];
+			$config['maintain_ratio'] 	= TRUE;
+			$config['width']	 		= 140;
+			$config['height']			= 140;
+			$this->image_lib->initialize($config);
+			$this->image_lib->resize();
+			$this->image_lib->clear();
+			
+			echo "{";
+			echo "cropped_image_path: '" . $config['new_image'] . "'\n";
+			echo "}";
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	rotate_image
+	#	Purpose		:	Rotating uploaded image
+	# *******************************************************************************************
+	
+	public function rotate_image() {
+		$this->load->library('upload');
+		
+		$config = array();
+		$config['file_name'] = $this->input->post('rotate_file_name');
+		
+		$config['image_library'] = 'gd2';
+		$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+		$config['rotation_angle'] = $this->input->post('angle');
+		
+		$this->load->library('image_lib');
+		$this->load->library('image_lib', $config);
+		$this->image_lib->initialize($config);
+
+		if ( ! $this->image_lib->rotate()) {
+    		echo $this->image_lib->display_errors();
+		}
+		
+		echo $config['file_name'];
+		/*echo "{";
+		echo "rotate_file_name: '" . $config['file_name'] . "'\n";
+		echo "}";*/
+	}
+	
+	
+	public function delete_contact() {
+		 if(!$this->session->userdata('sess_admin_id')){
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data = $this->animal_model->delete_cont($this->input->post('contact_id'));
+		return $data;
+	}
+}
+
+/* End of file animals.php */
+/* Location: ./application/administration/controllers/animals.php */

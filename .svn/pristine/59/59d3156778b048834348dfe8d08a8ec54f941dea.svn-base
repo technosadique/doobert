@@ -1,0 +1,120 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 04-Apr-2014
+# File description		: org_info controller 
+# Special- notes		: 
+# Tables used			: tbl_organization_user
+# Stored procedures		: none 
+# Triggers used			: none
+# --------------------------------------------------------------------------------------
+
+class Pending_invitation extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->model('org_info_model');		
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');			
+	}	
+	
+	#=========================================================
+	#	Function : index
+	#	Purpose  : Display pending users
+	#=========================================================
+	
+	public function index() {
+	
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'pending_invitation/index/';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['pending_invitation_list'] = $this->org_info_model->get_all_pending_invitation($config["per_page"],$page);
+		
+		
+		//Getting total rows
+		 $config["total_rows"] = $data['pending_invitation_list']['num_rows']; 
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+		
+		$this->load->view('pending-invitation',$data);
+	}
+	
+	public function status_accept() {
+	
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}	
+		
+		$data['status_accept'] = $this->org_info_model->status_accept($this->uri->segment(3));
+		
+		$data['notification'] = array(	'in_organization_id'	=>	$this->uri->segment(4),
+											'in_user_id'			=>	$this->uri->segment(5),
+											'in_type'				=>	15,
+											'in_modified_by'		=>	$this->session->userdata('userid'),
+											'dt_created'			=>	date('Y-m-d H:i:s'),
+											'in_deleted'			=>	0
+										);
+		$data['notification_data'] = $this->org_info_model->join_org_notification($data['notification']);
+		
+		$this->session->set_flashdata('success', 'Invitation has been accepted successfully!');		
+		redirect($this->config->item('base_url').'pending_invitation');
+		
+	}
+	
+	public function status_reject() {
+	
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		//echo $this->uri->segment(3); die;		
+		$data['status_reject'] = $this->org_info_model->status_reject($this->uri->segment(3));	
+		$this->session->set_flashdata('success', 'Invitation has been rejected successfully!');	
+		redirect($this->config->item('base_url').'pending_invitation');
+	}
+		
+	
+}
+
+/* End of file org_info.php */
+/* Location: ./application/controllers/org_info.php */

@@ -1,0 +1,172 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Nirav Motta	
+# Created date: 28-Feb-2018
+# File description: admin volunteer email checksum(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Sendgrid_volunteer_email_checksum extends CI_Controller { 
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');
+		$this->load->library('pagination');			
+		$this->load->library('form_validation');		
+		$this->load->library('upload');
+		$this->load->model('common_model');
+		$this->load->library('user_agent');		
+		$this->load->helper(array('form', 'url'));
+		//error_reporting(E_ALL);
+		$this->load->model('sendgrid_volunteer_email_checksum_model');	
+		$this->load->library('nativesession');
+	}	
+	
+	
+	
+	#=========================================================
+	#Function : dashboard
+	#Purpuse  : To load admin dashboard
+	#---------------------------------------------------------
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		//if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+		$this->get_user_email_checksum($sort=false,$order=false,$limit);
+	}
+	
+	#=========================================================
+	#Function : dashboard
+	#Purpuse  : To load admin dashboard
+	#---------------------------------------------------------
+	public function get_user_email_checksum($sort=false,$order=false,$limit='')
+	{  
+		//echo $this->uri->segment(5);exit;
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'desc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		//$rec_per_page =	 $this->config->item('per_page');
+			
+		$rec_per_page =	 10;
+		
+		//$rec_per_page =	 1;
+			
+		if(($this->input->post('action') == 'search')) 
+		{				
+			//$this->nativesession->set('searchadmin1',trim($this->input->post('txtname')));				
+			$this->nativesession->set('searchadmin1',$this->input->post('txtfrom'));				
+			$this->nativesession->set('searchadmin2',$this->input->post('txtto'));
+		}
+
+		//$data['email_checksum_type'] = $this->transport_email_checksum_model->get_transport_email_checksum($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$sort,$order);
+		
+		$data['email_checksum_type'] = $this->sendgrid_volunteer_email_checksum_model->get_total_volunteer_email_details($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$sort,$order);
+		
+		
+		$totalrecord = $data['email_checksum_type'];
+		
+		
+		$data['email_checksum_type'] = $this->sendgrid_volunteer_email_checksum_model->get_volunteer_email_details($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$sort,$order,$limit,$rec_per_page);
+		
+		//echo '<pre>';print_r($data['email_checksum_type']);exit;
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		
+		$config 				  = array();
+		$config['base_url'] 	  = $this->config->item('admin_base_url').'sendgrid_volunteer_email_checksum/get_user_email_checksum/'.$sort.'/'.$order;
+		//$config['base_url']	  	  = $config['base_url'].$transport_id.'/'.$type_id.'/'.$sort.'/'.$order.'/';
+		$config['total_rows'] 	  = $totalrecord;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['uri_segment']    =  '5'; 
+		$config['cur_page'] 	  = $limit;		
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';	
+	
+	
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		
+		//print_r($data['pagination']);exit;
+		
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		
+		//$this->load->view('email-checksum-transportation',$data);
+		$this->load->view('sendgrid-email-checksum-volunteer',$data);
+	}
+	
+	
+	
+	function display_user_email_detail($id,$dtcreated)
+	{
+		$get_users_volunteer_type_email_checksum = $this->sendgrid_volunteer_email_checksum_model->get_users_transport_email_list($id,$dtcreated);
+		//echo '<pre>';print_r($get_users_transport_type_email_checksum);exit;	
+		$data['user_email_checksum'] = $get_users_volunteer_type_email_checksum;
+		$data['record_id'] = $id;
+		$data['created_date'] = $dtcreated;
+		$this->load->view('view-user-listing-new3',$data);
+	}
+	
+	function get_user_email_detail($id,$dtcreated)
+	{   
+		$email_address = $this->input->post('email_address');
+		
+		$get_users_transport_type_email_checksum = $this->sendgrid_volunteer_email_checksum_model->get_user_email_detail($id,$email_address);
+		//print_r($get_users_transport_type_email_checksum);exit;	
+		$data['user_email_checksum'] = $get_users_transport_type_email_checksum;
+		
+		$data['record_id'] = $id;
+		$data['email_address'] = $email_address;
+		$data['created_date'] = $dtcreated;
+		
+		$this->load->view('view-user-listing-new3',$data);
+		
+	}
+	
+}
+
+/* End of file account.php */
+/* Location: ./application/administration/controllers/account.php */

@@ -1,0 +1,194 @@
+<?php
+class transport_create_email_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	public function get_email_html()
+	{
+		$this->db->select('st_text,st_from,in_id');
+		$this->db->from('tbl_transportation_emails');
+		$this->db->where('in_deleted', 0);
+		$this->db->where('in_processed',0);
+		$this->db->limit(1,0);	
+		//$this->db->where('in_id',4);
+		$query = $this->db->get()->result_array();
+		return $query;
+	}
+	
+	public function get_user_details($email)
+	{
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_users');
+		$this->db->where('st_email',$email);
+		$this->db->where('in_deleted', 0);
+		$this->db->where_in('in_status',array(0,1));
+		$query = $this->db->get()->result_array();
+		return $query;
+	}
+	
+	public function verify_user_permission($id,$org_id)
+	{
+		$this->db->select('in_organization_id');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_user_id',$id);
+		$this->db->where('in_deleted', 0);
+		$this->db->where('in_status',1);
+		$query = $this->db->get()->result_array();
+		if(count($query) > 0)
+			return 'true';
+		else {
+			$this->db->select('in_org_user_id,st_permission');
+			$this->db->from('tbl_organization_user');
+			$this->db->where('in_organization_id',$org_id);
+			$this->db->where('in_user_id',$id);
+			$this->db->where('in_deleted', 0);
+			$this->db->where('in_status',1);
+			$query = $this->db->get()->result_array();
+			if(count($query) > 0)
+			{
+				$permission_data = unserialize($query[0]['st_permission']);
+				if (array_key_exists('transport', $permission_data)) {
+					$transport_permission = $permission_data['transport'];
+					if(in_array('transport_cr', $transport_permission))
+						return 'true';
+					else 
+						return 'false';
+				} else {
+					return 'false';
+				}	
+			}
+			else 
+				return 'false';
+		}
+	}
+	
+	public function get_zip_code($city,$state)
+	{
+		$this->db->select('zip_code,st_country');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('city',$city);
+		$this->db->where('state_prefix',$state);
+		$this->db->limit(1,0);	
+		$query = $this->db->get()->result_array();
+		return $query;
+	}
+	
+	public function get_animal_breed($id,$animal_id) {
+        $this->db->select('in_animal_breed_id');
+        $this->db->from('tbl_animal_breed');
+        $this->db->where('in_status', 1);
+        $this->db->where('in_animal_type_id',$animal_id);
+		 $this->db->where('st_animal_breed_name',$id);
+        $this->db->where('in_deleted', 0);
+        //$this->db->order_by('st_animal_breed_name', 'ASC');
+        $query = $this->db->get();
+        return $query->result_array();
+    }
+	
+	public function get_animal_all_type($animal_name)
+	{
+		$this->db->select('in_animal_type_id');
+		$this->db->from('tbl_animal_type');
+		$this->db->where('st_animal_type_name',$animal_name);
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_status',1);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	public function add_animal_profile($data) {
+		$animal_id = $this->db->insert('tbl_animal',$data);	
+		return  $this->db->insert_id();
+	}
+	
+	public function add_animal_trasport($animal_id,$transport_id,$user_id)
+	{
+			
+			$arrData = array(//"in_transportation_id"	=> $this->session->userdata('transport_id'),
+							 "in_transportation_id"	=> $transport_id,
+							 "in_animal_id"			=> $animal_id,
+							 "in_created_by"		=> $user_id,
+							 "dt_created"			=> date("Y-m-d H:i:s"),
+							 "in_deleted"			=> "0"
+							  );
+			$this->db->insert('tbl_animal_transportation', $arrData);
+			
+			$this->db->where('in_animal_id',$animal_id);
+			$this->db->update('tbl_animal',array("in_progress_status"=>"2"));	
+		
+	}
+	
+	function add_transport($arrData)
+	{
+		$user_id = $this->db->insert('tbl_transportation', $arrData);
+		return  $this->db->insert_id();
+	}
+	public function create_legs($arrData)
+	{
+		$this->db->insert('tbl_transportation_leg', $arrData);
+		$leg_id = $this->db->insert_id();
+		return $leg_id;
+	}
+	public function add_legs_details($arrData)
+	{
+		$this->db->insert('tbl_transportation_leg_detail', $arrData);
+		$this->db->insert_id();
+	}
+	public function get_org_details($id) 
+	{
+		$this->db->select('in_organization_id,st_org_image,st_org_type,st_org_ein,st_has_501c3,st_has_contract,st_organization_501c3,
+							st_director,st_org_name,st_address1,st_address2,st_city,st_state,st_zip,
+							st_primary_phone,st_secondary_phone,st_fax,st_email_address,st_website');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$id);
+		$this->db->where('in_deleted',0);
+		//$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function chk_demeanor($name ,$id)
+	{
+		$this->db->select('a.in_demeanor_id');
+		$this->db->from('tbl_demeanor as a');
+		$this->db->where('a.st_demeanor_name like',$name);	
+		$this->db->where('a.in_animal_type_id =',$id);
+		$this->db->where('a.in_deleted',0);
+		$query = $this->db->get();
+		$res= $query->result_array();
+		//print_r();
+		//Array ( [0] => Array ( [in_demeanor_id] => 26 ) ) 
+		if(empty($res[0]['in_demeanor_id']))
+		{
+			$this->db->select('a.in_demeanor_id');
+			$this->db->from('tbl_demeanor as a');
+			$this->db->where('a.st_demeanor_name like','Unknown');	
+			$this->db->where('a.in_animal_type_id =',$id);
+			$this->db->where('a.in_deleted',0);
+			$query2 = $this->db->get();
+			$res = $query2->result_array();
+		}
+		return $res;	
+	}
+	
+	public function update_process_status($id)
+	{
+		$this->db->where('in_id',$id);
+		$this->db->update('tbl_transportation_emails',array("in_processed"=>"1"));	
+	}
+	public function get_state()
+	{
+		$this->db->distinct();
+		$this->db->select('state_prefix');
+		$this->db->from('tbl_zip_code');
+		$query = $this->db->get()->result_array();
+		return $query;
+	}
+}
+?>

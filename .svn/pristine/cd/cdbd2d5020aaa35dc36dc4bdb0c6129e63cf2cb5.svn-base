@@ -1,0 +1,786 @@
+<?php
+# ======================================================================================
+# Created by		: sadique mohammed
+# Created date		: 30-May-2017
+# File description	: Non Doobert Rescue Map controller
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class non_doobert_rescue_map_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }	
+	
+	function user_details($uid)
+	{
+		$this->db->select('u.st_display_name ,u.st_email');
+		$this->db->from('tbl_users as u');
+		$this->db->where('u.in_user_id',$uid);
+		$qry = $this->db->get();
+		return $qry->result();
+	}
+	
+	function org_details($uid)
+	{
+		$this->db->select('o.st_org_name ,o.st_email_address,o.in_organization_id');
+		$this->db->from('tbl_organization as o');
+		$this->db->where('o.in_organization_id',$uid);
+		$qry = $this->db->get();
+		return $qry->result();
+	}
+	
+	function non_doobert_org_details($uid)
+	{
+		$this->db->select('o.stOrgName ,o.stOrgEmail,o.inNonDoobertOrgId');
+		$this->db->from('tbl_non_doobert_org as o');
+		$this->db->where('o.inNonDoobertOrgId',$uid);
+		$qry = $this->db->get();
+		return $qry->result();
+	}
+	
+	
+	function get_non_doobert_org() {
+		$this->db->select("o.inNonDoobertOrgId,o.stOrgName,o.stOrgEmail,o.stOrgWeb,o.stAddr1,o.stAddr2,o.stCity,o.stState,o.stZip,z.lat,z.lon",FALSE);
+		$this->db->from("tbl_non_doobert_org as o");
+		$this->db->join("tbl_zip_code as z","z.zip_code=o.stZip","LEFT");		
+		$this->db->where("o.inDeleted",0);		
+		$query = $this->db->get();
+		$data=array();
+		//echo $this->db->last_query(); die;	
+		
+		foreach($query->result_array() as $row) {	
+		
+				$address  = '';				
+				$address .= (!empty($row['stAddr1'])?$row['stAddr1'].', ':'');
+				$address .= (!empty($row['stAddr2'])?$row['stAddr2'].', ':'');
+		
+				
+			$data[] = array('org_id'		=>	$row['inNonDoobertOrgId'],
+							'orgname'    	=>	$row['stOrgName'],								
+							'email'			=>  $row['stOrgEmail'],
+							'address'		=>  $address,							
+							'city'			=>  $row['stCity'],
+							'state'			=>  $row['stState'],
+							'zip'			=>  trim($row['stZip']),
+							'lat'			=>  $row['lat'],
+							'lon'			=>  $row['lon'],
+							'website'		=>  $row['stOrgWeb'],
+							'img'			=>  'doobert-non-organization-legend.png'				
+							);
+						
+		}			
+		return $data;
+	}
+	
+	
+	function get_doobert_org() {
+		$this->db->select("o.in_organization_id,o.in_status,o.st_org_name,o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_zip,z.lat,z.lon",false);
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_zip_code as z',"z.zip_code=o.st_zip",'LEFT');
+		$this->db->join('tbl_organization_setting as os',"os.in_organization_id=o.in_organization_id",'LEFT');
+		$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','INNER'); // for testing. 	
+		$wh='';
+		$wh .="(o.in_deleted=0 AND o.in_status=1 AND z.lat!='' AND z.lon!='' AND u.in_deleted=0)";
+		$wh .= "AND (os.in_public IS NULL OR os.in_public = 0)";
+		$this->db->where($wh);			
+		$this->db->group_by('o.in_organization_id');	
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		$data=array();
+		foreach($query->result_array() as $row) {
+		
+				$address  = '';				
+				$address .= (!empty($row['st_address1'])?$row['st_address1'].', ':'');
+				$address .= (!empty($row['st_address2'])?$row['st_address2'].', ':'');		
+		
+		   
+			$data[] = array('org_id'		=>	$row['in_organization_id'],
+							'orgname'		=>	$row['st_org_name'],
+							'address'		=>  $address,							
+							'city'			=>  $row['st_city'],
+							'state'			=>  $row['st_state'],
+							'zip'			=>  $row['st_zip'],
+							'lat'			=>  $row['lat'],
+							'lon'			=>  $row['lon'],
+							'status'		=>  $row['in_status'],
+							'img'			=>  'doobert-organization-legend.png'	
+							);							
+						
+		}			
+		return $data;
+	}
+	
+	public function get_state_by_zipcode($zip)
+	{
+		$this->db->select('city,state_prefix,st_country,lat,lon');
+		$this->db->from('tbl_zip_code');        
+		$this->db->where('zip_code', $zip);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	
+	
+	
+	function get_nearby_organization($zipcode)
+	{
+		
+		if(!empty($zipcode))
+		{				
+			$lat_long = $this->get_lat_long($zipcode);
+		}	
+		$miles = 100;
+		//print_r($lat_long);die;
+		 $data	=	array();
+		if(sizeof($lat_long) > 0)
+		{ 
+		$this->db->select('o.in_organization_id,o.in_status,o.st_org_name,o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_zip,zp.lat,zp.lon');
+		$this->db->from('tbl_organization o');		  
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'LEFT');	
+		$this->db->join('tbl_organization_setting as os',"os.in_organization_id=o.in_organization_id",'LEFT');	
+		$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','INNER'); // for testing. 			
+		$where1 = "((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+		$this->db->where($where1);		
+		
+		 $wh='';
+		 $this->db->where('o.in_status','1');
+		 $this->db->where('o.in_deleted','0');
+		  $this->db->where('u.in_deleted','0');
+		 
+		 $this->db->where('zp.lat !=','');
+		 $this->db->where('zp.lon !=','');
+		 
+		 $wh .= "(os.in_public IS NULL OR os.in_public = 0)";
+		 $this->db->where($wh);
+		 $this->db->group_by('o.in_organization_id');
+		 $query = $this->db->get();
+		// echo $this->db->last_query(); die;
+		
+		 if($query->num_rows() > 0 )
+		 {	 
+			foreach($query->result_array() as $key=>$value)
+			{
+			
+				$address  = '';				
+				$address .= (!empty($value['st_address1'])?$value['st_address1'].', ':'');
+				$address .= (!empty($value['st_address2'])?$value['st_address2'].', ':'');
+				$data[] = array('org_id'  => $value['in_organization_id'],
+								'orgname' => $value['st_org_name'],
+								'address' => $address,
+								'city'	  => $value['st_city'],
+								'state'	  => $value['st_state'],
+								'zip' 	  => $value['st_zip'],
+								'lat'	  => $value['lat'],
+								'lon'	  => $value['lon'],
+								'status'  => $value['in_status'],
+								'img'	  => 'doobert-organization-legend.png'
+								);
+			}
+		 }	
+		 }
+
+		return $data;
+	 		
+	}
+	
+	
+	
+	function get_non_doobert_nearby_organization($zipcode)
+	{
+		$data = array();
+		if(!empty($zipcode))
+		{				
+			$lat_long = $this->get_lat_long($zipcode);
+		}	
+		$miles = 100;		
+		$data=array();
+		if(isset($lat_long) && sizeof($lat_long)>0)
+		{   //echo $lat_long[0]['lat'];die;
+			$this->db->select('o.inNonDoobertOrgId,o.stOrgName,o.stOrgEmail,o.stOrgWeb,o.stAddr1,o.stAddr2,o.stCity,o.stState,o.stZip,zp.lat,zp.lon');
+			$this->db->from('tbl_non_doobert_org o');		
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.stZip', 'LEFT');				
+			$where1 = "((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+			$this->db->where($where1);	
+			$this->db->where('o.inDeleted','0');
+			$query = $this->db->get();
+			//echo $this->db->last_query();die;
+			 if($query->num_rows() > 0 )
+			 {	 
+				foreach($query->result_array() as $key=>$value)
+				{
+					$address  = '';				
+					$address .= (!empty($value['stAddr1'])?$value['stAddr1'].', ':'');
+					$address .= (!empty($value['stAddr2'])?$value['stAddr2'].', ':'');
+			
+					
+				$data[] = array('org_id'		=>	$value['inNonDoobertOrgId'],
+								'orgname'    	=>	$value['stOrgName'],								
+								'email'			=>  $value['stOrgEmail'],
+								'address'		=>  $address,							
+								'city'			=>  $value['stCity'],
+								'state'			=>  $value['stState'],
+								'zip'			=>  trim($value['stZip']),
+								'lat'			=>  $value['lat'],
+								'lon'			=>  $value['lon'],
+								'website'		=>  $value['stOrgWeb'],
+								'img'			=>  'doobert-non-organization-legend.png'				
+								);
+				}
+			 }
+		 }	 
+		
+		return $data;
+	 		
+	}
+	
+	
+	
+	
+	public function get_all_doobert_nearby_organization($zipcode)
+	{
+		$data = array();
+		if(!empty($zipcode))
+		{				
+			$lat_long = $this->get_lat_long($zipcode);
+		}	
+		$miles = 100;
+		$data	=	array();
+		if(isset($lat_long) && sizeof($lat_long)>0)
+		{
+			$this->db->select('o.in_organization_id,o.in_status,o.st_org_name,o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_zip,zp.lat,zp.lon');
+			$this->db->from('tbl_organization o');
+		
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'LEFT');	
+			$this->db->join('tbl_organization_setting as os',"os.in_organization_id=o.in_organization_id",'LEFT');	
+			$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','INNER'); // for testing. 
+			
+			$where1 = "((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+			$this->db->where($where1);		
+			 $wh='';
+			 $this->db->where('o.in_status','1');
+			 $this->db->where('o.in_deleted','0');
+			 $this->db->where('u.in_deleted','0');
+			 $this->db->where('zp.lat !=','');
+			 $this->db->where('zp.lon !=','');		 
+			 $wh .= "(os.in_public IS NULL OR os.in_public = 0)";
+			 $this->db->where($wh);
+			 $this->db->group_by('o.in_organization_id');
+			 $query = $this->db->get();
+		 
+		 	if($query->num_rows() > 0 )
+			 {	 
+				foreach($query->result_array() as $key=>$value)
+				{
+				
+					$address  = '';				
+					$address .= (!empty($value['st_address1'])?$value['st_address1'].', ':'');
+					$address .= (!empty($value['st_address2'])?$value['st_address2'].', ':'');
+					$data[] = array('org_id'  => $value['in_organization_id'],
+									'orgname' => $value['st_org_name'],
+									'address' => $address,
+									'city'	  => $value['st_city'],
+									'state'	  => $value['st_state'],
+									'zip' 	  => $value['st_zip'],
+									'lat'	  => $value['lat'],
+									'lon'	  => $value['lon'],
+									'status'  => $value['in_status'],
+									'img'	  => 'doobert-organization-legend.png'
+									);
+				}
+			 }
+			 $this->db->select('o.inNonDoobertOrgId,o.stOrgName,o.stOrgEmail,o.stOrgWeb,o.stAddr1,o.stAddr2,o.stCity,o.stState,o.stZip,zp.lat,zp.lon');
+			 $this->db->from('tbl_non_doobert_org o');
+			 
+			 $this->db->join('tbl_zip_code zp', 'zp.zip_code=o.stZip', 'LEFT');				
+			 $where2 = "((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+			 $this->db->where($where2);	
+		 	 $this->db->where('o.inDeleted','0');
+		 	 $query2 = $this->db->get();
+		 	 if($query2->num_rows() > 0 )
+			 {	 
+				foreach($query2->result_array() as $key=>$value)
+				{
+					$address  = '';				
+					$address .= (!empty($value['stAddr1'])?$value['stAddr1'].', ':'');
+					$address .= (!empty($value['stAddr2'])?$value['stAddr2'].', ':'');
+			
+					
+				$data[] = array('org_id'		=>	$value['inNonDoobertOrgId'],
+								'orgname'    	=>	$value['stOrgName'],								
+								'email'			=>  $value['stOrgEmail'],
+								'address'		=>  $address,							
+								'city'			=>  $value['stCity'],
+								'state'			=>  $value['stState'],
+								'zip'			=>  trim($value['stZip']),
+								'lat'			=>  $value['lat'],
+								'lon'			=>  $value['lon'],
+								'website'		=>  $value['stOrgWeb'],
+								'img'			=>  'doobert-non-organization-legend.png'				
+								);
+				}
+			 }	
+			 
+		 }			 
+		
+		return $data;	
+	
+	}
+	
+	
+	public function get_lat_long($zipcode)
+	{   $zip=strtolower(preg_replace('/\s+/', '', $zipcode));
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$wh='';		
+		$wh .= "(tbl_zip_code.zip_code='".addslashes($zip)."' OR REPLACE(LOWER(tbl_zip_code.city),' ','') LIKE '%".addslashes($zip)."%')";
+		$this->db->where($wh);
+		$query = $this->db->get()->result_array();
+		//echo $this->db->last_query(); die;
+		return $query;	
+	}
+	
+	public function get_fullzipcode_by_state_city($city='',$state='')
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix",FALSE);
+		$this->db->from('tbl_zip_code');
+		
+		//$this->db->where('city',$city);
+		//$this->db->where('state_prefix',$state);
+		$this->db->where('lower(city) LIKE lower("'.$city.'%") AND UPPER(state_prefix) = UPPER("'.trim($state).'")');		
+		$this->db->limit("1");
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array("label"			=> $Row->label,
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										//"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	public function get_zipcode2($zipcode)
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix",FALSE);
+		$this->db->from('tbl_zip_code');	
+		
+		// if normal 1 char is present 
+		if (strpos($zipcode ,',') == false) {
+		$this->db->where('zip_code LIKE "'.$zipcode.'%" OR lower(city) LIKE lower("'.$zipcode.'%") OR UPPER(state_prefix) = UPPER("'.trim($zipcode).'")');
+		} else {
+		$value=explode(',',$zipcode);
+		if(!empty($value))
+		{
+			if(is_numeric($value[0]))
+			{
+				$this->db->where('zip_code LIKE "'.$value[0].'%"',FALSE,FALSE);			
+			}else {
+			 if(isset($value[0]) && isset($value[1])){
+
+			 	if(strlen($value[1]) > 2)
+				{
+					$states_list = $this->common_function->state_list;
+					if(in_array(ucfirst($value[1]), $states_list))
+					{
+						$state_key = array_search(ucfirst($value[1]), $states_list);
+						$value[1] = $state_key;
+					}
+					//echo $state;exit;
+				}
+			 
+			 $this->db->where('lower(city) LIKE lower("'.$value[0].'%") AND UPPER(state_prefix) = UPPER("'.trim($value[1]).'")');
+			 }else {
+			  $this->db->where('lower(city) LIKE lower("'.$value[0].'%") AND UPPER(state_prefix) = UPPER("'.trim($value[0]).'")');
+			 }
+			}
+			
+		}
+		}
+		$this->db->limit("10");
+				
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array( "label"     	=> $Row->label,
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										//"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+		//return $query->result_array();
+	}
+	
+	public function get_zipcode_data($zipcode='',$city='',$state='',$action='')
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix,', ',st_country) as label, zip_code,city,state_prefix",FALSE);
+		$this->db->from('tbl_zip_code');		
+		if($action=='')
+		{
+			$this->db->where('zip_code LIKE "'.$zipcode.'%"',FALSE,FALSE);
+			$this->db->limit("10");
+		}
+		else
+		{
+		if($city)
+		{
+			//$this->db->where('lower(city) LIKE lower("'.$city.'%")',FALSE,FALSE);
+			$this->db->where('lower(city) = lower("'.$city.'")',FALSE,FALSE);
+		}
+		if($state)
+		{
+			$this->db->where('UPPER(state_prefix) = UPPER("'.$state.'")',FALSE,FALSE);
+		}
+		$this->db->limit("20");
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		/*if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array("label"			=> $Row->label.", ".$this->common_function->shortCountry[trim($Row->st_country)],
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}*/
+		return $query->result_array();
+	}
+	
+	public function get_featuredpartners()
+	{
+		$this->db->select('st_partner_name,st_desc,st_image,st_url');
+		$this->db->from('tbl_featured_partner');        
+		$this->db->where('in_deleted',0);	
+		$this->db->order_by('st_partner_name','ASC');	
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();		
+	}
+	
+	function get_complete_doobert_org($limit='',$rec_per_page='',$state='',$zipcode='',$org_type='0',$order_type) 
+	{
+		
+		$data=array();
+		$lat_long = array();
+		if(!empty($zipcode))
+		{				
+			$lat_long = $this->get_lat_long($zipcode);
+		}
+				
+		$miles = 100;
+		$sql = '';
+		if($org_type=='0' || $org_type=='DO')
+		{	
+			$sql .= "SELECT o.in_organization_id as org_id,
+					'doobert' as org_type,
+					o.st_org_name as org_name,
+					o.st_email_address as org_email,
+					o.st_website as org_web,
+					o.st_address1 as org_add1,
+					o.st_address2 as org_add2,
+					o.st_city as org_city,
+					o.st_state as org_state,
+					o.st_zip as org_zip,
+					zp.lat,
+					zp.lon";
+			$sql .= ' FROM tbl_organization as o';
+			$sql .= ' LEFT JOIN tbl_zip_code zp ON zp.zip_code=o.st_zip';
+			$sql .= ' LEFT JOIN tbl_organization_setting os ON os.in_organization_id=o.in_organization_id';
+			$sql .= ' INNER JOIN tbl_users u on u.in_user_id = o.in_user_id'; // for testing. 	
+			$sql .=" where (o.in_deleted=0 AND o.in_status=1 AND zp.lat!='' AND zp.lon!='' AND u.in_deleted=0)";
+		
+			if( isset($lat_long[0]['lat']) && !empty($lat_long[0]['lat']) && !empty($zipcode) && isset($lat_long[0]['lon']) && !empty($lat_long[0]['lon']) )
+				$sql .=" AND ((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+			else if($state!='')
+			{
+				if(strlen($state)==2)
+				{	
+					$state_name = '';
+					$state_name = $this->common_function->state_list[$state];
+					//$sql .= ' AND (o.st_state ="'.$state.'" OR o.st_state ="'.$state_name.'") ';
+					//$sql .= ' AND (o.st_state ="'.$state.'" OR o.st_state ="'.$state_name.'") ';
+					$sql .= ' AND zp.state_prefix="'.$state.'"';
+				} else {
+					$st_name = $this->session->userdata('org_state')?$this->session->userdata('org_state'):'';
+					//$state_name = $this->common_function->state_list[$this->session->userdata('org_state')];
+					$sql .= ' AND zp.state_prefix="'.$st_name.'"';
+					//$sql .= ' AND (o.st_state ="'.$st_name.'" OR o.st_state ="'.$state_name.'") ';
+					$city = str_replace("-"," ",$state);
+					$sql .= ' AND (o.st_city ="'.$city.'") ';
+				}	
+			}
+			$sql .= " AND (os.in_public IS NULL OR os.in_public = 0)";		
+			$sql .= ' group by o.in_organization_id';
+		}
+		if($org_type=='0')
+		{	
+			$sql .= ' UNION ';
+		}
+		if($org_type=='0' || $org_type=='NDO')
+		{	
+			$sql .= "SELECT o.inNonDoobertOrgId as org_id,
+							'Nondoobert' as org_type,
+							o.stOrgName as org_name,
+							o.stOrgEmail as org_email,
+							o.stOrgWeb as org_web,
+							o.stAddr1 as org_add1,
+							o.stAddr2 as org_add2,
+							o.stCity as org_city,
+							o.stState as org_state,
+							o.stZip as org_zip,
+							zp.lat,zp.lon";
+			$sql .=" FROM tbl_non_doobert_org o";
+			$sql .=" LEFT JOIN tbl_zip_code zp ON zp.zip_code=o.stZip";		
+			$sql .=" where  o.inDeleted =0";
+			if( isset($lat_long[0]['lat']) && !empty($lat_long[0]['lat']) && !empty($zipcode) && isset($lat_long[0]['lon']) && !empty($lat_long[0]['lon']) )
+				$sql .=" AND ((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')";
+			else if($state!='')
+			{
+				if(strlen($state)==2)
+				{
+					//$sql .= ' AND (o.stState ="'.$state.'") ';
+					$sql .= ' AND zp.state_prefix="'.$state.'"';
+				} else {
+					$st_name = $this->session->userdata('org_state')?$this->session->userdata('org_state'):'';
+					//$state_name = $this->common_function->state_list[$this->session->userdata('org_state')];
+					//$sql .= ' AND (o.stState ="'.$st_name.'" OR stState ="'.$state_name.'") ';
+					$sql .= ' AND zp.state_prefix="'.$st_name.'"';
+					$city = str_replace("-"," ",$state);
+					$sql .= ' AND (o.stCity ="'.$city.'") ';
+				}	
+			}
+		}
+			
+			$sql .= " order by org_name ".$order_type;
+			
+			
+			
+			$sql1 = $sql." LIMIT ".$limit.",".$rec_per_page;
+		
+		
+		$querytotal = $this->db->query($sql);
+		$query = $this->db->query($sql1);
+		//$query = $this->db->get();
+		
+		$data=array();
+		if($query->num_rows() >0)
+		{	
+		foreach($query->result_array() as $row) 
+		{
+		
+				$address  = '';				
+				$address .= (!empty($row['org_add1'])?$row['org_add1'].', ':'');
+				$address .= (!empty($row['org_add2'])?$row['org_add2'].', ':'');		
+				$add_display = $address.$row['org_city'].', '.$row['org_state'].', '.$row['org_zip'];
+		   
+				$data['complete_org'][] = array('org_id'	  =>  $row['org_id'],
+												'org_type'	  =>  $row['org_type'],
+												'orgname'	  =>  $row['org_name'],
+												'address'	  =>  $address,							
+												'city'		  =>  $row['org_city'],
+												'state'		  =>  $row['org_state'],
+												'zip'	  	  =>  $row['org_zip'],
+												'lat'		  =>  $row['lat'],
+												'lon'		  =>  $row['lon'],
+												'add_display' =>  $add_display,
+												'img'		  =>  'doobert-organization-legend.png'	
+											 );							
+						
+		}
+		}
+		$data['total_count'] = $querytotal->num_rows();
+		return $data;
+	}
+	
+	function get_doobert_org_city($state='') 
+	{
+		
+		$data=array();
+		$city = array();
+		$sql = '';		
+		$sql .= "SELECT distinct(o.st_city) as org_city";
+		$sql .= ' FROM tbl_organization as o';
+		$sql .= ' LEFT JOIN tbl_zip_code zp ON zp.zip_code=o.st_zip';
+		$sql .= ' LEFT JOIN tbl_organization_setting os ON os.in_organization_id=o.in_organization_id';
+		$sql .= ' INNER JOIN tbl_users u on u.in_user_id = o.in_user_id'; // for testing. 	
+		$sql .=" where (o.in_deleted=0 AND o.in_status=1 AND u.in_deleted=0)";
+		if($state!='')
+		{
+			$state_name = '';
+			//$state_name = $this->common_function->state_list[$state];
+			//$sql .= ' AND (o.st_state ="'.$state.'" OR o.st_state ="'.$state_name.'") ';
+			$sql .= ' AND zp.state_prefix="'.$state.'"'; 
+		}
+		$sql .= " AND (os.in_public IS NULL OR os.in_public = 0)";		
+		$sql .= ' group by o.in_organization_id';
+		$sql .= ' UNION ';	
+		$sql .= "SELECT distinct(o.stCity) as org_city";
+		$sql .=" FROM tbl_non_doobert_org o";
+		$sql .=" LEFT JOIN tbl_zip_code zp ON zp.zip_code=o.stZip";				
+		$sql .=" where  o.inDeleted =0";
+		if($state!='')
+		{
+			
+			//$sql .= ' AND (o.stState ="'.$state.'") ';
+			$sql .= ' AND zp.state_prefix="'.$state.'"';
+		}
+		
+		$query = $this->db->query($sql);
+		if($query->num_rows() >0)
+		{	
+			foreach($query->result_array() as $row) 
+			{
+					if(str_word_count($row['org_city'])>1)
+					{
+						$org_city = str_replace(" ","-",$row['org_city']);
+					} else {
+						$org_city = $row['org_city'];
+					}
+				if(in_array($org_city,$city)== false)
+				{
+						
+					array_push($city,$org_city);
+				}	
+						
+			}
+		}
+		return $city;
+	}
+	
+	public function get_all_doobert_nearby_city($citysearch,$statesearch)
+	{
+		
+		$data = array();
+			$this->db->select('o.in_organization_id,o.in_status,o.st_org_name,o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_zip,zp.lat,zp.lon');
+			$this->db->from('tbl_organization o');
+		
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'LEFT');	
+			$this->db->join('tbl_organization_setting as os',"os.in_organization_id=o.in_organization_id",'LEFT');	
+			$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','INNER'); // for testing. 
+			
+				if($citysearch!='')
+				{	
+					$city = str_replace("-"," ",$citysearch);
+					$this->db->where('o.st_city ="'.$city.'"');
+				}
+
+				if($statesearch!='')
+				{	
+					$state_name = $this->common_function->state_list[$statesearch];
+					$this->db->where('zp.state_prefix="'.$statesearch.'"');
+				}	
+				
+					
+			 $wh='';
+			 $this->db->where('o.in_status','1');
+			 $this->db->where('o.in_deleted','0');
+			 $this->db->where('u.in_deleted','0');
+			 $this->db->where('zp.lat !=','');
+			 $this->db->where('zp.lon !=','');		 
+			 $wh .= "(os.in_public IS NULL OR os.in_public = 0)";
+			 $this->db->where($wh);
+			 $this->db->group_by('o.in_organization_id');
+			 $query = $this->db->get();
+	
+		 	if($query->num_rows() > 0 )
+			 {	 
+				foreach($query->result_array() as $key=>$value)
+				{
+				
+					$address  = '';				
+					$address .= (!empty($value['st_address1'])?$value['st_address1'].', ':'');
+					$address .= (!empty($value['st_address2'])?$value['st_address2'].', ':'');
+					$data[] = array('org_id'  => $value['in_organization_id'],
+									'orgname' => $value['st_org_name'],
+									'address' => $address,
+									'city'	  => $value['st_city'],
+									'state'	  => $value['st_state'],
+									'zip' 	  => $value['st_zip'],
+									'lat'	  => $value['lat'],
+									'lon'	  => $value['lon'],
+									'status'  => $value['in_status'],
+									'img'	  => 'doobert-organization-legend.png'
+									);
+				}
+			 }
+			 $this->db->select('o.inNonDoobertOrgId,o.stOrgName,o.stOrgEmail,o.stOrgWeb,o.stAddr1,o.stAddr2,o.stCity,o.stState,o.stZip,zp.lat,zp.lon');
+			 $this->db->from('tbl_non_doobert_org o');
+			 
+			 $this->db->join('tbl_zip_code zp', 'zp.zip_code=o.stZip', 'LEFT');
+			
+				if($citysearch!='')
+				{	
+					$city = str_replace("-"," ",$citysearch);
+					$this->db->where('o.stCity ="'.$city.'"');
+				}
+
+				if($statesearch!='')
+				{	
+					//$state_name = $this->common_function->state_list[$statesearch];
+					$this->db->where('zp.state_prefix="'.$statesearch.'"');
+					//$this->db->where('(o.stState ="'.$statesearch.'" OR o.stState ="'.$state_name.'")');
+				}
+		 	 $this->db->where('o.inDeleted','0');
+		 	 $query2 = $this->db->get();
+		 	 if($query2->num_rows() > 0 )
+			 {	 
+				foreach($query2->result_array() as $key=>$value)
+				{
+					$address  = '';				
+					$address .= (!empty($value['stAddr1'])?$value['stAddr1'].', ':'');
+					$address .= (!empty($value['stAddr2'])?$value['stAddr2'].', ':'');
+			
+					
+				$data[] = array('org_id'		=>	$value['inNonDoobertOrgId'],
+								'orgname'    	=>	$value['stOrgName'],								
+								'email'			=>  $value['stOrgEmail'],
+								'address'		=>  $address,							
+								'city'			=>  $value['stCity'],
+								'state'			=>  $value['stState'],
+								'zip'			=>  trim($value['stZip']),
+								'lat'			=>  $value['lat'],
+								'lon'			=>  $value['lon'],
+								'website'		=>  $value['stOrgWeb'],
+								'img'			=>  'doobert-non-organization-legend.png'				
+								);
+				}
+			 }	
+			 
+		 		 
+		
+		return $data;	
+		
+	
+	}
+
+}
+?>

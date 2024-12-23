@@ -1,0 +1,259 @@
+<?php
+class Manage_affiliate_banner_model extends CI_Model {
+
+    function __construct()
+    {
+        parent::__construct();
+    }
+	
+	
+	
+	
+	
+	public function get_total_affiliate($name, $placement, $type, $position, $status)
+	{ 		
+					
+		$this->db->select("id", false);						   	
+		$this->db->from('tbl_affiliate_banner');		
+		$this->db->where('in_deleted','0');	
+
+		if($name!='')
+		{						 
+			$this->db->where("st_banner_name LIKE '%".$name."%'", NULL, FALSE);
+		}
+
+		if($placement!='')
+		{						 
+			$this->db->where("in_banner_placement = '".$placement."'", NULL, FALSE);
+		}
+
+		if($type!='')
+		{						 
+			$this->db->where("in_type = '".$type."'", NULL, FALSE);
+		}
+
+		if($position!='')
+		{						 
+			$this->db->where("st_position = '".$position."'", NULL, FALSE);
+		}
+
+		if($status == '1' || $status == '2')
+		{						 
+			$this->db->where("in_status = '".$status."'", NULL, FALSE);
+		}
+
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_affiliate()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to check valid user login
+	#------------------------------------------------------------
+	public function get_affiliate($sort,$order,$limit,$rec_per_page, $name, $placement, $type, $position, $status)
+	{	
+				  
+		$this->db->select("id,st_banner_name,dt_start,dt_end,in_type,st_position,st_email_id,in_status,dt_created,dt_modified,in_banner_placement", false);						   	
+		$this->db->from('tbl_affiliate_banner');		
+		$this->db->where('in_deleted','0');
+		
+		if($name!='')
+		{						 
+			$this->db->where("st_banner_name LIKE '%".$name."%'", NULL, FALSE);
+		}
+
+		if($placement!='')
+		{						 
+			$this->db->where("in_banner_placement = '".$placement."'", NULL, FALSE);
+		}
+
+		if($type!='')
+		{						 
+			$this->db->where("in_type = '".$type."'", NULL, FALSE);
+		}
+
+		if($position!='')
+		{						 
+			$this->db->where("st_position = '".$position."'", NULL, FALSE);
+		}
+
+		if($status == '1' || $status == '2')
+		{						 
+			$this->db->where("in_status = '".$status."'", NULL, FALSE);
+		}
+
+		
+		switch($sort)
+					{
+						
+						case 'type': 							
+							$this->db->order_by('in_type',$order);
+						break;	
+						
+						case 'position': 							
+							$this->db->order_by('st_position',$order);
+						break;
+						
+						case 'banner_placement': 							
+							$this->db->order_by('in_banner_placement',$order);
+						break;
+						
+						case 'banner_name': 							
+							$this->db->order_by('st_banner_name',$order);
+						break;
+						
+						case 'status': 							
+							$this->db->order_by('in_status',$order);
+						break;
+						
+						case "createddate":						
+						$this->db->order_by('dt_created',$order);
+					    break;	
+						
+						case "modifieddate":						
+						$this->db->order_by('dt_modified',$order);
+					    break;
+
+						case 'start_date': 							
+							$this->db->order_by('dt_start',$order);
+						break;
+
+						case 'end_date': 							
+							$this->db->order_by('dt_end',$order);
+						break;	
+						
+						default:						
+						$this->db->order_by('id',$order);
+						break; 	         
+					}
+						  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+				
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 						
+					
+					
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+						     if($Row->in_type==1){ $type='Code'; }	
+							 if($Row->in_type==2){ $type='Image'; }		
+							 if($Row->st_position=='L'){ $position='Left'; }
+							 if($Row->st_position=='C'){ $position='Center'; }
+							 if($Row->st_position=='R'){ $position='Right'; }
+							if($Row->st_position=='B'){ $position='Both'; }
+
+							 if($Row->in_status=='1'){ $status='Active'; }
+							 if($Row->in_status=='2'){ $status='Inactive'; }	
+								
+							 if($Row->in_banner_placement=='1'){ $banner_placement='Email banner'; }
+							 if($Row->in_banner_placement=='2'){ $banner_placement='Dashboard banner'; }
+							 if($Row->in_banner_placement=='3'){ $banner_placement='Donation banner'; }
+							 
+							 $emailArr	=	explode(',',$Row->st_email_id);
+							 $email_name=array();		
+							
+							foreach($emailArr as $val){								
+								$this->db->SELECT('e.st_email_name',FALSE);
+								$this->db->FROM('tbl_email_template as e'); 	
+								$this->db->WHERE('e.in_email_id',$val);					
+								$query 	= $this->db->get();						
+								$res	=	$query->row_array();								
+								$email_name[]	=	$res['st_email_name']; 								
+							}							
+												
+							$emails	=	implode('<br>',$email_name);								 
+							
+							$arrAffiliate[]	=	array('id'	      	=> $Row->id,
+													  'type'      	=> $type,
+													  'position'  	=> $position,
+													  'banner_placement'  	=> $banner_placement,
+													  'emails'    	=> $emails,
+													  'status'    	=> $status,
+													  'dt_created'	=> $Row->dt_created,
+													  'dt_modified'	=> $Row->dt_modified,
+													  'banner_name' => $Row->st_banner_name,
+													  'date_start'	=> $Row->dt_start,
+													  'date_end'	=> $Row->dt_end
+													);											
+													
+						}						
+						return $arrAffiliate;						
+					}
+					
+	}
+	
+	public function get_banner_data($id)
+	{  
+		$this->db->select('*');
+		$this->db->from('tbl_affiliate_banner');
+		$this->db->where('id',$id);		
+		$this->db->where('in_deleted',0);		
+		$this->db->order_by('id','desc');			
+		$query = $this->db->get();		
+		return $query->row(); 
+	}	
+	
+	public function insert_affiliate_banner_info($data,$table)
+	{ 
+		$this->db->insert($table, $data);
+	}
+	
+	
+	public function update_affiliate_banner_info($data,$id,$table)
+	{  
+		$this->db->where('id', $id);
+		$this->db->update($table, $data);		
+		return $this->db->affected_rows();
+	}
+	
+	
+	#=====================================================================================
+	#	Function	:	delete_affiliate()
+	#  Parameter	: 	Id
+	#	Perpose		:	to delete single affiliate banner details from tbl_affiliate_banner table
+	#-------------------------------------------------------------------------------------
+	public function delete_affiliate($id)
+	{
+		$arrAffiliate = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('id', $id);
+		$this->db->update('tbl_affiliate_banner', $arrAffiliate);		
+	}	
+		
+	#=====================================================================================
+	#	Function	:	delete_multiple_affiliate()
+	#  Parameter	: 	ids
+	#	Perpose		:	to delete multiple affiliate details from tbl_affiliate_banner table
+	#--------------------------------------------------------------------------------------
+	function delete_multiple_affiliate($ids, $delarr)
+	{				
+		
+		$this->db->where_in('id', $ids);
+		$this->db->update('tbl_affiliate_banner', $delarr);		
+		return $this->db->affected_rows();
+	}
+	
+	function verify_banner_name($banner_name)
+	{
+		$this->db->select('id');
+		$this->db->from('tbl_affiliate_banner');
+		$this->db->where('st_banner_name',$banner_name);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row(); 
+	}
+	
+	
+}
+?>

@@ -1,0 +1,820 @@
+<?php
+
+# ======================================================================================
+# Created by		: Shital Satam
+# Created date		: 6-FEB-2018
+# File description	: treatment Model
+# Special - notes	: none
+# Tables used		: tbl_products
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+
+class questions_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+
+	public function get_all_active_treatments()
+	{
+		
+		$this->db->select('*');
+        $this->db->from('tbl_products');
+      
+		$this->db->where('in_type', 2);
+		$this->db->where('in_status', 1);
+		$this->db->where('in_deleted',0);
+		
+		$this->db->order_by('st_product','ASC');
+		$query = $this->db->get();
+		return $query->result_array();
+		
+		
+	}
+	
+	public function get_attribute($id)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_products');
+		$this->db->where('in_type',$id);
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->result();
+		
+	}
+
+	public function add_questions($data)
+	{
+		$this->db->insert('tbl_survey_questions', $data);
+		return  $this->db->insert_id();
+	}
+	
+	public function update_questions($id,$data)
+	{
+		$this->db->where('in_ques_id', $id);
+		$this->db->update('tbl_survey_questions', $data);
+	}
+	public function add_award_product($info)
+	{
+		$this->db->insert('tbl_award_product_attribute', $info);
+		return  $this->db->insert_id();
+	}
+	public function add_award_treatment($data)
+	{
+		$this->db->insert('tbl_award_treatment_attribute', $data);
+		return  $this->db->insert_id();
+	}
+	
+	public function update_product($product_id, $data)
+	{
+		$this->db->where('in_product_id', $product_id);
+		$this->db->update('tbl_products', $data);
+	}
+	
+	public function get_award_attribute($id)
+	{
+		
+		$this->db->select('*');
+		$this->db->from('tbl_products');
+		$this->db->where('in_type',$id);
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->result();
+		// echo "<pre>";
+		// print_R($kk);
+		// exit();
+	}
+	
+	public function get_questions_details($id)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_survey_questions');
+		$this->db->where('in_ques_id',$id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	public function get_review($product_id,$from_dt='',$to_dt='',$search='',$status='',$rec_per_page='',$offset='')
+	{  //echo"<pre>"; print_r($search); exit();
+		$this->db->select('*');
+        $this->db->from('tbl_review');
+      
+		$this->db->where('in_product_id',$product_id);
+		
+		$this->db->where('in_deleted',0);
+		
+		if (!empty($from_dt)) {
+
+			$from_dt = str_replace('/', '-', $from_dt);
+			$from_dt = date("Y-m-d", strtotime($from_dt))." 00:00:00";
+			$from_to = "dt_added >= '$from_dt'";
+			$this->db->where($from_to);
+		}
+
+		if (!empty($to_dt)) {
+			
+			$to_dt = str_replace('/', '-', $to_dt);
+			$to_dt = date("Y-m-d", strtotime($to_dt))." 23:59:59";
+			$to_date = "dt_added <= '$to_dt'";
+			$this->db->where($to_date);
+		}
+		
+		
+		if(!empty($search)){
+			$this->db->where("(st_review_name LIKE '%".addslashes($search)."%' OR st_email LIKE '%".addslashes($search)."%' )", NULL, FALSE);
+		}
+		if($status =='1' || $status =='2'){
+			$this->db->where('in_status', $status);
+		}
+		if(!empty($rec_per_page)){
+		    $this->db->limit($rec_per_page,$offset);
+		}
+		
+		$query = $this->db->get();
+	    //echo $this->db->last_query();die;	
+		//return $query->result_array();
+		
+		$revi = array();
+		
+		if($query->num_rows()>0)
+		{  
+			foreach($query->result_array() as $review)
+			{
+				
+				
+				$in_review_id	= isset($review['in_review_id']) ? $review['in_review_id']: '';																			
+				$st_review_name	= isset($review['st_review_name']) ? $review['st_review_name']: '';
+				$st_email       = isset($review['st_email']) ? $review['st_email'] : '';
+				$st_coment      = isset($review['st_coment']) ? $review['st_coment'] : '';
+				$dt_added	    = (isset($review['dt_added']) and !empty($review['dt_added'])) ? date('d-M-Y h:i:s',strtotime($review['dt_added'])) : '';
+				$in_status      = isset($review['in_status']) ? $review['in_status'] : '';			
+				$revi[] = array(
+				            'in_review_id'          =>  $in_review_id,
+							'st_review_name'		=>	$st_review_name,	
+							'st_email'		        =>	$st_email,	
+							'st_coment'		        =>	$st_coment,	
+							'dt_added'		        =>	$dt_added,
+							'in_status'             =>  $in_status 
+				);
+				
+				
+			}
+		}
+	return $revi;	
+	//echo"<pre>"; print_r($revi); exit();	
+	}
+	
+	public function update_award($award_id="",$data){
+		$this->db->where('in_award_id', $award_id);
+		$this->db->update('tbl_awards', $data);
+		// echo $this->db->last_query();
+		// exit();
+	return '1';	
+	}
+	
+	public function delete_review($review_id="",$status=""){
+		$this->db->where('in_review_id', $review_id);
+		$data = array('in_deleted' => $status);
+		$this->db->update('tbl_review', $data);
+	return '1';	
+	}
+	
+	public function add_award_product_attribute($data)
+	{
+		$this->db->insert('tbl_award_product_attribute', $data);
+		return  $this->db->insert_id();
+	}
+	public function add_award_treatment_attribute($data)
+	{
+		$this->db->insert('tbl_award_treatment_attribute', $data);
+		return  $this->db->insert_id();
+	}
+	
+	public function update_award_treatment_attribute($award_id)
+	{
+		$this->db->where('in_award_id', $award_id);
+		// $this->db->where('in_attribute_id', $in_attribute_id);
+		$up_data = array('in_deleted' => 1);
+		$this->db->update('tbl_award_treatment_attribute', $up_data);
+
+	}
+	public function update_award_product_attribute($award_id)
+	{
+		$this->db->where('in_award_id', $award_id);
+		$up_data = array('in_deleted' => 1);
+		$this->db->update('tbl_award_product_attribute', $up_data);
+	}
+	
+	public function get_award_details($id = '')
+	{
+		$this->db->select('*');
+        $this->db->from('tbl_awards a');
+		$this->db->where('a.in_award_id',$id);
+		$this->db->where('a.in_status', 1);
+		$this->db->where('a.in_deleted',0);
+		$query = $this->db->get();
+		
+
+		return $query->row();
+
+	}
+	
+	public function get_product_attributes($prod_id = '',$cat_id = '')
+	{
+		$this->db->select('in_attribute_val');
+        $this->db->from('tbl_product_attribute');
+      
+		$this->db->where('in_product_id',$prod_id);
+		$this->db->where('in_attribute_id',$cat_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		
+		$res = array();
+		if($query->num_rows()>0)
+		{  
+				foreach($query->result() as $Row)
+				{
+					$res[] = $Row->in_attribute_val;
+				}
+		}
+		return $res;
+		
+		
+		
+	}
+	
+	
+	public function get_product_attr_info($prod_id = '',$cat_id = '')
+	{
+		$this->db->select('a.*,v.st_value');
+        $this->db->from('tbl_product_attribute a');
+		$this->db->join('tbl_attribute_val v', 'v.in_attribute_val = a.in_attribute_val','LEFT');
+		$this->db->where('a.in_product_id',$prod_id);
+		$this->db->where('a.in_attribute_id',$cat_id);
+		$this->db->where('a.in_deleted',0);
+		$this->db->where('v.in_deleted',0);
+		$query = $this->db->get();
+		
+		$res = array();
+		if($query->num_rows()>0)
+		{  
+				foreach($query->result() as $Row)
+				{
+					$res[] = $Row->in_attribute_val;
+				}
+		}
+		//return $res;
+		return $query->result();
+		// echo $this->db->last_query();
+		// exit();
+		
+	}
+	
+
+	public function get_total_filterd_awards($sel_treatment_id = '',$sel_product_id = '',$search = '',$status = '')
+	{
+		//$this->db->select('*');
+		//$this->db->from('tbl_awards a');
+		
+		//$cat_ids = array();
+		
+		// if(!empty($sel_treatment_id))
+		// {
+			// $cat_ids[] = $sel_treatment_id;
+			
+		// }
+		// if(!empty($sel_product_id))
+		// {
+			// $cat_ids[] = $sel_product_id;
+			
+		// }
+		
+		
+		// $count_of_filters = '';
+		// if(is_array($cat_ids) and !empty($cat_ids))
+		// {
+			// $count_of_filters = (count($cat_ids) - 1);
+			// $this->db->where_in('a.in_attribute_val',$cat_ids);
+			 
+			 
+			 // $this->db->group_by('a.in_product_id');
+			
+			 // $this->db->having('COUNT(a.in_product_id) > '.$count_of_filters);
+
+		// }
+		// else{
+			// $this->db->group_by('a.in_product_id');
+		// }
+		
+		// $this->db->where('a.in_deleted',0);
+		
+		// $this->db->join('tbl_products p', 'p.in_product_id = a.in_product_id','LEFT');
+		// if($search!= '')
+		// {					
+													
+					// $this->db->where("(p.st_product LIKE '%".addslashes($search)."%' OR p.st_short_desc LIKE '%".addslashes($search)."%' OR p.st_desc LIKE '%".addslashes($search)."%' OR p.st_apply LIKE '%".addslashes($search)."%' OR p.st_tips LIKE '%".addslashes($search)."%' )", NULL, FALSE);			
+			
+	    // }
+		// if($status != '' and $status != 'all' and ($status == 1 or $status == 0))
+		// {
+				// $this->db->where('p.in_status',$status);		
+		// }
+		
+		//$this->db->where('a.in_deleted',0);
+		// $this->db->where('p.in_type',2);
+	
+		//$query = $this->db->get();
+		
+		//return $query->num_rows();
+		
+
+			
+		// $this->db->select('a.in_award_id,p.*');
+		$this->db->select('a.in_award_id,a.st_award_title,a.st_desc,a.in_status');
+		$this->db->from('tbl_awards a');
+		
+		$search_treatment="";
+		$search_product="";
+		
+		// if(!empty($sel_treatment_id))
+		// {
+			$search_treatment = $sel_treatment_id;
+			$this->db->join('tbl_award_treatment_attribute att', 'att.in_award_id = a.in_award_id','LEFT');
+		//}
+		// if(!empty($sel_product_id))
+		// {
+			$search_product= $sel_product_id;
+			$this->db->join('tbl_award_product_attribute ap', 'ap.in_award_id = a.in_award_id','LEFT');
+			$this->db->join('tbl_products p', 'p.in_product_id = ap.in_product_id','LEFT');
+			$this->db->join('tbl_products pa', 'pa.in_product_id = att.in_treatment_id','LEFT');
+			// LEFT JOIN tbl_products p ON p.in_product_id=ap.`in_product_id`
+			// LEFT JOIN tbl_products pa ON pa.in_product_id=att.`in_treatment_id`
+			
+		// }
+		// if(!empty($sel_treatment_id))
+		// {
+			// $cat_ids[] = $sel_treatment_id;
+		
+		// }
+		
+		// $count_of_filters = '';
+		
+		// if(is_array($cat_ids) and !empty($cat_ids))
+		// {
+			// $count_of_filters = (count($cat_ids) - 1);
+			// $this->db->where_in('a.in_attribute_val',$cat_ids);
+			
+			 
+			 // $this->db->group_by('a.in_product_id');
+		
+			 // $this->db->having('COUNT(a.in_product_id) > '.$count_of_filters);
+			
+		// }
+		// else{
+			// $this->db->group_by('a.in_product_id');
+		// }
+		
+		// $this->db->where('a.in_deleted',0);
+		// $this->db->join('tbl_products p', 'p.in_product_id = a.in_product_id','LEFT');
+		
+		// $this->db->where('p.in_deleted',0);
+		
+		
+		
+		// if()
+		
+		if($search!= '')
+		{					
+													
+					$this->db->or_where("(a.st_award_title LIKE '%".addslashes($search)."%' OR a.st_desc LIKE '%".addslashes($search)."%' OR p.st_product LIKE '%".addslashes($search)."%' OR pa.st_product LIKE '%".addslashes($search)."%' )", NULL, FALSE);			
+			
+	    }
+		if($status != '' and $status != 'all' and ($status == 1 or $status == 0))
+		{
+				// $this->db->where('p.in_status',$status);		
+				$this->db->where('a.in_status',$status);		
+		}
+	
+		// if(!empty($sel_product_id) || !empty($sel_treatment_id))
+		// {
+			// $this->db->where("('ap.in_product_id'=$sel_product_id OR 'att.in_treatment_id'=$sel_treatment_id)");
+		// }
+	
+		if(!empty($sel_product_id) && !empty($sel_treatment_id))
+		{
+			$where="('ap.in_product_id'='".$sel_product_id."' or "."'ap.in_treatment_id'='".$sel_treatment_id."')";
+			//$this->db->where('ap.in_product_id',$sel_product_id);		
+			
+			$this->db->where($where);			
+			
+		}
+		if(empty($sel_product_id) && !empty($sel_treatment_id))
+		{
+			$search_treatment= $sel_treatment_id;
+			$this->db->where('att.in_treatment_id',$search_treatment);		
+			
+		}
+		if(!empty($sel_product_id) && empty($sel_treatment_id))
+		{
+			$search_treatment= $sel_treatment_id;
+			$this->db->where('ap.in_product_id',$sel_product_id);		
+			
+		}
+		
+		 $this->db->group_by('a.in_award_id');
+		
+		// if(!empty($sort) and !empty($order))
+		// {
+				
+			// $this->db->order_by($sort,$order);
+		// }
+		// else{
+			
+			
+			// $this->db->order_by('a.in_award_id','DESC');
+		// }
+
+		// if(!empty($rec_per_page) and $rec_per_page != '-1')
+		// {
+			// $this->db->limit($rec_per_page,$limit);	
+		// } 
+		
+		
+		
+		$query = $this->db->get();
+		
+		// echo $this->db->last_query();
+		// exit();
+		$res = array();
+		return $query->num_rows();
+		
+		
+		
+		
+		
+	}
+	
+	//public function get_filterd_products($rec_per_page = '',$limit = '',$sel_skin_cond_id = '',$sel_prod_ben_id = '',$sel_treatment_id = '',$search = '',$status = '',$sort = '',$order = '')
+	public function get_filterd_awards($rec_per_page = '',$limit = '',$sel_treatment_id = '',$sel_product_id = '',$search = '',$status = '',$sort = '',$order = '')
+	{
+		// exit();
+		// $this->db->select('a.in_award_id,p.*');
+		$this->db->select('a.in_award_id,a.st_award_title,a.st_desc,a.in_status');
+		$this->db->from('tbl_awards a');
+		
+		$search_treatment="";
+		$search_product="";
+		
+		// if(!empty($sel_treatment_id))
+		// {
+			$search_treatment = $sel_treatment_id;
+			$this->db->join('tbl_award_treatment_attribute att', 'att.in_award_id = a.in_award_id','LEFT');
+		//}
+		// if(!empty($sel_product_id))
+		// {
+			$search_product= $sel_product_id;
+			$this->db->join('tbl_award_product_attribute ap', 'ap.in_award_id = a.in_award_id','LEFT');
+			$this->db->join('tbl_products p', 'p.in_product_id = ap.in_product_id','LEFT');
+			$this->db->join('tbl_products pa', 'pa.in_product_id = att.in_treatment_id','LEFT');
+			// LEFT JOIN tbl_products p ON p.in_product_id=ap.`in_product_id`
+			// LEFT JOIN tbl_products pa ON pa.in_product_id=att.`in_treatment_id`
+			
+		// }
+		// if(!empty($sel_treatment_id))
+		// {
+			// $cat_ids[] = $sel_treatment_id;
+		
+		// }
+		
+		// $count_of_filters = '';
+		
+		// if(is_array($cat_ids) and !empty($cat_ids))
+		// {
+			// $count_of_filters = (count($cat_ids) - 1);
+			// $this->db->where_in('a.in_attribute_val',$cat_ids);
+			
+			 
+			 // $this->db->group_by('a.in_product_id');
+		
+			 // $this->db->having('COUNT(a.in_product_id) > '.$count_of_filters);
+			
+		// }
+		// else{
+			// $this->db->group_by('a.in_product_id');
+		// }
+		
+		// $this->db->where('a.in_deleted',0);
+		// $this->db->join('tbl_products p', 'p.in_product_id = a.in_product_id','LEFT');
+		
+		// $this->db->where('p.in_deleted',0);
+		
+		
+		
+		// if()
+		
+		if($search!= '')
+		{					
+													
+					$this->db->or_where("(a.st_award_title LIKE '%".addslashes($search)."%' OR a.st_desc LIKE '%".addslashes($search)."%' OR p.st_product LIKE '%".addslashes($search)."%' OR pa.st_product LIKE '%".addslashes($search)."%' )", NULL, FALSE);			
+			
+	    }
+		if($status != '' and $status != 'all' and ($status == 1 or $status == 0))
+		{
+				// $this->db->where('p.in_status',$status);		
+				$this->db->where('a.in_status',$status);		
+		}
+	
+		// if(!empty($sel_product_id) || !empty($sel_treatment_id))
+		// {
+			// $this->db->where("('ap.in_product_id'=$sel_product_id OR 'att.in_treatment_id'=$sel_treatment_id)");
+		// }
+	
+		if(!empty($sel_product_id) && !empty($sel_treatment_id))
+		{
+			$search_treatment= $sel_treatment_id;
+			$where="('ap.in_product_id'='".$sel_product_id."' or "."'ap.in_treatment_id'='".$sel_treatment_id."')";
+			//$this->db->where('ap.in_product_id',$sel_product_id);		
+			
+			$this->db->where($where);		
+			
+		}
+		if(empty($sel_product_id) && !empty($sel_treatment_id))
+		{
+			$search_treatment= $sel_treatment_id;
+			$this->db->where('att.in_treatment_id',$search_treatment);		
+			
+		}
+		if(!empty($sel_product_id) && empty($sel_treatment_id))
+		{
+			$search_treatment= $sel_treatment_id;
+			$this->db->where('ap.in_product_id',$sel_product_id);		
+			
+		}
+		
+		 $this->db->group_by('a.in_award_id');
+		
+		if(!empty($sort) and !empty($order))
+		{
+				// exit();
+				// echo $sort; 
+			$this->db->order_by($sort,$order);
+		}
+		else{
+			// $this->db->order_by('p.in_award_id','DESC');
+			
+			$this->db->order_by('a.in_award_id','DESC');
+		}
+
+		if(!empty($rec_per_page) and $rec_per_page != '-1')
+		{
+			$this->db->limit($rec_per_page,$limit);	
+		} 
+		
+		
+		
+		$query = $this->db->get();
+		
+		// echo $this->db->last_query();
+		
+		// exit();
+		$res = array();
+		if($query->num_rows()>0)
+		{  
+				foreach($query->result() as $row)
+				{
+					
+					$in_award_id = isset($row->in_award_id) ? $row->in_award_id : '';
+					 // echo $sel_product_id;
+		// exit();
+					$product_data=$this->get_award_attribute_info($in_award_id,'product');
+					$product = (is_array($product_data) and !empty($product_data)) ? implode(', ',$product_data) : '';
+					
+					$treatment_data=$this->get_award_attribute_info($in_award_id,'treatment');
+					$treatment = (is_array($treatment_data) and !empty($treatment_data)) ? implode(', ',$treatment_data) : '';
+					$in_status = isset($row->in_status) ? $row->in_status : '';
+					$st_award_title = isset($row->st_award_title) ? $row->st_award_title : '';
+					$st_desc = isset($row->st_desc) ? $row->st_desc : '';
+					$res[] = array(
+									'in_award_id'			=>		$in_award_id,
+									'st_award_title'		=>	    $st_award_title,
+									'treatment'				=>	    $treatment,
+									'product'				=>	    $product,
+									'st_desc'				=>		$st_desc,
+									'status'				=>		$in_status
+								);
+					
+					
+					
+				}
+		}
+		// exit();
+		
+		return $res;
+		// echo "<pre>";
+		// print_R($res);
+		// exit();
+		
+		
+		
+	}
+	public function get_product($id='')
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_award_product_attribute');
+		$this->db->where('in_award_id', $in_award_id);
+		$query = $this->db->get();
+		// echo $this->db->last_query();
+		// exit();
+		foreach($query->result_array() as $row)
+		{
+			$p_data[]=$row['in_product_id'];
+		}
+	}
+	 function get_award_attribute_info($in_award_id,$type)
+	{
+		 // echo "aaa".$ss;
+		// exit();
+		
+		$search_id=null;
+		// exit();
+		if($type=="product")
+		{
+			$p_data=array();
+			$this->db->select('*');
+			$this->db->from('tbl_award_product_attribute p');
+			$this->db->join('tbl_products at', 'at.in_product_id = p.in_product_id','LEFT');
+			$this->db->where('in_award_id', $in_award_id);
+			$this->db->where('p.in_deleted', 0);
+			$this->db->where('p.in_status', 1);
+			if(!empty($search_id))
+			{
+				$this->db->where('p.in_product_id',$search_id);
+			}
+			$query = $this->db->get();
+			//echo $this->db->last_query();
+			// exit();
+			foreach($query->result_array() as $row)
+			{
+				$p_data[]=$row['st_product'];
+			}
+			return $p_data;
+		}
+		else
+		{
+			$t_data=array();
+			$this->db->select('*');
+			$this->db->from('tbl_award_treatment_attribute t');
+			$this->db->join('tbl_products k', 't.in_treatment_id = k.in_product_id','LEFT');
+			$this->db->where('in_award_id', $in_award_id);
+			$this->db->where('t.in_deleted', 0);
+			$this->db->where('t.in_status', 1);
+			if(!empty($search_id))
+			{
+				$this->db->where('t.in_treatment_id',$search_id);
+			}
+			$query = $this->db->get();
+			// echo $this->db->last_query();
+			// exit();
+			foreach($query->result_array() as $row)
+			{
+				 $t_data[]=$row['st_product'];
+			}
+			return $t_data;
+		}
+		
+	}
+	public function get_award_attr($id,$type)
+	{
+		if($type=="product")
+		{
+			$p_data=array();
+			$this->db->select('*');
+			$this->db->from('tbl_award_product_attribute p');
+			$this->db->join('tbl_products at', 'at.in_product_id = p.in_product_id','LEFT');
+			$this->db->where('in_award_id', $id);
+			$this->db->where('p.in_deleted', 0);
+			$query = $this->db->get();
+			$i=0;
+			foreach($query->result_array() as $row)
+			{
+				$p_data[$i]['attribute_name']=$row['st_product'];
+				$p_data[$i]['attribute_id']=$row['in_product_id'];
+				$i++;
+			}
+			 // echo "<pre>";
+			 // print_R($p_data);
+			 // exit();
+			 return $p_data;
+			
+		}
+		else
+		{
+			$t_data=array();
+			$this->db->select('*');
+			$this->db->from('tbl_award_treatment_attribute t');
+			$this->db->join('tbl_products k', 't.in_treatment_id = k.in_product_id','LEFT');
+			$this->db->where('in_award_id', $id);
+			$this->db->where('t.in_deleted', 0);
+			$query = $this->db->get();
+			// echo $this->db->last_query();
+			// exit();
+				$i=0;
+			foreach($query->result_array() as $row)
+			{
+				
+				 $t_data[$i]['attribute_name']=$row['st_product'];
+				 $t_data[$i]['attribute_id']=$row['in_product_id'];
+				$i++;
+			}
+			 // echo "<pre>";
+			 // print_R($t_data);
+			 // exit();
+			return $t_data;
+		}
+		
+	}	
+	public function update_award_data($in_award_id, $array = array())
+	{
+		$this->db->where('in_award_id', $in_award_id);
+		$this->db->update('tbl_awards', $array);
+	}
+	
+	
+	public function get_all_questions($rec_per_page = 10,$limit = 0,$search = '',$sort = '',$order = '')
+	{
+		// exit();
+		$this->db->select('a.*');
+        $this->db->from('tbl_survey_questions a');
+		if($search!= ''){								
+			$this->db->where("(a.st_question LIKE '%".addslashes($search)."%')", NULL, FALSE);			
+	    }
+		$this->db->where('a.in_deleted',0);
+		if(!empty($sort) and !empty($order)){
+			$this->db->order_by($sort,$order);
+		}else{
+			$this->db->order_by('a.in_ques_id','DESC');
+		}
+		//$this->db->order_by('p.in_product_id','DESC');
+		if($rec_per_page!="-1"){
+			$this->db->limit($rec_per_page,$limit);	
+		}
+		
+		$query = $this->db->get();
+		$res = array();
+		if($query->num_rows()>0){
+			foreach($query->result() as $row){
+				$in_ques_id = isset($row->in_ques_id) ? $row->in_ques_id : '';
+				$st_type = isset($row->st_type) ? $row->st_type : '';
+				$st_question = isset($row->st_question) ? $row->st_question : '';
+				$in_ques_type = isset($row->in_ques_type) ? $row->in_ques_type : '';
+				$in_required  = isset($row->in_required) ? $row->in_required : '';
+				$dt_created = isset($row->dt_created) ? $row->dt_created : '';
+				$dt_modified = isset($row->dt_modified) ? $row->dt_modified : '';
+				$in_status = isset($row->in_status) ? $row->in_status : '';
+				$res[] = array(
+								'in_ques_id'			=>		$in_ques_id,
+								'st_type'		    	=>	    ucfirst(strtolower($st_type)),
+								'st_question'		    =>	    $st_question,
+								'in_ques_type'			=>	    $in_ques_type,
+								'in_required'			=>	    $in_required,
+								'dt_created'			=>	    $dt_created,
+								'dt_modified'			=>	    $dt_modified,
+								'in_status'			    =>	    $in_status
+							);
+			}
+		}
+		return $res;
+			
+	}
+
+	public function delete_checked_row($ids,$data)
+	{
+		// $this->db->where_in('in_ques_id', $ids);
+		// $this->db->delete('tbl_survey_questions'); 
+		
+		$this->db->where_in('in_ques_id', $ids);
+		$this->db->update('tbl_survey_questions', $data);
+	}
+	public function get_all_questions_cnt($search = '')
+	{
+		$this->db->select('p.*');
+		$this->db->from('tbl_survey_questions p');
+		$this->db->where('p.in_deleted',0);
+		if($search!= '')
+		{					
+			$this->db->where("(p.st_question LIKE '%".addslashes($search)."%')", NULL, FALSE);				
+	    }
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	
+}
+
+?>

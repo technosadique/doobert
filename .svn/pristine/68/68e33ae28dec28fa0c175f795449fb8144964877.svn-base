@@ -1,0 +1,150 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class User_order extends CI_Controller {
+
+    /**
+     * Index Page for this controller.
+     *
+     * Maps to the following URL
+     * 		http://example.com/index.php/welcome
+     * 	- or -  
+     * 		http://example.com/index.php/welcome/index
+     * 	- or -
+     * Since this controller is set as the default controller in 
+     * config/routes.php, it's displayed at http://example.com/
+     *
+     * So any other public methods not prefixed with an underscore will
+     * map to /index.php/welcome/<method_name>
+     * @see http://codeigniter.com/user_guide/general/urls.html
+     */
+    public function __construct() {
+        parent::__construct();
+        $this->output->enable_profiler(FALSE);
+        $this->load->library('common_function');
+        //$this->common_function->check_front_logged_in($this);
+        //error_reporting(E_STRICT);
+        $this->load->model('user_order_model');
+        $this->load->model('organimal_model');
+        $this->load->model('common_model');
+        $this->load->model('foster_model');
+        $this->load->library('form_validation');
+        $this->load->helper('url');
+        $this->load->helper('cookie');
+        $this->session->unset_userdata('org_id');
+        //$this->session->unset_userdata('transport_id');
+        $this->session->unset_userdata('delete_org_id');
+    }
+
+    public function index() {
+		
+		
+		
+		$this->user_order_model->get_all_orders();
+		//$this->load->view('my-orders');
+	//$this->load->view('my-orders-detail');
+    }
+
+	
+	public function my_orders($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		if(!$sort)
+                    $sort='in_order_id';
+		
+		if(!$order)
+                    $order = 'desc';
+					
+		if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+		else	
+				$limit = '0'; 		
+						
+		if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+		else	
+				$limit = '0'; 
+		$search_text     =   trim($this->input->post('search_text')); 
+		if(isset($search_text )){  		  
+		 		$this->session->set_userdata('search_text',$search_text);                     
+        }
+				
+				
+		// pagination starts
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'user_order/my_orders/'.$sort.'/'.$order;
+		
+		$config["per_page"]	 		= 10 ;              
+        $config['cur_page'] 		= $limit;              
+                
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = $limit;
+		
+		$data['get_orders'] = $this->user_order_model->get_all_orders($config["per_page"],$page,$sort,$order,$search_text);
+		
+		//echo '<pre>'; print_r($data['get_orders']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['get_orders']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+                
+		$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;	
+		$data['search_text']    =   $search_text;	
+		$this->load->view('my-orders',$data);
+	}
+	
+	public function my_orders_detail($orderId)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		//$data['general_detail']	=	$this->product_model->get_general_detail($orderId);	
+		
+		$data['order_detail']	=	$this->user_order_model->get_order_details($orderId);	
+		$data['order_address']  =   $this->user_order_model->get_order_address($orderId);
+		$data['order_lineitem']  =  $this->user_order_model->get_order_lineitem($orderId);	
+		$this->load->view('my-orders-detail',$data);
+	}
+	
+}
+
+/* End of file user.php */
+/* Location: ./application/controllers/user.php */

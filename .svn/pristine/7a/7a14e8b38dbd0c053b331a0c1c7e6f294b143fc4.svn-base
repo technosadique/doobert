@@ -1,0 +1,401 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Jun-2019
+# File description: Manage_exam(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Manage_exam extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('exam_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');			
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';		
+		$name				=	'';
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='title';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{
+			
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');						
+				
+			$name = trim($this->input->post('txtsearch'));				
+			$this->session->set_userdata('searchadmin',$this->common_function->custom_htmlentities($name));									
+		}		
+
+		$rec_per_page =	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->exam_model->get_total_exam($this->session->userdata('searchadmin'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['exam_list']	= $this->exam_model->get_exam($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'));
+		
+		//echo '<pre>'; print_r($data['exam_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'manage_exam/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Exam Information Available.';
+		}
+		
+		$this->load->view('manage-exam',$data);
+	}
+	
+	
+	function manage_exam_delete($id)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->exam_model->delete_exam($id);			
+		$this->session->set_flashdata('success', 'Exam has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'manage_exam');
+		
+	}
+	
+	
+		
+		
+	function delete_multiple_manage_exam()
+	{   
+	    
+		$ids = $this->input->post('examid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->exam_model->delete_multiple_exam($ids);
+			
+			$this->session->set_flashdata('success', 'Exam(s) has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'manage_exam/page/'.$sort.'/'.$order.'/'.$limit);			
+	}
+	
+	
+			
+	
+	function edit_exam($id = false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['question_list'] = $this->exam_model->get_question();
+		$data['selected_question_list'] = $this->exam_model->selected_question_list($id);
+		
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array(  'title'				=> "",
+								'description'		=> "",
+								'duration'			=> "",
+								'price'				=> "",
+								'totalscore'		=> "",
+								'passingscore'		=> "",
+								'attempt'			=> "",	
+							    'active'			=> ""								 								  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+		$data['exam_detail'] = $this->exam_model->get_exam_profile($id);		
+		
+		//echo '<pre>'; print_r($data['exam_detail']); die;
+		if($this->input->post('action')=='Edit')
+		{   
+			//Validation rules
+						$id			      = $this->input->post('id');									
+						$this->form_validation->set_rules('title', 'Exam Title', 'trim|required');
+						$this->form_validation->set_rules('description', 'Exam Description', 'trim|required');
+						$this->form_validation->set_rules('duration', 'Exam Duration', 'trim|required');
+						$this->form_validation->set_rules('price', 'Exam Price', 'trim|required');
+						$this->form_validation->set_rules('totalscore', 'Total Score', 'trim|required');
+						$this->form_validation->set_rules('passingscore', 'Passing Score', 'trim|required');
+						$this->form_validation->set_rules('attempt', 'No of Attempts', 'trim|required');					
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{  
+						$data['Err_Msg'] = validation_errors();						
+						$data['exam_detail'] = $this->exam_model->get_exam_profile($id);					
+						$this->load->view('exam-edit',$data);
+				}
+			
+			else
+			{ 		
+						$exam_info 								=   array();
+						$exam_info['st_exam_title'] 			=	$this->input->post('title');
+						$exam_info['st_exam_desc'] 			    =	$this->input->post('description');
+						$exam_info['in_exam_duration'] 			=	$this->input->post('duration');
+						$exam_info['st_exam_price'] 			=	$this->input->post('price');
+						$exam_info['in_total_score'] 			=	$this->input->post('totalscore');
+						$exam_info['in_passing_score'] 			=	$this->input->post('passingscore');
+						$exam_info['in_no_of_attempts'] 		=	$this->input->post('attempt');
+						$exam_info['in_status'] 				=	$this->input->post('active');								
+						$exam_info['dt_modified'] 				= 	date('Y-m-d H:i:s');	
+						
+						
+						
+						$title1	=	$this->input->post('title1'); 		
+						$title	=	$this->input->post('title'); 
+						$check='';
+						 if($title!=$title1)
+						{  							
+							$check	=	$this->exam_model->is_title_exists($this->input->post('title'));							
+						}
+						if($check){
+							
+						$data['exam_detail'] = $this->exam_model->get_exam_profile($id);	
+						$data['Err_Msg'] = 'Title already exist.';										
+						$this->load->view('exam-edit',$data);	
+						}
+						else{			
+			
+						//Updating admin data
+						$this->exam_model->update_exam_info($exam_info,$id,'tbl_exam');					
+						$this->session->set_flashdata('message', 'You have successfully updated exam!');					
+						redirect(site_url('manage_exam/edit_exam/'.$id));
+							}
+				
+			}
+		}
+		
+		else
+		{			
+						$this->load->view('exam-edit',$data);
+		}
+	}
+	
+	
+	
+	
+
+	function add_exam()
+	{		 
+	    if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();
+		
+		$form_field	=	array(  'title'				=> "",	
+								'description'		=> "",
+								'duration'			=> "",
+								'price'				=> "",
+								'totalscore'		=> "",
+								'passingscore'		=> "",
+								'attempt'			=> "",
+							    'active'			=> ""		  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}			
+		
+		if($this->input->post('action')=='Add')
+		{  
+			
+			// validation starts
+			foreach ($form_field as $key => $value) {	
+				$data['add'][$key] = $this->input->post($key);	
+			}
+			
+				$this->form_validation->set_rules('title', 'Exam Title', 'trim|required');
+				$this->form_validation->set_rules('description', 'Exam Description', 'trim|required');
+				$this->form_validation->set_rules('duration', 'Exam Duration', 'trim|required');
+				$this->form_validation->set_rules('price', 'Exam Price', 'trim|required');
+				$this->form_validation->set_rules('totalscore', 'Total Score', 'trim|required');
+				$this->form_validation->set_rules('passingscore', 'Passing Score', 'trim|required');
+				$this->form_validation->set_rules('attempt', 'No of Attempts', 'trim|required');
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();												
+						$this->load->view('exam-add',$data);	
+				}
+			else
+			{  		
+						$title	=	$this->input->post('title'); 						
+						
+						$check	=	$this->exam_model->is_title_exists($title);
+						if($check)
+						{  
+						    $data['Err_Msg']	=	'Exam title already exist.';
+							$this->load->view('exam-add',$data);	
+						}
+						else
+						{				
+							
+						$this->exam_model->insertExam($data['add']);							
+						$this->session->set_flashdata('message', 'You have successfully created exam!');							
+						redirect(site_url('manage_exam/add_exam'));		
+						}
+			}			
+		}
+		else
+		{		     
+			$this->load->view('exam-add',$data);
+			
+		}		
+	}
+	
+	public function add_exam_question()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();		
+		if($this->input->post('action') == 'add_question')
+		{
+			
+			$examid 		= $this->input->post('examid');
+			$quest_id 		= $this->input->post('quest_id');
+			$qid 			= serialize($quest_id);
+			
+			$checkrecord= $this->exam_model->is_record_exist($examid);
+			if($checkrecord){
+				
+				$update 		= $this->exam_model->update_exam_question($examid,$qid);
+			}
+			else{
+						
+			$insert 		= $this->exam_model->add_exam_question($examid,$qid);
+			}
+		}
+		$this->session->set_flashdata('message', 'You have successfully updated questions!');	
+		redirect(site_url('manage_exam/edit_exam/'.$examid));
+	}
+	
+}
+
+/* End of file vehicle_types.php */
+/* Location: ./application/controllers/vehicle_types.php */

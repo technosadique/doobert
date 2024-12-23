@@ -1,0 +1,135 @@
+<?php
+class photo_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	public function get_filtered_name($dname){
+		if(!is_null($dname)){
+			$dname = trim($dname);
+			$dname = str_replace(' ','-',trim($dname));
+			$dname = preg_replace("![^a-z0-9&~_-]+!i", "", html_entity_decode($dname));
+			$dname = str_replace('---','-',trim($dname));			
+			if(substr($dname,-1) == '.')
+				$dname = substr($dname,0,-1);
+		}
+		return strtolower($dname);
+	}       
+	public function get_photos($limit, $start, $orderby=''){
+		 //echo'<pre>'; print_r($searchproducr); exit; 	    
+		
+		$this->db->select('tp.in_transport_photo_id as in_photo_id,tp.st_file_name,u.st_display_name,u.in_user_id');
+		$this->db->from('tbl_transportation_photo tp');	
+        $this->db->JOIN('tbl_users u', 'u.in_user_id = tp.in_created_by', 'INNER');		
+		$this->db->where('tp.in_deleted',0);
+		$this->db->where('tp.st_file_type','P');
+		$this->db->order_by("in_photo_id", $orderby);
+		$this->db->limit($limit, $start);
+		$query1 = $this->db->get();		
+		
+		$generalphotos = $query1->result_array();
+		
+		$this->db->select('tbl_general_photo.*,u.st_display_name,u.in_user_id');
+		$this->db->from('tbl_general_photo');
+		$this->db->JOIN('tbl_users u', 'u.in_user_id = tbl_general_photo.in_added_by', 'INNER');	
+		$this->db->where('tbl_general_photo.in_deleted',0);
+		$this->db->order_by("tbl_general_photo.in_photo_id", $orderby);
+		$this->db->limit($limit, $start);
+		$query2 = $this->db->get();
+		$photographerphotos = $query2->result_array();
+		
+		$allphotos=array_merge($generalphotos,$photographerphotos);
+		//echo  $this->db->last_query(); exit;
+		if (count($allphotos) > 0){
+			foreach ($allphotos as $row) {	
+
+			    //$imgpath     = $_SERVER["DOCUMENT_ROOT"]."/upload/"."trasnportation/250x250/" . $row['st_file_name'];
+				$imgpath     = $this->config->item('upload')."trasnportation/250x250/" . $row['st_file_name'];
+				if(file_exists($imgpath)){
+				
+				$row['p_fileid']	=	$row['in_photo_id'];
+				$row['p_filename']	=	$row['st_file_name'];
+				$row['p_username']	=	$row['st_display_name'];
+				$row['p_userprofile']	= base_url().'user-'.$row['in_user_id'].'-'.$this->common_function->get_filtered_name($row['st_display_name']);		
+				$data[] = $row;
+				}
+			}
+	//echo"<pre>"; print_r($data);		
+			return $data;
+		}
+		return false;
+	}
+	
+	function add_general_photo($arrData)
+	{
+		$user_id = $this->db->insert('tbl_general_photo', $arrData);
+		return  $this->db->insert_id();
+	}
+	
+	
+	
+	
+	public function get_product_detail($pid)
+	{
+		$data = array();
+		
+	    $today_date = strtotime(date('Y-m-d H:i:s'));
+		$this->db->select("tbl_auction_products.*,tbl_organization.st_org_name");		
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_organization','tbl_auction_products.in_organization_id=tbl_organization.in_organization_id','inner');	
+		$this->db->where(array("in_prod_id"=>$pid,"in_stock_status"=>1,"tbl_auction_products.in_deleted"=>0));
+		$query = $this->db->get();
+		$data['detail'] = $query->row_array();
+		if($data['detail']['in_prod_type']=='P'){
+			$data['detail']['button_ty']	=	1;			
+			
+		}elseif($data['detail']['in_prod_type']=='A'){
+			$data['detail']['button_ty']	=	2;			
+
+			if($today_date >= strtotime($data['detail']['dt_from']) and $today_date <= strtotime($data['detail']['dt_to'])){
+				//if current date is gretter than date from & current date is les than date to
+				$data['detail']['type1'] = 'date_type1';
+			
+			}else if($today_date > strtotime($data['detail']['dt_to'])){
+				//if current date is gretter than date to
+				$data['detail']['type1'] = 'date_type2';
+				
+			}else if($today_date < strtotime($data['detail']['dt_from'])){
+				//if current date is les than date from
+				$data['detail']['type1'] = 'date_type3';					
+			} 
+		//echo strtotime($data['detail']['dt_from']);
+			$this->db->select("in_user_id,in_bid_amt");
+			$this->db->from('tbl_bids');
+			$this->db->where('tbl_bids.in_deleted=0 AND tbl_bids.in_prod_id='.$pid);
+			$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+			$this->db->limit(1);
+			$query1 = $this->db->get();
+			//echo  $this->db->last_query(); exit;
+				
+			if($query1->num_rows()>0){
+				$bid_data=$query1->row_array();
+				$data['detail']['bid_amount']	=	$bid_data['in_bid_amt'];
+				$data['detail']['user_id']		=	$bid_data['in_user_id'];
+			}else{
+				$data['detail']['bid_amount']	=	$data['detail']['fl_start_price'];
+				$data['detail']['user_id']		=	0;
+			}
+		}
+				$data['detail']['p_url']	=	$data['detail']['in_prod_id'].'-';	
+				$data['detail']['p_url']	.=	$this->get_filtered_name($data['detail']['st_product']);
+
+				$data['detail']['o_url']	=	$data['detail']['in_organization_id'].'-';	
+				$data['detail']['o_url']	.=	$this->get_filtered_name($data['detail']['st_org_name']);
+		//print_r($data);
+		return $data;
+	}
+	
+	
+
+}   
+   
+?>

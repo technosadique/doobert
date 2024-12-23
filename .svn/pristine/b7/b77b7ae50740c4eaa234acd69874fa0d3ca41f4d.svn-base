@@ -1,0 +1,181 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 21-09-2017
+# File description: User(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Orders extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('order_model');
+		$this->load->helper(array('form', 'url'));	
+		error_reporting(E_ALL);  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			 $order = 'desc';
+			//$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{
+			
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');						
+				
+			$searchtxt = trim($this->input->post('txtsearch'));				
+			$this->session->set_userdata('searchadmin',$this->common_function->custom_htmlentities($searchtxt));	
+								
+		}		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->order_model->get_total_order($this->session->userdata('searchadmin'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['get_orders']	= $this->order_model->get_all_orders($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'));
+		
+		//echo '<pre>'; print_r($data['get_orders']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'orders/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No order(s) information available.';
+		}
+		
+		$this->load->view('order-manage',$data);
+	}
+	
+	
+	function view_order($orderId=false)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+			 {
+				$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				$this->session->set_userdata('redirect_url',$url);
+				redirect($this->config->item('admin_base_url'));	
+			 }			
+			
+			
+			$data['order_detail']	=	$this->order_model->get_order_details($orderId);
+			//echo '<pre>'; print_r($data['order_detail']); die;	
+			$data['order_address']  =   $this->order_model->get_order_address($orderId);
+			//echo '<pre>'; print_r($data['order_address']); die;	
+			$data['order_lineitem']  =   $this->order_model->get_order_lineitem($orderId);	
+			//echo '<pre>'; print_r($data['order_lineitem']); die;					
+			$this->load->view('order-view',$data);			
+	}
+	
+}
+
+/* End of file orders.php */
+/* Location: ./application/controllers/orders.php */

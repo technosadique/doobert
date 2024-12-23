@@ -1,0 +1,332 @@
+<?php
+
+class pushnotification_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+    #*********************************************************************************************
+    #	Function	:	get_feeds
+    #	Purpouse	:	Get Trasporttaion feeds
+    #*********************************************************************************************		
+
+    function get_feeds() {
+        $data = array();
+		//$currdate=date('Y-m-d H:i:s');
+		$currdate=date('Y-m-d');
+        $this->db->select('n.in_notification_id, 
+                            n.in_organization_id, 
+                            n.in_transportation_id, 
+                            n.st_notification_msg,  
+                            n.in_modified_by, 
+                            n.dt_created,
+                            n.in_type, 
+                            o.st_org_image,
+                            o.st_org_name,
+                            u.st_profile_image,
+                            u.st_display_name as full_name,
+                            u.in_user_id,
+							t.in_trans_coods_id,
+                            t.dt_pickup_date,t.dt_target,
+                            t.dt_created as tr_date,
+                            t.st_from_city,t.st_from_state,t.st_from_zip,
+                            t.st_to_city,t.st_to_state,t.st_to_zip');
+        $this->db->from('tbl_notification n');
+        $this->db->join('tbl_users u', "u.in_user_id=n.in_modified_by", 'INNER');		
+        $this->db->join('tbl_transportation t', 't.in_transportation_id=n.in_transportation_id', 'INNER');
+        $this->db->join('tbl_organization o', 'o.in_organization_id = t.in_organization_id AND o.in_deleted="0"', 'INNER');
+        $this->db->where('n.in_deleted', 0);
+		$this->db->where('n.dt_created >=', $currdate);	// created date >=current date		
+		$this->db->where('n.is_sent', 0);
+		//$this->db->where('u.in_device_type <>', 2);
+		//$this->db->group_by('n.in_modified_by');		
+       // $this->db->where('n.in_transportation_id', $transport_id);	  
+        $this->db->order_by('n.in_notification_id', 'DESC');
+        $query = $this->db->get();
+        //echo $this->db->last_query(); die;
+        $msg = '';
+		$raw_message='';
+        foreach ($query->result_array() as $row) {
+
+            if ($row['in_type'] == 5 || $row['in_type'] == 0) {
+                if ($row['st_notification_msg'] != '' || $row['in_type'] == 0) {					
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['st_org_name'] . ' created a new transportation';
+                }
+            } else if ($row['in_type'] == 6 || $row['in_type'] == 0) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['st_org_name'] . ' has updated list of animals';
+                }
+            } else if ($row['in_type'] == 7 || $row['in_type'] == 0) {
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = 'Transport #DBT' . $row['in_transportation_id'] . ' has been modified by ' .
+                            $row['full_name'];
+                }
+            } else if ($row['in_type'] == 8 || $row['in_type'] == 0) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+
+                    $msg = 'Transport #DBT' . $row['in_transportation_id'] . ' has been cancelled by ' .
+                            $row['full_name'];
+                }
+            } else if ($row['in_type'] == 9 || $row['in_type'] == 0) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ' joined the' .' transport #DBT' . $row['in_transportation_id'];;
+                }
+            } else if ($row['in_type'] == 10 || $row['in_type'] == 0) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = 'Transport #DBT' . $row['in_transportation_id'] . ' has been confirmed';
+                }
+            } else if ($row['in_type'] == 11 || $row['in_type'] == 0) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ' left the'.' transport #DBT' . $row['in_transportation_id'];
+                }
+            } else if ($row['in_type'] == 12 || $row['in_type'] == 0) {
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ' joined the' .' transport #DBT' . $row['in_transportation_id']. ' leg';
+                }
+            } else if ($row['in_type'] == 13 || $row['in_type'] == 0) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ' left leg from'.' transport #DBT' . $row['in_transportation_id'];
+                }
+            } else if ($row['in_type'] == 14 || $row['in_type'] == 0) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ':' . $row['st_notification_msg'];
+                }
+            } else if ($row['in_type'] == 21) {
+                $msg = 'Transport #DBT' . $row['in_transportation_id'] . $row['st_notification_msg'];
+            } else if ($row['in_type'] == 22) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ' has been removed from transportation.'.'Transport #DBT' . $row['in_transportation_id'];
+                }
+            } else if ($row['in_type'] == 23) {
+
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ' has been signed up as transport monitor';
+                }
+            } else if ($row['in_type'] == 24) {
+                if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ' has been removed from transport monitor';
+                }
+            }else{
+				$msg = substr('No Message...',0,256);
+			}
+			
+			$userdata=array();
+			$userdata=$this->check_user_exist($row['in_transportation_id']);		
+			//print_r($userdata);exit;
+			$participants_data=$this->get_transport_participants($row['in_transportation_id']);
+			
+			$participant_ids = array();		
+			if(isset($participants_data) && !empty($participants_data))
+			{
+				foreach($participants_data as $part_value)
+				{
+					$participant_ids[] = $part_value['in_user_id'];
+				}
+				
+			}		
+			
+			if(!empty($userdata))
+			{
+
+				$data[] = array('in_type' 				=> $row['in_type'],
+								'org_name' 				=> $row['st_org_name'],
+								'org_image' 			=> $row['st_org_image'],
+								'transportation_id' 	=> $row['in_transportation_id'],
+								'organization_id' 		=> $row['in_organization_id'],
+								'from_city' 			=> $row['st_from_city'],
+								'from_state'			=> $row['st_from_state'],
+								'from_zip' 				=> $row['st_from_zip'],
+								'to_city' 				=> $row['st_to_city'],
+								'to_state' 				=> $row['st_to_state'],
+								'to_zip' 				=> $row['st_to_zip'],
+								'dt_created' 			=> $row['tr_date'],
+								'message' 				=> $msg,
+								'target_date' 			=> $row['dt_target'],
+								'pickup_date' 			=> $row['dt_pickup_date'],
+								'notification_date' 	=> $row['dt_created'],
+								'user_name' 			=> $row['full_name'],
+								'user_image' 			=> $row['st_profile_image'],
+								'user_id' 				=> $row['in_user_id'],
+								'in_notification_id' 	=> $row['in_notification_id'],
+								'cood_user_id'			=> $row['in_trans_coods_id'],
+								'participant_id'		=> $participant_ids
+								//'userdata'				=> $this->check_user($row['in_transportation_id'],$msg,$row['in_notification_id'],$row['dt_target']),
+					
+				);
+				$this->check_user($row['in_transportation_id'],$msg,$row['in_notification_id'],$row['dt_target'],$row['in_trans_coods_id'],$participant_ids);
+			}
+        }
+
+    //echo $this->db->last_query(); die;
+        //return $query->result_array();
+        return $data;
+    }
+	
+	public function check_user($id,$msgs,$notid='',$target_dt='',$cood_user_id='',$participant_ids) {
+		$this->db->select('tp.in_user_id,u.strDeviceId,u.strDeviceToken');
+		$this->db->from('tbl_transportation_participants tp');
+		$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_device_type!='2' and u.in_pushnotification='0'",'INNER');			
+		//$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_pushnotification='0'",'INNER');	
+		$this->db->where('tp.in_transportation_id',$id);	
+		$this->db->where('tp.in_deleted',0); //updated on 30dec2015 to send feed only to active transport participants
+		$this->db->group_by('tp.in_user_id');		
+		$query = $this->db->get();
+		$arrData=array();
+		//return $query->row_array();
+		 foreach ($query->result() as $Row) {			 
+			 // push notification start
+			$raw_message='';
+			
+			$raw_message.= $msgs;  // pass message
+			if($raw_message!='' || !is_null($raw_message))
+			{	
+				//$raw_message= 'You have new jobs to bid.';
+				// Put your device token here (without spaces):
+				$deviceToken = $Row->strDeviceToken; // Device token 
+				
+				// Put your private key's passphrase here:
+				$passphrase = 'DRftgyhu12';
+				
+				// Put your alert message here:
+				$message = $raw_message;
+				
+				////////////////////////////////////////////////////////////////////////////////
+				
+				$ctx = stream_context_create();
+				//stream_context_set_option($ctx, 'ssl', 'local_cert', 'ck.pem');
+				//stream_context_set_option($ctx, 'ssl', 'local_cert', base_url().'upload/cert/doobert_adhoc.pem'); 
+				stream_context_set_option($ctx, 'ssl', 'local_cert', $_SERVER['DOCUMENT_ROOT'].'/upload/cert/doobert_adhoc.pem');
+				stream_context_set_option($ctx, 'ssl', 'passphrase', $passphrase);
+				
+				// Open a connection to the APNS server
+				/*$fp = stream_socket_client(
+					'ssl://gateway.sandbox.push.apple.com:2195', $err,
+					$errstr, 60, STREAM_CLIENT_CONNECT|STREAM_CLIENT_PERSISTENT, $ctx);
+				*/
+				
+				$fp = stream_socket_client(
+					'ssl://gateway.push.apple.com:2195', $err,
+					$errstr, 60, STREAM_CLIENT_CONNECT|STREAM_CLIENT_PERSISTENT, $ctx);
+				
+				
+				if (!$fp)
+					exit("Failed to connect: $err $errstr" . PHP_EOL);
+				
+				echo $deviceToken .'<br />';
+				echo 'Connected to APNS' . PHP_EOL;
+				
+				// Create the payload body
+				$body['aps'] = array(
+					'alert' => $message,
+					'sound' => 'default'
+					);
+				$body['Info'] = array(
+					'message_type' => 'feed',
+					'in_transportation_id' => $id,
+					'participant_id'	=> $participant_ids,
+					'cood_user_id'	=> $cood_user_id,
+					'dt_target' => $target_dt
+					);
+				
+				// Encode the payload as JSON
+				$payload = json_encode($body);
+				
+				// Build the binary notification
+				$msg = chr(0) . pack('n', 32) . pack('H*', $deviceToken) . pack('n', strlen($payload)) . $payload;
+				
+				// Send it to the server
+				$result = fwrite($fp, $msg, strlen($msg));
+				
+				if (!$result)
+				{
+					echo 'Message not delivered' . PHP_EOL;
+				}
+				else
+				{
+					echo 'Message successfully delivered' . PHP_EOL;
+					$data=array('is_sent'=>'1');
+					$this->db->where('in_notification_id', $notid);
+        			$this->db->update('tbl_notification', $data);
+					
+					
+					//WRITE UPDATE QUERY
+					
+				}	
+				
+				// Close the connection to the server
+				fclose($fp);
+			
+			// push notification end
+			
+			$arrData = array("in_user_id" 			=> $Row->in_user_id,
+							 "strDeviceId" 			=> $Row->strDeviceId,
+							 "strDeviceToken"	    => $Row->strDeviceToken
+				);
+		 }
+		 }
+		 return $arrData;
+	}
+	
+	
+	
+	public function check_user_exist($id) {
+		$this->db->select('tp.in_user_id,u.strDeviceId,u.strDeviceToken');
+		$this->db->from('tbl_transportation_participants tp');
+		$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_pushnotification='0'",'INNER');			
+		$this->db->where('tp.in_transportation_id',$id);	
+		//$this->db->where('tp.in_deleted',0);
+		$this->db->group_by('tp.in_user_id');		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;		
+		return $query->result();		 
+	}
+	
+	public function get_transport_participants($transport_id) {
+		$this->db->select('in_user_id');
+        $this->db->from("tbl_transportation_participants");        
+        $this->db->where('in_transportation_id', $transport_id);
+        $this->db->where('in_deleted', 0);
+		$this->db->where('in_transportation_leg_id >', 0);
+		$this->db->group_by('in_user_id');
+        $query = $this->db->get();
+		//echo $this->db->last_query(); die;		
+		return $query->result_array();		 
+	}
+}
+?>

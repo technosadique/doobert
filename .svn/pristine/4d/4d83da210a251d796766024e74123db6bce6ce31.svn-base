@@ -1,0 +1,163 @@
+<?php
+class quote_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+	public function get_quote_product($quote_id='',$user_id='',$session_id){ 
+	  //echo'<pre>'; print_r($searchproducr); exit; 
+	    $this->db->select('qi.in_quote_id,qi.in_quote_item_id,qi.in_prod_id,qi.st_prod_name,qi.in_prod_price,qi.in_prod_qty,ap.st_prod_image,ap.in_prod_type,ap.in_organization_id,o.st_email_address,o.st_paypal_email,qi.fl_shipping_cost');
+		$this->db->from('tbl_quote_item qi');
+		$this->db->join('tbl_quote q','qi.in_quote_id=q.in_quote_id AND q.in_deleted=0','inner');
+		$this->db->join('tbl_auction_products ap','qi.in_prod_id=ap.in_prod_id AND ap.in_stock_status=1 AND ap.in_deleted=0','inner');
+		$this->db->join('tbl_organization o','ap.in_organization_id=o.in_organization_id AND o.in_deleted=0','left');
+		$where = "qi.in_deleted='0' AND (q.st_session_id='".$session_id."' OR q.in_quote_id='".$quote_id."') AND q.in_deleted='0' ";	
+		
+		$this->db->where($where);
+		$this->db->order_by("qi.in_quote_item_id", 'asc');
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;
+		$res_arr = array();
+		if ($query->num_rows() > 0)
+		{
+			$res_arr = $query->result_array();
+		}
+		return $res_arr;
+			
+	}
+
+	public function get_user_details($user_id){
+	  //echo'<pre>'; print_r($searchproducr); exit; 
+	    $this->db->select('u.st_display_name,u.st_last_name,u.st_email,up.st_primary_phone,up.st_address1,up.st_address2,up.st_city,up.st_state,up.st_country,up.st_zip');
+		$this->db->from('tbl_users u');
+		$this->db->join('tbl_user_profile up','u.in_user_id=up.in_user_id AND u.in_deleted=0','inner');
+		$where = "u.in_user_id='".$user_id."' ";	
+		$this->db->where($where);
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;
+		$res_arr = array();
+		if ($query->num_rows() > 0)
+		{
+			$res_arr = $query->result_array();
+		}
+		return $res_arr;
+			
+	}
+
+
+
+	public function get_quote_details($quote_id){
+	  //echo'<pre>'; print_r($searchproducr); exit; 
+	    $this->db->select('in_user_id,st_session_id,in_quote_id');
+		$this->db->from('tbl_quote');
+		$where = "in_quote_id='".$quote_id."' AND in_deleted='0' ";	
+		
+		$this->db->where($where);
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;
+		$res_arr = array();
+		if ($query->num_rows() > 0)
+		{
+			$res_arr = $query->result_array();
+		}
+		return $res_arr;
+			
+	}
+
+	function update_quote($array,$quote_id)
+	{
+		$this->db->where('in_quote_item_id', $quote_id);
+		$this->db->update('tbl_quote_item', $array);
+	}
+
+	function insert_data($tbl_name,$data)
+	{
+		$this->db->insert($tbl_name, $data);
+		return  $this->db->insert_id();
+	}
+
+	function update_payment_details($array,$order_id)
+	{		
+		$this->db->where('in_order_id', $order_id);
+		$this->db->update('tbl_order', $array);
+		
+		$this->db->select('tbl_auction_products.in_prod_id,
+		tbl_auction_products.in_prod_type');
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_order_items','tbl_order_items.in_product_id=tbl_auction_products.in_prod_id','inner');
+		$where	=	"tbl_order_items.in_order_id='".$order_id."' ";
+		$this->db->where($where);
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;
+		if ($query->num_rows() > 0)
+		{
+		   foreach ($query->result_array() as $row) 
+		   {
+			   if($row['in_prod_type']=='A'){
+				   $update_details = array("in_stock_status"	=> 2);
+				   $this->db->where('in_prod_id', $row['in_prod_id']);
+					$this->db->update('tbl_auction_products', $update_details);					
+			   }
+		   }
+		}
+		//echo  $this->db->last_query(); exit;
+	}
+
+	public function get_order_details($order_id) { 
+		$this->db->select('	d.st_first_name,
+							d.st_last_name,							
+							d.st_addr1,
+							d.st_addr2,
+							d.st_city,
+							d.st_state,
+							d.st_zip,
+							d.st_country,
+							d.st_phone,
+							d.st_email,
+							o.fl_order_total,
+							o.fl_admin_fee,
+							o.fl_shipping_cost,
+							o.fl_grand_total');
+		$this->db->from('tbl_order_address d');
+		$this->db->join('tbl_order o','o.in_order_id=d.in_order_id AND o.in_deleted=0','inner');
+		$this->db->where('d.in_order_id',$order_id);
+		
+		$this->db->where('d.in_deleted',0);
+		$query = $this->db->get();
+		
+		return $query->row_array();
+	}
+	public function get_order_item_details($order_id) {
+		$this->db->select('	oi.in_product_id,							
+							oi.st_product_name,
+							oi.fl_cost,
+							oi.in_qty,
+							ap.st_sku,
+							org.in_organization_id,
+							org.st_org_name,
+							org.st_email_address
+							');
+		$this->db->from('tbl_order_items oi');
+		$this->db->join('tbl_auction_products ap','ap.in_prod_id=oi.in_product_id AND oi.in_deleted=0','inner');
+		$this->db->join('tbl_organization org','org.in_organization_id=ap.in_organization_id','inner');		
+		$this->db->where('oi.in_order_id',$order_id);		
+		$this->db->where('oi.in_deleted',0);
+		$query = $this->db->get();	
+		//echo  $this->db->last_query(); exit;		
+		return $query->result_array();
+	}
+
+	function update_data($array,$field_val,$table_name,$field_name)
+	{
+		$this->db->where($field_name, $field_val);
+		$this->db->update($table_name, $array);
+	}	
+
+
+}
+
+
+?>

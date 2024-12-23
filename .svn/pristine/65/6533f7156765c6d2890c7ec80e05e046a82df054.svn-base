@@ -1,0 +1,129 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 17-Apr-2018
+# File description	: Order Transport Model
+# Special - notes	: none
+# Tables used		: tbl_route_animals
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class route_animal_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+    #-----------------Add record for tbl_order----------------------------#
+    public function add_animal_profile($animal_data){
+    	$this->db->insert('tbl_route_animals',$animal_data);
+        return $this->db->insert_id();
+    }
+
+    //details using in_ord_trans_id
+    public function route_animal_byOrderid($ord_trans_id){
+        $this->db->select('a.in_route_animal_id, a.in_ord_trans_id, a.in_animal_id, a.st_animal_name, a.st_gender, a.in_animal_type_id, a.in_breed_id, a.in_weight, a.st_travel_with, a.st_cvi, a.in_demeanor_id, a.st_animal_photo, b.st_animal_breed_name');
+        $this->db->from('tbl_route_animals as a');
+        $this->db->join('tbl_animal_breed as b','b.in_animal_breed_id = a.in_breed_id','LEFT');               
+        $this->db->where("a.in_ord_trans_id",$ord_trans_id);
+        $this->db->where('a.in_deleted',0);
+        $query = $this->db->get();
+        return $query->result_array();
+    }
+
+    public function delete_route_animals($route_animal_arr, $route_animal_id){
+        $this->db->where('in_route_animal_id',$route_animal_id);   
+        $this->db->update('tbl_route_animals',$route_animal_arr);
+        return $this->db->affected_rows();
+    }
+
+
+    public function update_ord_trans_id($route_animal_arr, $in_ord_trans_id){
+        $this->db->where('in_ord_trans_id',$in_ord_trans_id);   
+        $this->db->update('tbl_route_animals',$route_animal_arr);
+        return $this->db->affected_rows();
+    }
+
+    //details using in_route_animal_id i.e. primary key
+    public function route_animal_by_id($in_route_animal_id){
+        $this->db->select('a.in_route_animal_id, a.in_ord_trans_id, a.in_animal_id, a.st_animal_name, a.st_gender, a.in_animal_type_id, a.in_breed_id, a.in_weight, a.st_travel_with, a.st_cvi, a.in_demeanor_id, a.st_animal_photo, b.st_animal_breed_name');
+        $this->db->from('tbl_route_animals as a');
+        $this->db->join('tbl_animal_breed as b','b.in_animal_breed_id = a.in_breed_id','LEFT');
+        $this->db->where('a.in_route_animal_id',$in_route_animal_id);
+        $this->db->where('a.in_deleted',0);
+        $query = $this->db->get();             
+        return $query->row_array();
+    }
+
+   
+
+    public function  route_animal_by_oid($in_ord_trans_id){
+        $this->db->select('a.in_route_animal_id, a.in_ord_trans_id, a.in_animal_id, a.st_animal_name, a.st_gender, a.in_animal_type_id, a.in_breed_id, a.in_weight, a.st_travel_with, a.st_cvi, a.in_demeanor_id, a.st_animal_photo, b.st_animal_breed_name');
+        $this->db->from('tbl_route_animals as a');
+        $this->db->join('tbl_animal_breed as b','b.in_animal_breed_id = a.in_breed_id','LEFT');               
+        $this->db->where("a.in_ord_trans_id like '".$in_ord_trans_id ."_%'");
+        $this->db->where('a.in_deleted',0);
+        $query = $this->db->get();
+        return $query->result_array();
+    }
+
+
+
+    public function update_route_animal($route_animal_arr, $route_animal_id){
+        $this->db->where('in_route_animal_id',$route_animal_id);   
+        $this->db->update('tbl_route_animals',$route_animal_arr);        
+        return $this->db->affected_rows();
+    }
+
+
+
+    public function get_transport_animals($tra_id)
+    {   
+        $this->db->select('r.in_ord_trans_id,
+                            r.in_route_animal_id,
+                            r.in_animal_id,
+                            r.st_animal_name,
+                            r.in_demeanor_id,
+                            ab.st_animal_breed_name,
+                            ty.st_animal_type_name,
+                            td.st_demeanor_name,
+                            td.st_demeanor_image,
+                            td.st_demeanor_desc,
+                            r.in_weight,
+                            r.st_cvi,
+                            r.st_travel_with,
+                            r.st_gender,
+                            r.st_animal_photo',
+                            // st_file_name,
+                            // a.st_on_clock,
+                            // td.st_css_class,
+                            // a.st_gender,
+                            // a.in_age,
+                          
+                            FALSE);
+
+        $this->db->from('tbl_order_transport as o');
+        $this->db->where('o.in_transport_id',$tra_id);
+        $this->db->where('o.in_deleted',0);
+        $this->db->join('tbl_route_animals as r','r.in_ord_trans_id = o.in_order_id');
+        $this->db->join('tbl_animal_breed ab','ab.in_animal_breed_id = r.in_breed_id','INNER');
+        $this->db->join('tbl_animal_type ty','ty.in_animal_type_id = r.in_animal_type_id','INNER');
+        $this->db->join('tbl_demeanor td','r.in_demeanor_id = td.in_demeanor_id','LEFT');
+        $this->db->join('tbl_animal_file af','af.in_animal_id = r.in_animal_id AND af.st_file_type="P" AND af.in_deleted="0" ','LEFT');
+        $this->db->where('r.in_deleted',0);
+        $this->db->group_by('r.in_route_animal_id');
+        $query = $this->db->get();
+        //echo $this->db->last_query();
+        if($query && !empty($query))
+        {
+            $result_array = $query->result_array(); 
+        }
+       // echo "<pre>";print_r($result_array);
+        return $result_array;
+    }
+
+   
+
+}
+?>

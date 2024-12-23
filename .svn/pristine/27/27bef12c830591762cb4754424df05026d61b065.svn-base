@@ -1,0 +1,530 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad 
+# Created date: 17-Mar-2016
+# File description: Members(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Cron extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	 public function __construct()
+    {
+		parent::__construct();				
+		$this->load->library('common_function');		
+		$this->load->model('cron_model');
+		$this->load->model('common_model');
+		$this->load->model('user_model');	
+		//error_reporting(E_ALL);
+		ini_set('max_execution_time',3000);
+		ini_set("memory_limit","1024M");
+	}	
+	
+	//function to export all data user details in excel
+	function exportallusers()
+	{		
+		$cron_email_array = array("cron_url"=> $this->config->item('admin_base_url').'cron/exportallusers',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+
+		$last_cron_inserted_id = $this->db->insert_id();
+
+		$sort = 'userid';			
+		$order = 'asc';		
+		
+		$rec_per_page =	 1000;
+		$crondata	  =  array();
+		$crondata	  =  $this->cron_model->cron_user();
+		//echo '<pre>';print_r($crondata);die;
+		//echo count($crondata); die;
+		//echo $crondata['in_cron_id'];die;
+		
+		if(isset($crondata['in_cron_id']) && $crondata['in_cron_id'] > 0)
+		{ 
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+			$limit = $crondata['in_last_counter'];				
+			if($limit==0)
+				$this->db->truncate('tbl_all_users');
+				
+			//echo "dfgdfg"; exit;
+
+			$user_lists	= $this->cron_model->get_user($sort,$order,$limit,$rec_per_page);
+			//echo '<pre>';print_r($user_lists);die;
+		
+		
+			if(!empty($user_lists)) { 
+			
+				$cron_email_array = array("cron_step"=>'3',
+									"cron_step_detail"=>'step3 if',
+									"cron_updated_date"=>date("Y-m-d H:i:s")
+									);
+			
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+				foreach($user_lists as $row) {
+					$data = array(  'in_user_id' 				=> $row['in_user_id'],
+									'st_email'					=> $row['st_email'],
+									'st_pilot'					=> $row['st_pilot'],
+									'st_driver'					=> $row['st_driver'],
+									'st_airline_emp'			=> $row['st_airline'],
+									'st_display_name'			=> $row['st_display_name'],
+									'st_city' 					=> $row['st_city'],
+									'st_state' 					=> $row['st_state'],
+									'st_zip' 					=> $row['st_zip'],										
+									'facebook_id'			    => $row['facebook_id'],								
+									'st_referred_by' 			=> $row['st_referred_by'],
+									'dt_transport_agree'		=> $row['dt_transport_agree'],
+									'dt_created'				=> $row['dt_created'],
+									'dt_modified'				=> $row['dt_modified'],
+									'driver_modified'			=> $row['driver_modified'],
+									'pilot_modified'			=> $row['pilot_modified'],
+									'foster_home_modified'		=> $row['foster_home_modified'],
+									'photographer_modified'		=> $row['photographer_modified'],
+									'per_vol_modified'			=> $row['per_vol_modified'],
+									'vir_vol_modified'			=> $row['vir_vol_modified'],
+									'doobert_verified'		    => $row['doobert_verified'],							
+									'dt_doobert_verified'		=> $row['dt_doobert_verified'],							
+									'in_status'					=> $row['in_status'],
+									'org_owners'				=> $row['org_owners']
+									);
+					$this->db->insert('tbl_all_users',$data);
+				}		
+				
+				$lastcounter  =  $crondata['in_last_counter'] + 500;
+				$data 		  =  array('in_last_counter' => $lastcounter);
+				$this->db->where('in_cron_id', $crondata['in_cron_id']);
+				$this->db->update('tbl_cron_counter', $data);	
+				//echo $this->db->last_query();die;							
+			}
+			else
+			{ 
+				
+				$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3 else',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+				$data =  array('in_status' => 1);					
+				$this->db->where('in_cron_id', $crondata['in_cron_id']);
+				$this->db->update('tbl_cron_counter', $data);
+				//echo $this->db->last_query();die;
+			
+					
+				// fetch all user details from tbl_all_users
+
+				//$alluserdata = array();
+				$alluserdata = $this->cron_model->get_alluser();
+				//$user_lists	= $this->cron_model->get_user($sort,$order,$limit,$rec_per_page);
+				//echo '<pre>'; print_r($alluserdata); die;
+				// excel sheet
+				$this->load->library('PHPExcel');
+				$objPHPExcel = new PHPExcel();
+				$tmparray =array("Name","Email","City","State","Zipcode","Profile Type","Registration Type","Status","Created Date","Modified Date","Last Logged In","Device Info","Driver Modified Date","Pilot Modified Date","Foster Home Modified Date","Photographer Modified Date","In Person Volunteer Modified Date","Virtual Support Volunteer Modified Date","I Agree Date","Verified","Verified Date","Referred By","Owner of Organizations");
+				//take new main array and set header array in it.
+				$sheet =array($tmparray);
+				
+				foreach($alluserdata as $user)
+				{ 	
+					//echo '<pre>'; print_r($alluserdata ); die;
+					$tmparray =array();
+					
+							$sqluseractivity  = "SELECT dt_created,st_device_info FROM tbl_user_activity  where in_user_id = '".$user->in_user_id."' order by dt_created desc limit 1";
+							$sqlcreateddate	    =	$this->db->query($sqluseractivity);							
+							$numrowprostat		=	$sqlcreateddate->num_rows($sqlcreateddate);	
+							$sqluseractivity	=	$sqlcreateddate->result();										
+							$lastlogin			=	$sqluseractivity[0]->dt_created;							
+							$deviceinfo			=   $sqluseractivity[0]->st_device_info;
+					
+							
+					
+					$created_date  = $user->dt_created;
+					if($created_date!='' && $created_date!='0000-00-00 00:00:00' && $created_date!='1969-12-31'){ 
+					$created_date = date("m-d-Y H:i:s",strtotime($created_date));} else{ $created_date=''; }		
+					
+					
+					if($lastlogin!='' && $lastlogin!='0000-00-00 00:00:00' && $lastlogin!='1969-12-31'){ 
+					$lastlogin = date("m-d-Y H:i:s",strtotime($lastlogin));} else{ $lastlogin=''; }
+					
+					
+					$modified_date  = $user->dt_modified;	
+					if($modified_date!='' && $modified_date!='0000-00-00 00:00:00' && $modified_date!='1969-12-31'){ 
+					$modified_date = date("m-d-Y H:i:s",strtotime($modified_date));} else{ $modified_date=''; }
+				
+					if(isset($user->driver_modified) && $user->driver_modified != '')
+					{
+					$driver_modified_date = date("m-d-Y H:i:s",strtotime($user->driver_modified));
+					}else{ $driver_modified_date = ''; }
+					
+					if(isset($user->pilot_modified) && $user->pilot_modified != '')
+					{
+					$pilot_modified_date = date("m-d-Y H:i:s",strtotime($user->pilot_modified));
+					}else{ $pilot_modified_date = ''; }
+					
+					if(isset($user->foster_home_modified) && $user->foster_home_modified != '')
+					{
+					$foster_home_modified = date("m-d-Y H:i:s",strtotime($user->foster_home_modified));
+					}else{ $foster_home_modified = ''; }
+					
+					if(isset($user->photographer_modified) && $user->photographer_modified != '')
+					{
+					$photographer_modified = date("m-d-Y H:i:s",strtotime($user->photographer_modified));
+					}else{ $photographer_modified = ''; }
+					
+					if(isset($user->per_vol_modified) && $user->per_vol_modified != '')
+					{
+					$per_vol_modified = date("m-d-Y H:i:s",strtotime($user->per_vol_modified));
+					}else{ $per_vol_modified = ''; }
+					
+					if(isset($user->vir_vol_modified) && $user->vir_vol_modified != '')
+					{
+					$vir_vol_modified = date("m-d-Y H:i:s",strtotime($user->vir_vol_modified));
+					}else{ $vir_vol_modified = ''; }
+					
+					if(isset($user->dt_transport_agree) && $user->dt_transport_agree != '' && $user->dt_transport_agree !='0000-00-00 00:00:00')
+					{
+					$dt_transport_agree = date("m-d-Y H:i:s",strtotime($user->dt_transport_agree));
+					}else{ $dt_transport_agree = ''; }
+
+					if($user->in_status == '0')
+					{    
+							$status	=	'Incomplete';
+					}			
+				
+					if($user->in_status=='1')
+					{    
+							$status	=	'Active';
+					}
+					if($user->in_status=='2')
+					{
+							$status	=	'Inactive';
+					}	
+					if($user->st_driver == 'Y')
+					{
+							$profiletype	=	'Driver';
+					}
+					if($user->st_pilot == 'Y')
+					{
+							$profiletype	=	'Pilot';
+					}
+					
+					if($user->st_airline_emp == 'Y')
+					{
+							$profiletype	=	'Airline';
+					}					
+					
+					if($user->st_pilot == 'Y' && $user->st_driver == 'Y')
+					{
+							$profiletype	=	'Both';
+					}
+					
+					if($user->st_pilot=='Y' && $user->st_airline_emp=='Y')
+					{
+							$profiletype	=	'Airline and Pilot';
+					}
+					
+					if($user->st_driver=='Y' && $user->st_airline_emp=='Y')
+					{
+							$profiletype	=	'Driver and Airline';
+					}					
+					
+					if($user->st_pilot == 'N' && $user->st_driver =='N')
+					{
+							$profiletype	=	'None';
+					}
+					if($user->st_pilot=='' && $user->st_driver =='')
+					{
+							$profiletype	=	'None';
+					}	
+					
+					if($user->st_pilot == 'Y' && $user->st_driver == 'Y' && $user->st_airline_emp == 'Y')
+					{
+							$profiletype	=	'Both and Airline';
+					}
+							
+					if($user->st_pilot =='N' && $user->st_driver =='N' && $user->st_airline_emp =='N')
+					{
+							$profiletype	=	'None';
+					}
+					if($user->st_pilot=='' && $user->st_driver=='' && $user->st_airline_emp =='')
+					{
+							$profiletype	=	'None';
+					}	
+				
+					if(isset($user->facebook_id) && $user->facebook_id != '')
+					{
+					
+						$registrationtype	= 'FB Registration';
+					}	
+					else
+					{
+						$registrationtype	= 'Normal Registration';
+					}				
+				
+					$user_name = $user->st_display_name;
+					//echo $user_name;exit;
+					
+					array_push($tmparray,$user_name);
+					$email = $user->st_email;
+					$city = $user->st_city;
+					$state = $user->st_state;
+					$user_state = '';
+					if(isset($state) && $state != '')
+					{
+						$user_state =  $this->common_function->state_list[$state];		
+						if($user_state == '')
+						{        
+							$user_state =  $this->common_function->canadian_state_list[$state];
+						}
+					}
+				
+					if($user->doobert_verified == '0')
+					{    
+							$verified	=	'No';
+					}
+					if($user->doobert_verified == '1')
+					{    
+							$verified	=	'Yes';
+					}
+					
+					$zipcode    = $user->st_zip;
+					$org_owners = $user->org_owners;
+					array_push($tmparray,$email);
+					array_push($tmparray,$city);
+					array_push($tmparray,$user_state);
+					array_push($tmparray,$zipcode);
+					array_push($tmparray,$profiletype);
+					array_push($tmparray,$registrationtype);
+					array_push($tmparray,$status);
+					array_push($tmparray,$created_date);
+					array_push($tmparray,$modified_date);
+					array_push($tmparray,$lastlogin);
+					array_push($tmparray,$deviceinfo);
+					array_push($tmparray,$driver_modified_date);
+					array_push($tmparray,$pilot_modified_date);					
+					array_push($tmparray,$foster_home_modified);
+					array_push($tmparray,$photographer_modified);
+					array_push($tmparray,$per_vol_modified);
+					array_push($tmparray,$vir_vol_modified);
+					array_push($tmparray,$dt_transport_agree);				
+					array_push($tmparray,$verified);
+					array_push($tmparray,($user->dt_doobert_verified!='')?date('m/d/Y',strtotime($user->dt_doobert_verified)):'');
+					array_push($tmparray,$user->st_referred_by);
+					array_push($tmparray,$org_owners);				
+					array_push($sheet,$tmparray);
+				}
+				//print_r($sheet); die;
+				//header('Content-type: application/vnd.ms-excel');
+				//header('Content-Disposition: attachment; filename="All User Details-'.date("m-d-Y").'.xls"');				
+				$title = array(
+					'font' => array(
+						'name' => 'Arial',
+						'size' => 14,
+						'bold' => true,
+						'color' => array(
+							'rgb' => 'FFFFFF'
+						),
+					),
+					'borders' => array(
+						'bottom' => array(
+							'style' => PHPExcel_Style_Border::BORDER_THIN,
+							'color' => array(
+								'rgb' => '606060'
+							)
+						),
+						'right' => array(
+							'style' => PHPExcel_Style_Border::BORDER_THIN,
+							'color' => array(
+								'rgb' => '606060'
+							)
+						)
+					),
+					'fill' => array(
+						'type' => PHPExcel_Style_Fill::FILL_SOLID,
+						'startcolor' => array(
+							'rgb' => '606060',
+						),
+					),
+				);
+				
+				$worksheet = $objPHPExcel->getActiveSheet();
+				
+				$worksheet->setTitle('All User Details');
+				$worksheet->SetCellValue('A1', 'All User Details');
+				$worksheet->getStyle('A1:V1')->applyFromArray($title);
+				$worksheet->mergeCells('A1:V1');
+
+				//print_r($sheet);exit;
+				foreach($sheet as $row => $columns) {
+				foreach($columns as $column => $data) {
+					$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+				}
+				}
+				$dtime	=	time();			
+				
+				$path = $_SERVER["DOCUMENT_ROOT"]."upload/excelreport/All_User_Details-".$dtime.'.xls';
+				//make first row bold
+				$objPHPExcel->getActiveSheet()->getStyle("A2:V2")->getFont()->setBold(true);
+				$objPHPExcel->setActiveSheetIndex(0);
+				$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');	
+				//$pth=$_SERVER["DOCUMENT_ROOT"]."upload/excelreport/abc.xls";				
+				//$objWriter->save($path);	
+				$pth= 'upload/excelreport/All_User_Details-'.$dtime.'.xls';
+				$objWriter->save($pth);
+				//				
+				
+				//email start
+				$this->load->library('email');
+				//$to = 'rupesh@pulsesolutions.net';
+				$to = 'sadique.mohammed@pulsesolutions.net';
+				//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+				$subject = 'All Doobert Users List';
+				
+				$this->email->attach($pth);
+				$message = 'Hi Admin,<br><br>Please download spreadsheet containing all exported users list using below mentioned Download link.<br><br><a href="http://dev.doobert.com/upload/excelreport/All_User_Details-'.$dtime.'.xls" target="_blank">Download Spreadsheet</a><br><br>Thanks'; 
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = 'sadique.mohammed@pulsesolutions.net', $this->config->item('admin_from_name')); 
+								
+				$dat=array('flg_email' => 1);
+				$this->db->where('in_cron_id', $crondata['in_cron_id']);
+				$this->db->update('tbl_cron_counter', $dat);
+				$this->db->truncate('tbl_all_users');
+				//unlink($path);				
+				//email end
+			}	
+			
+			$cron_email_array = array("cron_step"=>'4',
+								"cron_step_detail"=>'step4',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+		}else {
+		
+			$cron_email_array = array("cron_step"=>'4',
+								"cron_step_detail"=>'step4',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);			
+		}			
+	}
+	function tcboard_user_expiration_notification()
+	{
+		$user_details = array();
+		$user_details = $this->cron_model->get_tcboard_user_expiration();
+		$active_users_details = '';
+		if(count($user_details)>0)
+		{	
+			
+			$this->load->library('email');
+			$email_details = $this->common_model->get_email_containt("101");
+			
+			foreach($user_details as $user)
+			{
+				if (isset($email_details[0]['st_email_body'])) 
+				{
+					$templete = $email_details[0]['st_email_body'];
+					$templete = str_replace("##display_name##",$user['st_display_name']." ".$user['st_last_name'], $templete);
+					$templete = str_replace("##Expire_date##",date('d M Y',strtotime($user['dt_exp_tc_date'])), $templete);
+					$templete = str_replace("##Expire_day##",date('D',strtotime($user['dt_exp_tc_date'])), $templete);
+					$strMail = $templete;
+					$to = $user['st_email'];
+					$subject = $email_details[0]['st_email_subject'];
+					$category = $email_details[0]['st_category'];
+					$message = $strMail;
+					
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);		
+								
+				}
+					$active_users_details .= $user['st_display_name'].' '.$user['st_last_name'].'('.$user['st_email'].')<br>';
+				
+			}
+			
+			$admin_list = $this->common_model->get_admin_list();			
+			foreach($admin_list as $key=>$value)
+			{
+					$email_details_admin = $this->common_model->get_email_containt("102");
+					if (isset($email_details_admin[0]['st_email_body'])) 
+					{
+						$templete = $email_details_admin[0]['st_email_body'];
+						$templete = str_replace("##user_details##",$active_users_details, $templete);
+						$strMail = $templete;
+						$to = $value['email_address'];
+						
+						$subject = $email_details_admin[0]['st_email_subject'];
+						$category = $email_details_admin[0]['st_category'];
+						$message = $strMail;
+					
+						$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+					}			
+			}
+			
+		}
+		
+	}
+	function volunteer_emails()
+	{
+		$email_details = $this->cron_model->get_volunteer_emails();
+		//print_r($email_details);exit;
+		if(isset($email_details) && count($email_details) >0)
+		{
+			$this->load->library('email');	
+			foreach($email_details as $email)
+			{
+				//print_r($email);exit;
+				
+				$to = $email['st_email'];
+				$in_id = $email['in_id'];
+				$user_name = $email['st_name'];	
+				$subject = $email['st_subject'];
+				$category = $subject;
+				$templete = $email['st_message'];
+				
+				$templete = str_replace("##display_name##",$user_name, $templete);
+
+				$this->common_function->send_mail($this->email, $to, $subject, $templete, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+				
+				$update_details = array("in_sent"=>1,
+								"dt_sent"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->cron_model->update_vounteer_email($in_id,$update_details);
+
+					
+			}
+		}
+		
+	}
+}
+
+/* End of file cron.php */
+/* Location: ./application/controllers/cron.php */

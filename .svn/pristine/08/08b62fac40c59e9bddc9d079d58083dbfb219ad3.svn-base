@@ -1,0 +1,260 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 07-Apr-2014
+# File description: Animal_types(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Arpa_members extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('arpa_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');	
+		$this->session->unset_userdata('searchadmin2');	
+		$this->session->unset_userdata('searchadmin3');	
+		$this->session->unset_userdata('searchadmin4');	
+		$this->session->unset_userdata('searchadmin2');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch'))
+		{
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');						
+				
+			$name = trim($this->input->post('txtsearch'));				
+			$this->session->set_userdata('searchadmin',$this->common_function->custom_htmlentities($name));				
+		}	
+		
+		if($this->input->post('txtsearchemail'))
+		{
+			
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');						
+				
+			$email = trim($this->input->post('txtsearchemail'));				
+			$this->session->set_userdata('searchadmin2',$email);				
+		}	
+
+		
+		if($this->input->post('txtfrom'))
+		{	
+			if($this->session->userdata('searchadmin3'))
+			$this->session->unset_userdata('searchadmin3');	
+			
+			$fromdate = trim(date('Y-m-d',strtotime($this->input->post('txtfrom'))));				
+			$this->session->set_userdata('searchadmin3',$fromdate);	
+		}
+		
+		if($this->input->post('txtto'))
+		{ 
+			if($this->session->userdata('searchadmin4'))
+			$this->session->unset_userdata('searchadmin4');	
+			
+			$todate = trim(date('Y-m-d',strtotime($this->input->post('txtto'))));				
+			$this->session->set_userdata('searchadmin4',$todate);	
+			
+		}	
+		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		 $totalrecord		= $this->arpa_model->get_total_arpa_members($this->session->userdata('searchadmin'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin2'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['member_list']	= $this->arpa_model->arpa_members($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin2'));
+		
+		//echo '<pre>'; print_r($data['member_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'arpa_members/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+					
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No  Information Available.';
+		}
+		
+		//$this->load->view('animal-types-manage',$data);
+		$this->load->view('arpa-members',$data);
+	}
+	
+	
+	function arpa_members_delete($Id)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+			$this->arpa_model->delete_arpa_member($Id);			
+			$this->session->set_flashdata('success', 'Member information has been deleted successfully.');			
+			redirect($this->config->item('admin_base_url').'arpa_members');
+		
+	}
+	
+	
+	
+	
+	function delete_multiple_arpa_members()
+	{   
+	    
+		$member_ids = $this->input->post('arpamemberid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($member_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->arpa_model->delete_multiple_arpa_members($member_ids);
+			
+			$this->session->set_flashdata('success', 'Member(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'arpa_members/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+		
+	
+	
+	
+	
+	function arpa_members_view($userId=false)
+	{	 
+	
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data['user_details'] = $this->arpa_model->get_user_profile($userId);	
+		
+		
+		//echo '<pre>'; print_r($data['user_details']); die;
+		
+		$this->load->view('arpa-member-view',$data);
+		//$this->load->view('members-manage-view',$data);					
+	}
+	
+	
+	
+}
+
+/* End of file animal_types.php */
+/* Location: ./application/controllers/animal_types.php */

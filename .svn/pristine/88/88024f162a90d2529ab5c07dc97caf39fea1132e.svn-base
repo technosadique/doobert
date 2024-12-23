@@ -1,0 +1,234 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Nirav Motta
+# Created date: 07-Dec-2016
+# File description: Deleted members(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class deleted_members extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	 public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('member_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$this->session->unset_userdata('searchadmin1');		
+		$this->session->unset_userdata('searchadmin2');			
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$email				=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearchname') || ($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearchname'); die;
+			
+			//if($this->session->userdata('searchadmin1'))
+				//$this->session->unset_userdata('searchadmin1');			
+				//$name = trim(addslashes($this->input->post('txtsearchname')));	
+				//$this->session->set_userdata('searchadmin1',$name);			
+				
+				if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');						
+				
+			$name = trim(addslashes($this->input->post('txtsearchname')));				
+			$this->session->set_userdata('searchadmin1',$this->common_function->custom_htmlentities($name));		
+				
+		}
+				
+		if($this->input->post('txtsearchemail') || ($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearchemail'); die;
+			
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');			
+				$email = trim(addslashes($this->input->post('txtsearchemail')));	
+				$this->session->set_userdata('searchadmin2',$email);			
+				
+		}
+		
+		if($this->input->post('txtsearchemail') && ($this->input->post('txtsearchname')))
+		{
+			//echo $this->input->post('txtsearchemail'); die;
+			
+			if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');			
+				$name = trim(addslashes($this->input->post('txtsearchname')));	
+				$this->session->set_userdata('searchadmin1',$name);		
+				$email = trim(addslashes($this->input->post('txtsearchemail')));	 
+				$this->session->set_userdata('searchadmin2',$email);		
+				
+		}
+		
+		$rec_per_page =	 $this->config->item('per_page');	
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->member_model->get_total_deleted_user($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['user_list']	= $this->member_model->get_deleted_user($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'deleted_members/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+			
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		$data['search']	=   stripslashes($searchtxt);
+		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No User Information Available.';
+		}
+		
+		$this->load->view('deleted-members',$data);
+	}
+	
+	
+	function user_undelete($userId,$email)
+	{	
+	    $decode_email	=	$this->common_function->decode_base64($email);
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$check = '';
+		
+		$check	=	$this->member_model->check_email_exists($decode_email);
+		if($check)
+		{ 
+			$this->session->set_flashdata('error', 'Email address already exists.');
+		}
+		else
+		{   
+			$this->member_model->undelete_user($userId);	
+			$this->session->set_flashdata('success', 'User has been undeleted successfully.');
+		}		
+		
+		$sort 	= $this->session->userdata('a_sort');
+		$order  = $this->session->userdata('a_order');
+		$limit	= $this->session->userdata('a_limit');		
+		redirect($this->config->item('admin_base_url').'deleted_members');		
+	}
+	
+	
+	function user_delete($userId)
+	{	
+	   
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		  
+		    $query	=	$this->member_model->InserUserArchive($userId);			
+			$this->member_model->row_delete($userId);	
+			$this->session->set_flashdata('success', 'User has been deleted successfully.');				
+		
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= $this->session->userdata('a_limit');		
+			redirect($this->config->item('admin_base_url').'deleted_members');		
+	}
+		
+}
+
+/* End of file user.php */
+/* Location: ./application/controllers/members.php */

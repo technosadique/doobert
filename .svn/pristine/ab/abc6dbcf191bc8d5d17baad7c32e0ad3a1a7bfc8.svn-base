@@ -1,0 +1,194 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 09-April-2014
+# File description	: Vehicle Model for admin
+# Special - notes	: none
+# Tables used		: tbl_vehicle_type,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class vehicle_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_vehicle_types()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of vehicle types from tbl_vehicle_type
+	#------------------------------------------------------------
+	public function get_total_vehicle_types($name='')
+	{ 				
+					$this->db->select("tbl_vehicle_type.in_vehicle_type_id", false);						   	
+					$this->db->from('tbl_vehicle_type');					
+					$this->db->where('tbl_vehicle_type.in_deleted','0');
+					
+		if($name!='')
+		{	 
+		  $this->db->where("tbl_vehicle_type.st_vehicle_type LIKE '%".$name."%'", NULL, FALSE);
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_vehicle_types()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to get vehicle types details
+	#------------------------------------------------------------
+	public function get_vehicle_types($sort,$order,$limit,$rec_per_page,$name)
+	{	  
+				   $this->db->select("tbl_vehicle_type.in_vehicle_type_id,
+									  tbl_vehicle_type.st_vehicle_type,
+									  tbl_vehicle_type.dt_created,
+									  tbl_vehicle_type.dt_modified", false);						   	
+					$this->db->from('tbl_vehicle_type');					
+					$this->db->where('tbl_vehicle_type.in_deleted','0');
+					  
+		if($name!='')
+		{	 
+		  $this->db->where("tbl_vehicle_type.st_vehicle_type LIKE '%".$name."%'", NULL, FALSE);
+		}
+					
+					switch($sort)
+					{
+						case 'type': 						
+							$this->db->order_by('tbl_vehicle_type.st_vehicle_type',$order);
+						break;	
+							
+						case 'createddate': 							
+							$this->db->order_by('tbl_vehicle_type.dt_created',$order);
+						break;
+						
+						case 'modified_date': 							
+							$this->db->order_by('tbl_vehicle_type.dt_modified',$order);
+						break;
+						
+							 
+						default:
+						   $this->db->order_by('tbl_vehicle_type.st_vehicle_type',$order);
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					//echo $this->db->last_query();  die;					
+					$arrVehicle = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrVehicle[$Row->in_vehicle_type_id]	=	array('in_vehicle_type_id'	=> $Row->in_vehicle_type_id,
+											'st_vehicle_type'								        => $Row->st_vehicle_type,
+											'dt_created'										    => $Row->dt_created,
+											'dt_modified'										    => $Row->dt_modified																				
+											);
+						}
+						return $arrVehicle;
+						
+					}
+					
+	}
+	
+	
+	#====================================================================================
+	#	Function	:	delete_vehicle_types()
+	#   Parameter	: 	vehicletypeId
+	#	Perpose		:	to delete single vehicle type details from tbl_vehicle_type table
+	#------------------------------------------------------------------------------------
+	public function delete_vehicle_types($vehicletypeId)
+	{
+				$arrVehicle = 	array('in_deleted' 	=> '1' );		
+				$this->db->where('in_vehicle_type_id', $vehicletypeId);
+				$this->db->update('tbl_vehicle_type', $arrVehicle);		
+	}
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	delete_multiple_vehicle_types()
+	#   Parameter	: 	vehicletypeIds
+	#	Perpose		:	to delete multiple vehicle types details from tbl_vehicle_type table
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_vehicle_types($vehicletypeIds)
+	{			
+				$arrVehicle = 	array('in_deleted' 	=> '1' );
+				$this->db->where_in('in_vehicle_type_id', $vehicletypeIds);
+				$this->db->update('tbl_vehicle_type', $arrVehicle);		
+				return $this->db->affected_rows();
+	}
+	
+	
+	
+	#============================================================================
+	#	Function	:	get_vehicle_types_profile()
+	#   Parameter	: 	vehicletypeIds
+	#	Perpose		:	to get vehicle types details from tbl_vehicle_type table
+	#----------------------------------------------------------------------------
+	public function get_vehicle_types_profile($vehicletypeId)
+	{
+				$this->db->select('v.in_vehicle_type_id,v.st_vehicle_type,v.in_status');
+				$this->db->from('tbl_vehicle_type as v');		
+				$this->db->where('v.in_vehicle_type_id',$vehicletypeId);
+				$query = $this->db->get();
+				return $query->row_array();	
+	}
+	
+	#============================================================================
+	#	Function	:	update_vehicle_type_info()
+	#   Parameter	: 	data,vehicletypeId,table
+	#	Perpose		:	to update vehicle types details tbl_vehicle_type table
+	#----------------------------------------------------------------------------
+	public function update_vehicle_type_info($data,$vehicletypeId,$table) {
+				$this->db->where('in_vehicle_type_id',$vehicletypeId);
+				$this->db->update($table,$data);
+				return $this->db->affected_rows();	
+	}
+	
+    #============================================================================
+	#	Function	:	insertVehicleTypes()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert vehicle types details in tbl_vehicle_type table
+	#----------------------------------------------------------------------------
+	public function insertVehicleTypes($post)
+	{
+				 $arrVehicleTypes = 	  array(
+										'st_vehicle_type'		=>	$post['vehicletype'],								
+										'in_status'				=>	$post['active'],															
+										'dt_created'			=>  date("Y-m-d H:i:s"),	
+										'in_deleted'		    =>  '0'																				
+										);	
+										$this->db->insert('tbl_vehicle_type', $arrVehicleTypes);												
+	}
+	
+	
+	function is_vehicletype_exists($vehicletype)
+	{ 
+				$this->db->select('in_vehicle_type_id');
+				$this->db->from('tbl_vehicle_type');							
+				$this->db->where("st_vehicle_type",$vehicletype);
+				$this->db->where("in_deleted",0);
+				$query = $this->db->get();		
+				//echo $this->db->last_query(); die;	
+				
+				if($query->num_rows()>0)
+					return true;
+				else
+					return false;				
+			}
+	
+}
+?>

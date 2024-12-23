@@ -1,0 +1,2816 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 24-Jun-2014
+# File description: Plane_types(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Drivers extends CI_Controller { 
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('driver_model');
+		$this->load->model('common_model');
+		$this->load->helper(array('form', 'url'));	
+		$this->load->library('user_agent'); 
+		$this->load->library('nativesession');		 	
+	}	
+	public function index()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }					
+		//$this->pending_driver_verification_applications();		
+	}	
+	
+	
+	
+	
+	
+	public function pending_driver_verification_applications($sort=false,$order=false,$limit=false,$undel_app=false)
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		 
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';
+		$name				=	'';	
+		$email				=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(6))
+			$limit = $this->uri->segment(6);
+		else	
+			$limit = '0';
+		
+		$rec_per_page =	 $this->config->item('per_page');	
+		
+		$app_type = 0;
+		
+		if($this->input->post('app_type_form_val'))
+		{
+			$app_type = 1;
+		}		
+		if($this->uri->segment(5))
+		{
+			$app_type = $this->uri->segment(5);
+		}
+		
+		
+		//echo 'app_type'.$app_type;exit;
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->driver_model->get_total_pending_driver($app_type); 
+		// GET PAGE LIST RESULT HERE
+		
+		$data['pending_driver_list']	= $this->driver_model->get_pending_driver($sort,$order,$limit,$rec_per_page,$app_type);
+		
+		//echo '<pre>'; print_r($data['pending_driver_list']);die; 
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'drivers/pending_driver_verification_applications/';
+		//$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/'.$rec_per_page.'/'.$app_type.'/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/'.$app_type.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+
+		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No pending driver verification  applications available.';
+		}
+		$data['adminId']	=	$this->session->userdata('sess_admin_id');	
+		
+		
+		$app_type_array = array('0'=>'Pending Verification Applications','1'=>'Deleted Pending Verification Applications');
+		$data['app_type_array'] = $app_type_array;
+		
+		$data['app_type'] = $app_type;
+		
+		$this->load->view('pending-driver-verification-applications',$data);
+	}
+	
+	
+	public function  delete_multiple_driver()
+	{
+			$verify_ids = $this->input->post('verifyid');	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($verify_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->driver_model->delete_multiple_driver($verify_ids);
+			
+			$this->session->set_flashdata('success', 'pending driver verification application has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_applications/'.$sort.'/'.$order.'/'.$limit);
+	}
+	
+	public function  undelete_multiple_driver()
+	{
+			$verify_ids = $this->input->post('verifyid');	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($verify_ids) && $this->input->post('B3') == 'Undelete')
+		{	
+			$this->driver_model->undelete_multiple_driver($verify_ids);
+			
+			$this->session->set_flashdata('success', 'pending driver verification application has been undeleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		$undel_app = true;
+		redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_applications/'.$sort.'/'.$order.'/'.$limit.'/'.$undel_app);
+	}
+	
+	public function pending_driver_verification_view($verifyId)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		if($varifyId == '')
+		{
+			$varifyId = $this->uri->segment('3');
+		}
+		
+		$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($verifyId);
+		$data['ref_details'] 			= $this->driver_model->get_ref_details($verifyId);   // added by sadique on 09-09-15
+		//echo '<pre>'; print_r($data['ref_details']); die;		
+		if(isset($data['pending_driver_details']) && count($data['pending_driver_details'])==0){
+		redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_applications/');	
+		}
+		$userId = $data['pending_driver_details']['in_user_id'];
+		$data['verify_doc'] = $this->driver_model->get_verify_doc($userId);
+		
+		$this->load->view('pending-driver-verification-view',$data);
+	}	
+	
+	public function upload_dl()
+	{
+		
+		$data			    =	array();
+		$data['Err_Msg']	=	'';	
+		
+		$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));	
+		
+		$data['user_details']=$this->driver_model->get_user_profile($data['pending_driver_details']['in_user_id']);	
+		
+		if(isset($_FILES['driver_waiver_form']) && $_FILES['driver_waiver_form']['name']!='')
+		{
+			//echo $_FILES['driver_waiver_form']['name']; exit;
+			//echo $this->input->post('verifyid_upload_dl');exit;
+			$varifyId	= $this->input->post('verifyid_upload_dl');
+			//Uploading Driver License Photo
+			$this->load->library('upload');
+
+			$config['upload_path']  	= $this->config->item('upload').'verification/';
+			$config['max_size']			= '5120';
+			$config['allowed_types']	= 'jpg|png|gif|jpeg|doc|docx|xls|xlsx|pdf';
+			$config['remove_spaces']  	= TRUE;
+			$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_waiver_form']['name']));
+			//print_r($config['file_name'] );exit;
+			
+			$this->upload->initialize($config);
+			
+			//Display errors of file upload.
+			//Upload image by calling do_upload method.
+			$this->upload->do_upload('driver_waiver_form');
+			$file_errors = array('errors' => $this->upload->display_errors());
+			if(!empty($file_errors['errors'])) {
+				$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+				$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+				$this->load->view('pending-driver-verification-view',$data);	
+				return false;
+			}
+			
+			
+			$data['verify']['st_complete_waiver_form'] = $config['file_name'];
+			
+			 //print_r($data['verify']);exit;
+		
+			 $this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+			 $this->session->set_flashdata('success', 'Complete waiver form has been uploaded.');
+			
+			 redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_view/'.$varifyId);
+		
+		}
+		
+		if(isset($_FILES['driver_waiver_form_update']) && $_FILES['driver_waiver_form_update']['name']!='')
+		{
+			//echo $_FILES['driver_waiver_form_update']['name']; exit;
+			//echo $this->input->post('verifyid_upload_dl');exit;
+			$varifyId	= $this->input->post('verifyid_upload_dl');
+			//Uploading Driver License Photo
+			$this->load->library('upload');
+
+			$config['upload_path']  	= $this->config->item('upload').'verification/';
+			$config['max_size']			= '5120';
+			$config['allowed_types']	= 'jpg|png|gif|jpeg|doc|docx|xls|xlsx|pdf';
+			$config['remove_spaces']  	= TRUE;
+			$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_waiver_form_update']['name']));
+			//print_r($config['file_name'] );exit;
+			
+			$this->upload->initialize($config);
+			
+			//Display errors of file upload.
+			//Upload image by calling do_upload method.
+			$this->upload->do_upload('driver_waiver_form_update');
+			$file_errors = array('errors' => $this->upload->display_errors());
+			if(!empty($file_errors['errors'])) {
+				$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+				$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+				$this->load->view('pending-driver-verification-view',$data);	
+				return false;
+			}
+			
+			
+			$data['verify']['st_complete_waiver_form'] = $config['file_name'];
+			
+			 //print_r($data['verify']);exit;
+		
+			 $this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+			 $this->session->set_flashdata('success', 'Complete waiver form has been updated successfully.');
+			
+			 redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_view/'.$varifyId);
+		
+		} 
+		
+		if($this->input->post('action') == 'upload_dl_updated')
+		{
+
+				$varifyId	= $this->input->post('verifyid_upload_dl');	
+				
+				if($_FILES['driver_lic_photo_updated']['name'] == '')
+				{
+					$data['upload_error_msg'] = array('upload_error' => 'Please Upload Driver License Photo.');
+					$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+					$this->load->view('pending-driver-verification-view',$data);	
+					return false;					
+				}
+				
+				if(isset($_FILES['driver_lic_photo_updated']) && $_FILES['driver_lic_photo_updated']['name']!='')
+				{	
+					//echo $_FILES['driver_lic_photo_updated']['name'];exit;
+					//Uploading Driver License Photo
+					$this->load->library('upload');
+	
+					$config['upload_path']  	= $this->config->item('upload').'verification/';
+					$config['max_size']			= '5120';
+					$config['allowed_types']	= 'pdf|jpg|png|gif|jpeg';
+					$config['remove_spaces']  	= TRUE;
+					$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_lic_photo_updated']['name']));
+					//print_r($config['file_name'] );exit;
+					
+					$this->upload->initialize($config);
+					
+					//Display errors of file upload.
+					//Upload image by calling do_upload method.
+					$this->upload->do_upload('driver_lic_photo_updated');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					if(!empty($file_errors['errors'])) {
+						$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+						$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+						$this->load->view('pending-driver-verification-view',$data);	
+						return false;
+					}
+					
+					if($_FILES['driver_lic_photo_updated']['type'] != 'application/pdf' && $_FILES['driver_lic_photo_updated']['type'] != '"application/pdf"')
+					{
+						//echo 'file type'.$_FILES['driver_lic_photo_updated']['type'];exit;
+						$this->load->library('image_lib');
+							
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'verification/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'verification/300x200/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= 300;
+						$config['height']			= 200;
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					
+						$file_errors = array('errors' => $this->image_lib->display_errors());
+						//echo "<pre>";print_r($file_errors);die;
+						//Display errors of file upload.
+						if(!empty($file_errors['errors'])) {
+							$data['upload_error_msg'] =  array('upload_error' => strip_tags($file_errors['errors']));
+							$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+							$this->load->view('pending-driver-verification-view',$data);	
+							return false;
+						}
+					}
+					
+					$data['verify']['st_driver_license_photo'] = $config['file_name'];
+					
+					//print_r($data['verify']);exit;
+				
+					 $this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+					$this->session->set_flashdata('success', 'Driver License Photo has been uploaded.');
+					
+					
+					redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_view/'.$varifyId);	
+					 
+				}
+				
+				
+		}
+		
+		if($this->input->post('action') == 'upload_dl_new')
+		{		
+		 
+				$varifyId	= $this->input->post('verifyid_upload_dl');	
+				if($_FILES['driver_lic_photo']['name'] == '')
+				{
+					$data['upload_error_msg'] = array('upload_error' => 'Please Upload Driver License Photo.');
+					$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+					$this->load->view('pending-driver-verification-view',$data);	
+					return false;					
+				}
+				
+				if(isset($_FILES['driver_lic_photo']) && $_FILES['driver_lic_photo']['name']!='')
+				{
+					//echo $_FILES['driver_lic_photo']['name'];
+					//Uploading Driver License Photo
+					$this->load->library('upload');
+	
+					$config['upload_path']  	= $this->config->item('upload').'verification/';
+					$config['max_size']			= '5120';
+					$config['allowed_types']	= 'pdf|jpg|png|gif|jpeg';
+					$config['remove_spaces']  	= TRUE;
+					$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_lic_photo']['name']));
+					//print_r($config['file_name'] );exit;
+					
+					$this->upload->initialize($config);
+					
+					//Display errors of file upload.
+					//Upload image by calling do_upload method.
+					$this->upload->do_upload('driver_lic_photo');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					if(!empty($file_errors['errors'])) {
+						$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+						$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+						$this->load->view('pending-driver-verification-view',$data);	
+						return false;
+					}
+					
+					if($_FILES['driver_lic_photo']['type'] != 'application/pdf' && $_FILES['driver_lic_photo']['type'] != '"application/pdf"')
+					{
+						$this->load->library('image_lib');
+							
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'verification/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'verification/300x200/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= 300;
+						$config['height']			= 200;
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					
+						$file_errors = array('errors' => $this->image_lib->display_errors());
+						//echo "<pre>";print_r($file_errors);die;
+						//Display errors of file upload.
+						if(!empty($file_errors['errors'])) {
+							$data['upload_error_msg'] =  array('upload_error' => strip_tags($file_errors['errors']));
+							$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid_upload_dl'));									
+							$this->load->view('pending-driver-verification-view',$data);	
+							return false;
+						}
+					}
+					
+					$data['verify']['st_driver_license_photo'] = $config['file_name'];
+					
+					 //print_r($data['verify']);exit;
+				
+					 $this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+					 $this->session->set_flashdata('success', 'Driver License Photo has been uploaded.');
+					
+					 redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_view/'.$varifyId);
+				
+				} 
+				
+		 
+			}
+			
+		else
+		{
+				$this->load->view('pending-driver-verification-view',$data);	
+		}
+	}
+	
+	
+	public function verify_upload_dl()
+	{
+		
+		$data			    =	array();
+		$data['Err_Msg']	=	'';	
+		
+		$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));
+		
+		
+		//echo $this->input->post('action');
+		
+		if(isset($_FILES['driver_waiver_form']) && $_FILES['driver_waiver_form']['name']!='')
+		{
+			//echo $_FILES['driver_waiver_form']['name']; exit;
+			//echo $this->input->post('verifyid_upload_dl');exit;
+			$varifyId	= $this->input->post('verifyid_upload_dl');
+			//Uploading Driver License Photo
+			$this->load->library('upload');
+
+			$config['upload_path']  	= $this->config->item('upload').'verification/';
+			$config['max_size']			= '5120';
+			$config['allowed_types']	= 'jpg|png|gif|jpeg|doc|docx|xls|xlsx|pdf';
+			$config['remove_spaces']  	= TRUE;
+			$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_waiver_form']['name']));
+			//print_r($config['file_name'] );exit;
+			
+			$this->upload->initialize($config);
+			
+			//Display errors of file upload.
+			//Upload image by calling do_upload method.
+			$this->upload->do_upload('driver_waiver_form');
+			$file_errors = array('errors' => $this->upload->display_errors());
+			if(!empty($file_errors['errors'])) {
+				$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+				$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+				$this->load->view('verified-driver-view',$data);	
+				return false;
+			}
+			
+			
+			$data['verify']['st_complete_waiver_form'] = $config['file_name'];
+			
+			 //print_r($data['verify']);exit;
+		
+			 $this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+			 $this->session->set_flashdata('success', 'Complete waiver form has been uploaded.');
+			
+			 redirect($this->config->item('admin_base_url').'drivers/verify_driver_view/'.$varifyId);
+		
+		}
+		
+		if(isset($_FILES['driver_waiver_form_update']) && $_FILES['driver_waiver_form_update']['name']!='')
+		{
+			//echo $_FILES['driver_waiver_form']['name']; exit;
+			//echo $this->input->post('verifyid_upload_dl');exit;
+			$varifyId	= $this->input->post('verifyid_upload_dl');
+			//Uploading Driver License Photo
+			$this->load->library('upload');
+
+			$config['upload_path']  	= $this->config->item('upload').'verification/';
+			$config['max_size']			= '5120';
+			$config['allowed_types']	= 'jpg|png|gif|jpeg|doc|docx|xls|xlsx|pdf';
+			$config['remove_spaces']  	= TRUE;
+			$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_waiver_form_update']['name']));
+			//print_r($config['file_name'] );exit;
+			
+			$this->upload->initialize($config);
+			
+			//Display errors of file upload.
+			//Upload image by calling do_upload method.
+			$this->upload->do_upload('driver_waiver_form_update');
+			$file_errors = array('errors' => $this->upload->display_errors());
+			if(!empty($file_errors['errors'])) {
+				$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+				$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+				$this->load->view('verified-driver-view',$data);
+				return false;
+			}
+			
+			
+			$data['verify']['st_complete_waiver_form'] = $config['file_name'];
+			
+			 //print_r($data['verify']);exit;
+		
+			 $this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+			 $this->session->set_flashdata('success', 'Complete waiver form has been updated successfully.');
+			
+			 redirect($this->config->item('admin_base_url').'drivers/verify_driver_view/'.$varifyId);
+		
+		} 
+		
+		if($this->input->post('action') == 'verify_upload_dl_new')
+		{	
+				$varifyId	= $this->input->post('verifyid_upload_dl');	
+				if($_FILES['driver_lic_photo']['name'] == '')
+				{
+					$data['upload_error_msg'] = array('upload_error' => 'Please Upload Driver License Photo.');
+					$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+					$this->load->view('verified-driver-view',$data);
+					return false;					
+				}
+				
+				//echo $_FILES['driver_lic_photo']['name'];exit;
+				if(isset($_FILES['driver_lic_photo']) && $_FILES['driver_lic_photo']['name']!='')
+				{
+					//echo $_FILES['driver_lic_photo']['name'];exit;
+					//Uploading Driver License Photo
+					$this->load->library('upload');
+	
+					$config['upload_path']  	= $this->config->item('upload').'verification/';
+					$config['max_size']			= '5120';
+					$config['allowed_types']	= 'pdf|jpg|png|gif|jpeg';
+					$config['remove_spaces']  	= TRUE;
+					$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_lic_photo']['name']));
+					//print_r($config['file_name'] );exit;
+					
+					$this->upload->initialize($config);
+					
+					//Display errors of file upload.
+					//Upload image by calling do_upload method.
+					$this->upload->do_upload('driver_lic_photo');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					if(!empty($file_errors['errors'])) {
+						$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+						$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+						$this->load->view('verified-driver-view',$data);
+						return false;
+					}
+					
+					if($_FILES['driver_lic_photo']['type'] != 'application/pdf' && $_FILES['driver_lic_photo']['type'] != '"application/pdf"') 
+					{ 
+						$this->load->library('image_lib');
+							
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'verification/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'verification/300x200/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= 300;
+						$config['height']			= 200;
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					
+						$file_errors = array('errors' => $this->image_lib->display_errors());
+						//echo "<pre>";print_r($file_errors);die;
+						//Display errors of file upload.
+						if(!empty($file_errors['errors'])) {
+							$data['upload_error_msg'] =  array('upload_error' => strip_tags($file_errors['errors']));
+							$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+							$this->load->view('verified-driver-view',$data);	
+							return false;
+						}
+					}
+					
+					$data['verify']['st_driver_license_photo'] = $config['file_name'];
+					
+					$this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+					$this->session->set_flashdata('success', 'Driver License Photo has been uploaded.');
+					
+					redirect($this->config->item('admin_base_url').'drivers/verify_driver_view/'.$varifyId);
+				
+				} 				 
+		}
+		
+		if($this->input->post('action') == 'verify_upload_dl_updated')
+		{	
+				$varifyId	= $this->input->post('verifyid_upload_dl');	
+				
+				if($_FILES['driver_lic_photo_updated']['name'] == '')
+				{
+					$data['upload_error_msg'] = array('upload_error' => 'Please Upload Driver License Photo.');
+					$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+					$this->load->view('verified-driver-view',$data);
+					return false;					
+				}
+						 
+				
+				if(isset($_FILES['driver_lic_photo_updated']) && $_FILES['driver_lic_photo_updated']['name']!='')
+				{	
+					//echo $_FILES['driver_lic_photo_updated']['name'];exit;
+					//Uploading Driver License Photo
+					$this->load->library('upload');
+	
+					$config['upload_path']  	= $this->config->item('upload').'verification/';
+					$config['max_size']			= '5120';
+					$config['allowed_types']	= 'pdf|jpg|png|gif|jpeg';
+					$config['remove_spaces']  	= TRUE;
+					$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_lic_photo_updated']['name']));
+					//print_r($config['file_name'] );exit;
+					
+					$this->upload->initialize($config);
+					
+					//Display errors of file upload.
+					//Upload image by calling do_upload method.
+					$this->upload->do_upload('driver_lic_photo_updated');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					if(!empty($file_errors['errors'])) {
+						$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+						$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+						$this->load->view('verified-driver-view',$data);	
+						return false;
+					}
+					
+					if($_FILES['driver_lic_photo_updated']['type'] != 'application/pdf' && $_FILES['driver_lic_photo_updated']['type'] != '"application/pdf"') 
+					{ 
+						$this->load->library('image_lib');
+							
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'verification/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'verification/300x200/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= 300;
+						$config['height']			= 200;
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					
+						$file_errors = array('errors' => $this->image_lib->display_errors());
+						//echo "<pre>";print_r($file_errors);die;
+						//Display errors of file upload.
+						if(!empty($file_errors['errors'])) {
+							$data['upload_error_msg'] =  array('upload_error' => strip_tags($file_errors['errors']));
+							$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid_upload_dl'));									
+						$this->load->view('verified-driver-view',$data);
+							return false;
+						}
+					}
+					
+					$data['verify']['st_driver_license_photo'] = $config['file_name'];
+					
+					$this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+					$this->session->set_flashdata('success', 'Driver License Photo has been uploaded.');
+					
+					redirect($this->config->item('admin_base_url').'drivers/verify_driver_view/'.$varifyId);	
+				
+				}
+				  
+				 //print_r($data['verify']);exit;
+		}
+		else
+		{
+				$this->load->view('verified-driver-view',$data);	
+			
+		}
+		
+	}
+	
+	
+	public function status_verified()
+	{
+		
+		$data			    =	array();
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array(  'doobert_verified'			=> "",
+								'date_doobert_verified'		=> "",							   
+								'license_st_verified'		=> "",
+								'st_dl_state'				=> "",								
+								'driver_lic_exp'		    => "",
+								'date_driver_lic_exp'	    => "",								
+								'driver_lic_verified'	    => "",
+								'date_driver_lic_verified'	=> "",								
+								'vet_ref_verified'	        => "",
+								'date_vet_ref_verified'     => "",								
+								'org_verified'				=> "",
+								'date_org_verified'			=> ""
+		);
+		
+		
+		
+		foreach($form_field as $key => $value)	
+		{	
+			$data['edit'][$key] = $value;	
+		}	
+		$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid'));	
+		
+		//echo '<pre>'; print_r($data['pending_driver_details']['in_user_id']); die;
+		//$this->load->view('pending-driver-verification-view',$data);
+		$data['user_details']=$this->driver_model->get_user_profile($data['pending_driver_details']['in_user_id']);	
+		
+		//echo '<pre>'; print_r($data['user_details']); die;
+		
+		if($this->input->post('action')=='Verified')
+		{		
+		 
+		 				$varifyId			      = $this->input->post('verifyid');	
+						
+						
+						// Mail functionality start	 added by sadique on 10-12-14				
+						
+						$data['email']		=	$data['user_details']['st_email'];				
+						$data['user_name']	=	ucfirst($data['pending_driver_details']['st_fname']). ' ' .ucfirst($data['pending_driver_details']['st_lname']);
+						$allmail 			=  $data['email'];
+						$email_details = $this->common_model->get_email_containt("29");
+						$q			=	$this->common_model->get_affiliate_donation_detail('3');
+							if(isset($q) && !empty($q)){					   		
+									foreach($q as $qr)
+									{		 
+										  
+										if(!empty($qr['st_image']))
+										{
+												$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+												$imgtitle   =   $qr['st_banner_name']; 				
+												$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+												alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+											  
+											  
+										}
+										else
+										{
+											   $donation='';								 
+										}							  
+											
+									}
+								}			
+								   
+							   else
+							   {
+								  $donation='';
+							   }
+						$curr_date			= date('m-d-Y');
+						if(isset($email_details[0]['st_email_body']))
+						{
+							$templete = $email_details[0]['st_email_body'];
+							$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+							$templete  = str_replace("##user_name##",$data['user_name'],$templete);	
+							$templete  = str_replace("##CURRENT_DATE##",$curr_date,$templete);	
+							$templete  = str_replace("##DONATION##",$donation,$templete);	
+							
+							
+							$strMail = $templete;							
+							$to		 = $allmail;
+							$message = $strMail;
+							$subject = $email_details[0]['st_email_subject'];
+							$this->load->library('email');
+							
+							$attched_file = $_SERVER["DOCUMENT_ROOT"]."/upload/verified_badges/Doobert_Verified_Driver.png";
+							
+							header ("Content-type: image/png");
+							$string = "Doobert Verified Volunteer #".$varifyId;
+							
+							$im = imagecreatefrompng($attched_file);
+							imagealphablending($im, true); // setting alpha blending on
+							imagesavealpha($im, true); // save alphablending setting (important)
+							
+							$textColor = imagecolorallocate ($im, 255, 255, 255);
+							$font = $_SERVER["DOCUMENT_ROOT"]."/assets/OpenSansBold.ttf";
+							
+							//imagettfbbox ( float $size , float $angle , string $fontfile , string $text );
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string);
+							// This is our cordinates for X and Y
+							$x = $bbox[0] + (imagesx($im) / 2) - ($bbox[4] / 2);
+							$y = 55; //30
+							
+							// Write it
+							imagettftext($im, 13, 0, $x, $y, $textColor, $font, $string);
+							
+							//array imagefttext ( resource $image , float $size , float $angle , int $x , int $y , int $color , string $fontfile , string $text [, array $extrainfo ] )
+							
+							$first_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im,$first_img_name);
+							$strmon		= $this->driver_model->get_full_month(date('n'));
+							$stryear 	= date('Y', strtotime('+1 year'));
+							$string2 	= "Exp: ".$strmon." ".$stryear;
+							
+							if(strlen($string2) > 20)
+							{
+								$name_array = explode(' ',$string2);
+								$string2 = $name_array[0];
+							}
+							
+							// try changing this as well
+							$im1 = imagecreatefrompng($first_img_name);
+							imagealphablending($im1, true); // setting alpha blending on
+							imagesavealpha($im1, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im1, 255, 255, 255);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string2);
+							$x = $bbox[0] + (imagesx($im1) / 2) - ($bbox[4] / 2);
+							$y = 205; //185
+							
+							imagettftext($im1, 13, 0, $x, $y, $textColor, $font, $string2); 
+							
+							$sec_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$sec_img_name);
+							//imagepng($im1);
+							
+							
+							$thir_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$thir_img_name);
+							//$strmon  = $this->common_function->exp_month_full(date('m'));	
+							$string3 = $data['user_name'];
+							
+							if(strlen($string3) > 20)
+							{
+								$name_array = explode(' ',$string3);
+								$string3 = $name_array[0];
+							}
+							
+							// try changing this as well
+							$im2 = imagecreatefrompng($thir_img_name);
+							imagealphablending($im2, true); // setting alpha blending on
+							imagesavealpha($im2, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im2, 201, 194, 46);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(28, 0, $font, $string3);
+							$x = $bbox[0] + (imagesx($im2) / 2) - ($bbox[4] / 2);
+							$y = 140; //185
+							imagettftext($im2, 28, 0, $x, $y, $textColor, $font, $string3); 
+							
+							$fou_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im2,$fou_img_name);
+							
+							imagedestroy($im2);			
+							
+							$this->email->attach($fou_img_name);
+							
+							$category  	= $email_details[0]['st_category'];
+							$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+							$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+							$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+							
+							$send_email = 1;							
+							$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+							if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+							{
+								$send_email = 0;										
+							}
+							
+							$email_template_id = $email_details[0]['in_email_id'];
+							$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+							if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+							{
+								$send_email = 1;
+							}
+							
+							if($send_email == '1')
+							{
+								
+								// LCR Banner added				
+								$q1			=	$this->common_model->get_affiliate_detail('29','C');	
+							    $q2			=	$this->common_model->get_affiliate_detail('29','L');	
+							    $q3			=	$this->common_model->get_affiliate_detail('29','R');
+											   		
+									if(isset($q1) && !empty($q1)){	
+										
+										foreach($q1 as $qr)
+										{
+											 
+											  if(!empty($qr['st_code']))
+											{    
+												    $affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name']; 											
+													$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';					
+												  
+											}
+											else
+											{
+												   $affiliate_content='';								 
+											}
+											  
+												
+										}
+									}			
+									   
+								   else
+								   {
+									  $affiliate_content='';
+								   }
+				
+						//LEFT BANNER
+									if(isset($q2) && !empty($q2)){					   		
+										foreach($q2 as $qr)
+										{								 
+											 if(!empty($qr['st_code']))
+											{    
+												   $leftbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+													$imgtitle   =   $qr['st_banner_name']; 	
+													$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+												  
+											}
+											else
+											{
+												   $leftbanner='';								 
+											} 	
+										}
+									}
+									else
+									{
+										   $leftbanner='';								 
+									}
+									
+						//RIGHT BANNER
+									if(isset($q3) && !empty($q3)){					   		
+										foreach($q3 as $qr)
+										{
+											 
+											if(!empty($qr['st_code']))
+											{    
+												   $rightbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{	
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name']; 	
+													$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" /></a>';	
+												  
+											}
+											else
+											{
+												   $rightbanner='';								 
+											}								  
+												
+										}
+									}
+									else
+									{
+										   $rightbanner='';								 
+									}
+				
+				
+								$message = str_replace("##affiliate_content##",$affiliate_content,$message);	
+								$message = str_replace("##leftbanner##",$leftbanner,$message);
+								$message = str_replace("##rightbanner##",$rightbanner,$message);
+				// LCR Banner added	
+								$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);	
+								
+								
+								
+														
+							}
+							$this->email->clear(TRUE);
+							//print_r($this->email->print_debugger());
+							//exit;
+						}				
+						
+						// Mail functionality end
+														
+						
+						//$this->form_validation->set_rules('doobert_verified', 'Date user Doobert Verified', 'trim|required');	
+						if($this->input->post('doobert_verified')!=''){	
+						$this->form_validation->set_rules('date_doobert_verified', 'Date user Doobert Verified Date', 'trim|required');	
+						}
+								
+						//$this->form_validation->set_rules('license_st_verified', 'Driver License State', 'trim|required');
+						if($this->input->post('license_st_verified')!=''){	
+						$this->form_validation->set_rules('st_dl_state', 'Drivers License State', 'trim|required');	
+						}
+						//$this->form_validation->set_rules('driver_lic_exp', 'Driver License Exp Verified', 'trim|required');
+						
+						if($this->input->post('driver_lic_exp')!=''){	
+						$this->form_validation->set_rules('date_driver_lic_exp', 'Driver License Exp Date', 'trim|required');	
+						}
+						//$this->form_validation->set_rules('driver_lic_verified', 'Driver License Verified', 'trim|required');	
+						if($this->input->post('driver_lic_verified')!=''){	
+						$this->form_validation->set_rules('date_driver_lic_verified', 'Driver License Verified Date', 'trim');
+						}
+						//$this->form_validation->set_rules('vet_ref_verified', 'Vet Reference Verified', 'trim|required');
+						
+						if($this->input->post('vet_ref_verified')!=''){		
+						$this->form_validation->set_rules('date_vet_ref_verified', 'Vet Reference Verified Date', 'trim|required');
+						}
+						//$this->form_validation->set_rules('org_verified', 'Organization(s) Reference(s) Verified', 'trim|required');	
+						
+						if($this->input->post('org_verified')!=''){		
+						$this->form_validation->set_rules('date_org_verified', 'Organization(s) Reference(s) Verified Date', 'trim|required');										
+						}
+			
+			if($this->form_validation->run() == FALSE)
+				{    
+						$data['Err_Msg'] = validation_errors();							
+						$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($this->input->post('verifyid'));									
+						$this->load->view('pending-driver-verification-view',$data);	
+				}
+				
+				
+				else{	
+		               
+		 			 	 $varifyId			      					= $this->input->post('verifyid');	
+						 
+						 /*if($this->input->post('doobert_verified')!=''){
+						 $verify_info['fl_doobert_verified'] 		= $this->input->post('doobert_verified'); 
+					     $verify_info['dt_doobert_verified'] 		= ($this->input->post('date_doobert_verified'))!='' ? date('Y-m-d',strtotime($this->input->post('date_doobert_verified'))) : '0000-00-00'; 
+						 
+						 }
+						 
+						 
+						 if($this->input->post('license_st_verified')!=''){
+						 $verify_info['fl_license_st_verified']		= $this->input->post('license_st_verified'); 
+						 $verify_info['st_dl_state']				= $this->input->post('st_dl_state');
+						 
+						 }
+						 
+						 
+						 
+						 
+						  if($this->input->post('driver_lic_exp')!=''){
+						 $verify_info['fl_license_exp_verified']	= $this->input->post('driver_lic_exp'); 
+						 $verify_info['dt_dl_exp']	= ($this->input->post('date_driver_lic_exp'))!='' ? date('Y-m-d',strtotime($this->input->post('date_driver_lic_exp'))) : '0000-00-00';  
+						  }
+						  
+						  if($this->input->post('driver_lic_verified')!=''){
+						 $verify_info['fl_license_verified']		= $this->input->post('driver_lic_verified'); 
+						 $verify_info['dt_license_verified']		= ($this->input->post('date_driver_lic_verified'))!='' ? date('Y-m-d',strtotime($this->input->post('date_driver_lic_verified'))) : '0000-00-00';
+						  }
+						  
+						  
+						 if($this->input->post('vet_ref_verified')!=''){ 
+						 $verify_info['fl_vet_verified']			= $this->input->post('vet_ref_verified'); 
+						 $verify_info['dt_vet_verified']			= ($this->input->post('date_vet_ref_verified'))!='' ? date('Y-m-d',strtotime($this->input->post('date_vet_ref_verified'))) : '0000-00-00'; 
+						 }
+						 
+						 if($this->input->post('org_verified')!=''){ 
+						 $verify_info['fl_org_verified']			= $this->input->post('org_verified'); 
+						 $verify_info['dt_org_verified']		    = ($this->input->post('date_org_verified'))!='' ? date('Y-m-d',strtotime($this->input->post('date_org_verified'))) : '0000-00-00'; 
+						 }			 
+						 */
+						 
+						 if($this->input->post('doobert_verified')!=''  || $this->input->post('license_st_verified')!='' || $this->input->post('driver_lic_exp')!=''
+						 || $this->input->post('driver_lic_verified')!='' || $this->input->post('vet_ref_verified')!=''  || $this->input->post('org_verified')!=''
+						  ){
+							  
+							  
+							  
+							  $data['verify'] = array('dt_dl_exp' 	  =>  ($this->input->post('date_driver_lic_exp')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_driver_lic_exp'))),						  	
+											'dt_license_verified' =>  ($this->input->post('date_driver_lic_verified')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_driver_lic_verified'))), 
+											'dt_vet_verified'     =>  ($this->input->post('date_vet_ref_verified')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_vet_ref_verified'))),
+											'dt_org_verified'     =>  ($this->input->post('date_org_verified')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_org_verified'))), 
+											
+											
+							'dt_doobert_verified' 	  =>  ($this->input->post('date_doobert_verified')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_doobert_verified'))),		
+							
+							'fl_doobert_verified'		=> $this->input->post('doobert_verified'),
+							'fl_license_st_verified'	=> $this->input->post('license_st_verified'),
+							'fl_license_exp_verified'	=> $this->input->post('driver_lic_exp'),
+							'fl_license_verified'		=> $this->input->post('driver_lic_verified'),	
+							'fl_vet_verified'			=> $this->input->post('vet_ref_verified'),
+							'fl_org_verified'			=> $this->input->post('org_verified'),			
+							'st_dl_state'			    => $this->input->post('st_dl_state'),
+							'in_deleted'			    => '0'
+							);
+							  
+							  
+							  
+							  
+						 $this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+						 $this->session->set_flashdata('success', 'You have successfully verified driver application!');
+						 }
+						 redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_applications/');		 
+				}
+		 
+		}
+		else
+		{
+			$this->load->view('pending-driver-verification-view',$data);		
+		}
+		
+		
+	}
+	
+	public function clear_filter()
+	{
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+	    if($this->nativesession->get('searchadmin4')){$this->nativesession->delete('searchadmin4'); }
+		if($this->nativesession->get('searchadmin5')){$this->nativesession->delete('searchadmin5'); }
+		if($this->nativesession->get('searchadmin6')){$this->nativesession->delete('searchadmin6'); }
+		if($this->nativesession->get('searchadmin7')){$this->nativesession->delete('searchadmin7'); }
+		if($this->nativesession->get('searchadmin8')){$this->nativesession->delete('searchadmin8'); }
+		if($this->nativesession->get('searchadmin9')){$this->nativesession->delete('searchadmin9'); }
+		if($this->nativesession->get('searchadmin10')){$this->nativesession->delete('searchadmin10');}	
+		if($this->nativesession->get('searchadmin11')){$this->nativesession->delete('searchadmin11');}	
+		
+		$this->verified_drivers();
+	}
+	
+	public function verified_drivers($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		 
+		
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';
+		$name				=	'';	
+		$email				=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearchname')){
+		//print_r($_POST);if($this->input->post('txtsearchname')
+		//die();	
+		}
+		
+		if(isset($_GET['wid']) && !empty($_GET['wid']))
+		{
+			$wid=$_GET['wid'];
+			$this->nativesession->set('searchadmin5',$wid);
+		}
+
+		if($this->input->post('txtsearchname') && ($this->input->post('action') == 'search'))
+		{	
+			$name = trim(addslashes($this->input->post('txtsearchname')));				
+			$this->nativesession->set('searchadmin1',$this->common_function->custom_htmlentities($name));				
+		}
+		
+		if($this->input->post('txtsearchemail') && ($this->input->post('action') == 'search'))
+		{
+			$email = trim(addslashes($this->input->post('txtsearchemail')));				
+			$this->nativesession->set('searchadmin2',$this->common_function->custom_htmlentities($email));	
+		}
+		
+		if($this->input->post('txtfrom') && ($this->input->post('action') == 'search'))
+		{	
+			$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 				
+			$this->nativesession->set('searchadmin3',$fromdate);	
+		}
+		
+		if($this->input->post('txtto') && ($this->input->post('action') == 'search'))
+		{
+			$todate = date('Y-m-d',strtotime($this->input->post('txtto')));	 				
+			$this->nativesession->set('searchadmin4',$todate);	
+			
+		}
+		
+		
+		
+		
+		$rec_per_page =	 $this->config->item('per_page');	
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->driver_model->get_total_verified_driver(); 
+		// GET PAGE LIST RESULT HERE
+		
+		$data['verified_driver_list']	= $this->driver_model->get_verified_driver($sort,$order,$limit,$rec_per_page);
+		//echo "<pre>";print_r($_POST);die;
+		//echo '<pre>'; print_r($data['verified_driver_list']);die; 
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'drivers/verified_drivers/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+
+		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No verified driver information available.';
+		}
+		$data['adminId']	=	$this->session->userdata('sess_admin_id'); 
+		
+		
+		
+		
+		$this->load->view('verified-drivers',$data); 
+		
+	}
+	
+	
+	public function delete_multiple_verified_driver()
+	{
+		$verify_ids = $this->input->post('verifyid');	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($verify_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->driver_model->delete_multiple_verified_driver($verify_ids);
+			
+			$this->session->set_flashdata('success', 'Verified driver(s) has been deleted successfully.');			
+		}
+		
+		if(!empty($verify_ids) && $this->input->post('B3') == 'Re-verify')
+		{	
+			$reverify_driver_data = $this->driver_model->reverify_multiple_driver($verify_ids);
+			
+			if(isset($reverify_driver_data) && !empty($reverify_driver_data))
+			{
+				//print_r($reverify_driver_data);
+				$this->load->library('email');
+				$email_details = $this->common_model->get_email_containt("40");
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				$curr_date			= date('m-d-Y');
+					
+					foreach($reverify_driver_data as $val)
+					{
+						$varifyId	= $val['in_verify_id'];
+						$email		= $val['st_email'];				
+						$user_name	= ucfirst($val['st_fname']). ' ' .ucfirst($val['st_lname']);
+						
+						$doobert_verified_date = array("dt_doobert_verified"=>date("Y-m-d"));		
+						$this->driver_model->update_verification($doobert_verified_date,$varifyId,'tbl_verification');	
+						
+						if(isset($email_details[0]['st_email_body']))
+						{
+							$templete = $email_details[0]['st_email_body'];
+							$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+							$templete  = str_replace("##user_name##",$user_name,$templete);	
+							$templete  = str_replace("##CURRENT_DATE##",$curr_date,$templete);	
+							$templete  = str_replace("##DONATION##",$donation,$templete);	
+							
+							
+							$strMail = $templete;							
+							$to		 = $email;
+							$message = $strMail;
+							$subject = $email_details[0]['st_email_subject'];
+							
+							$attched_file= $_SERVER["DOCUMENT_ROOT"]."/upload/verified_badges/Doobert_Verified_Driver.png";
+							
+							header ("Content-type: image/png");
+							$string = "Doobert Verified Volunteer #".$varifyId;
+							
+							$im = imagecreatefrompng($attched_file);
+							imagealphablending($im, true); // setting alpha blending on
+							imagesavealpha($im, true); // save alphablending setting (important)
+							
+							$textColor = imagecolorallocate ($im, 255, 255, 255);
+							$font = $_SERVER["DOCUMENT_ROOT"]."/assets/OpenSansBold.ttf";
+							
+							//imagettftext($im, 13, 0, 90, 30, $textColor, $font, $string); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string);
+							// This is our cordinates for X and Y
+							$x = $bbox[0] + (imagesx($im) / 2) - ($bbox[4] / 2);
+							$y = 55; //30
+							
+							// Write it
+							imagettftext($im, 13, 0, $x, $y, $textColor, $font, $string);
+							
+							//array imagefttext ( resource $image , float $size , float $angle , int $x , int $y , int $color , string $fontfile , string $text [, array $extrainfo ] )
+							
+							$first_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im,$first_img_name);
+							$strmon		=$this->driver_model->get_full_month(date('n'));
+							$stryear = date('Y', strtotime('+1 year'));
+							$string2 ="Exp: ".$strmon." ".$stryear;
+							
+							if(strlen($string2) > 20)
+							{
+								$name_array = explode(' ',$string2);
+								$string2 = $name_array[0];
+							}
+							
+							// try changing this as well
+							$im1 = imagecreatefrompng($first_img_name);
+							imagealphablending($im1, true); // setting alpha blending on
+							imagesavealpha($im1, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im1, 255, 255, 255);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string2);
+							$x = $bbox[0] + (imagesx($im1) / 2) - ($bbox[4] / 2);
+							$y = 205; //185
+							imagettftext($im1, 13, 0, $x, $y, $textColor, $font, $string2); 
+							
+							$sec_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$sec_img_name);
+							//imagepng($im1);
+							
+							
+							$thir_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$thir_img_name);
+							//$strmon  = date('M');	
+							$string3 = $user_name;
+							
+							if(strlen($string3) > 20)
+							{
+								$name_array = explode(' ',$string3);
+								$string3 = $name_array[0];
+							}
+							
+							// try changing this as well
+							$im2 = imagecreatefrompng($thir_img_name);
+							imagealphablending($im2, true); // setting alpha blending on
+							imagesavealpha($im2, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im2, 201, 194, 46);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(28, 0, $font, $string3);
+							$x = $bbox[0] + (imagesx($im2) / 2) - ($bbox[4] / 2);
+							$y = 140; //185
+							imagettftext($im2, 28, 0, $x, $y, $textColor, $font, $string3); 
+							
+							$fou_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im2,$fou_img_name);
+							
+							imagedestroy($im2);			
+							
+							$this->email->attach($fou_img_name);
+						
+							$category  	=  $email_details[0]['st_category'];
+							$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+							$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+							$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+							
+							$send_email = 1;							
+							$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+							if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+							{
+								$send_email = 0;										
+							}
+							
+							$email_template_id = $email_details[0]['in_email_id'];
+							$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+							if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+							{
+								$send_email = 1;
+							}
+							
+							if($send_email == '1')
+							{
+								$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);							
+							}
+							$this->email->clear(TRUE);
+							//print_r($this->email->print_debugger());
+							//exit;
+					}
+				}
+			}
+			
+			$this->session->set_flashdata('success', 'Driver(s) has been re-verified successfully.');			
+		}
+		
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'drivers/verified_drivers/'.$sort.'/'.$order.'/'.$limit);
+	}
+	
+	public function generate_download($document)
+	{
+		
+			$file = $this->config->item('upload')."verification/".$document;
+		
+		if ($document!='' && file_exists($file)) {
+		
+		$this->load->helper('download');
+		$data = file_get_contents($file); // Read the file's contents
+		$name = $document;
+		force_download($name, $data);
+		}
+		else
+		{   		
+			$this->session->set_flashdata('docmsg', 'File does not exist.');
+			redirect($this->agent->referrer());				
+		}
+	}	
+		
+	
+	
+	public function verify_driver_view($verifyId=false)
+	{  
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		 
+		 if($varifyId == '')
+		{
+			$varifyId = $this->uri->segment('3');
+		}
+		
+		 $data=array();
+		 
+		$data			    =	array();
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array(  'st_dl_state'				=> "",								
+								'driver_lic_exp'	    	=> "",
+								'date_driver_lic_verified'	=> "",
+								'date_vet_ref_verified'     => "",								
+								'date_org_verified'			=> "",
+								'date_driver_lic_exp'       => "", 
+								'driver_lic_verified'		=> "",
+								'vet_ref_verified'			=> "",
+								'org_verified'			    => ""
+								
+								
+		);
+		
+		
+		
+		foreach($form_field as $key => $value)	
+		{	
+			$data['edit'][$key] = $value;	
+		}
+		 
+		
+		$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($verifyId);	
+		$data['ref_details'] 			 = $this->driver_model->get_ref_details($verifyId);   // added by sadiq on 15-09-15
+		
+		//echo '<pre>';print_r($data['verified_driver_details']); die;		
+		
+		if(isset($data['verified_driver_details']) && count($data['verified_driver_details']) ==0)
+		{
+			redirect($this->config->item('admin_base_url').'drivers/verified_drivers/');
+		}
+		
+			
+		$userId = $data['verified_driver_details']['in_user_id'];
+		$data['verify_doc'] = $this->driver_model->get_verify_doc($userId);
+		//echo '<pre>'; print_r($data['verify_doc']); die;	
+		
+		if($this->input->post('action')=='Update')
+		{
+			
+			$varifyId			      = $this->input->post('verifyid');	
+			
+			$this->form_validation->set_rules('st_dl_state', 'Drivers License State', 'trim');	
+			
+			
+			if($this->input->post('driver_lic_exp')!=''){	
+			$this->form_validation->set_rules('date_driver_lic_exp', 'Driver License Exp Date', 'trim|required');
+			}
+			if($this->input->post('driver_lic_verified')!=''){	
+			$this->form_validation->set_rules('date_driver_lic_verified', 'Driver License Verified Date', 'trim|required');
+			}
+			
+			if($this->input->post('vet_ref_verified')!=''){
+			$this->form_validation->set_rules('date_vet_ref_verified', 'Vet Reference Verified Date', 'trim|required');
+			}
+			if($this->input->post('org_verified')!=''){
+			$this->form_validation->set_rules('date_org_verified', 'Organization(s) Reference(s) Verified Date', 'trim|required');	
+			}
+			
+		
+		
+		
+		if($this->form_validation->run() == FALSE)
+				{    
+						$data['Err_Msg'] = validation_errors();							
+						$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($this->input->post('verifyid'));									
+						$this->load->view('verified-driver-view',$data);	
+				}
+				
+				
+				else{	
+				   //echo $this->input->post('date_org_verified'); die;
+						 
+		               
+		 			 	 $varifyId			      					= $this->input->post('verifyid');	
+						 $verify_info['st_dl_state']				= $this->input->post('st_dl_state');						 
+						 $verify_info['fl_license_exp_verified']	= $this->input->post('driver_lic_exp');						 
+						 $verify_info['fl_license_verified']		= $this->input->post('driver_lic_verified');
+						 $verify_info['fl_vet_verified']			= $this->input->post('vet_ref_verified');
+						 $verify_info['fl_org_verified']			= $this->input->post('org_verified');						 
+						
+						$data['verify'] = array('dt_dl_exp' 	  =>  ($this->input->post('date_driver_lic_exp')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_driver_lic_exp'))),						  	
+											'dt_license_verified' =>  ($this->input->post('date_driver_lic_verified')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_driver_lic_verified'))), 
+											'dt_vet_verified'     =>  ($this->input->post('date_vet_ref_verified')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_vet_ref_verified'))),
+											'dt_org_verified'     =>  ($this->input->post('date_org_verified')=='') ? '0000-00-00' : date('Y-m-d',strtotime($this->input->post('date_org_verified'))), 
+											
+							'st_dl_state' 						=> $this->input->post('st_dl_state'),
+							'fl_license_exp_verified'			=> $this->input->post('driver_lic_exp'),
+							'fl_license_verified' 				=> $this->input->post('driver_lic_verified'),
+							'fl_vet_verified' 					=> $this->input->post('vet_ref_verified'),
+							'fl_org_verified'  					=> $this->input->post('org_verified')	
+										);
+						$this->driver_model->update_verification($data['verify'],$varifyId,'tbl_verification');						
+						$this->session->set_flashdata('success', 'You have successfully verified driver application!');	
+						redirect($this->config->item('admin_base_url').'drivers/verified_drivers/');					 
+				}
+		
+		}
+		else{
+		$this->load->view('verified-driver-view',$data);
+		
+		}
+	}	
+	
+	public function reverify_driver()
+	{
+		//print_r($_POST['reverifyid']);	
+		$varifyId = $_POST['reverifyid'];
+		//print_r($varifyId);exit;
+		
+		
+		if(!$this->session->userdata('sess_admin_id') || !isset($varifyId))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		 
+		$doobert_verified_date = array("dt_doobert_verified"=>date("Y-m-d"));		
+		$this->driver_model->update_verification($doobert_verified_date,$varifyId,'tbl_verification');	
+		
+		$data['verified_driver_details'] = $this->driver_model->get_verified_driver_profile($varifyId);	
+		
+		$data['email']		=	$data['verified_driver_details']['st_email'];				
+		$data['user_name']	=	ucfirst($data['verified_driver_details']['st_fname']). ' ' .ucfirst($data['verified_driver_details']['st_lname']);
+		
+		$email_details = $this->common_model->get_email_containt("40");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		$curr_date			= date('m-d-Y');
+		if(isset($email_details[0]['st_email_body']))
+		{
+			$templete = $email_details[0]['st_email_body'];
+			$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+			$templete  = str_replace("##user_name##",$data['user_name'],$templete);	
+			$templete  = str_replace("##CURRENT_DATE##",$curr_date,$templete);	
+			$templete  = str_replace("##DONATION##",$donation,$templete);	
+			
+			
+			$strMail = $templete;							
+			$to		 = $data['email'];
+			$message = $strMail;
+			$subject = $email_details[0]['st_email_subject'];
+			$this->load->library('email');
+						
+							$attched_file= $_SERVER["DOCUMENT_ROOT"]."/upload/verified_badges/Doobert_Verified_Driver.png";
+							//print_r($attched_file);
+							//die();
+								
+							header ("Content-type: image/png");
+							$string = "Doobert Verified Volunteer #".$varifyId;
+							
+							$im = imagecreatefrompng($attched_file);
+							imagealphablending($im, true); // setting alpha blending on
+							imagesavealpha($im, true); // save alphablending setting (important)
+							
+							$textColor = imagecolorallocate ($im, 255, 255, 255);
+							$font = $_SERVER["DOCUMENT_ROOT"]."/assets/OpenSansBold.ttf";
+							
+							//imagettftext($im, 13, 0, 90, 30, $textColor, $font, $string); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string);
+							// This is our cordinates for X and Y
+							$x = $bbox[0] + (imagesx($im) / 2) - ($bbox[4] / 2);
+							$y = 55; //30
+							
+							// Write it
+							imagettftext($im, 13, 0, $x, $y, $textColor, $font, $string);
+							
+							//array imagefttext ( resource $image , float $size , float $angle , int $x , int $y , int $color , string $fontfile , string $text [, array $extrainfo ] )
+							
+							$first_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im,$first_img_name);
+							$strmon		=$this->driver_model->get_full_month(date('n'));
+							$stryear = date('Y', strtotime('+1 year'));
+							$string2 ="Exp: ".$strmon." ".$stryear;
+							if(strlen($string2) > 20)
+							{
+								$name_array = explode(' ',$string2);
+								$string2 = $name_array[0];
+							}
+							
+							// try changing this as well
+							$im1 = imagecreatefrompng($first_img_name);
+							imagealphablending($im1, true); // setting alpha blending on
+							imagesavealpha($im1, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im1, 255, 255, 255);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string2);
+							$x = $bbox[0] + (imagesx($im1) / 2) - ($bbox[4] / 2);
+							$y = 205; //185
+							imagettftext($im1, 13, 0, $x, $y, $textColor, $font, $string2); 
+							
+							$sec_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$sec_img_name);
+							//imagepng($im1);
+							
+							
+							$thir_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$thir_img_name);
+							//$strmon  = date('M');	
+						
+							$string3 = $data['user_name'];
+							if(strlen($string3) > 20)
+							{
+								$name_array = explode(' ',$string3);
+								$string3 = $name_array[0];
+							}
+							
+							// try changing this as well
+							$im2 = imagecreatefrompng($thir_img_name);
+							imagealphablending($im2, true); // setting alpha blending on
+							imagesavealpha($im2, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im2, 201, 194, 46);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(28, 0, $font, $string3);
+							$x = $bbox[0] + (imagesx($im2) / 2) - ($bbox[4] / 2);
+							$y = 140; //185
+							imagettftext($im2, 28, 0, $x, $y, $textColor, $font, $string3); 
+							
+							$fou_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im2,$fou_img_name);
+							
+							imagedestroy($im2);			
+							
+							$this->email->attach($fou_img_name);
+				
+			
+			$category  	=  $email_details[0]['st_category'];
+			//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+			$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+				
+			$send_email = 1;							
+			$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+			if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_details[0]['in_email_id'];
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}
+			
+			if($send_email == '1')
+			{
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+			}
+			//print_r($this->email->print_debugger());
+			//exit;
+		}	
+					
+		$this->session->set_flashdata('success', 'You have successfully re-verified driver application!');	
+		redirect($this->config->item('admin_base_url').'drivers/verified_drivers/');
+	}
+	
+	public function reverify_all_drivers()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);
+		else	
+			$sort = 'id';
+		
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'asc';
+			
+		$limit = '0';
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->driver_model->get_total_verified_driver();
+		
+		$user_lists	= $this->driver_model->get_verified_driver($sort,$order,$limit,$totalrecord);
+			
+		foreach($user_lists as $u_val)
+		{
+			$varifyId = $u_val['in_verify_id']; 
+			$reverify_email_status = array("in_reverify_email"=>1);		
+			$this->driver_model->update_verification($reverify_email_status,$varifyId,'tbl_verification');
+		}
+		
+		$this->session->set_flashdata('success', 'You have successfully re-verified driver(s) application!');	
+		redirect($this->config->item('admin_base_url').'drivers/verified_drivers/');
+		
+	}
+	
+	public function send_reverify_email()
+	{
+	
+		$cron_email_array = array("cron_url"=> $this->config->item('admin_base_url').'drivers/send_reverify_email',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+
+		$last_cron_inserted_id = $this->db->insert_id();
+
+		$reverify_driver_data	= $this->driver_model->get_reverified_drivers();
+		
+		if(isset($reverify_driver_data) && !empty($reverify_driver_data))
+		{
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+			//print_r($reverify_driver_data);
+			$this->load->library('email');
+			$email_details = $this->common_model->get_email_containt("40");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			$curr_date			= date('m-d-Y');
+				
+				foreach($reverify_driver_data as $val)
+				{
+					$varifyId	= $val['in_verify_id'];
+					
+					$update_reverified_data = array("dt_doobert_verified"=>date("Y-m-d"),"in_reverify_email"=>2);		
+					$this->driver_model->update_verification($update_reverified_data,$varifyId,'tbl_verification');
+					
+					$email		= $val['st_email'];				
+					$user_name	= ucfirst($val['st_fname']). ' ' .ucfirst($val['st_lname']);
+					
+					if(isset($email_details[0]['st_email_body']))
+					{
+						$templete = $email_details[0]['st_email_body'];
+						$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+						$templete  = str_replace("##user_name##",$user_name,$templete);	
+						$templete  = str_replace("##CURRENT_DATE##",$curr_date,$templete);	
+						$templete  = str_replace("##DONATION##",$donation,$templete);	
+						
+						
+						$strMail = $templete;							
+						$to		 = $email;
+						$message = $strMail;
+						$subject = $email_details[0]['st_email_subject'];
+						
+							$attched_file= $_SERVER["DOCUMENT_ROOT"]."/upload/verified_badges/Doobert_Verified_Driver.png";
+							//$attched_file= $_SERVER["DOCUMENT_ROOT"]."/upload/verified_badges/Doobert_Verified_Driver.png";
+							
+							//print_r($attach_file);
+							header ("Content-type: image/png");
+							$string = "Doobert Verified Volunteer #".$varifyId;
+							
+							$im = imagecreatefrompng($attched_file);
+							imagealphablending($im, true); // setting alpha blending on
+							imagesavealpha($im, true); // save alphablending setting (important)
+							
+							$textColor = imagecolorallocate ($im, 255, 255, 255);
+							$font = $_SERVER["DOCUMENT_ROOT"]."/assets/OpenSansBold.ttf";
+							
+							//imagettftext($im, 13, 0, 90, 30, $textColor, $font, $string); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string);
+							// This is our cordinates for X and Y
+							$x = $bbox[0] + (imagesx($im) / 2) - ($bbox[4] / 2);
+							$y = 55; //30
+							
+							// Write it
+							imagettftext($im, 13, 0, $x, $y, $textColor, $font, $string);
+							
+							//array imagefttext ( resource $image , float $size , float $angle , int $x , int $y , int $color , string $fontfile , string $text [, array $extrainfo ] )
+							
+							$first_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im,$first_img_name);
+							$strmon		=$this->driver_model->get_full_month(date('n'));
+							$stryear = date('Y', strtotime('+1 year'));
+							$string2 ="Exp: ".$strmon." ".$stryear;
+							if(strlen($string2) > 20)
+							{
+								$name_array = explode(' ',$string2);
+								$string2 = $name_array[0];
+							}
+							
+							// try changing this as well
+							$im1 = imagecreatefrompng($first_img_name);
+							imagealphablending($im1, true); // setting alpha blending on
+							imagesavealpha($im1, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im1, 255, 255, 255);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(13, 0, $font, $string2);
+							$x = $bbox[0] + (imagesx($im1) / 2) - ($bbox[4] / 2);
+							$y = 205; //185
+							imagettftext($im1, 13, 0, $x, $y, $textColor, $font, $string2); 
+							
+							$sec_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$sec_img_name);
+							//imagepng($im1);
+							
+							
+							$thir_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im1,$thir_img_name);
+							//$strmon  = date('M');	
+						
+							$string3 = $user_name;
+							if(strlen($string3) > 20)
+							{
+								$name_array = explode(' ',$string3);
+								$string3 = $name_array[0];
+							}
+							// try changing this as well
+							$im2 = imagecreatefrompng($thir_img_name);
+							imagealphablending($im2, true); // setting alpha blending on
+							imagesavealpha($im2, true); // save alphablending setting (important)
+							$textColor = imagecolorallocate ($im2, 201, 194, 46);
+							//imagettftext($im1, 13, 0, 125, 185, $textColor, $font, $string2); 
+							// First we create our bounding box for the first text
+							$bbox = imagettfbbox(28, 0, $font, $string3);
+							$x = $bbox[0] + (imagesx($im2) / 2) - ($bbox[4] / 2);
+							$y = 140; //185
+							imagettftext($im2, 28, 0, $x, $y, $textColor, $font, $string3); 
+							
+							$fou_img_name = $_SERVER["DOCUMENT_ROOT"].'/upload/verified_badges/Doobert_Verified_Driver_'.mt_rand().'.png';
+							imagepng($im2,$fou_img_name);
+							
+							imagedestroy($im2);			
+							
+							$this->email->attach($fou_img_name);
+						
+						$category  	=  $email_details[0]['st_category'];
+						
+						$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+						$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+						$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+						
+						$send_email = 1;							
+						$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+						if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+						{
+							$send_email = 0;										
+						}
+						
+						$email_template_id = $email_details[0]['in_email_id'];
+						$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+						if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+						{
+							$send_email = 1;
+						}
+						
+						if($send_email == '1')
+						{
+							$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);								
+						}
+						
+						$this->email->clear(TRUE);
+						//print_r($this->email->print_debugger());
+						//exit;
+				}
+				
+		}
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			echo 'Email Sent Successfully';
+		}else {
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+		}
+	}
+	
+	public function status_rejected()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }			 
+		 		 
+		 $data['pending_driver_details']=$this->driver_model->get_pending_driver_profile($this->uri->segment(3));
+		 $this->driver_model->update_document($data['pending_driver_details']['in_user_id']);
+		 
+		 
+		 $data['user_details']=$this->driver_model->get_user_profile($data['pending_driver_details']['in_user_id']);	
+		 //echo '<pre>'; print_r($data['user_details']); die;	 
+		 
+		 // Mail functionality start	 added by sadique on 10-12-14				
+						
+							$data['email']		=	$data['user_details']['st_email'];								
+							$data['user_name']	=	ucfirst($data['pending_driver_details']['st_fname']). ' ' .ucfirst($data['pending_driver_details']['st_lname']);
+							$allmail 			=  $data['email'];
+							$email_details = $this->common_model->get_email_containt("30");
+							$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+							$curr_date			= date('m-d-Y');
+						if(isset($email_details[0]['st_email_body']))
+						{
+							$templete = $email_details[0]['st_email_body'];
+							$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+							$templete  = str_replace("##user_name##",$data['user_name'],$templete);	
+							$templete  = str_replace("##CURRENT_DATE##",$curr_date,$templete);	
+							$templete  = str_replace("##DONATION##",$donation,$templete);	
+							
+							
+							$strMail = $templete;							
+							$to		 = $allmail;
+							$message = $strMail;
+							$subject = $email_details[0]['st_email_subject'];
+							$this->load->library('email');
+							$category  	=  $email_details[0]['st_category'];
+							
+							$send_email = 1;							
+							$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+							if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+							{
+								$send_email = 0;										
+							}
+							
+							$email_template_id = $email_details[0]['in_email_id'];
+							$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+							if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+							{
+								$send_email = 1;
+							}
+							
+							if($send_email == '1')
+							{
+								$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+							}
+						}					
+						
+						// Mail functionality end
+						$this->driver_model->update_verification_status($this->uri->segment(3));		
+		 
+		 					
+		 $this->session->set_flashdata('success', 'You have successfully rejected driver application!');	 
+		 redirect($this->config->item('admin_base_url').'drivers/pending_driver_verification_applications/');
+	}
+	
+	//function to export data user details in excel
+	function exportusers()
+	{		
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		 //if(!$sort)
+			//$sort='name';
+		
+		if($this->uri->segment(4))
+			$sort = $this->uri->segment(4);
+		else	
+			$sort = 'name';
+		
+		//if(!$order)
+			//$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$order = $this->uri->segment(5);
+		else	
+			$order = 'asc';
+		
+		//echo 'current_url'.current_url();
+		//exit;	
+		if($this->uri->segment(3))
+			$limit = $this->uri->segment(3);
+		else	
+			$limit = '0';
+
+		$rec_per_page =	 $this->config->item('per_page');	
+
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->driver_model->get_total_verified_driver($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		// GET PAGE LIST RESULT HERE
+		
+		//$user_lists	= $this->driver_model->get_verified_driver($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		//$user_lists	= $this->driver_model->get_verified_driver_export_data(0);
+
+		$user_lists	= $this->driver_model->get_verified_driver_export_data(0,$sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));		
+	
+		
+		//echo '<pre>'; 
+		//print_r($user_lists);
+		//echo count($user_list);
+		//die;
+			
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		//$tmparray =array("Name","Email","Verified Date");
+		$tmparray =array("Name","Email","Verified Date","DOB","Driver's License State",
+						"Driver's License Number",
+						"Driver's License Expiration Date",
+						"Do you have pets currently",
+						"How many pets",
+						"Pet Type",
+						"Pet's Name",
+						"Veterinarian Name",
+						"Veterinarian Office Name",
+						"Veterinarian Office Phone Number",
+						"Phone number on file with vet",
+						"Veterinarian E-mail",
+						"Have you volunteered for an animal rescue or animal shelter previously",
+						"Organization Name",
+						"Dates Volunteered",
+						"Organization Phone Number",
+						"Organization E-mail",
+						"Additional Information",
+						"Have you ever been convicted of a crime",
+						"I have been convicted of a DUI/DWI",
+						"I agree to allow the listed person(s) and organization(s) in this application",
+						"By typing my name in the box I agree that the information in this application",
+						"Reference 1 Name","Reference 1 Email","Reference 1 Relationship","Reference 1 Phone",
+						"Reference 2 Name","Reference 2 Email","Reference 2 Relationship","Reference 2 Phone",
+						"Reference 3 Name","Reference 3 Email","Reference 3 Relationship","Reference 3 Phone","Driver Modified Date","Pilot Modified Date","Foster modified date",
+						"Photographer Modified Date","In Person Volunteer Modified Date","Virtual Support Volunteer Modified Date");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		/*foreach($user_lists as $user_list)
+		{
+		$tmparray =array();
+		
+		array_push($tmparray,$user_list['st_fname'].' '.$user_list['st_lname']);
+		array_push($tmparray,$user_list['st_email']);
+		array_push($tmparray,date('m/d/Y',strtotime($user_list['doobert_verified_date'])));
+		
+		array_push($sheet,$tmparray);
+		}*/
+		
+		foreach($user_lists as $user_list)
+		{
+			$tmparray =array();
+			array_push($tmparray,$user_list['st_fname'].' '.$user_list['st_lname']);
+			array_push($tmparray,$user_list['st_email']);
+			array_push($tmparray,date('m/d/Y',strtotime($user_list['doobert_verified_date'])));
+			array_push($tmparray,$user_list['st_age']);
+			array_push($tmparray,$user_list['st_dl_state']);
+			array_push($tmparray,$user_list['st_dl_num']);
+			array_push($tmparray,$user_list['dt_dl_exp']);
+			array_push($tmparray,$user_list['fl_have_pets']);
+			array_push($tmparray,$user_list['in_num_pets']);
+			array_push($tmparray,$user_list['st_pet_type']);
+			array_push($tmparray,$user_list['st_pet_name']);
+			array_push($tmparray,$user_list['st_vt_name']);
+			array_push($tmparray,$user_list['st_vt_off_name']);
+			array_push($tmparray,$user_list['st_vt_off_phone']);
+			array_push($tmparray,$user_list['st_ph_with_vet']);
+			array_push($tmparray,$user_list['st_vt_email']);
+			array_push($tmparray,$user_list['fl_animal_volunteer']);
+			array_push($tmparray,$user_list['st_org_name']);
+			if($user_list['dt_volunteer_to']!='')
+			{
+				$to=' to ';
+			} else
+			{
+				$to='';
+			}
+			$date_volunteered =  $user_list['dt_volunteer_from']  .  $to . $user_list['dt_volunteer_to'];
+			array_push($tmparray,$date_volunteered);
+			array_push($tmparray,$user_list['st_org_phone']);
+			array_push($tmparray,$user_list['st_org_email']);
+			array_push($tmparray,$user_list['st_addi_info']);
+			array_push($tmparray,$user_list['in_felony']);
+			array_push($tmparray,$user_list['in_dui']);
+			array_push($tmparray,$user_list['st_info_agree']);
+			array_push($tmparray,$user_list['st_info_agree_name']);
+			$ref_details = $user_list['ref_details'];
+			array_push($tmparray,isset($ref_details[0]['st_ref_name']) ? $ref_details[0]['st_ref_name'] : '');
+			array_push($tmparray,isset($ref_details[0]['st_ref_email']) ? $ref_details[0]['st_ref_email'] : '');
+			array_push($tmparray,isset($ref_details[0]['st_ref_rel']) ? $ref_details[0]['st_ref_rel'] : '');
+			array_push($tmparray,isset($ref_details[0]['st_ref_phone']) ? $ref_details[0]['st_ref_phone'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_name']) ? $ref_details[1]['st_ref_name'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_email']) ? $ref_details[1]['st_ref_email'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_rel']) ? $ref_details[1]['st_ref_rel'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_phone']) ? $ref_details[1]['st_ref_phone'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_name']) ? $ref_details[2]['st_ref_name'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_email']) ? $ref_details[2]['st_ref_email'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_rel']) ? $ref_details[2]['st_ref_rel'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_phone']) ? $ref_details[2]['st_ref_phone'] : '' );
+			array_push($tmparray,$user_list['driver_modified']);
+			array_push($tmparray,$user_list['pilot_modified']);
+			array_push($tmparray,$user_list['foster_modified_date']);
+			array_push($tmparray,$user_list['photographer_modified']);
+			array_push($tmparray,$user_list['per_vol_modified']);
+			array_push($tmparray,$user_list['vir_vol_modified']);
+			array_push($sheet,$tmparray);
+		}
+		
+		//echo "<pre>"; print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="Verified User Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('Verified User Details');
+		$worksheet->SetCellValue('A1', 'Verified User Details');
+		$worksheet->getStyle('A1:AR1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:AR1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:AR2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+						
+	}
+	
+	//function to export all data user details in excel
+	function exportallusers()
+	{		
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		//if(!$sort)
+			//$sort='name';
+		
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);
+		else	
+			$sort = 'name';
+		
+		//if(!$order)
+			//$order = 'asc';
+			
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'asc';
+			
+		/*if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';*/
+		
+		$limit = '0';
+		
+		//$rec_per_page =	 $this->config->item('per_page');	
+
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->driver_model->get_total_verified_driver();
+		// GET PAGE LIST RESULT HERE
+		
+		$rec_per_page =	 $totalrecord;	
+		
+		//$user_lists	= $this->driver_model->get_verified_driver($sort,$order,$limit,$rec_per_page);
+		$user_lists	= $this->driver_model->get_verified_driver_export_data(1);	
+			
+		//echo '<pre>'; 
+		//print_r($user_lists);
+		//echo count($user_lists);
+		//die;
+			
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		//$tmparray =array("Name","Email","Verified Date");
+		$tmparray = array("Name","Email","Verified Date","DOB","Driver's License State",
+						"Driver's License Number",
+						"Driver's License Expiration Date",
+						"Do you have pets currently",
+						"How many pets",
+						"Pet Type",
+						"Pet's Name",
+						"Veterinarian Name",
+						"Veterinarian Office Name",
+						"Veterinarian Office Phone Number",
+						"Phone number on file with vet",
+						"Veterinarian E-mail",
+						"Have you volunteered for an animal rescue or animal shelter previously",
+						"Organization Name",
+						"Dates Volunteered",
+						"Organization Phone Number",
+						"Organization E-mail",
+						"Additional Information",
+						"Have you ever been convicted of a crime",
+						"I have been convicted of a DUI/DWI",
+						"I agree to allow the listed person(s) and organization(s) in this application",
+						"By typing my name in the box I agree that the information in this application",
+						"Reference 1 Name","Reference 1 Email","Reference 1 Relationship","Reference 1 Phone",
+						"Reference 2 Name","Reference 2 Email","Reference 2 Relationship","Reference 2 Phone",
+						"Reference 3 Name","Reference 3 Email","Reference 3 Relationship","Reference 3 Phone","Driver Modified Date","Pilot Modified Date","Foster modified date",
+						"Photographer Modified Date","In Person Volunteer Modified Date","Virtual Support Volunteer Modified Date");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		/*foreach($user_lists as $user_list)
+		{
+			$tmparray =array();
+			array_push($tmparray,$user_list['st_fname'].' '.$user_list['st_lname']);
+			array_push($tmparray,$user_list['st_email']);
+			array_push($tmparray,date('m/d/Y',strtotime($user_list['doobert_verified_date'])));
+			
+			array_push($sheet,$tmparray);
+		}*/
+		
+		foreach($user_lists as $user_list)
+		{
+			$tmparray =array();
+			array_push($tmparray,$user_list['st_fname'].' '.$user_list['st_lname']);
+			array_push($tmparray,$user_list['st_email']);
+			array_push($tmparray,date('m/d/Y',strtotime($user_list['doobert_verified_date'])));
+			array_push($tmparray,$user_list['st_age']);
+			array_push($tmparray,$user_list['st_dl_state']);
+			array_push($tmparray,$user_list['st_dl_num']);
+			array_push($tmparray,$user_list['dt_dl_exp']);
+			array_push($tmparray,$user_list['fl_have_pets']);
+			array_push($tmparray,$user_list['in_num_pets']);
+			array_push($tmparray,$user_list['st_pet_type']);
+			array_push($tmparray,$user_list['st_pet_name']);
+			array_push($tmparray,$user_list['st_vt_name']);
+			array_push($tmparray,$user_list['st_vt_off_name']);
+			array_push($tmparray,$user_list['st_vt_off_phone']);
+			array_push($tmparray,$user_list['st_ph_with_vet']);
+			array_push($tmparray,$user_list['st_vt_email']);
+			array_push($tmparray,$user_list['fl_animal_volunteer']);
+			array_push($tmparray,$user_list['st_org_name']);
+			if($user_list['dt_volunteer_to']!='')
+			{
+				$to=' to ';
+			} else
+			{
+				$to='';
+			}
+			$date_volunteered =  $user_list['dt_volunteer_from']  .  $to . $user_list['dt_volunteer_to'];
+			array_push($tmparray,$date_volunteered);
+			array_push($tmparray,$user_list['st_org_phone']);
+			array_push($tmparray,$user_list['st_org_email']);
+			array_push($tmparray,$user_list['st_addi_info']);
+			array_push($tmparray,$user_list['in_felony']);
+			array_push($tmparray,$user_list['in_dui']);
+			array_push($tmparray,$user_list['st_info_agree']);
+			array_push($tmparray,$user_list['st_info_agree_name']);
+			$ref_details = $user_list['ref_details'];
+			array_push($tmparray,isset($ref_details[0]['st_ref_name']) ? $ref_details[0]['st_ref_name'] : '');
+			array_push($tmparray,isset($ref_details[0]['st_ref_email']) ? $ref_details[0]['st_ref_email'] : '');
+			array_push($tmparray,isset($ref_details[0]['st_ref_rel']) ? $ref_details[0]['st_ref_rel'] : '');
+			array_push($tmparray,isset($ref_details[0]['st_ref_phone']) ? $ref_details[0]['st_ref_phone'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_name']) ? $ref_details[1]['st_ref_name'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_email']) ? $ref_details[1]['st_ref_email'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_rel']) ? $ref_details[1]['st_ref_rel'] : '');
+			array_push($tmparray,isset($ref_details[1]['st_ref_phone']) ? $ref_details[1]['st_ref_phone'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_name']) ? $ref_details[2]['st_ref_name'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_email']) ? $ref_details[2]['st_ref_email'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_rel']) ? $ref_details[2]['st_ref_rel'] : '');
+			array_push($tmparray,isset($ref_details[2]['st_ref_phone']) ? $ref_details[2]['st_ref_phone'] : '' );
+			array_push($tmparray,$user_list['driver_modified']);
+			array_push($tmparray,$user_list['pilot_modified']);
+			array_push($tmparray,$user_list['foster_modified_date']);
+			array_push($tmparray,$user_list['photographer_modified']);
+			array_push($tmparray,$user_list['per_vol_modified']);
+			array_push($tmparray,$user_list['vir_vol_modified']);
+			array_push($sheet,$tmparray);
+		}
+		//echo "<pre>"; print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="All Verified User Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('All Verified User Details');
+		$worksheet->SetCellValue('A1', 'All Verified User Details');
+		$worksheet->getStyle('A1:AR1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:AR1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:AR2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+						
+	}
+	
+	public function incomplete_driver_verification_applications($sort=false,$order=false,$limit=false)
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		 
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';
+		$name				=	'';	
+		$email				=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(7))
+			$limit = $this->uri->segment(7);
+		else	
+			$limit = '0';
+		
+		$rec_per_page =	 $this->config->item('per_page');	
+		
+		$app_type = 0;
+		
+		
+		//echo 'app_type'.$app_type;exit;
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->driver_model->get_total_incomplete_driver($app_type); 
+		// GET PAGE LIST RESULT HERE
+		
+		$data['pending_driver_list']	= $this->driver_model->get_incomplete_driver($sort,$order,$limit,$rec_per_page,$app_type);
+		
+		//echo '<pre>'; print_r($data['pending_driver_list']);die; 
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'drivers/incomplete_driver_verification_applications/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/'.$rec_per_page.'/'.$limit.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		//print_r($data['pagination']);exit;
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+
+		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No incomplete driver verification  applications available.';
+		}
+		$data['adminId']	=	$this->session->userdata('sess_admin_id');		
+		
+		
+		$data['app_type'] = $app_type;
+		
+		$this->load->view('incomplete-driver-verification-applications',$data);
+	}
+	
+	
+	public function incomplete_driver_verification_view($verifyId)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		if($varifyId == '')
+		{
+			$varifyId = $this->uri->segment('3');
+		}
+		
+		$data['pending_driver_details'] = $this->driver_model->get_pending_driver_profile($verifyId);
+		$data['ref_details'] 			= $this->driver_model->get_ref_details($verifyId);   // added by sadique on 09-09-15
+		//echo '<pre>'; print_r($data['pending_driver_details']); die;		
+		if(isset($data['pending_driver_details']) && count($data['pending_driver_details'])==0){
+		redirect($this->config->item('admin_base_url').'drivers/incomplete_driver_verification_applications/');	
+		}
+		$userId = $data['pending_driver_details']['in_user_id'];
+		$data['verify_doc'] = $this->driver_model->get_verify_doc($userId);
+		
+		$this->load->view('incomplete-driver-verification-view',$data);
+	}
+	
+	
+	public function  delete_multiple_driver_incomplete()
+	{
+			$verify_ids = $this->input->post('verifyid');	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($verify_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->driver_model->delete_multiple_driver($verify_ids);
+			
+			$this->session->set_flashdata('success', 'Incomplete driver verification application has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'drivers/incomplete_driver_verification_applications/'.$sort.'/'.$order.'/'.$limit);
+	}
+	
+	function  Unverify_driver()
+	{
+		 $verifyId = $this->input->post('id');
+		 $status = $this->driver_model->un_verify_driver($verifyId);
+		 if(!empty($status))
+		 {	 
+			$this->session->set_flashdata('success','Selected user has been Unverified.');
+		 }	
+		 echo $status;
+		 //exit(0);
+	}
+	
+}
+
+/* End of file drivers.php */
+/* Location: ./application/controllers/drivers.php */

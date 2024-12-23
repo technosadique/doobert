@@ -1,0 +1,580 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 15-April-2014
+# File description	: Transfer Model for admin
+# Special - notes	: none
+# Tables used		: tbl_organization
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class transfer_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#=====================================================================
+	#	Function	:	get_total_transfer()
+	#  Parameter	: 	name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get total transfer ownership application details
+	#---------------------------------------------------------------------
+	
+	public function get_total_transfer($name='',$zip='',$certified='',$contract='',$fromdate='',$todate='',$state='',$country='')
+	{ 			
+			
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+				  
+				  
+				    $this->db->select("tt.in_transfer_id,
+        							  org.in_organization_id", false);						   	
+					$this->db->from('tbl_organization_transfer tt');
+					$this->db->join('tbl_organization org', 'org.in_organization_id=tt.in_organization_id','INNER');
+					$this->db->join('tbl_users usr', 'usr.in_user_id=tt.in_transfer_to','INNER');
+					$this->db->where('tt.in_status','0');
+					$this->db->where('tt.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');
+					$this->db->where('org.in_deleted','0');
+				  
+				  
+					
+					if(trim($name) != '') {
+							if($name=='%'){
+							$this->db->where("org.st_org_name RLIKE '%".$name."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_org_name LIKE '%".$name."%'", NULL, FALSE);
+						}
+					}	
+					
+					//if($zip!=''){	
+					
+					//$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+					//}	
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if($certified!='' ){
+					
+					$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					
+					if($contract!='')
+					{ 						
+						$this->db->where("st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}	
+					
+					
+					if($fromdate!='' && $todate!=''){	
+					
+					$this->db->where("tt.dt_created >= '".$fromdate."' AND tt.dt_created <='" .$todate. ' 23:59:59'."'", NULL, FALSE);
+					}	
+					
+					/*if($state!=''){
+					
+					$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if($country!=''){
+					
+					$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+					// Group By 						
+					
+					$this->db->group_by("tt.in_organization_id");
+					$query = $this->db->get();
+					//echo $this->db->last_query(); die;		
+		return $query->num_rows();
+	}
+	
+	#====================================================================================================
+	#	Function	:	get_transfer()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get transfer ownership details
+	#----------------------------------------------------------------------------------------------------
+	public function get_transfer($sort,$order,$limit,$rec_per_page,$name,$zip,$certified,$contract,$fromdate,$todate,$state,$country)
+	{
+		
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }				
+		
+				   
+					$this->db->select("tt.in_transfer_id,							
+										tt.in_transfer_by,
+										tt.in_transfer_to,
+										tt.dt_created,
+										tt.dt_modified,
+										org.in_organization_id,
+										org.st_org_name,
+										org.st_org_type,
+										org.st_country,
+										org.st_state,
+										org.st_city,
+										org.st_zip,
+										org.st_director,
+										org.st_primary_phone,
+										org.st_email_address,
+										usr.st_display_name,
+										usr.st_last_name,
+										usr.st_email", false);								   	
+					$this->db->from('tbl_organization_transfer tt');
+					$this->db->join('tbl_organization org', 'org.in_organization_id=tt.in_organization_id','INNER');
+					$this->db->join('tbl_users usr', 'usr.in_user_id=tt.in_transfer_to','INNER');
+					$this->db->where('tt.in_status','0');
+					$this->db->where('tt.in_deleted','0');
+					$this->db->where('usr.in_deleted','0');
+					$this->db->where('org.in_deleted','0');				  
+				
+					if(trim($name) != '') {
+							if($name=='%'){
+							$this->db->where("org.st_org_name RLIKE '%".$name."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_org_name LIKE '%".$name."%'", NULL, FALSE);
+						}
+					}	
+					
+					//if($zip!=''){	
+					
+					//$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+					//}	
+					
+					if(trim($zip) != '') {
+							if($zip=='%'){
+							$this->db->where("org.st_zip RLIKE '%".$zip."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("org.st_zip LIKE '%".$zip."%'", NULL, FALSE);
+						}
+					}
+					
+					if($certified!='' ){
+					
+					$this->db->where("org.st_has_501c3 LIKE '%".$certified."%'", NULL, FALSE);
+					}
+					
+					if($contract!='')
+					{ 						
+						$this->db->where("st_has_contract LIKE '%".$contract."%'", NULL, FALSE);
+					}	
+					
+					
+					if($fromdate!='' && $todate!=''){	
+					
+					$this->db->where("tt.dt_created >= '".$fromdate."' AND tt.dt_created <='" .$todate. ' 23:59:59'."'", NULL, FALSE);
+					}	
+					
+					/*if($state!=''){
+					
+					$this->db->where("org.st_state LIKE '%".$state."%'", NULL, FALSE);
+					}*/
+					
+					if(trim($state) != '') 
+					{
+						$state_name = '';
+						if($country == 'CANADA')
+						{	
+								$state_name = $this->common_function->canadian_state_list[$state];
+						} else {
+								$state_name = $this->common_function->state_list[$state];
+						}	
+						$this->db->where("(org.st_state ='".$state."' OR org.st_state ='".$state_name."')", NULL, FALSE);
+					}
+					
+					if($country!=''){
+					
+					$this->db->where("org.st_country LIKE '%".$country."%'", NULL, FALSE);
+					}
+						// Group By 						
+						
+						$this->db->group_by("tt.in_organization_id");
+		
+					switch($sort)
+						{
+							
+							case 'id': 
+								
+								$this->db->order_by('org.in_organization_id',$order);
+							break;	
+							case 'name': 
+								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							case 'type': 
+								
+								$this->db->order_by('org.st_org_type',$order);
+							break;
+							case 'location': 
+								
+								$this->db->order_by('org.st_state',$order);
+							break;
+							case 'director': 
+								
+								$this->db->order_by('org.st_director',$order);
+							break;
+							case 'phone': 
+								
+								$this->db->order_by('org.st_primary_phone',$order);
+							break;
+							case 'transferto': 
+								
+								$this->db->order_by('tt.in_transfer_to',$order);
+							break;
+							case 'transferby': 
+								
+								$this->db->order_by('tt.in_transfer_by',$order);
+							break;
+							case 'email': 								
+								//$this->db->order_by('usr.st_email',$order);
+								$this->db->order_by('org.st_email_address',$order);
+							break;	
+							
+							case 'createdate': 								
+								$this->db->order_by('tt.dt_created',$order);
+							break;	
+							
+							
+							case 'modifieddate': 								
+								$this->db->order_by('tt.dt_modified',$order);
+							break;	
+							
+							default:
+							
+							$this->db->order_by('org.in_organization_id',$order);
+							break;			
+							
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 				
+					
+					//echo $this->db->last_query();  die;					
+					$arrTransfer = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{							
+						$sqlaccept = "SELECT concat(st_display_name, ' ',st_last_name) as st_display_name FROM tbl_users  where in_user_id = '".$Row->in_transfer_to."'";
+						$sqaccept	=	$this->db->query($sqlaccept);
+						$numrowsaccept	=	$sqaccept->num_rows($sqlaccept);	
+						$accept=$sqaccept->result();
+						
+						$sqltransfer = "SELECT concat(st_display_name, ' ',st_last_name) as st_display_name FROM tbl_users  where in_user_id = '".$Row->in_transfer_by."'";
+						$sqtransfer	=	$this->db->query($sqltransfer);
+						$numrowstransfer	=	$sqtransfer->num_rows($sqltransfer);	
+						$transfer=$sqtransfer->result();
+												
+						$accepted_by	=	$accept[0]->st_display_name;							
+						$transfer_by	=	$transfer[0]->st_display_name;						
+						
+									
+									
+							$arrTransfer[$Row->in_transfer_id]	= array('in_transfer_id'			=> $Row->in_transfer_id,
+																		'st_org_name'				=> $Row->st_org_name,	
+																		'in_organization_id'		=> $Row->in_organization_id,															
+																		'st_org_type'				=> $Row->st_org_type,
+																		'st_city'					=> $Row->st_city,
+																		'st_state'					=> $Row->st_state,
+																		'st_country'				=> $Row->st_country,
+																		'st_zip'					=> $Row->st_zip,																								
+																		'st_director' 				=> $Row->st_director,
+																		'st_primary_phone' 			=> $Row->st_primary_phone,
+																		'st_email_address' 			=> $Row->st_email_address,
+																		'st_display_name' 			=> $Row->st_display_name,
+																		'st_last_name' 			    => $Row->st_last_name,
+																		'dt_created' 				=> $Row->dt_created,
+																		'dt_modified' 				=> $Row->dt_modified,
+																		'accepted_by'				=> $accepted_by,
+																		'transfer_by'				=> $transfer_by,
+																		'st_email'=> $Row->st_email
+																		);
+						}
+						return $arrTransfer;
+						
+					}
+					
+	}
+	
+	
+		
+	
+	#================================================================
+	#	Function	:	update_status_accept()
+	#  Parameter	: 	orgId
+	#	Perpose		:	updating status as accept in tbl_organization
+	#----------------------------------------------------------------
+	function update_status_accept($orgId)
+	{
+		$arrOrg = 	array('in_status' 	=> '1' );		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);		
+	}
+	
+	
+		
+	#================================================================
+	#	Function	:	update_status_reject()
+	#   Parameter	: 	orgId
+	#	Perpose		:	updating status as reject in tbl_organization
+	#----------------------------------------------------------------
+	function update_status_reject($orgId)
+	{
+		$arrOrg = 	array('in_status' 	=> '3' );		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);		
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	delete_multiple_transfer()
+	#   Parameter	: 	orgIds
+	#	Perpose		:	to delete multiple transfer details
+	#------------------------------------------------------------
+	function delete_multiple_transfer($transferIds)
+	{
+		//echo '<pre>'; print_r($orgIds); die;
+		
+		$arrOrg = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_transfer_id', $transferIds);
+		$this->db->update('tbl_organization_transfer', $arrOrg);		
+		return $this->db->affected_rows();
+	}
+	
+	
+	
+	#=============================================
+	#	Function	:	get_transfer_info()
+	#   Parameter	: 	transferId
+	#	Perpose		:	to get transfer ownership info
+	#---------------------------------------------
+	function get_transfer_info($transferId)
+	{		
+				$this->db->select("tt.in_transfer_id,
+									tt.in_transfer_to,
+									tt.in_transfer_by,
+									tt.dt_created,
+									org.in_organization_id,
+									org.st_org_code,
+									org.st_org_type,
+									org.st_org_name,
+									org.st_what_type_org,
+									org.st_director,
+									org.st_address1,
+									org.st_address2, 
+									org.st_country,	
+									org.st_city,							
+									org.st_state,
+									org.st_paypal_email,
+									org.st_zip,
+									org.st_primary_phone,
+									org.st_secondary_phone,
+									org.st_fax,
+									org.st_email_address,
+									org.st_website,
+									org.st_has_501c3,
+									org.st_organization_501c3,
+									org.st_org_ein,
+									org.st_org_adoption,
+									org.st_guideline,	
+									org.st_additional_info,		
+									org.st_profile_desc,					
+									concat(usr.st_display_name,' ',usr.st_last_name) as st_display_name", false);						   	
+					$this->db->from('tbl_organization_transfer tt');
+					$this->db->join('tbl_organization org', 'org.in_organization_id=tt.in_organization_id','INNER');
+					$this->db->join('tbl_users usr', 'usr.in_user_id=tt.in_transfer_to','INNER');
+					$this->db->where('tt.in_status','0');
+					$this->db->where('tt.in_deleted','0');	
+					$this->db->where('usr.in_deleted','0');	
+					$this->db->where('org.in_deleted','0');	
+					$this->db->where('tt.in_transfer_id',$transferId);	
+				    $query = $this->db->get();						
+					//echo $this->db->last_query();  die;					
+					$arrTransfer = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{							
+						$sqlaccept = "SELECT concat(st_display_name,' ',st_last_name) as st_display_name  FROM tbl_users  where in_user_id = '".$Row->in_transfer_to."'";
+						$sqaccept	=	$this->db->query($sqlaccept);
+						$numrowsaccept	=	$sqaccept->num_rows($sqlaccept);	
+						$accept=$sqaccept->result();
+						
+						$sqltransfer = "SELECT concat(st_display_name,' ',st_last_name) as st_display_name FROM tbl_users  where in_user_id = '".$Row->in_transfer_by."'";
+						$sqtransfer	=	$this->db->query($sqltransfer);
+						$numrowstransfer	=	$sqtransfer->num_rows($sqltransfer);	
+						$transfer=$sqtransfer->result();						
+						$accepted_by	=	$accept[0]->st_display_name;							
+						$transfer_by	=	$transfer[0]->st_display_name;							
+									
+									
+							$arrTransfer[]	= array('in_transfer_id'			=> $Row->in_transfer_id,
+													'st_display_name' 			=> $Row->st_display_name,
+													'in_transfer_to' 			=> $Row->in_transfer_to,
+													'in_organization_id'		=> $Row->in_organization_id,
+													'st_org_type'				=> $Row->st_org_type,	
+													'st_org_code'				=> $Row->st_org_code,		
+													'st_org_name'				=> $Row->st_org_name,		
+													'st_paypal_email'			=> $Row->st_paypal_email,	
+													'st_what_type_org'			=> $Row->st_what_type_org,															
+													'st_director'				=> $Row->st_director,
+													'st_address1'				=> $Row->st_address1,
+													'st_address2'				=> $Row->st_address2,	
+													'st_country' 			    => $Row->st_country,																							
+													'st_city' 				    => $Row->st_city,
+													'st_state' 			        => $Row->st_state,
+													'st_zip' 			        => $Row->st_zip,
+													'st_primary_phone' 			=> $Row->st_primary_phone,
+													'st_secondary_phone' 		=> $Row->st_secondary_phone,
+													'st_fax' 			        => $Row->st_fax,
+													'st_email_address' 			=> $Row->st_email_address,
+													'st_website' 			    => $Row->st_website,
+													'st_has_501c3' 			    => $Row->st_has_501c3,
+													'st_organization_501c3' 	=> $Row->st_organization_501c3,
+													'st_org_ein' 			    => $Row->st_org_ein,
+													'st_org_adoption' 			=> $Row->st_org_adoption,
+													'st_guideline'		 		=> $Row->st_guideline,	
+													'st_additional_info' 		=> $Row->st_additional_info,																																		
+													'accepted_by'				=> $accepted_by,
+													'transfer_by'				=> $transfer_by,
+													'dt_created' 			    => $Row->dt_created	
+													);
+						}
+						return $arrTransfer;
+						
+					}					
+					
+	}
+	
+
+	
+	function get_org_details($orgId)
+	{
+			$sql = "SELECT  org.st_org_name						
+				    FROM tbl_organization org				
+				    WHERE org.in_organization_id='".$orgId."'";				
+				$query = $this->db->query($sql);	
+				//echo $this->db->last_query(); die;
+				return 	$query->result();	
+	}
+	function update_transfer_status_accept($transferId)
+	{
+		$arrTransfer = 	array('in_status' 	=> '1' );		
+		$this->db->where('in_transfer_id', $transferId);
+		$this->db->update('tbl_organization_transfer', $arrTransfer);	
+	}
+	
+	
+	function update_organization_status_accept($orgId,$transferTo)
+	{
+		$arrOrg = 	array('in_status' => '1', 'in_user_id' => $transferTo);		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);
+	}
+	
+	function update_transfer_status_reject($transferId)
+	{
+		$arrTransfer = 	array('in_status' 	=> '3' );		
+		$this->db->where('in_transfer_id', $transferId);
+		$this->db->update('tbl_organization_transfer', $arrTransfer);
+	}
+	
+	function update_organization_status_reject($orgId,$transferTo)
+	{
+		$arrOrg = 	array('in_status' => '3');		
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization', $arrOrg);
+	}
+	
+	function get_ref_details($orgId)
+	{
+			$this->db->select("ref.in_org_ref_id,	
+								ref.st_ref_type,
+								ref.st_ref_name,
+								ref.st_ref_email,
+						   		ref.st_ref_phone", false);						   	
+		$this->db->from('tbl_organization_ref ref');
+		$this->db->join('tbl_organization org', 'ref.in_organization_id = org.in_organization_id','INNER');
+		$this->db->where('org.in_organization_id',$orgId);	
+		$this->db->where('ref.in_deleted','0');
+		$this->db->where('org.in_deleted','0');
+		$results = $this->db->get()->result_array();	
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	
+	function get_org_approve_letter($orgId)
+	{		
+		$this->db->select("org.st_file_name", false);						   	
+		$this->db->from('tbl_organization_upload org');		
+		$this->db->where('org.in_organization_id',$orgId);	
+		$this->db->where('org.in_deleted','0');
+		$this->db->where('org.in_doc_type',0);
+		$results = $this->db->get()->result_array();		
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	
+	function get_user_details($transferTo)
+	{   
+		$this->db->select('u.st_display_name,u.st_last_name,u.st_email,up.st_primary_phone');
+		$this->db->from('tbl_users u');
+		$this->db->join('tbl_user_profile as up','up.in_user_id = u.in_user_id','INNER');
+		$this->db->where('u.in_user_id',$transferTo);
+		$this->db->where('u.in_deleted',0);
+		$query = $this->db->get();		
+		return $query->row_array();		
+	}
+	
+	#=========================================================
+	#	Function : edit_org
+	#	Purpose  : Editing organization
+	#=========================================================
+	
+	public function edit_org($data,$org_id) {
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->update('tbl_organization',$data);
+		return $this->db->affected_rows();
+	}
+	
+}
+?>

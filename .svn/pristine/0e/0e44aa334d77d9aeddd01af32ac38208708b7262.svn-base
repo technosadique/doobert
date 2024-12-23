@@ -1,0 +1,283 @@
+<?php
+	if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+	class admin_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();        
+    }   
+	
+	
+	
+	function isAdminValid($username, $password) {
+        $arrData['error'] = '';
+        $is_admin = '0';
+
+        $this->db->select('in_admin_id, 
+						   st_email_address, 
+						   st_password							
+						  ');
+        $this->db->where('st_email_address', $username);
+        $this->db->where('st_password', $password);
+        $this->db->where('in_deleted', 0);
+        $this->db->from('tbl_admin');
+        $query = $this->db->get();
+       // echo $this->db->last_query(); die;		
+
+
+        if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+                $arrData = array('admin_id' => $Row->in_admin_id,
+								 'admin_email' => $Row->st_email_address,
+								 'password' => $Row->st_password					 
+                );
+                $is_user = $Row->in_admin_id;
+            }
+            return $arrData;
+        } else {
+            $arrData['error'] = "Invalid Email or Password.";
+            return $arrData;
+        }
+    }
+	
+	function get_total_organization($fromdate='',$todate='', $state='',$type='',$orgname='')
+	{
+		
+			if($fromdate=='1969-12-31'){$fromdate='';  }
+			if($todate=='1969-12-31'){$todate='';  }
+			
+			$this->db->select("u.in_userid", false);						   	
+			$this->db->from('tbl_user u');
+			$this->db->join('tbl_survey s', 'u.in_userid = s.in_user_id','LEFT');					
+			$this->db->where('u.in_deleted','0');
+			$this->db->where('s.in_deleted','0');		
+			
+			if(trim($state) != '') {
+				$this->db->where("u.st_org_location", $state);
+			}
+			
+			if(trim($type) != '') {
+				$this->db->where("u.st_org_type", $type);
+			}
+			
+			if(trim($orgname) != '') {
+				//$this->db->where("u.st_org_name", $orgname);
+				$this->db->where("u.st_org_name LIKE '%".$orgname."%'", NULL, FALSE);
+			}
+			
+			if($fromdate!='' && $todate!='') {
+				$this->db->where("s.dt_start >= '".$fromdate."' AND s.dt_start <= '".$todate."'", NULL, FALSE);
+			}	
+			
+			$query = $this->db->get();	
+		   // echo $this->db->last_query(); die;		
+		    return $query->num_rows();
+					
+	}
+	
+	function get_organization($sort, $order, $limit, $rec_per_page, $fromdate, $todate, $state, $type, $orgname)
+	{
+		    if($fromdate=='1969-12-31'){$fromdate='';  }
+			if($todate=='1969-12-31'){$todate='';  }			
+			$this->db->select("u.in_userid,u.st_org_name,u.st_org_location,u.st_org_type,s.st_survey_code,s.in_id,s.in_user_id,u.dt_added,s.dt_created,s.dt_end", false);						   	
+			$this->db->from('tbl_user u');
+			$this->db->join('tbl_survey s', 'u.in_userid = s.in_user_id','LEFT');					
+			$this->db->where('u.in_deleted','0');
+			$this->db->where('s.in_deleted','0');		
+			
+			if(trim($state) != '') {
+				$this->db->where("u.st_org_location", $state);
+			}
+			
+			if(trim($type) != '') {
+				$this->db->where("u.st_org_type", $type);
+			}
+			
+			if(trim($orgname) != '') {
+				//$this->db->where("u.st_org_name", $orgname);
+				$this->db->where("u.st_org_name LIKE '%".$orgname."%'", NULL, FALSE);
+			}
+			
+			if($fromdate!='' && $todate!='') {
+				$this->db->where("s.dt_start >= '".$fromdate."' AND s.dt_start <= '".$todate."'", NULL, FALSE);
+			}
+			
+			switch($sort)
+						{
+							
+							case 'code': 								
+								$this->db->order_by('s.st_survey_code',$order);
+							break;	
+							
+							case 'orgname': 								
+								$this->db->order_by('u.st_org_name',$order);
+							break;
+							case 'state':								
+								$this->db->order_by('u.st_org_location',$order);
+							break;
+							
+							
+							
+							case 'type': 								
+								$this->db->order_by('u.st_org_type',$order);
+							break;
+							
+							case 'regdate': 								
+								$this->db->order_by('u.dt_added',$order);
+							break;
+							
+							
+							case 'linkgeneratedate': 								
+								$this->db->order_by('s.dt_created',$order);
+							break;
+							
+							
+							case 'closedate': 								
+								$this->db->order_by('s.dt_end',$order);
+							break;
+
+
+							
+							
+							default:							
+							$this->db->order_by('s.st_survey_code',$order);
+							break;
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get();	
+					//echo $this->db->last_query();  die;	
+					
+					$arrOrganization = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{								
+							
+							$arrOrganization[]	= array('in_id'		=> $Row->in_id,
+														'in_user_id'	=> $Row->in_user_id,
+														'org_name'		=> $Row->st_org_name,
+														'org_location'	=> $Row->st_org_location,
+														'org_type'		=> $Row->st_org_type,
+														'survey_code'	=> $Row->st_survey_code,
+														'dt_added'		=> isset($Row->dt_added)? date('m/d/Y',strtotime($Row->dt_added)) : '',
+														'dt_created'	=> isset($Row->dt_created)? date('m/d/Y',strtotime($Row->dt_created)) : '',
+														'dt_end'		=> isset($Row->dt_end)? date('m/d/Y',strtotime($Row->dt_end)) : '',
+											);
+						}
+						return $arrOrganization;
+						
+					}
+					
+			
+	}
+	
+	public function get_organization_list()
+	{
+		 $this->db->select('*');
+		
+		$this->db->where('in_deleted','0');
+		$this->db->order_by('in_userid','asc');
+		$q=$this->db->get('tbl_user');
+		// echo $this->db->last_query(); 
+		return $q->result_array();
+		
+	}
+	
+	public function get_surver_count($in_survey_id)
+	{
+		$this->db->select("s.in_id ,s.in_user_id,COUNT(sr.in_survey_id) AS value_count", false);						   	
+		$this->db->from('tbl_survey_result sr');
+		$this->db->join('tbl_survey s', 's.in_id = sr.in_survey_id','RIGHT');					
+		
+		$this->db->where('s.in_deleted','0');
+		$this->db->where('sr.flg_deleted','0');
+		$this->db->where('sr.in_survey_id',$in_survey_id);
+		$this->db->order_by('sr.in_survey_id','DESC');
+		$q=$this->db->get();
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+		
+	}
+	
+	public function get_surverey_count($in_survey_id,$fromdate,$todate)
+	{
+		
+		if($fromdate=='1969-12-31'){$fromdate='';  }
+		if($todate=='1969-12-31'){$todate='';  }
+		$this->db->select("s.in_id ,s.in_user_id,COUNT(sr.in_survey_id) AS value_count", false);						   	
+		$this->db->from('tbl_survey_result sr');
+		$this->db->join('tbl_survey s', 's.in_id = sr.in_survey_id','RIGHT');					
+		if($fromdate!='' && $todate!='')
+		{
+		$this->db->where("s.dt_start >= '".$fromdate."' AND s.dt_start <= '".$todate."'", NULL, FALSE);
+		}
+		$this->db->where('s.in_deleted','0');
+		$this->db->where('sr.flg_deleted','0');
+		$this->db->where('sr.in_survey_id',$in_survey_id);
+		//$this->db->order_by('sr.in_survey_id','DESC');
+		$q=$this->db->get();
+		 //echo $this->db->last_query(); 
+		return $q->row_array();
+		
+	}
+	public function get_user_count($in_survey_id)
+	{
+		 $this->db->select('in_userid');
+		
+		$this->db->where('in_userid',$in_survey_id);
+		$this->db->where('in_deleted','0');
+		$q=$this->db->get('tbl_user');
+		//echo $this->db->last_query(); 
+		return $q->result_array();
+	}
+	
+	function get_total_organization_count($fromdate='',$todate='', $state='',$type='',$orgname='')
+	{
+		
+			if($fromdate=='1969-12-31'){$fromdate='';  }
+			if($todate=='1969-12-31'){$todate='';  }
+			
+			$this->db->select("u.in_userid,u.st_org_name,u.st_org_location,u.st_org_type,s.st_survey_code,s.in_id,s.in_user_id", false);						   	
+			$this->db->from('tbl_user u');
+			$this->db->join('tbl_survey s', 'u.in_userid = s.in_user_id','LEFT');					
+			$this->db->where('u.in_deleted','0');
+			$this->db->where('s.in_deleted','0');		
+			
+			if(trim($state) != '') {
+				$this->db->where("u.st_org_location", $state);
+			}
+			
+			if(trim($type) != '') {
+				$this->db->where("u.st_org_type", $type);
+			}
+			
+			if(trim($orgname) != '') {
+				//$this->db->where("u.st_org_name", $orgname);
+				$this->db->where("u.st_org_name LIKE '%".$orgname."%'", NULL, FALSE);
+			}
+			
+			if($fromdate!='' && $todate!='') {
+				$this->db->where("s.dt_start >= '".$fromdate."' AND s.dt_start <= '".$todate."'", NULL, FALSE);
+			}	
+			
+			$query = $this->db->get();	
+		   // echo $this->db->last_query(); die;		
+		    return $query->result_array();
+					
+	}
+	
+	
+	
+	
+}
+?>

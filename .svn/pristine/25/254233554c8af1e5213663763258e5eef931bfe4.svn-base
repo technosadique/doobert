@@ -1,0 +1,156 @@
+<?php
+# ======================================================================================
+# Created by		: Mohammad sadique
+# Created date		: 29-May-2019
+# File description	: Search model for all searech result
+# Special - notes	: none
+# Tables used		: 
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class Lost_found_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	function index()
+	{
+	
+	}	
+		
+	
+	public function insertpet($data)
+	{  
+		$this->db->insert('tbl_lost_found_pet',$data);		
+		return $this->db->insert_id();
+	}
+	
+	public function update_pet_profile($data,$Id) {
+        $this->db->where('in_id', $Id);
+        $this->db->update('tbl_lost_found_pet', $data);	
+		return $this->db->affected_rows();
+    }
+	
+	public function get_pet_info($id)
+	{
+		$this->db->select('	p.*,u.st_display_name,u.st_last_name,u.st_email,up.st_primary_phone');
+        $this->db->from("tbl_lost_found_pet p"); 
+		$this->db->join("tbl_users u","u.in_user_id = p.in_user_id AND u.in_deleted='0'", "LEFT");
+		$this->db->join("tbl_user_profile up","up.in_user_id = p.in_user_id AND up.in_deleted='0'", "LEFT");
+        $this->db->where('p.in_id', $id);
+		$this->db->where('p.in_deleted', 0);	     
+        $query = $this->db->get();       
+	   
+	   
+	   if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+								
+							$pet_image = $Row->st_pet_image;
+							
+							$sqlanimalbreed  = "SELECT st_pet_breed_name FROM tbl_pet_breed  where in_pet_breed_id = '".$Row->st_breed."' and in_deleted=0";
+									$sqlbreed	 =	$this->db->query($sqlanimalbreed);									
+									$breed	 	 =	$sqlbreed->result();
+									$st_pet_breed_name	 =	$breed[0]->st_pet_breed_name;
+							
+							$arrPet[]	=	array( 
+													'in_pet_type'		=> $Row->in_pet_type,
+													'st_gender'			=> $Row->st_gender,
+													'st_color'			=> $Row->st_color,
+													'st_height'			=> $Row->st_height,
+													'st_weight'			=> $Row->st_weight,
+													'in_age'			=> $Row->in_age,
+													'st_coat_type'		=> $Row->st_coat_type,
+													'st_coat_length'	=> $Row->st_coat_length,
+													'st_collar_color'	=> $Row->st_collar_color,
+													'in_report_type'	=> $Row->in_report_type,
+													'st_location'		=> $Row->st_location,
+													'st_comment'		=> $Row->st_comment,
+													'st_breed'		    => $Row->st_breed,
+													'st_pet_breed_name' => $st_pet_breed_name,
+													'st_petname'		=> $Row->st_petname,
+													'dt_created'		=> $Row->dt_created,
+													'st_display_name'	=> $Row->st_display_name,
+													'st_email'			=> $Row->st_email,
+													'st_primary_phone'	=> $Row->st_primary_phone,
+													'lat'			    => $Row->lat,
+													'lon'		 	    => $Row->lon,
+													'state'			    => $Row->st_location_state,
+													'zipcode'			=> $Row->st_location_zipcode,
+													'dt_lostfound'		=> $Row->dt_lostfound,
+													'st_pet_image'      => ($pet_image != '' && file_exists($this->config->item('upload') . "animal_images/140x140/" . $pet_image)) ? base_url() . 'upload/animal_images/140x140/' . $pet_image : base_url() . 'upload/animal_images/140x140/no_photo_icon.png',
+											);
+						}
+						return $arrPet;						
+					}
+	}
+	
+	public function get_total_myreports() {
+        $this->db->select('p.in_id');
+        $this->db->from('tbl_lost_found_pet p');  
+		$this->db->join("tbl_users u","u.in_user_id = p.in_user_id AND u.in_deleted='0'", "LEFT");
+		$this->db->join("tbl_user_profile up","up.in_user_id = p.in_user_id AND up.in_deleted='0'", "LEFT");		
+		$this->db->join("tbl_pet_breed b","b.in_pet_breed_id = p.st_breed AND b.in_deleted='0'", "LEFT");
+		$this->db->where('p.in_user_id',$this->session->userdata('userid'));
+        $this->db->where('p.in_deleted', 0);		
+        $query = $this->db->get();
+		return $query->num_rows();
+		
+    }
+	
+	public function get_myreports($rec_per_page,$limit) {
+        $this->db->select('p.in_id,p.pet_token,p.st_pet_image,p.in_report_type,p.st_petname,p.dt_lostfound,p.in_pet_type,p.st_comment,p.st_breed,p.st_color,p.st_height,p.st_weight,p.st_coat_type,p.st_coat_length,p.in_age,p.st_collar_color,p.st_gender,p.st_location,p.st_location_specific,p.st_identity_mark,u.st_display_name,u.st_last_name,u.st_email,up.st_primary_phone,b.st_pet_breed_name');
+        $this->db->from('tbl_lost_found_pet p');  
+		$this->db->join("tbl_users u","u.in_user_id = p.in_user_id AND u.in_deleted='0'", "LEFT");
+		$this->db->join("tbl_user_profile up","up.in_user_id = p.in_user_id AND up.in_deleted='0'", "LEFT");		
+		$this->db->join("tbl_pet_breed b","b.in_pet_breed_id = p.st_breed AND b.in_deleted='0'", "LEFT");
+		$this->db->where('p.in_user_id',$this->session->userdata('userid'));
+        $this->db->where('p.in_deleted', 0);
+		$this->db->limit($rec_per_page,$limit);
+        $query = $this->db->get();
+		if($query->num_rows()>0){
+			$arrPet = array();
+			foreach($query->result() as $Row)
+						{	
+							
+							$pet_image = $Row->st_pet_image;
+							
+							$arrPet[]	=	array( 
+													'id'				=> $Row->in_id,
+													'pet_token'	    	=> $Row->pet_token,
+													'report_type'		=> $Row->in_report_type,
+													'lostfound'			=> date('Y-m-d',strtotime($Row->dt_lostfound)),
+													'petname'			=> $Row->st_petname,
+													'species'			=> $Row->in_pet_type,												
+													'contact'	    	=> $Row->st_display_name.' '.$Row->st_last_name,
+													'email'				=> $Row->st_email,	
+													'phone'				=> $Row->st_primary_phone,
+													'comments'       	=> $Row->st_comment,
+													'breed'       		=> $Row->st_breed,
+													'breedname'    		=> $Row->st_pet_breed_name,
+													'color'       		=> $Row->st_color,
+													'height'      		=> $Row->st_height,
+													'weight'      		=> $Row->st_weight,
+													'coatlength'    	=> $Row->st_coat_length,
+													'coattype'    		=> $Row->st_coat_type,
+													'age'  		  		=> $Row->in_age,													
+													'collarcolor'   	=> $Row->st_collar_color,
+													'gender'        	=> $Row->st_gender,
+													'location'      	=> $Row->st_location,
+													'location_specific' => $Row->st_location_specific,
+													'description'   	=> $Row->st_identity_mark,														
+													'st_pet_image'  	=> ($pet_image != '' && file_exists($this->config->item('upload') . "animal_images/" . $pet_image)) ? base_url() . 'upload/animal_images/' . $pet_image : base_url() . 'upload/animal_images/140x140/no_photo_icon.png',
+											);
+						}
+						return $arrPet;			
+		}
+    }
+	
+	
+	
+}
+?>

@@ -1,0 +1,776 @@
+<?php
+class shop_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	public function get_filtered_name($dname){
+		if(!is_null($dname)){
+			$dname = trim($dname);
+			$dname = str_replace(' ','-',trim($dname));
+			$dname = preg_replace("![^a-z0-9&~_-]+!i", "", html_entity_decode($dname));
+			$dname = str_replace('---','-',trim($dname));			
+			if(substr($dname,-1) == '.')
+				$dname = substr($dname,0,-1);
+		}
+		return strtolower($dname);
+	}       
+	public function get_product($limit, $start, $orderby='', $product_type ='', $searchproducr='', $checkboxValues=''){
+	  //echo'<pre>'; print_r($searchproducr); exit; 
+	    $today_date = date("Y-m-d H:i:s");
+		$this->db->select('tbl_auction_products.in_prod_id,
+		tbl_auction_products.st_product,
+		tbl_auction_products.st_sku,
+		tbl_auction_products.fl_regular_price,
+		tbl_auction_products.fl_discount_price,
+		tbl_auction_products.in_prod_type,
+	
+		tbl_auction_products.fl_reserve_price, 
+		tbl_auction_products.fl_start_price, 
+		tbl_auction_products.fl_bid_price, 		
+		tbl_auction_products.dt_from,
+		tbl_auction_products.dt_to,		
+		tbl_auction_products.in_organization_id,				
+		tbl_auction_products.st_selected_category,
+		tbl_auction_products.st_prod_image,
+		tbl_auction_products.st_affiliate_image_url,
+		tbl_auction_products.st_affiliate_url,		
+		tbl_organization.st_org_image,
+		tbl_organization.st_additional_info,
+		tbl_organization.st_org_name');
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_organization','tbl_auction_products.in_organization_id=tbl_organization.in_organization_id','inner');		
+		
+		$where = "tbl_auction_products.in_stock_status='1' AND tbl_auction_products.in_prod_status='1' AND tbl_auction_products.in_deleted='0' AND tbl_organization.in_deleted=0 AND tbl_organization.in_status=1";
+		
+		if(count($product_type)>0){
+			$fcnt	=	0;
+			$where .= " AND (";
+			foreach($product_type as $type){
+				if($fcnt==0)
+					$where .= " tbl_auction_products.in_prod_type = '".$type."' ";		
+				else
+					$where .= "OR tbl_auction_products.in_prod_type = '".$type."' ";		
+				$fcnt++;
+			}
+				$where .= " )";
+		}
+		
+		if(count($checkboxValues)>0){
+			$fcnt	=	0;
+			$where .= " AND (";
+			foreach($checkboxValues as $catVal){
+				if($fcnt==0)
+					$where .= " tbl_auction_products.st_selected_category like '%".$catVal."%' ";	
+				else
+					$where .= " OR tbl_auction_products.st_selected_category like '%".$catVal."%' ";	
+				$fcnt++;
+			}
+				$where .= " )";
+		}
+		
+		if($searchproducr !=''){
+			$where .= " AND (tbl_organization.st_org_name LIKE '%".$searchproducr."%' OR tbl_auction_products.st_product LIKE '%".$searchproducr."%')";
+		}
+		
+		//echo $where; exit;
+		$this->db->where($where);
+		$this->db->order_by("tbl_auction_products.fl_regular_price", $orderby);
+		$this->db->limit($limit, $start);
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;
+		if ($query->num_rows() > 0){
+			foreach ($query->result_array() as $row) {
+				if($row['in_prod_type']=='P'){
+					$row['button_ty']	=	1;
+				}elseif($row['in_prod_type']=='A'){
+					$row['button_ty']	=	2;			
+	
+					if($today_date >= $row['dt_from'] and $today_date <= $row['dt_to']){
+						//if current date is gretter than date from & current date is les than date to
+						$row['type1'] = 'date_type1';
+						
+					}else if($today_date > $row['dt_to']){
+						//if current date is gretter than date to
+						$row['type1'] = 'date_type2';
+						
+					}else if($today_date < $row['dt_from']){
+						//if current date is les than date from
+						$row['type1'] = 'date_type3';					
+					}
+					$this->db->select("in_user_id,in_bid_amt");
+					$this->db->from('tbl_bids');
+					$this->db->where('tbl_bids.in_deleted=0 AND tbl_bids.in_prod_id='.$row['in_prod_id']);
+					$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+					$this->db->limit(1);
+					$query1 = $this->db->get();
+					//echo  $this->db->last_query(); exit;
+						
+					if($query1->num_rows()>0){
+						$bid_data=$query1->row_array();
+						$row['bid_amount']	=	$bid_data['in_bid_amt'];
+						$row['user_id']		=	$bid_data['in_user_id'];
+					}else{
+						$row['bid_amount']	=	$row['fl_start_price'];
+						$row['user_id']		=	0;
+					}	
+				}
+				
+				$row['p_url']	=	$row['in_prod_id'].'-';	
+				$row['p_url']	.=	$this->get_filtered_name($row['st_product']);
+				$row['p_affiliate_image_url']	=	$row['st_affiliate_image_url'];
+				$row['p_affiliate_url']	=	$row['st_affiliate_url'];
+				$row['o_url']	=	$row['in_organization_id'].'-';	
+				$row['o_url']	.=	$this->get_filtered_name($row['st_org_name']);				
+				
+				$data[] = $row;
+			}
+	//echo"<pre>"; print_r($data);		
+			return $data;
+		}
+		return false;
+	}
+	
+	public function get_product_count($orderby='', $product_type ='', $searchproducr='', $checkboxValues=''){
+	  //echo'<pre>'; print_r($searchproducr); exit; 
+	    $today_date = date("Y-m-d H:i:s");
+		$this->db->select('tbl_auction_products.in_prod_id,
+		tbl_auction_products.st_product,
+		tbl_auction_products.st_sku,
+		tbl_auction_products.fl_regular_price,
+		tbl_auction_products.fl_discount_price,
+		tbl_auction_products.in_prod_type,
+	
+		tbl_auction_products.fl_reserve_price, 
+		tbl_auction_products.fl_start_price, 
+		tbl_auction_products.fl_bid_price, 		
+		tbl_auction_products.dt_from,
+		tbl_auction_products.dt_to,		
+		tbl_auction_products.in_organization_id,				
+		tbl_auction_products.st_selected_category,
+		tbl_auction_products.st_prod_image,
+		tbl_auction_products.st_affiliate_image_url,
+		tbl_auction_products.st_affiliate_url,		
+		tbl_organization.st_org_image,
+		tbl_organization.st_additional_info,
+		tbl_organization.st_org_name');
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_organization','tbl_auction_products.in_organization_id=tbl_organization.in_organization_id','inner');		
+		
+		$where = "tbl_auction_products.in_stock_status='1' AND tbl_auction_products.in_prod_status='1' AND tbl_auction_products.in_deleted='0' AND tbl_organization.in_deleted=0 AND tbl_organization.in_status=1";
+		
+		if(count($product_type)>0){
+			$fcnt	=	0;
+			$where .= " AND (";
+			foreach($product_type as $type){
+				if($fcnt==0)
+					$where .= " tbl_auction_products.in_prod_type = '".$type."' ";		
+				else
+					$where .= "OR tbl_auction_products.in_prod_type = '".$type."' ";		
+				$fcnt++;
+			}
+				$where .= " )";
+		}
+		
+		if(count($checkboxValues)>0){
+			$fcnt	=	0;
+			$where .= " AND (";
+			foreach($checkboxValues as $catVal){
+				if($fcnt==0)
+					$where .= " tbl_auction_products.st_selected_category like '%".$catVal."%' ";	
+				else
+					$where .= " OR tbl_auction_products.st_selected_category like '%".$catVal."%' ";	
+				$fcnt++;
+			}
+				$where .= " )";
+		}
+		
+		if($searchproducr !=''){
+			$where .= " AND (tbl_organization.st_org_name LIKE '%".$searchproducr."%' OR tbl_auction_products.st_product LIKE '%".$searchproducr."%')";
+		}
+		
+		//echo $where; exit;
+		$this->db->where($where);
+		$this->db->order_by("tbl_auction_products.fl_regular_price", $orderby);
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;
+		return $query->num_rows();
+	}
+	
+	public function get_product_orgination($limits, $starts, $orderbys='', $product_types ='', $searchproducr_s='', $checkboxValuess='', $orgId=''){
+	  //echo'<pre>'; print_r($searchproducr_s); exit('model'); 
+	    $today_date = date("Y-m-d H:i:s");
+		
+		
+		$this->db->select('tbl_auction_products.in_prod_id,
+		tbl_auction_products.st_product,
+		tbl_auction_products.st_sku,
+		tbl_auction_products.fl_regular_price,
+		tbl_auction_products.fl_discount_price,
+		tbl_auction_products.in_prod_type,
+	
+		tbl_auction_products.fl_reserve_price,
+		tbl_auction_products.fl_start_price, 		
+		tbl_auction_products.fl_bid_price, 		
+		tbl_auction_products.dt_from,
+		tbl_auction_products.dt_to,		
+		tbl_auction_products.in_organization_id,				
+		tbl_auction_products.st_selected_category,
+		tbl_auction_products.st_prod_image,
+		tbl_auction_products.st_affiliate_image_url,
+		tbl_auction_products.st_affiliate_url,
+		tbl_organization.st_org_name');
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_organization','tbl_auction_products.in_organization_id=tbl_organization.in_organization_id','inner');		
+		
+		$where = "tbl_auction_products.in_organization_id ='".$orgId."' AND tbl_auction_products.in_stock_status='1'AND tbl_auction_products.in_prod_status='1' AND tbl_auction_products.in_deleted='0'";
+			
+		if(count($product_types)>0){
+			$fcnt	=	0;
+			$where .= " AND (";
+			foreach($product_types as $type){
+				if($fcnt==0)
+					$where .= " tbl_auction_products.in_prod_type = '".$type."' ";		
+				else
+					$where .= "OR tbl_auction_products.in_prod_type = '".$type."' ";		
+				$fcnt++;
+			}
+				$where .= " )";
+		}
+		
+		if(count($checkboxValuess)>0){
+			$fcnt	=	0;
+			$where .= " AND (";
+			foreach($checkboxValuess as $catVals){
+				if($fcnt==0)
+					$where .= " tbl_auction_products.st_selected_category like '%".$catVals."%' ";	
+				else
+					$where .= " OR tbl_auction_products.st_selected_category like '%".$catVals."%' ";	
+				$fcnt++;
+			}
+				$where .= " )";
+		}
+		
+		if($searchproducr_s !=''){
+			$where .= " AND (tbl_organization.st_org_name LIKE '%".$searchproducr_s."%' OR tbl_auction_products.st_product LIKE '%".$searchproducr_s."%')";
+		}
+		
+		//echo $where; exit;
+		$this->db->where($where);
+		$this->db->order_by("tbl_auction_products.fl_regular_price", $orderbys);
+		$this->db->limit($limits, $starts);
+		$query = $this->db->get();
+	//echo  $this->db->last_query(); exit;
+		if ($query->num_rows() > 0){
+			foreach ($query->result_array() as $row) {
+				if($row['in_prod_type']=='P'){
+					$row['button_ty']	=	1;
+				}elseif($row['in_prod_type']=='A'){
+					$row['button_ty']	=	2;			
+	
+					if($today_date >= $row['dt_from'] and $today_date <= $row['dt_to']){
+						//if current date is gretter than date from & current date is les than date to
+						$row['type1'] = 'date_type1';
+					
+					}else if($today_date > $row['dt_to']){
+						//if current date is gretter than date to
+						$row['type1'] = 'date_type2';
+						
+					}else if($today_date < $row['dt_from']){
+						//if current date is les than date from
+						$row['type1'] = 'date_type3';					
+					}
+					$this->db->select("in_user_id,in_bid_amt");
+					$this->db->from('tbl_bids');
+					$this->db->where('tbl_bids.in_deleted=0 AND tbl_bids.in_prod_id='.$row['in_prod_id']);
+					$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+					$this->db->limit(1);
+					$query1 = $this->db->get();
+					//echo  $this->db->last_query(); exit;
+						
+					if($query1->num_rows()>0){
+						$bid_data=$query1->row_array();
+						$row['bid_amount']	=	$bid_data['in_bid_amt'];
+						$row['user_id']		=	$bid_data['in_user_id'];
+					}else{
+						$row['bid_amount']	=	$row['fl_start_price'];
+						$row['user_id']		=	0;
+					}	
+					
+				}
+				$row['p_url']	=	$row['in_prod_id'].'-';	
+				$row['p_url']	.=	$this->get_filtered_name($row['st_product']);
+				$row['p_affiliate_image_url']	=	$row['st_affiliate_image_url'];
+				$row['p_affiliate_url']	=	$row['st_affiliate_url'];
+
+				$row['o_url']	=	$row['in_organization_id'].'-';	
+				$row['o_url']	.=	$this->get_filtered_name($row['st_org_name']);
+				
+			$data[] = $row;
+			}
+	//echo"<pre>"; print_r($data);		
+			return $data;
+		}
+		return false;
+	} 
+	
+	public function get_category()
+	{ 
+		$this->db->select("in_cat_id,st_category,sort_order");
+		$this->db->from('tbl_product_category');
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('sort_order');
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;		
+	  if ($query->num_rows() > 0){
+            foreach ($query->result() as $row) {
+                $data[] = $row;
+            }
+             return $data;
+        }
+    return false;
+	}	
+	
+	public function get_orgination($orgination_id)
+	{
+		$this->db->select("in_organization_id,st_org_name, st_org_image, st_profile_desc");
+		$this->db->where(array("in_organization_id"=>$orgination_id,"in_status"=>1,"in_deleted"=>0));
+		$this->db->from('tbl_organization');
+		$query = $this->db->get();
+		//echo"<pre>test"; print_r($query); die;	
+	return  $query->row_array();
+	} 
+	
+	
+	public function get_product_detail($pid)
+	{
+		$data = array();
+		
+	    $today_date = strtotime(date('Y-m-d H:i:s'));
+		$this->db->select("tbl_auction_products.*,tbl_organization.st_org_name");		
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_organization','tbl_auction_products.in_organization_id=tbl_organization.in_organization_id','inner');	
+		$this->db->where(array("in_prod_id"=>$pid,"in_stock_status"=>1,"tbl_auction_products.in_deleted"=>0));
+		$query = $this->db->get();
+		$data['detail'] = $query->row_array();
+		if($data['detail']['in_prod_type']=='P'){
+			$data['detail']['button_ty']	=	1;
+		}elseif($data['detail']['in_prod_type']=='A'){
+			$data['detail']['button_ty']	=	2;			
+
+			if($today_date >= strtotime($data['detail']['dt_from']) and $today_date <= strtotime($data['detail']['dt_to'])){
+				//if current date is gretter than date from & current date is les than date to
+				$data['detail']['type1'] = 'date_type1';
+			
+			}else if($today_date > strtotime($data['detail']['dt_to'])){
+				//if current date is gretter than date to
+				$data['detail']['type1'] = 'date_type2';
+				
+			}else if($today_date < strtotime($data['detail']['dt_from'])){
+				//if current date is les than date from
+				$data['detail']['type1'] = 'date_type3';					
+			} 
+		//echo strtotime($data['detail']['dt_from']);
+			$this->db->select("in_user_id,in_bid_amt");
+			$this->db->from('tbl_bids');
+			$this->db->where('tbl_bids.in_deleted=0 AND tbl_bids.in_prod_id='.$pid);
+			$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+			$this->db->limit(1);
+			$query1 = $this->db->get();
+			//echo  $this->db->last_query(); exit;
+				
+			if($query1->num_rows()>0){
+				$bid_data=$query1->row_array();
+				$data['detail']['bid_amount']	=	$bid_data['in_bid_amt'];
+				$data['detail']['user_id']		=	$bid_data['in_user_id'];
+			}else{
+				$data['detail']['bid_amount']	=	$data['detail']['fl_start_price'];
+				$data['detail']['user_id']		=	0;
+			}
+		}
+				$data['detail']['p_url']	=	$data['detail']['in_prod_id'].'-';	
+				$data['detail']['p_url']	.=	$this->get_filtered_name($data['detail']['st_product']);
+
+				$data['detail']['o_url']	=	$data['detail']['in_organization_id'].'-';	
+				$data['detail']['o_url']	.=	$this->get_filtered_name($data['detail']['st_org_name']);
+		//print_r($data);
+		return $data;
+	}
+	
+	public function get_product_cart($productId='', $sessionId, $userId='',$qty){
+        //echo'<pre>'; print_r($sessionId); exit;
+		//echo $sessionId;
+		
+		$this->db->select('in_quote_id');
+		$this->db->from('tbl_quote');
+		$this->db->where(array("st_session_id"=>$sessionId,"in_deleted"=>0));
+		$query = $this->db->get();
+		
+			
+		if ($query && $query->num_rows() > 0){
+			
+			foreach ($query->result() as $row){					
+					$quoteId = $row->in_quote_id;
+			}			
+		}
+		else{
+			$arrData = array("st_session_id" => $sessionId,
+							 "in_user_id"	 => $userId,
+							 "dt_created"	=> date('Y-m-d H:i:s'),	
+							 "in_deleted"	 => 0);
+			$this->db->insert('tbl_quote', $arrData);
+			$quoteId = $this->db->insert_id();	
+		}
+		if(isset($quoteId) && $quoteId>0)
+		{
+			$processAdd	=	1;
+			$this->db->select('in_prod_id');
+			$this->db->from('tbl_quote_item');
+			$this->db->where(array("in_quote_id"=>$quoteId,"in_prod_id"=>$productId,"in_deleted"=>0));
+			$query = $this->db->get();
+			if ($query->num_rows() > 0){
+				
+				$this->db->set('in_prod_qty', "in_prod_qty + $qty",FALSE);
+				$this->db->where(array("in_quote_id"=>$quoteId,"in_prod_id"=>$productId,"in_deleted"=>0));
+				$this->db->update('tbl_quote_item');				
+			}
+			else{
+				$this->db->select("in_prod_id,st_product,st_sku,in_prod_type,fl_regular_price,fl_discount_price,fl_shipping_cost");
+				$this->db->where(array("in_prod_id"=>$productId));
+				$this->db->from('tbl_auction_products');
+				$query1 = $this->db->get();
+				if ($query1->num_rows() > 0){
+					
+					foreach ($query1->result() as $row){
+							$row;
+					}
+					if($row->in_prod_type=='P'){
+						if($row->fl_discount_price >0)
+							$CartPrice	=	$row->fl_discount_price;
+						else
+							$CartPrice	=	$row->fl_regular_price;
+					}elseif($row->in_prod_type=='A'){
+						$this->db->select("in_user_id,in_bid_amt");
+						$this->db->from('tbl_bids');
+						$this->db->where('tbl_bids.in_deleted=0 AND tbl_bids.in_prod_id='.$productId);
+						$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+						$this->db->limit(1);
+						$query1 = $this->db->get();
+						//echo  $this->db->last_query(); exit;
+							
+						if($query1->num_rows()>0){
+							$bid_data=$query1->row_array();
+							if($bid_data['in_user_id']==$this->session->userdata('userid')){
+								$CartPrice	=	$bid_data['in_bid_amt'];
+							}else{
+								$processAdd	=	0;
+							}								
+						}else{
+							$processAdd	=	0;
+						}
+						
+					}	
+					if($processAdd	==	1){
+						$arrmember = array( 'in_quote_id'   =>  $quoteId,
+											'in_prod_id'    =>  $row->in_prod_id,
+											'st_prod_sku' 	=>  $row->st_sku,
+											'st_prod_name'  =>  $row->st_product,
+											'in_prod_price' =>  $CartPrice,
+											'in_prod_qty'  	=>  $qty,
+										    'fl_shipping_cost'	 => $row->fl_shipping_cost,
+											'dt_created'	=>	date("Y-m-d H:i:s"),
+											'in_deleted'  	=>  0
+											);
+											
+						$this->db->insert('tbl_quote_item', $arrmember);	
+					}
+				}
+			}
+			
+				
+		}
+		return $this->get_quote_items($sessionId);		
+	}
+	
+	public function get_quote_items($sessionId)
+	{   
+		$this->db->select("tbl_quote_item.*,tbl_auction_products.st_prod_image");
+		$this->db->join('tbl_auction_products','tbl_auction_products.in_prod_id = tbl_quote_item.in_prod_id AND tbl_auction_products.in_stock_status=1','inner');
+		$this->db->join('tbl_quote','tbl_quote.in_quote_id = tbl_quote_item.in_quote_id','inner');		
+		$where = "tbl_quote_item.in_deleted='0' AND tbl_quote.in_deleted='0' AND tbl_quote.st_session_id ='".$sessionId."'";
+
+		$this->db->where($where);
+		$this->db->from('tbl_quote_item');		
+		$query = $this->db->get();		
+		if ($query && $query->num_rows() > 0){
+			foreach ($query->result() as $row){
+						$r_final_price = $row->in_prod_price * $row->in_prod_qty;
+						$row->final_price = number_format($r_final_price,2);
+						
+						$row->p_url		=	$row->in_prod_id.'-';	
+						$row->p_url		.=	$this->get_filtered_name($row->st_prod_name);
+						
+						$data[] = $row;
+					}					
+			return $data; 		
+		}else{
+			return array();
+		}
+		
+	}
+	
+	public function get_bid_price($productbidId, $bidAmount, $userId)
+	{
+		
+		$this->db->select("tbl_auction_products.in_organization_id,tbl_auction_products.st_product,tbl_auction_products.fl_start_price,tbl_auction_products.fl_bid_price,tbl_auction_products.in_prod_type,tbl_organization.st_email_address");		
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_organization','tbl_auction_products.in_organization_id=tbl_organization.in_organization_id','inner');		
+		$this->db->where(array("in_prod_id"=>$productbidId));
+		$query = $this->db->get();
+		$data1 = $query->row_array();
+		if($data1['in_prod_type']=='A'){
+			$bid_increment	=	$data1['fl_bid_price'];
+			$org_email		=	$data1['st_email_address'];
+			
+			$this->db->select("tbl_bids.in_user_id,tbl_bids.in_bid_amt,tbl_users.st_email");
+			$this->db->from('tbl_bids');
+			$this->db->join('tbl_users','tbl_bids.in_user_id=tbl_users.in_user_id','inner');			
+			$this->db->where('tbl_bids.in_deleted=0 AND tbl_bids.in_prod_id='.$productbidId);
+			$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+			$this->db->limit(1);
+			$query1 = $this->db->get();
+			if($query1->num_rows()>0){
+				$bid_data=$query1->row_array();
+				$bid_amount	=	number_format($bid_data['in_bid_amt'],2);
+				$user_id	=	$bid_data['in_user_id'];
+				$st_email	=	$bid_data['st_email'];
+			}else{
+				$bid_amount	=	number_format($data1['fl_start_price'],2);
+				$user_id	=	0;
+				$st_email	=	'';
+			}
+			$final_bid_amt	=	$bid_amount	+	$bid_increment;
+			if($user_id==$this->session->userdata('userid'))
+			{
+				return "No need to bid. Your bid is winning.";
+			}elseif($bidAmount<$final_bid_amt)
+			{
+				return "Please enter bid greater then OR equal to ".$final_bid_amt.".";
+			}else{
+				$arrbids = array( 'in_prod_id'   => $productbidId,
+							'in_user_id'   	=> $userId,
+							'in_bid_amt'   	=> $bidAmount,
+							'dt_created'	=>	date('Y-m-d H:i:s'),
+							'in_deleted'   	=>  0,
+							);
+				$this->db->insert('tbl_bids', $arrbids);
+                
+				
+		         $bidAmount2 = '$'.number_format($bidAmount, 2, '.', ' ');
+				########### NEW BID EMAIL #############
+				$this->load->library('email');
+				$email_details = $this->common_model->get_email_containt("95");
+				$category	=	$email_details[0]['st_category'];
+				  $to	=	$org_email; 
+				//$to	=	"sanjeev.yadav@pulsesolutions.net";
+				
+				$subject	= 	$email_details[0]['st_email_subject'];
+				$subject 	= 	str_replace("##ProductName##",$data1['st_product'],$subject);
+				$subject  	= 	str_replace("##BidAmt##",$bidAmount2,$subject);				
+				
+				$templete 	= 	$email_details[0]['st_email_body'];
+				$templete 	= 	str_replace("##ProductName##",$data1['st_product'],$templete);
+				$templete  	= 	str_replace("##BidAmt##",$bidAmount2,$templete);
+				$templete  	= 	str_replace("##current_year##",date('Y'),$templete);	
+				
+				$message	=	$templete;
+				
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+				#######################################
+
+				########### OUT BID EMAIL #############
+				if($st_email!=''){
+					$this->load->library('email');
+					$email_details = $this->common_model->get_email_containt("96");
+					$category	=	$email_details[0]['st_category'];
+					$to	=	$st_email; 
+					//$to	=	"sanjeev.yadav@pulsesolutions.net";
+					
+					$subject	= 	$email_details[0]['st_email_subject'];
+					$subject 	= 	str_replace("##ProductName##",$data1['st_product'],$subject);
+					$subject  	= 	str_replace("##BidAmt##",$bidAmount2,$subject);				
+					
+					$templete 	= 	$email_details[0]['st_email_body'];
+					$templete 	= 	str_replace("##ProductName##",$data1['st_product'],$templete);
+					$templete  	= 	str_replace("##BidAmt##",$bidAmount2,$templete);
+					$templete  	= 	str_replace("##current_year##",date('Y'),$templete);					
+					
+					$message	=	$templete;
+					
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+				}
+				#######################################				
+				
+				return "Successfully placed bid for ".$data1['st_product'].".";				
+				
+			}
+			
+		}else{
+			return "Invalid Entry";
+		}
+			
+	}
+	
+	public function get_image($pid)
+	{  
+		$this->db->select("st_image,in_product_id");		
+		$this->db->from('tbl_auction_product_image');		
+		$this->db->where(array("in_product_id"=>$pid,"in_deleted"=>0));
+		$query = $this->db->get();
+		
+		if ($query->num_rows() > 0){
+			foreach ($query->result() as $row){
+						
+						$data[] = $row;
+					}					
+			return $data; 		
+		}
+	}	
+	
+	public function get_order_detail($orderId)
+	{
+   		$this->db->select("oi.in_order_id,oi.in_product_id,oi.st_product_name,oi.fl_cost,oi.in_qty,org.st_org_name,org.st_email_address,org.st_primary_phone");		
+		$this->db->from('tbl_order_items oi');	
+		$this->db->join('tbl_auction_products ap','ap.in_prod_id=oi.in_product_id','INNER');
+		$this->db->join('tbl_organization org','org.in_organization_id=ap.in_organization_id','INNER');
+		$this->db->where('oi.in_order_id',$orderId);	
+		$this->db->where('oi.in_deleted',0);	
+		$this->db->where('ap.in_deleted',0);	
+		$this->db->where('org.in_deleted',0);			
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->result_array();
+   }	
+   
+   public function get_win_bid_user()
+   {
+   		$this->db->select("u.st_display_name,u.st_last_name,u.st_email,ap.in_prod_id,ap.st_product, COUNT(b.in_bid_id) AS dnt,b.in_bid_amt");		
+		$this->db->from('tbl_auction_products ap');	
+		$this->db->join('tbl_bids b','b.in_prod_id=ap.in_prod_id','LEFT');
+		$this->db->join('tbl_users u','u.in_user_id=b.in_user_id','LEFT');
+		$this->db->where('ap.in_prod_type','A');	
+		$this->db->where('ap.flg_win', 0);	
+		$this->db->where('ap.in_deleted', 0);
+		$this->db->where('u.in_deleted', 0);		
+		$this->db->where('b.in_deleted', 0);			
+		$where = "ap.dt_to < NOW()  GROUP BY ap.in_prod_id HAVING COUNT(b.in_bid_id) > 0";
+		$this->db->where($where);		
+		$query = $this->db->get();	
+		//echo $this->db->last_query();die;	
+		return $query->result_array();
+   }	
+   
+   public function update_product($productId)
+   {
+	  	$data=array('flg_win'=> 1 );
+		$this->db->where('in_prod_id',$productId);
+		$this->db->update('tbl_auction_products',$data);		
+		return $this->db->affected_rows();
+	}
+	
+	public function get_product2(){
+	  //echo'<pre>'; print_r($searchproducr); exit; 
+	    $today_date = date("Y-m-d H:i:s");
+		$this->db->select('tbl_auction_products.in_prod_id,
+		tbl_auction_products.st_product,
+		tbl_auction_products.st_sku,
+		tbl_auction_products.fl_regular_price,
+		tbl_auction_products.fl_discount_price,
+		tbl_auction_products.in_prod_type,	
+		tbl_auction_products.fl_reserve_price, 
+		tbl_auction_products.fl_start_price, 
+		tbl_auction_products.fl_bid_price, 		
+		tbl_auction_products.dt_from,
+		tbl_auction_products.dt_to,		
+		tbl_auction_products.in_organization_id,				
+		tbl_auction_products.st_selected_category,
+		tbl_auction_products.st_prod_image,
+		tbl_auction_products.st_affiliate_image_url,
+		tbl_auction_products.st_affiliate_url,
+		tbl_organization.st_org_image,
+		tbl_organization.st_additional_info,
+		tbl_organization.st_org_name');
+		$this->db->from('tbl_auction_products');
+		$this->db->join('tbl_organization','tbl_auction_products.in_organization_id=tbl_organization.in_organization_id','inner');		
+		
+		$where = "tbl_auction_products.in_stock_status='1' AND tbl_auction_products.in_prod_status='1' AND tbl_auction_products.in_deleted='0' AND tbl_organization.in_deleted=0 AND tbl_organization.in_status=1";
+			
+		
+		if($searchproducr !=''){
+			$where .= " AND (tbl_organization.st_org_name LIKE '%".$searchproducr."%' OR tbl_auction_products.st_product LIKE '%".$searchproducr."%')";
+		}
+		
+		//echo $where; exit;
+		$this->db->where($where);
+		$this->db->order_by("tbl_auction_products.in_prod_id", 'DESC');
+		$this->db->limit(5);
+		$query = $this->db->get();
+		//echo  $this->db->last_query(); exit;
+		if ($query->num_rows() > 0){
+			foreach ($query->result_array() as $row) {
+				if($row['in_prod_type']=='P'){
+					$row['button_ty']	=	1;
+				}elseif($row['in_prod_type']=='A'){
+					$row['button_ty']	=	2;			
+	
+					if($today_date >= $row['dt_from'] and $today_date <= $row['dt_to']){
+						//if current date is gretter than date from & current date is les than date to
+						$row['type1'] = 'date_type1';
+						
+					}else if($today_date > $row['dt_to']){
+						//if current date is gretter than date to
+						$row['type1'] = 'date_type2';
+						
+					}else if($today_date < $row['dt_from']){
+						//if current date is les than date from
+						$row['type1'] = 'date_type3';					
+					}
+					$this->db->select("in_user_id,in_bid_amt");
+					$this->db->from('tbl_bids');
+					$this->db->where('tbl_bids.in_deleted=0 AND tbl_bids.in_prod_id='.$row['in_prod_id']);
+					$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+					$this->db->limit(1);
+					$query1 = $this->db->get();
+					//echo  $this->db->last_query(); exit;
+						
+					if($query1->num_rows()>0){
+						$bid_data=$query1->row_array();
+						$row['bid_amount']	=	$bid_data['in_bid_amt'];
+						$row['user_id']		=	$bid_data['in_user_id'];
+					}else{
+						$row['bid_amount']	=	$row['fl_start_price'];
+						$row['user_id']		=	0;
+					}	
+				}
+				
+				$row['p_url']	=	$row['in_prod_id'].'-';	
+				$row['p_url']	.=	$this->get_filtered_name($row['st_product']);
+				$row['p_affiliate_image_url']	=	$row['st_affiliate_image_url'];
+				$row['p_affiliate_url']	=	$row['st_affiliate_url'];
+				$row['o_url']	=	$row['in_organization_id'].'-';	
+				$row['o_url']	.=	$this->get_filtered_name($row['st_org_name']);				
+				
+				$data[] = $row;
+			}
+	//echo"<pre>"; print_r($data);		
+			return $data;
+		}
+		return false;
+	}
+}   
+   
+?>

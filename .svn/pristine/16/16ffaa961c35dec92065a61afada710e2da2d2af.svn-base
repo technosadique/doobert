@@ -1,0 +1,219 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 17-Apr-2018
+# File description	: Order Transport Model
+# Special - notes	: none
+# Tables used		: tbl_order, tbl_order_transport, tbl_transport_crates, tbl_order_address, tbl_transportation
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class Item_notification_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+	
+	public function get_transport_details($transport_id)
+	{
+		$transport_details = array();
+		$this->db->select("	tr.in_transportation_id,
+							tr.in_trans_coods_id,
+							tr.in_organization_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_from_country,
+							tr.st_to_street,
+							tr.st_to_city,
+							tr.st_to_state,
+							tr.st_to_zip,
+							tr.st_to_country,
+							tr.dt_pickup_date,
+							tr.dt_target,
+							tr.st_from_info,
+							tr.st_to_info,
+							tr.st_trans_type,
+							tr.in_tot_distance,
+							tr.in_distance_covered,
+							tr.in_status,
+							tr.st_trans_name,
+							tr.st_add_comments,
+							tr.is_transport_revised,
+							concat(u.st_display_name,' ',u.st_last_name) as st_display_name,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							u.st_profile_image,
+							u.st_email,
+							u.in_public,
+							p.in_user_id,
+							p.st_primary_phone,
+							p.st_address1,
+							p.st_city,
+							p.st_state,
+							p.st_zip,
+							o.st_org_image,
+							o.st_org_name,
+							o.st_org_code,
+							tr.in_status",
+						FALSE);
+		$where = array("tr.in_deleted"=>"0","tr.in_transportation_id"=>$transport_id);
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_user_profile p ","p.in_user_id= tr.in_trans_coods_id","INNER");
+		$this->db->join("tbl_users u","p.in_user_id = u.in_user_id","INNER");
+		$this->db->join("tbl_organization o","o.in_organization_id = tr.in_organization_id AND o.in_deleted='0'","INNER");	
+		$this->db->where($where);
+		$query =	$this->db->get();
+		if($query->num_rows()>0)
+		{
+			$transport_details = $query->result_array();
+		}
+		return $transport_details;
+	}
+	
+	public function get_item_detail($item_id)
+	{
+		$this->db->select('oi.*,o.st_org_name');
+		$this->db->from('tbl_org_items oi');
+		$this->db->join("tbl_organization o","o.in_organization_id = oi.in_org_id AND o.in_deleted='0'","INNER");
+		$this->db->where('oi.in_deleted',0);
+		$this->db->where('oi.in_item_id',$item_id);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function get_user_detail($user_id)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_users');
+		$this->db->where('in_user_id',$user_id);
+		$this->db->where('in_deleted','0');
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function get_product_category()
+	{
+		$previous_date = date('Y-m-d', strtotime('-1 day'));
+		$from_date = date('Y-m-d 00:00:00',strtotime($previous_date));
+		$to_date = date('Y-m-d 23:59:59',strtotime($previous_date));
+		$this->db->select('oi.*,o.st_zip');
+		$this->db->from('tbl_org_items oi');
+		$this->db->join("tbl_organization o","o.in_organization_id = oi.in_org_id AND o.in_deleted='0'","INNER");
+		$this->db->where("oi.dt_created between '$from_date' AND '$to_date'");
+		$this->db->where('oi.in_deleted',0);
+		$query = $this->db->get();
+		if($query->num_rows() > 0 )
+		{
+			foreach($query->result_array() as $key=>$value)
+			{
+				$first_lat = $this->get_lat_long($value['st_zip']);
+				
+				$lat = $first_lat[0]['lat'];
+				$lon = $first_lat[0]['lon'];
+				
+				$this->db->select('o.in_organization_id,o.st_email_address,o.st_director,o.in_notification_items_miles,o.st_zip,o.in_notification_items_category');
+				$this->db->from('tbl_organization o');
+				$this->db->join('tbl_zip_code zp','o.st_zip = zp.zip_code','INNER');		
+				$this->db->where('o.in_status','1');
+				$this->db->where("o.in_organization_id!=".$value['in_org_id']);
+				$this->db->where('o.in_notification_items','1'); 	 
+				$this->db->where('o.in_deleted','0');
+				$driver = '((3959*acos(cos(radians(zp.lat))*cos(radians("'.$lat.'"))*cos(radians("'.$lon.'")-radians(zp.lon))+sin(radians(zp.lat))*sin(radians("'.$lat.'")))) <= o.in_notification_items_miles 
+							OR (3959*acos(cos(radians(zp.lat))*cos(radians("'.$lat.'"))*cos(radians("'.$lon.'")-radians(zp.lon))+sin(radians(zp.lat))*sin(radians("'.$lat.'")))) is NULL)';
+		
+				$this->db->where($driver);
+				$query2 = $this->db->get();
+				if($query2->num_rows() > 0 )
+				{
+					foreach($query2->result_array() as $key2=>$value2)
+					{
+						
+						$product_category = unserialize($value2['in_notification_items_category']);
+						
+						if(in_array($value['in_item_cat'],$product_category))
+						{
+							$near_by_organization = array('st_org_email_address'   => $value2['st_email_address'],
+													           'st_org_name' 	   => $value2['st_director'],
+																 'in_org_id' 	   => $value2['in_organization_id'],		
+															 'in_item_offer'       => $value['in_item_id'],
+																'dt_created'       => date('Y-m-d H:i:s'),
+															   'dt_modified'       => date('Y-m-d H:i:s'),
+															  'in_send_mail'       => 0,
+														);	
+								
+							$this->notify_org_cron($near_by_organization);						 
+							//$this->db->insert('tbl_organization_item_cron',$near_by_org);				
+						}
+					}	
+				}	
+				
+			}	
+		}	 
+		
+	}
+	public function get_product_category_old()
+	{
+		$previous_date = date('Y-m-d', strtotime('-1 day'));
+		$from_date = date('Y-m-d 00:00:00',strtotime($previous_date));
+		$to_date = date('Y-m-d 23:59:59',strtotime($previous_date));
+		$this->db->select('oi.*,o.st_zip');
+		$this->db->from('tbl_org_items oi');
+		$this->db->join("tbl_organization o","o.in_organization_id = oi.in_org_id AND o.in_deleted='0'","INNER");
+		$this->db->where("oi.dt_created between '$from_date' AND '$to_date'");
+		$this->db->where('oi.in_deleted',0);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	public function get_lat_long($zipcode)
+	{
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get()->result_array();
+		return $query;	
+	}
+	
+	
+	public function get_item_cron_notification()
+	{
+		$from_date = date('Y-m-d 00:00:00');
+		$to_date = date('Y-m-d 23:59:59');
+		$this->db->select('*');
+		$this->db->from('tbl_organization_item_cron');
+		$this->db->where("dt_created between '$from_date' AND '$to_date'");
+		$this->db->where('in_send_mail',0);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		
+		return $query->result_array();
+		
+	}
+	
+	public function notify_org_cron($near_by_org)
+	{
+		$today_date = date('Y-m-d');
+		$from_date = date('Y-m-d 00:00:00');
+		$to_date = date('Y-m-d 23:59:59');
+		$total_record =array();
+		$this->db->select('*');
+		$this->db->from('tbl_organization_item_cron');
+		$this->db->where("dt_created between '$from_date' AND '$to_date'");
+		$this->db->where('in_org_id',$near_by_org['in_org_id']);
+		$this->db->where('in_item_offer',$near_by_org['in_item_offer']);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		
+		$total_record = $query->result_array();
+		
+		if(count($total_record)<=0)
+		{
+			$this->db->insert('tbl_organization_item_cron',$near_by_org);
+		}	
+	}
+	
+}
+?>

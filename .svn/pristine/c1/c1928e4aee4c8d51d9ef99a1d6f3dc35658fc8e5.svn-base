@@ -1,0 +1,152 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 17-Aug-2018
+# File description	: Organization Animal Notification Controller
+# Special - notes	: none
+# Tables used		: tbl_org_animal_notify
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class org_animal_notify extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+
+		//$this->output->enable_profiler(FALSE);
+		$this->load->model('organimal_model');	
+		$this->load->model('common_model')	;
+		$this->load->model('org_animal_notify_model');
+		$this->load->library('common_function');
+		//if(!$this->session->userdata('org_id')) {
+			//redirect(base_url().'my-profile');
+		//}
+	}
+	
+	
+	public function index()
+	{		
+		
+		if($this->session->userdata('storgtype') == 'CT')
+		{
+			redirect($this->config->item('base_url'));
+		}
+	 	//$org_id = '1117';
+	 	$org_id = $this->session->userdata('org_id');
+		$data['org_detail']=$this->organimal_model->get_org_details($org_id); 
+		
+		
+	 	$notifyData = $this->input->post();	
+	 	
+	 	if(!empty($notifyData))	{
+			
+			$in_animal_notify = $notifyData['in_animal_notify'];
+
+			$aCount = count($notifyData['atype']);
+			for($i = 0; $i< $aCount; $i++){
+				
+				if(!empty($notifyData['atype'][$i])) {
+
+					$Animal[] = array('atype'=>$notifyData['atype'][$i],'agender'=>$notifyData['agender'][$i], 'aage'=>$notifyData['aage'][$i], 'aweight'=>$notifyData['aweight'][$i]);
+					//$Animal1[] = array($notifyData['atype'][$i],$notifyData['agender'][$i], $notifyData['aage'][$i], $notifyData['aweight'][$i]);
+				}	
+			
+			}
+			$st_animal_dtl = serialize($Animal);		
+
+			$bCount = count($notifyData['btype']);
+			for ($j=0; $j <= $bCount ; $j++) { 
+				if(!empty($notifyData['btype'][$j])){
+					$Breed[] = array('btype'=>$notifyData['btype'][$j],'breed'=>$notifyData['breed'][$j]);		
+				}
+			}
+			
+
+			$st_breed_dtl = serialize($Breed);
+		
+		 	$in_notify_on = ($notifyData['flg_immediate_animal'])? $notifyData['flg_immediate_animal']:'0';
+		 	$st_location = ($notifyData['txtlocation'])? $notifyData['txtlocation']: $data['org_detail']['st_zip'];
+		 	$in_radius = ($notifyData['txtsearch'])? $notifyData['txtsearch']:'100';
+		 	if(isset($notifyData['searchpartner'])){		 		
+		 		$in_partner = $notifyData['searchpartner'];
+		 	}else{
+		 		$in_partner =  '0';
+		 	}
+		 	
+		 	if(isset($notifyData['searchcoalitions'])){
+		 		$in_coalitions = $notifyData['searchcoalitions'];
+		 	}else{
+		 		$in_coalitions =  '';
+		 	}
+
+		 	$animal_notify = array(
+		 		'in_org_id'     =>	$org_id,               
+				'in_notify_on'	=>	$in_notify_on,
+				'st_location'	=>	$st_location,
+				'in_radius'		=>	$in_radius,
+				'in_partner'	=>	$in_partner,
+				'in_coalitions'	=>	$in_coalitions,
+				'st_animal_dtl' =>	$st_animal_dtl,
+				'st_breed_dtl'  => 	$st_breed_dtl                     
+				
+				);
+		 	//echo "<pre>";print_r($animal_notify); 	print_r($Animal); 	print_r($Breed); 	exit;
+		 	
+		 	if($in_animal_notify != '') {		 		
+		 		
+		 		$animal_notify['dt_modified'] = date('Y-m-d H:i:s');				
+		 		$result = $this->org_animal_notify_model->update_animal_notify($animal_notify, $in_animal_notify);		 
+		 		$this->session->set_flashdata('success','Animal profile notification settings successfully updated.');			 			
+		 
+		 	}else{			 			 
+		 		$animal_notify['dt_created']	=	date('Y-m-d H:i:s');	
+		 		$last_id = $this->org_animal_notify_model->insert_animal_notify($animal_notify);		 		
+		 		$this->session->set_flashdata('success','Animal profile notification settings successfully saved.');
+		 		
+		 	}		
+		 	redirect(base_url().'org_animal_notify');	
+		}else{	
+
+			 	
+			$data['org_animal_detail'] = $this->org_animal_notify_model->get_animal_notify_byorg_id($org_id);
+			
+			$data['animal_type']  = $this->organimal_model->get_animal_all_type();
+			$data['breed_type'] = $this->organimal_model->get_breedby_animal();
+			$data['animal_age'] = $this->organimal_model->animal_age();
+			$data['animal_wt'] = $this->organimal_model->animal_weight();
+		 	$data['arrAnimal'] = unserialize($data['org_animal_detail']->st_animal_dtl);
+		 	$data['arrbreed'] = unserialize($data['org_animal_detail']->st_breed_dtl);
+		 	//echo "<pre>" 	;print_r($data);exit;
+		 	$this->load->view('org_animal_notification',$data);
+		}
+	}
+
+	public function animal_type(){
+		$animal_type = array();
+		$animal_type  = $this->organimal_model->get_animal_all_type();
+		echo json_encode($animal_type);		
+	}
+
+	public function animal_breed(){
+		$animal_breed = array();
+		$animal_id = $this->input->post('animalid');
+		$animal_breed  = $this->organimal_model->get_breedby_animal($animal_id);
+		echo json_encode($animal_breed);		
+		exit;
+	}
+	
+
+	public function animal_age(){
+		$animal_age = array();
+		$animal_age  = $this->organimal_model->animal_age();
+		echo json_encode($animal_age);				
+	}
+
+	public function animal_weight(){
+		$animal_wt = array();
+		$animal_wt  = $this->organimal_model->animal_weight();
+		echo json_encode($animal_wt);	
+	}
+
+}	
+?>	

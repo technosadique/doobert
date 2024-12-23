@@ -1,0 +1,413 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Partner_login extends CI_Controller {
+
+	/**  
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL 
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	 
+	
+	public function __construct() 
+    { 
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->library('common_function');		
+		$this->load->model('user_model');				
+		$this->load->model('common_model');			
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->helper('cookie');		
+	}	
+	 
+	public function index()
+	{  	
+		 $data = array();		
+		 
+		if(isset($_GET['fbapp_blocked']) && $_GET['fbapp_blocked'] == '1') 
+		{			
+			$this->session->set_userdata('fbapp_status_warning', 'Invalid username or password.');	
+		}
+		if($this->session->userdata('userid') || $this->input->cookie('userid'))
+		{  
+			if($this->input->cookie('userid')){
+				
+				//$user_details = $this->user_model->get_user_profile($get_user_id);
+					$this->session->set_userdata('userid',$this->input->cookie('userid'));
+                    if($this->input->cookie('user_name'))
+					{
+						$this->session->set_userdata('user_name', $this->input->cookie('user_name'));
+					}
+					if($this->input->cookie('last_name'))
+					{
+						$this->session->set_userdata('last_name',$this->input->cookie('last_name'));
+					}
+					if($this->input->cookie('email'))
+					{
+						$this->session->set_userdata('email', $this->input->cookie('email'));
+					}
+					
+					$user_details = $this->user_model->get_user_profile($this->input->cookie('userid'));
+					if(isset($user_details['st_zip']) && !empty($user_details['st_zip']))
+					{
+						$this->session->set_userdata('zip',$user_details['st_zip']);
+					}
+					if(isset($user_details['st_display_name']) && !empty($user_details['st_display_name']))
+					{
+						$this->session->set_userdata('user_name',$user_details['st_display_name']);
+					}
+					if(isset($user_details['st_last_name']) && !empty($user_details['st_last_name']))
+					{
+						$this->session->set_userdata('last_name',$user_details['st_last_name']);
+					}
+					if(isset($user_details['st_email']) && !empty($user_details['st_email']))
+					{
+						$this->session->set_userdata('email',$user_details['st_email']);
+					}
+					
+			}			
+			redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+		}
+		elseif($this->session->userdata('fb_session'))
+		{
+			$fb_session = $this->session->userdata('fb_session');
+			if(isset($fb_session) && is_array($fb_session) && count($fb_session) > 0){  
+				redirect($this->config->item('base_url')."facebook-login/");
+			}	
+		}
+		
+		
+		$data['Err_Msg_forgot'] = '';
+		$data['Err_Msg_reg'] = '';
+		$data['Err_Msg_login'] = '';
+		$data['Err_Msg'] = '';
+		$data['rem_password'] = get_cookie('pass');
+		$data['rem_email'] 	  = get_cookie('user');
+		$data['menu_no'] 	  = 'yes';
+		$form_field	=	array('username'	=> "",
+							 'lastname'		=> "",
+							  'email'		=> "",							  
+							  'password'	=> "",
+							  'rpassword'	=> "",
+							  'referred_by'	=> "",
+							  'tnc' 		=> "",
+							  'signup'		=> "",
+							  'remember'	=> "",
+							  'action'		=> "",
+							  'oldertc' 	=> ""
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['register'][$key] = $value;	
+		}					
+		if($this->input->post('action'))
+		{ 
+		
+			$auto_login_status = $this->common_model->check_auto_login_status(); 
+			if(isset($auto_login_status) && isset($auto_login_status['in_auto_login_status']) && $auto_login_status['in_auto_login_status'] == '0')
+			{
+				$msg = isset($auto_login_status['st_disable_msg']) && $auto_login_status['st_disable_msg'] != '' ? $auto_login_status['st_disable_msg'] : '';
+				$this->session->set_userdata('login_disable',$msg);
+				//redirect($this->config->item('base_url') . 'user/');
+				return $this->load->view('partner-login',$data);
+			}
+			
+			foreach ($form_field as $key => $value) {	
+					$data['register'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+			}
+			
+			
+			if($this->input->post('action')=="login")
+			{ 				
+				foreach ($form_field as $key => $value) {	
+					$data['register'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+				}
+				$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password', 'Password', 'trim|required');
+				if($this->form_validation->run() == FALSE)
+				{		$data['Err_Msg_login'] = validation_errors();						
+						$this->load->view('partner-login',$data);	
+				}
+				else
+				{					
+					$result = $this->user_model->user_login($data['register']);
+					
+					$user_details = $this->user_model->get_user_profile($result['user_details']['userid']);
+					$user_org_details = $this->user_model->get_org_profile($result['user_details']['userid']);	
+					
+					if(isset($result) && !empty($result))
+					{
+						if(count($user_org_details) == 0)
+						{
+							//echo 'Sorry! You do not have any approved organization.';die;
+							$this->session->set_userdata('partner_login_warning', 'Sorry! You do not have any approved organization.');					
+							redirect($this->config->item('base_url') . "partner_login/");
+						}
+						#===================== remember me ==================#
+						if($data['register']['remember']!='')
+						{							
+									
+								set_cookie('pass', $this->input->post('password'), 864000);	
+								set_cookie('user', $data['register']['email'], 864000);	
+
+						}
+										
+						$this->session->set_userdata('userid',$result['user_details']['userid']);					
+						$this->session->set_userdata('user_name',$result['user_details']['user_name']);
+						$this->session->set_userdata('last_name',$result['user_details']['last_name']);
+						$this->session->set_userdata('email',$result['user_details']['email']);
+						$this->session->set_userdata('zip', $user_details['st_zip']);
+						$this->session->set_userdata('login_direct_status', $result['user_details']['login_direct_status']);
+						if(isset($user_org_details) && count($user_org_details)>0)
+						{	
+							$this->session->unset_userdata('partnerorgid');
+							$this->session->set_userdata('partnerorgid',$user_org_details['in_organization_id']);
+							setcookie("userid",$result['user_details']['userid'],0,"/",".doobert.com");	
+						}	
+						
+						setcookie("userid",$result['user_details']['userid'],0,"/",".doobert.com");
+						// user activity log starts
+						$user_activity = array();					
+						$user_activity = array("in_user_id" 	=> $result['user_details']['userid'],
+                       						   "st_ip_server" 	=> $_SERVER['REMOTE_ADDR'],
+											   "dt_created" 	=> date('Y-m-d H:i:s')                      
+                   							 );					
+						$this->user_model->add_user_activity($user_activity);
+						// user activity log ends
+						
+						
+						//End set cokie						
+							
+						$org_status = $this->user_model->check_organization_status($this->session->userdata('userid'));
+						if(count($org_status)>0)
+						{
+							if($org_status['st_org_complete']!=0)
+							{
+								$this->session->set_userdata('orgstep',$org_status['st_org_complete']);
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$this->session->set_userdata('popup_display',1);
+								$redirect = $this->config->item('base_url') . "org-signup";
+								//redirect($redirect);
+								redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+							} else {
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$this->session->set_userdata('popup_display',1);
+								$redirect = $this->config->item('base_url') . "org-signup-thankyou";
+								//redirect($redirect);
+								redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+							}	
+						}
+						$user_profile_status = $this->user_model->check_userprofile_status($this->session->userdata('userid'));
+					  if(count($user_profile_status)>0)
+					  {
+							$this->session->set_userdata('registerstep','1');
+							if($user_profile_status['hurricane_harvey_reg'] == 1)
+							{
+								$redirect = $this->config->item('base_url') . "harvey-volunteer-profile";	
+							} else {
+							$redirect = $this->config->item('base_url') . "volunteer-profile";
+							}
+							//redirect($redirect);
+							redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+					  }	
+						
+						//Added By Nirav 23 May 2016
+						if($result['user_details']['login_direct_status']== 1)
+						{	
+								$org_list =  $this->common_model->get_organization_list();
+								if(count($org_list)>0 and is_array($org_list))
+								{	
+									$user_email_verify_status = $this->user_model->check_email_verification_status($this->session->userdata('userid'));
+									
+									if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+									{
+										if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+										$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+										}else{
+											$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+										}
+									}
+									$redirect = base_url()."org-dashboard/".$org_list[0]['in_organization_id']."/";
+									//redirect($redirect);
+									redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+								}
+								else{
+									$user_email_verify_status = $this->user_model->check_email_verification_status($this->session->userdata('userid'));
+									if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+									{
+										if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+										$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+										}else{
+											$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+										}
+									}
+									//redirect($this->config->item('base_url') . "dashboard/");
+									redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+								}		
+						} 						
+						elseif($result['user_details']['status']==0)
+						{
+							//redirect($this->config->item('base_url')."my-profile/");
+							//redirect($this->config->item('base_url')."user/general_details/");
+							$user_email_verify_status = $this->user_model->check_email_verification_status($this->session->userdata('userid'));
+							if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+							{
+								if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+								$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+								}else{
+									$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+								}
+							}
+							//redirect($this->config->item('base_url') . "dashboard/");
+							redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+						}
+						else
+						{
+							if($this->session->userdata('url_data'))
+							{  
+								$url = $this->session->userdata('url_data');
+								$this->session->unset_userdata('url_data');		
+								//redirect($url);	
+								redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+							}
+							if($user_details['st_driver']=='Y')
+							{
+								//redirect($this->config->item('base_url')."my-transportation/");
+								$user_email_verify_status = $this->user_model->check_email_verification_status($this->session->userdata('userid'));
+								if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+								{
+									if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+									$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+									}else{
+										$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+									}
+								}	
+								//redirect($this->config->item('base_url') . "dashboard/");
+								redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+							}
+							else
+							{
+								//redirect($this->config->item('base_url')."notification/");
+								$user_email_verify_status = $this->user_model->check_email_verification_status($this->session->userdata('userid'));
+								if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+								{
+									if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+									$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+									}else{
+										$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+									}
+								}
+								//redirect($this->config->item('base_url') . "dashboard/");
+								redirect($this->config->item('base_url') . "partner_login/partner_dashboard/");
+                            }
+								
+                        }
+						// FOR THE POPOVER FLAG IN SESSION 
+						if($this->session->userdata('popup_display')) {
+							$this->session->userdata->unset_userdata('popup_display');
+						}
+						if($this->session->userdata('popup_display_flag')){
+							$this->session->userdata->unset_userdata('popup_display_flag');
+						}
+						
+					}
+					else
+					{
+						$this->session->set_flashdata('warning','Invalid username or password.');
+						$fb_user_id = $this->common_model->check_fb_user($data['register']['email']);
+						if(isset($fb_user_id) && !empty($fb_user_id) && $fb_user_id['st_facebook_uid'] != '')
+						{
+							$this->session->set_userdata('fb_warning', 'It looks like you created your account by using the Facebook Login / App. Please click on the Login with Facebook to be logged into the system.');	
+							$this->session->set_flashdata('warning','');	
+						}
+						//redirect($this->config->item('base_url')."user/");
+						redirect($this->config->item('base_url') . "partner_login/");
+					}
+					
+				}
+				
+			}
+			else
+			{
+				$this->load->view('partner-login',$data);				
+			}			
+		}
+		else
+		{
+				$this->load->view('partner-login',$data);	
+			
+		}
+
+	}	
+	
+	public function partner_dashboard()
+	{ 
+		$data	=	array();	
+		//echo $this->session->userdata('userid');die;
+		if($this->session->userdata('userid') && !empty($this->session->userdata('userid')))
+		{
+			$user_org_details = $this->user_model->get_org_profile($this->session->userdata('userid'));
+			if(count($user_org_details) == 0)
+			{
+				//echo 'Sorry! You do not have any approved organization.';die;
+				$this->session->set_userdata('partner_login_warning', 'Sorry! You do not have any approved organization.');					
+				//redirect($this->config->item('base_url') . "partner_login/");
+				$this->load->view('partner-login',$data);
+			}else { 
+				$this->session->unset_userdata('partnerorgid');
+				$this->session->set_userdata('partnerorgid',$user_org_details['in_organization_id']);				
+				$this->load->view('partner-dashboard', $data);
+			}
+		} else { 
+			if($this->session->userdata('partnerorgid')&& !empty($this->session->userdata('partnerorgid'))){  //echo 'AA';die;
+				$this->load->view('partner-dashboard', $data);		
+			}
+			else{  //echo 'BB';die;		
+				$this->session->set_userdata('partner_login_warning', 'Sorry! You do not have any approved organization.');					
+				$this->load->view('partner-login',$data);			
+		}
+		
+		}
+	}
+	
+	public function partner_dashboard2()
+	{ 
+		//echo "sdfds"; exit;
+		
+		
+		$data	=	array();	
+		
+		if($this->session->userdata('userid') && !empty($this->session->userdata('userid')))
+		{
+			
+			$user_org_details = $this->user_model->get_org_profile($this->session->userdata('userid'));			
+			
+			if(count($user_org_details) == 0)
+			{	
+				//echo 'Sorry! You do not have any approved organization.';die;
+				$this->session->set_userdata('partner_login_warning', 'Sorry! You do not have any approved organization.');					
+				//redirect($this->config->item('base_url') . "partner_login/");
+				redirect($this->config->item('base_url') . "org-modern-dashboard/".$this->session->userdata('org_id'));
+			}else {	 		
+				$this->session->unset_userdata('partnerorgid');
+				$this->session->set_userdata('partnerorgid',$this->session->userdata('org_id'));				
+				redirect('http://dev.animalrescueprofessionals.org/org/register/checkarpalogin/?orgid='.base64_encode($this->session->userdata('partnerorgid')));
+			}
+		} 
+	}
+	
+}
+
+/* End of file partner_login.php */
+/* Location: ./application/controllers/partner_login.php */

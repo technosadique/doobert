@@ -1,0 +1,1473 @@
+<?php
+# ======================================================================================
+# Created by		: Chetan Pedgaonkar
+# Created date		: 05-Apr-2014
+# File description	: Model for organization info
+# Special - notes	: none
+# Tables used		: 
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class org_info_model extends CI_Model { 
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	function index() {
+	
+	}
+	
+	#=========================================================
+	#	Function : get_all_pending_users
+	#	Purpose  : Getting all pending users against current organization
+	#=========================================================
+	
+	
+	public function get_all_pending_users($limit,$start,$userid,$org_id) {
+		$data= array();
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS o.in_org_user_id,o.in_organization_id,o.in_user_id,o.dt_created,o.in_status,up.st_primary_phone,up.st_city,up.st_state,up.st_zip,u.st_email,u.st_display_name,u.st_last_name,o.in_request_type',FALSE);
+		$this->db->from('tbl_organization_user as o');
+		
+		$this->db->join('tbl_user_profile as up','o.in_user_id = up.in_user_id','LEFT');
+		$this->db->join('tbl_users as u','o.in_user_id = u.in_user_id','INNER');
+		
+		$this->db->where('o.in_deleted',0);
+		$this->db->where('u.in_deleted',0);
+		$this->db->where_in('o.in_status',array(0,5));
+		$this->db->where_in('o.in_request_type',array(0,1));
+		//$this->db->where('o.in_invite_by',0);
+		
+		$this->db->where('o.in_organization_id',$org_id);
+		
+		$this->db->order_by('o.in_organization_id','DESC');
+		
+		$this->db->limit($limit,$start);
+		
+		$query = $this->db->get();
+		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				
+				$location = '';
+				
+				if(isset($row['st_city']) && $row['st_city'] != '')
+				{
+					$location .= $row['st_city'].', ';
+				}
+				
+				if(isset($row['st_state']) && $row['st_state'] != '')
+				{
+					$location .= $row['st_state'].', ';
+				}
+				
+				if(isset($row['st_zip']) && $row['st_zip'] != '')
+				{
+					$location .= $row['st_zip'];
+				}
+				
+				
+				$data['pending_user_list'][] = array(	'user_id'		=>	$row['in_user_id'],
+														'name'			=>	$row['st_display_name'],
+														'lastname'		=>	$row['st_last_name'],
+														'date'			=>	$row['dt_created'],
+														'location'		=>	$location,
+														'primary_phone'	=>	$row['st_primary_phone'],
+														'email'			=>	$row['st_email'],
+														'org_id'		=>	$row['in_organization_id'],
+														'status'		=>	$row['in_status'],
+														'email'			=>	$row['st_email'],
+														'invite_id'		=>	$row['in_org_user_id'],
+														'request_type'		=>	$row['in_request_type']
+													);
+			}
+		}
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : get_user_profile
+	#	Purpose  : Getting selected user profile
+	#=========================================================
+	
+	public function get_user_profile($id) {
+		$this->db->select("u.st_profile_image, u.st_display_name,u.st_last_name,u.st_email,u.in_public,
+							up.st_address1,up.st_address2,up.st_city,up.st_state,up.st_zip,
+							up.st_primary_phone,up.st_secondary_phone,up.st_fax,up.st_website,
+							up.st_about_me,up.st_driver,up.st_foster_home,
+							uv.st_driver_availability,uv.st_vehicle_type,uv.st_vehicle_color,
+							uv.st_vehicle_license_plate,uv.st_vehicle_license_state,uv.in_distance_to_drive,
+							ua.in_animal_type_id,ua.in_animal_breed_id,ua.in_demeanor_id,ua.in_no_animal,
+							ua.in_duration_type,at.st_animal_type_name,ua.in_duration,ab.st_animal_breed_name,d.st_demeanor_name,
+							ou.in_org_user_id,ou.st_permission,ou.st_transport_cood,ou.st_fundraiser,ou.st_notes,
+							ou.st_animal_profile,ou.in_status"				
+						);
+						
+		$this->db->from("tbl_users as u");
+		
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		
+		$this->db->join('tbl_user_vehicle as uv','u.in_user_id = uv.in_user_id','LEFT');
+		$this->db->join('tbl_user_addition_info as ua','u.in_user_id = ua.in_user_id','LEFT');
+		
+		$this->db->join('tbl_animal_type as at','ua.in_animal_type_id = at.in_animal_type_id','LEFT');
+		$this->db->join('tbl_animal_breed as ab','ua.in_animal_breed_id = ab.in_animal_breed_id','LEFT');
+		$this->db->join('tbl_demeanor as d','ua.in_demeanor_id = d.in_demeanor_id','LEFT');
+		
+		$this->db->join('tbl_organization_user as ou','u.in_user_id = ou.in_user_id AND ou.in_deleted="0"','INNER');
+		
+		$this->db->where('u.in_user_id',$id);
+		$this->db->where('ou.in_organization_id',$this->session->userdata('org_id'));
+		
+		//$this->db->where('u.in_status',0);
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('ou.in_deleted',0);
+		$this->db->group_by('u.in_user_id');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	
+	#=========================================================
+	#	Function : update_permission
+	#	Purpose  : Updating user permissions
+	#=========================================================
+	
+	public function update_permission($id,$data) {
+		$this->db->where('in_org_user_id',$id);
+		$this->db->update('tbl_organization_user',$data);
+		//echo $this->db->last_query();die;
+		return $this->db->affected_rows();
+	}
+	
+	#=========================================================
+	#	Function : get_all_approved_users
+	#	Purpose  : Getting all approved users against current organization
+	#=========================================================
+	
+	
+	public function get_all_approved_users($sort,$order,$limit,$start,$userid,$org_id) {
+		$data= array();
+		
+		$this->db->select("SQL_CALC_FOUND_ROWS o.in_org_user_id,o.in_organization_id,o.in_user_id,o.dt_created,o.st_permission,o.in_status,up.st_primary_phone,up.st_city,up.st_state,up.st_zip,u.st_email,CONCAT(u.st_display_name,' ' ,u.st_last_name) as st_display_name ",FALSE);
+		$this->db->from('tbl_organization_user as o');
+		
+		$this->db->join('tbl_user_profile as up','o.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_users as u','o.in_user_id = u.in_user_id','INNER');
+		
+		$this->db->where('u.in_user_id NOT IN(select in_transfer_to from tbl_organization_transfer where in_status = 1 AND in_deleted = 0 AND in_organization_id='.$org_id.')');
+		
+		$this->db->where('o.in_deleted',0);
+		$this->db->where('o.in_status',1);
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('o.in_organization_id',$org_id);
+		
+		//$this->db->order_by('o.in_organization_id','DESC');
+		//$this->db->order_by('u.st_display_name');
+		
+		switch($sort)
+		{							
+			case 'name':								
+				$this->db->order_by('u.st_display_name',$order);
+			break;
+			
+			case 'date': 								
+				$this->db->order_by('o.dt_created',$order);
+			break;	
+			
+			case 'phone': 								
+				$this->db->order_by('up.st_primary_phone',$order);
+			break;
+			
+			case 'access': 								
+				$this->db->order_by('o.st_permission',$order);
+			break;
+			
+			default: 								
+				$this->db->order_by('u.st_display_name',$order);
+			break;	
+						 
+		}
+		
+		if(!isset($limit))
+		{
+			$limit=0;
+		}					
+		$this->db->limit($start,$limit);	
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+			
+				$location = '';
+				
+				if(isset($row['st_city']) && $row['st_city'] != '')
+				{
+					$location .= $row['st_city'].', ';
+				}
+				
+				if(isset($row['st_state']) && $row['st_state'] != '')
+				{
+					$location .= $row['st_state'].', ';
+				}
+				
+				if(isset($row['st_zip']) && $row['st_zip'] != '')
+				{
+					$location .= $row['st_zip'];
+				}
+				
+				$data['approved_user_list'][] = array(	'user_id'		=>	$row['in_user_id'],
+														'name'			=>	$row['st_display_name'],
+														'date'			=>	$row['dt_created'],
+														'location'		=>	$location,
+														'primary_phone'	=>	$row['st_primary_phone'],
+														'email'			=>	$row['st_email'],
+														'org_id'		=>	$row['in_organization_id'],
+														'status'		=>	$row['in_status'],
+														'access_level'	=>	unserialize($row['st_permission'])
+													);
+			}
+		}
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : get_all_blocked_users
+	#	Purpose  : Getting all blocked users against current organization
+	#=========================================================
+	
+	
+	public function get_all_blocked_users($limit,$start,$userid,$org_id) {
+		$data= array();
+		
+		$this->db->select("SQL_CALC_FOUND_ROWS o.in_org_user_id,o.in_organization_id,o.in_user_id,o.dt_created,o.in_status,up.st_primary_phone,up.st_city,up.st_state,up.st_zip,u.st_email,concat(u.st_display_name,' ',u.st_last_name) as st_display_name",FALSE);
+		$this->db->from('tbl_organization_user as o');
+		
+		$this->db->join('tbl_user_profile as up','o.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_users as u','o.in_user_id = u.in_user_id','INNER');
+		
+		$this->db->where('u.in_user_id NOT IN(select in_transfer_to from tbl_organization_transfer where in_status = 1 AND in_deleted = 0)');
+		
+		$this->db->where('o.in_deleted',0);
+		$this->db->where('o.in_status',3);
+		$this->db->where('o.in_organization_id',$org_id);
+		
+		$this->db->order_by('o.in_organization_id','DESC');
+		
+		$this->db->limit($limit,$start);
+		
+		$query = $this->db->get();
+		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+			
+				$location = '';
+				
+				if(isset($row['st_city']) && $row['st_city'] != '')
+				{
+					$location .= $row['st_city'].', ';
+				}
+				
+				if(isset($row['st_state']) && $row['st_state'] != '')
+				{
+					$location .= $row['st_state'].', ';
+				}
+				
+				if(isset($row['st_zip']) && $row['st_zip'] != '')
+				{
+					$location .= $row['st_zip'];
+				}
+				
+				
+				$data['blocked_user_list'][] = array(	'user_id'		=>	$row['in_user_id'],
+														'name'			=>	$row['st_display_name'],
+														'date'			=>	$row['dt_created'],
+														'location'		=>	$location,
+														'primary_phone'	=>	$row['st_primary_phone'],
+														'email'			=>	$row['st_email'],
+														'org_id'		=>	$row['in_organization_id'],
+														'status'		=>	$row['in_status']
+													);
+			}
+		}
+		return $data;
+	}
+	
+	#==========================================================================
+	#	Function : get_all_users
+	#	Purpose  : Getting all users which are not join current organization
+	#==========================================================================
+	
+	
+	public function get_all_users($limit,$start,$username,$sort_value) {
+		$data= array();
+		
+		$this->db->select("SQL_CALC_FOUND_ROWS in_user_id,in_status,CONCAT(st_display_name,' ',st_last_name) as st_display_name_user,st_email,st_display_name,st_last_name",FALSE);
+		$this->db->from('tbl_users');
+		//$this->db->where("in_user_id NOT IN (SELECT in_user_id FROM tbl_organization_user WHERE in_organization_id = '".$this->session->userdata('org_id')."' AND in_deleted = 0 AND in_status != 4)");
+		
+		//$this->db->or_where("in_user_id NOT IN (SELECT in_user_id FROM tbl_organization_user WHERE in_organization_id = '".$this->session->userdata('org_id')."' AND in_deleted = 0 AND in_status != 3)");
+		
+		$this->db->where('in_user_id != ',$this->session->userdata('userid'));
+		
+		//$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->where('st_email <>','');
+		
+		if($sort_value != '' || $username != '') {
+			$this->db->like('st_display_name', $sort_value, 'after'); 
+		}
+		
+		if($username != '') { 
+			/*$where = "(concat(st_display_name,' ',st_last_name) LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					OR REPLACE(concat(st_display_name,' ',st_last_name) , '\'', '' ) LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					OR st_display_name LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					OR st_email LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					)";*/
+					
+			 $where = "(concat(trim(st_display_name),' ',trim(st_last_name)) LIKE '%".str_replace("%","\%",addslashes($username))."%'					
+					OR st_display_name LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					OR st_email LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					)";
+			
+			$this->db->where($where);		
+		}
+		
+		/*if($username!='') {
+			$this->db->or_where("st_email LIKE '%".str_replace("%","\%",addslashes($username))."%'");
+		}*/
+		
+		$this->db->group_by('in_user_id');	
+		
+		
+		$this->db->order_by('st_display_name','ASC');
+		$this->db->limit($limit,$start);
+		
+		$query = $this->db->get();
+			//echo $this->db->last_query();die;		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query && $query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				$data['user_list'][] = array(	'user_id'		=>	$row['in_user_id'],
+												'name'			=>	$row['st_display_name_user'],
+												'email'			=>	$row['st_email'],
+												'full_name'		=>	$row['st_display_name'].' '.$row['st_last_name'],
+												'joined_user'	=>	$this->check_user_joined_the_org($row['in_user_id']),
+												'org_req_sent'  =>	$this->check_org_req_sent($row['in_user_id']),
+												'in_status'		=>	$row['in_status'],
+											);
+			}
+		}
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : get_invited_user_profile
+	#	Purpose  : Getting invited user profile
+	#=========================================================
+	
+	public function get_invited_user_profile($id) {
+		$this->db->select('	u.in_user_id,u.st_profile_image,u.st_display_name,u.st_last_name,u.st_email,u.in_public,
+							up.st_address1,up.st_address2,up.st_city,up.st_state,up.st_zip,
+							up.st_primary_phone,up.st_secondary_phone,up.st_fax,up.st_website,
+							up.st_about_me,up.st_driver,up.st_foster_home,
+							uv.st_driver_availability,uv.st_vehicle_type,uv.st_vehicle_color,
+							uv.st_vehicle_license_plate,uv.st_vehicle_license_state,uv.in_distance_to_drive,
+							ua.in_animal_type_id,ua.in_animal_breed_id,ua.in_demeanor_id,ua.in_no_animal,ua.in_duration,
+							ua.in_duration_type,at.st_animal_type_name,ab.st_animal_breed_name,d.st_demeanor_name,
+							ou.in_org_user_id,ou.st_permission,ou.st_transport_cood,ou.st_fundraiser,ou.st_notes,
+							ou.st_animal_profile'				
+						);
+						
+		$this->db->from('tbl_users as u');
+		
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_user_vehicle as uv','u.in_user_id = uv.in_user_id','LEFT');
+		$this->db->join('tbl_user_addition_info as ua','u.in_user_id = ua.in_user_id','LEFT');
+		
+		$this->db->join('tbl_animal_type as at','ua.in_animal_type_id = at.in_animal_type_id','LEFT');
+		$this->db->join('tbl_animal_breed as ab','ua.in_animal_breed_id = ab.in_animal_breed_id','LEFT');
+		$this->db->join('tbl_demeanor as d','ua.in_demeanor_id = d.in_demeanor_id','LEFT');
+		$this->db->join('tbl_organization_user as ou','u.in_user_id = ou.in_user_id AND ou.in_deleted="0"','LEFT');
+		
+		$this->db->where('u.in_user_id',$id);
+		
+		//$this->db->where('u.in_status',0);
+		$this->db->where('u.in_deleted',0);
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->row_array());die;
+		return $query->row_array();
+	}
+	
+	#=========================================================
+	#	Function : insert_permission
+	#	Purpose  : Inserting user permissions
+	#=========================================================
+	
+	public function insert_permission($data) { 
+		$this->db->insert('tbl_organization_user',$data);
+		//echo $this->db->last_query(); die;
+		return $this->db->affected_rows();
+	}
+	
+	public function update_status($userId)
+	{
+		$arrUser = 	array('in_status' 	=> '3' );		
+		$this->db->where_in('in_user_id', $userId);
+		$this->db->update('tbl_organization_user', $arrUser);	
+	}
+	
+	#=========================================================
+	#	Function : get_users_org
+	#	Purpose  : Getting current users joining organization details
+	#=========================================================
+	
+	public function get_users_org($userid) {
+		$this->db->select('o.in_organization_id,o.st_org_name,ou.st_transport_cood,ou.st_fundraiser,
+							ou.st_animal_profile',FALSE);
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_organization_user as ou','ou.in_organization_id = o.in_organization_id','LEFT');
+		
+		
+		$where = "(( o.in_user_id ='".$userid."')  
+					OR( ou.in_user_id ='".$userid."' )
+					AND ou.in_status='1' 
+					AND ou.in_deleted='0') AND o.in_deleted='0' AND o.in_status='1' 
+					";
+		$this->db->where($where, NULL, FALSE);
+		$this->db->group_by('o.in_organization_id'); 
+		$this->db->order_by('o.st_org_name','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+
+	#=========================================================
+	#	Function : org_notification
+	#	Purpose  : Getting notifications against current organization
+	#=========================================================
+	
+	public function org_notification($org_id) {
+		//echo $org_id; die;
+		$data = array();
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS n.in_notification_id,n.in_animal_id,an.st_animal_name,o.st_org_name,u.st_display_name,o.in_organization_id,u.in_user_id,n.in_transportation_id,n.st_notification_msg,n.dt_created,o.st_org_image,u.st_profile_image,a.st_file_name',FALSE);
+		$this->db->from('tbl_notification as n');
+		$this->db->join('tbl_organization as o','o.in_organization_id = n.in_organization_id','LEFT');
+		$this->db->join('tbl_users as u','u.in_user_id = n.in_modified_by','LEFT');
+		$this->db->join('tbl_animal as an', 'an.in_animal_id =n.in_animal_id',"LEFT" );
+		$this->db->join('tbl_animal_file as a','a.in_animal_id = n.in_animal_id AND st_file_type="P" AND a.in_deleted="0"','LEFT');
+		
+		$this->db->where('n.in_organization_id',$org_id);
+		$this->db->where('n.in_type = ',0);
+		$this->db->where('n.in_deleted',0);
+		$this->db->group_by('n.in_notification_id');
+		$this->db->order_by('n.in_notification_id','DESC');
+		if($this->input->post('start')) {
+			$this->db->limit($this->input->post('end'),$this->input->post('start'));
+		} else {
+			$this->db->limit(10);
+		}
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		$data['org_data'] = $query->result_array();
+		
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : organization_profile
+	#	Purpose  : Getting organization details
+	#=========================================================
+	
+	public function organization_profile($org_id) {
+		$this->db->select('o.st_org_image,o.st_org_type,o.st_org_ein,o.st_has_501c3,o.st_has_contract,
+							o.st_organization_501c3,o.st_director,o.st_org_name,o.st_what_type_org,
+							o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_country,o.st_zip,o.st_primary_phone,
+							o.st_secondary_phone,o.st_fax,o.st_email_address,o.st_website,o.st_paypal_email,
+							o.st_what_type_org,o.st_guideline,o.st_profile_desc,o.st_additional_info,o.in_enable_terms_condition,o.st_terms_condition,o.st_org_code,o.in_disaster,o.st_em_contact,o.st_em_phone,o.st_em_email,o.st_disaster_terms_condition,o.st_disaster_detail,o.in_enable_terms_condition_route,o.st_terms_condition_route,ou.st_file_name,
+							ou.in_org_upload_id');
+		$this->db->from('tbl_organization o');
+		$this->db->join('tbl_organization_upload ou','o.in_organization_id = ou.in_organization_id AND ou.in_deleted = 0' ,'LEFT');	
+		$this->db->where('o.in_organization_id',$org_id);
+		$this->db->where('o.in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	#=========================================================
+	#	Function : edit_org
+	#	Purpose  : Editing organization
+	#=========================================================
+	
+	public function edit_org($data,$org_id) {
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->update('tbl_organization',$data);
+		return $this->db->affected_rows();
+	}
+	
+	#==========================================================================
+	#	Function : get_all_transefer_users
+	#	Purpose  : Getting all users which to which user did not transefer his organization request
+	#==========================================================================
+	
+	public function get_all_transefer_users($limit,$start,$username,$sort_value,$short_val="") {
+		
+		$data= array();
+		
+		//$this->db->select("SQL_CALC_FOUND_ROWS in_user_id,CONCAT(st_display_name,' ',st_last_name) as st_display_name,st_email",FALSE);
+		$this->db->select("SQL_CALC_FOUND_ROWS in_user_id,st_display_name,st_last_name,st_email,in_status",FALSE);
+		$this->db->from('tbl_users');
+		
+		$this->db->where("in_user_id NOT IN (SELECT in_transfer_to FROM tbl_organization_transfer WHERE in_organization_id = '".$this->session->userdata('org_id')."' AND in_status != 3 AND in_deleted = 0)");
+		//
+		//$this->db->where("in_user_id IN (SELECT in_user_id FROM tbl_organization_user WHERE in_organization_id = '".$this->session->userdata('org_id')."' AND in_user_id = '".$this->session->userdata('userid')."')");
+		//
+		
+		$this->db->where('in_deleted',0);
+		
+		if($sort_value != '' || $username != '') {
+			$this->db->like('st_display_name', $sort_value, 'after'); 
+		}
+		
+		if($username != '') {
+			#$this->db->like("st_display_name",$username);
+			$username = str_replace("%","\%",$username);			
+			$this->db->where("concat(trim(st_display_name),' ',trim(st_last_name)) LIKE '%".addslashes($username)."%'", NULL, FALSE);
+		}
+		
+		if($short_val!='all')
+		{
+			$this->db->where('SUBSTRING(st_display_name,1,1)=',$short_val);
+		}
+		
+		$this->db->where('in_user_id != ',$this->session->userdata('userid'));
+		$this->db->where("st_display_name!='' && st_last_name!=''");
+		$this->db->order_by('st_display_name','ASC');
+		$this->db->limit($limit,$start);
+		
+		$query = $this->db->get();
+			//echo $this->db->last_query();die;		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				$data['user_list'][] = array(	'user_id'		=>	$row['in_user_id'],
+												'name'			=>	$row['st_display_name'].' '.$row['st_last_name'],
+												'email'			=>	$row['st_email'],
+												'in_status'		=>	$row['in_status']
+											);
+			}
+		}
+		//echo "<pre>";print_r($data['user_list']);die;
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : get_transefered_user_profile
+	#	Purpose  : Getting user profile to transefer the organization
+	#=========================================================
+	
+	public function get_transefered_user_profile($id) {
+		$this->db->select('	u.in_user_id,u.st_profile_image,u.st_display_name,u.st_email,
+							up.st_address1,up.st_address2,up.st_city,up.st_state,up.st_zip,
+							up.st_primary_phone,up.st_secondary_phone,up.st_fax,up.st_website,
+							up.st_about_me,up.st_driver,up.st_foster_home,
+							uv.st_driver_availability,uv.st_vehicle_type,uv.st_vehicle_color,
+							uv.st_vehicle_license_plate,uv.st_vehicle_license_state,uv.in_distance_to_drive,
+							ua.in_animal_type_id,ua.in_animal_breed_id,ua.in_demeanor_id,ua.in_no_animal,
+							ua.in_duration_type,at.st_animal_type_name,ab.st_animal_breed_name,d.st_demeanor_name'				
+						);
+						
+		$this->db->from('tbl_users as u');
+		
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_user_vehicle as uv','u.in_user_id = uv.in_user_id','LEFT');
+		$this->db->join('tbl_user_addition_info as ua','u.in_user_id = ua.in_user_id','LEFT');
+		
+		$this->db->join('tbl_animal_type as at','ua.in_animal_type_id = at.in_animal_type_id','LEFT');
+		$this->db->join('tbl_animal_breed as ab','ua.in_animal_breed_id = ab.in_animal_breed_id','LEFT');
+		$this->db->join('tbl_demeanor as d','ua.in_demeanor_id = d.in_demeanor_id','LEFT');
+		
+		$this->db->where('u.in_user_id',$id);
+		
+		//$this->db->where('u.in_status',0);
+		$this->db->where('u.in_deleted',0);
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	
+	#=========================================================
+	#	Function : transefer_org_insert
+	#	Purpose  : Insert org ownership transefer data
+	#=========================================================
+	
+	public function transefer_org_insert($data) {
+		$this->db->insert('tbl_organization_transfer',$data);
+		return $this->db->affected_rows();
+	}
+	
+	#=========================================================
+	#	Function : transefer_org_insert
+	#	Purpose  : Insert org ownership transefer data
+	#=========================================================
+	
+	public function get_all_ownership_req($limit,$start,$org_id,$userid) {
+		$data= array();
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS ot.in_organization_id,ot.in_transfer_to,o.st_org_name,
+							o.st_org_type,o.st_director,o.st_primary_phone,o.st_email_address,o.st_address1,
+							o.st_address2,o.st_city,o.st_state,o.st_zip',FALSE);
+		$this->db->from('tbl_organization_transfer as ot');
+		$this->db->join('tbl_organization as o','ot.in_organization_id = o.in_organization_id','INNER');
+		$this->db->where('in_transfer_to',$userid);
+		$this->db->where('in_accepted_by',0);
+		$this->db->where('ot.in_status',0);
+		$this->db->where('ot.in_deleted',0);
+		$this->db->where('o.in_deleted',0);
+
+		$this->db->limit($limit,$start);
+		$query = $this->db->get();
+			//echo $this->db->last_query();die;		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				
+				$location = '';
+				
+				if(isset($row['st_city']) && $row['st_city'] != '')
+				{
+					$location .= $row['st_city'].', ';
+				}
+				
+				if(isset($row['st_state']) && $row['st_state'] != '')
+				{
+					$location .= $row['st_state'].', ';
+				}
+				
+				if(isset($row['st_zip']) && $row['st_zip'] != '')
+				{
+					$location .= $row['st_zip'];
+				}
+				
+				
+				$data['req_list'][] = array(	'organization_id'	=>	$row['in_organization_id'],
+												'org_name'			=>	$row['st_org_name'],
+												'org_type'			=>	$row['st_org_type'],
+												'location'			=>	$location,
+												'director'			=>	$row['st_director'],
+												'pphone'			=>	$row['st_primary_phone'],
+												'email'				=>	$row['st_email_address']
+											);
+			}
+		}
+		return $data;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_org_details	
+	#	Purpose		:	Get Organization details
+	# *******************************************************************************************
+	
+	public function get_org_details($id) {
+		$this->db->select('st_org_image,st_org_type,st_org_ein,st_has_501c3,st_has_contract,st_organization_501c3,
+							st_director,st_org_name,st_address1,st_address2,st_city,st_state,st_zip,
+							st_primary_phone,st_secondary_phone,st_fax,st_email_address,st_website');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$id);
+		$this->db->where("in_organization_id IN (select in_organization_id from tbl_organization_transfer where in_organization_id = '".$id."' AND in_transfer_to = '".$this->session->userdata('userid')."')");
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	#=========================================================
+	#	Function : org_transefer_confirm
+	#	Purpose  : Ownership acceptance
+	#=========================================================
+	
+	public function org_transefer_confirm($data,$org_id) {
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_transfer_to',$this->session->userdata('userid'));
+		$this->db->update('tbl_organization_transfer',$data);
+		return $this->db->affected_rows();
+	}
+	
+	#=========================================================
+	#	Function : organization_profile_for_transefer
+	#	Purpose  : Getting organization details
+	#=========================================================
+	
+	public function organization_profile_for_transefer($org_id) {
+		$this->db->select('st_org_image,st_org_type,st_org_ein,st_has_501c3,st_has_contract,st_organization_501c3,
+							st_director,st_org_name,st_address1,st_address2,st_city,st_state,st_zip,
+							st_primary_phone,st_secondary_phone,st_fax,st_email_address,st_website');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where("in_organization_id IN (select in_organization_id from tbl_organization_transfer where in_organization_id = '".$org_id."' AND in_transfer_to = '".$this->session->userdata('userid')."')");
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	#=========================================================
+	#	Function : organization_profile_display
+	#	Purpose  : Getting organization details
+	#=========================================================
+	
+	public function organization_profile_display($org_id) {
+		$this->db->select('st_org_image,st_org_type,st_org_ein,st_has_501c3,st_has_contract,st_organization_501c3,
+							st_director,st_org_name,st_address1,st_address2,st_city,st_state,st_zip,
+							st_primary_phone,st_secondary_phone,st_fax,st_email_address,st_website');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		
+		return $query->row_array();
+	}
+	
+	
+	#=========================================================
+	#	Function : get_organization_donation
+	#	Purpose  : Getting donation details
+	#=========================================================
+	
+	
+	public function get_organization_donation($limit,$start,$org_id) {
+		
+		$data= array();		
+		$this->db->select('SQL_CALC_FOUND_ROWS o.in_org_donation_id,o.in_organization_id,o.st_donar_name,o.in_donation_amount,o.dt_created',FALSE);
+		$this->db->from('tbl_organization_donation as o');
+		$this->db->where('o.in_deleted',0);
+		$this->db->where('o.st_status',1);	
+		$this->db->where('o.in_organization_id',$org_id);	
+		$this->db->limit($limit,$start);		
+		$query = $this->db->get();		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				$data['organization_donation_list'][] = array('in_org_donation_id'	=>	$row['in_org_donation_id'],
+														'in_organization_id'		=>	$row['in_organization_id'],
+														'st_donar_name'				=>	$row['st_donar_name'],
+														'in_donation_amount'		=>	$row['in_donation_amount'],
+														'dt_created'				=>	$row['dt_created']														
+													);
+			}
+		}
+		return $data;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_guideline_links	
+	#	Purpose		:	Getting Organization Guidelines links details
+	# *******************************************************************************************	
+	function get_guideline_links($orgId)
+	{
+		$this->db->select("link.in_org_link_id,	link.in_organization_id,
+						   link.st_org_link", false);						   	
+		$this->db->from('tbl_organization_link link');
+		$this->db->where('link.in_organization_id',$orgId);	
+		$this->db->where('link.in_deleted','0');
+		$results = $this->db->get()->result_array();
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_org_files	
+	#	Purpose		:	Retriving organization user guidelines files
+	# *******************************************************************************************
+	
+	public function get_org_guideline_files($orgId) {
+		$this->db->select('in_org_upload_id,in_organization_id,st_file_name,in_doc_type');
+		$this->db->from('tbl_organization_upload');
+		$this->db->where('in_organization_id',$orgId);
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_doc_type',1);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_link_update	
+	#	Purpose		:	Update Organization Link Details
+	# *******************************************************************************************		
+	function organization_link_update($org_link_id)
+	{
+		$arrOrg = 	array('in_deleted' 	=> '1' );
+		$this->db->where('in_org_link_id', $org_link_id);
+		return $this->db->update('tbl_organization_link', $arrOrg);		
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_organization_files	
+	#	Purpose		:	Deleting org files
+	# *******************************************************************************************
+	
+	public function delete_organization_files($id) {
+		$this->db->where('in_org_upload_id',$id);
+		$data = array('in_deleted' => 1);
+		$this->db->update('tbl_organization_upload',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_images	
+	#	Purpose		:	add organization images
+	# *******************************************************************************************		
+	function organization_images($arrData)
+	{
+		$this->db->insert('tbl_organization_upload', $arrData);
+		return  $this->db->insert_id();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_references	
+	#	Purpose		:	Add Organization guideline links
+	# *******************************************************************************************		
+	function organization_links_detail($org_links_data)
+	{   
+		$this->db->insert('tbl_organization_link', $org_links_data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_org_donation	
+	#	Purpose		:	Add Organizxation Donation
+	# *******************************************************************************************	
+	public function add_org_donation($arrData)
+	{
+		$user_id = $this->db->insert('tbl_organization_donation', $arrData);
+		return  $this->db->insert_id();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_org_donation	
+	#	Purpose		:	Add Organizxation Donation
+	# *******************************************************************************************		
+	
+	public function update_donation_details($id,$data) {
+		$this->db->where('in_org_donation_id',$id);
+		$this->db->update('tbl_organization_donation',$data);
+		mail('jigar.patel@pulsesolutions.com','DataBase Error',$this->db->last_query());
+	}
+	
+	public function get_user_vehicle($id)
+	{
+			$this->db->select('uv.st_driver_availability,uv.st_vehicle_type,uv.st_vehicle_color,
+							uv.st_vehicle_license_plate,uv.st_vehicle_license_state,uv.in_distance_to_drive'										
+						);						
+		$this->db->from('tbl_user_vehicle as uv');
+		//$this->db->join('tbl_users as u','u.in_user_id = uv.in_user_id','LEFT');		
+		$this->db->where('uv.in_user_id',$id);		
+		//$this->db->where('u.in_status',0);
+		//$this->db->where('u.in_deleted',0);
+		$this->db->where('uv.in_deleted',0);
+		//$this->db->group_by('u.in_user_id');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	join_org_notification	
+	#	Purpose		:	Join organization notification
+	# *******************************************************************************************
+	
+	public function join_org_notification($data) {
+		$this->db->insert('tbl_notification',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_user_joined_the_org	
+	#	Purpose		:	Checking user is joined the organization or not
+	# *******************************************************************************************
+	
+	public function check_user_joined_the_org($id) {
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_organization_user');
+		
+		$this->db->where('in_user_id',$id);
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		
+		$this->db->where_in('in_status',array(1,2,3));
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_ref_details	
+	#	Purpose		:	Getting Organization Referances
+	# *******************************************************************************************	
+	public function get_ref_details($orgId)
+	{
+		$this->db->select("ref.in_org_ref_id,	
+						   ref.st_ref_type,
+						   ref.st_ref_name,
+						   ref.st_ref_email,
+						   ref.st_ref_phone", false);						   	
+		$this->db->from('tbl_organization_ref ref');
+		$this->db->join('tbl_organization org', 'ref.in_organization_id = org.in_organization_id','INNER');
+		$this->db->where('org.in_organization_id',$orgId);	
+		$this->db->where('ref.in_deleted','0');
+		$this->db->where('org.in_deleted','0');
+		$results = $this->db->get()->result_array();
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_references_update	
+	#	Purpose		:	Update Organization Referances
+	# *******************************************************************************************		
+	function organization_references_update($orgId)
+	{
+		
+		$arrOrg = 	array('in_deleted' 	=> '1' );
+		$this->db->where('in_organization_id', $orgId);
+		$this->db->update('tbl_organization_ref', $arrOrg);		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	organization_references	
+	#	Purpose		:	Add Organization Referances
+	# *******************************************************************************************		
+	function organization_references($arrData)
+	{   
+	   // echo '<pre>'; print_r($arrData); die;
+		$this->db->insert('tbl_organization_ref', $arrData);
+	}
+	
+	
+	
+	function add_organization_guidelinelink($orgId,$guidelinelink)
+	{   
+	   // echo '<pre>'; print_r($arrData); die;
+	   $arrData=array('in_organization_id'=>$orgId,'st_org_link'=>$guidelinelink);
+		$this->db->insert('tbl_organization_link', $arrData);
+	}
+	
+	public function update_user_info($last_id,$data) {
+		
+		$this->db->where('in_org_user_id', $last_id);
+		$this->db->update('tbl_organization_user',$data);	
+	}
+	
+	public function check_user_status($id) {
+		$this->db->select('*');
+		$this->db->from('tbl_organization_user');
+		
+		$this->db->where('in_user_id',$id);
+		$this->db->where('in_status <>','4');
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function get_all_pending_invitation($limit,$start)
+	{		
+		$data= array();
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS ou.in_org_user_id as rows, ou.dt_created,ou.st_permission,ou.in_invite_by,ou.in_org_user_id,ou.in_user_id,o.in_organization_id,o.st_org_name,o.st_city,o.st_state,o.st_zip,CONCAT(u.st_display_name," ",u.st_last_name) as fullname',FALSE);
+		$this->db->from('tbl_organization_user as ou');
+		
+		$this->db->join('tbl_organization o','o.in_organization_id = ou.in_organization_id','LEFT');
+		$this->db->join('tbl_users u','u.in_user_id = ou.in_invite_by','LEFT');	
+		$this->db->where('ou.in_invite_by !=','0');		
+		$this->db->where('ou.in_status','5');		
+        $this->db->where('ou.in_deleted','0');
+		$this->db->where('o.in_status','1');	
+		$this->db->where('o.in_deleted','0');
+		$this->db->where('ou.in_user_id',$this->session->userdata('userid'));	
+		$this->db->where('ou.in_request_type','0');
+		$this->db->limit($limit,$start);
+		$query = $this->db->get();
+		
+		//echo $this->db->last_query(); die;
+		
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				
+				$location = '';
+				
+				if(isset($row['st_city']) && $row['st_city'] != '')
+				{
+					$location .= $row['st_city'].', ';
+				}
+				
+				if(isset($row['st_state']) && $row['st_state'] != '')
+				{
+					$location .= $row['st_state'].', ';
+				}
+				
+				if(isset($row['st_zip']) && $row['st_zip'] != '')
+				{
+					$location .= $row['st_zip'];
+				}
+				
+				$fullname			=	$row['fullname'];
+				
+/*				$sqlprogressstatus  = "SELECT CONCAT(st_display_name,' ',st_last_name) as fullname FROM tbl_users  where in_user_id = '".$row['in_invite_by']."'";
+										$sqlprogressstat	=	$this->db->query($sqlprogressstatus);										
+										$prostatus			=	$sqlprogressstat->result();
+										$fullname			=	$prostatus[0]->fullname;
+*/				
+				
+				$data['pending_invitation_list'][] 		= array('org_name'	=>	$row['st_org_name'],
+															'in_org_id'		=>	$row['in_organization_id'],
+															'location'		=>	$location,		
+															'invited_by'    =>  $fullname,	
+															'date'			=>	$row['dt_created'], 
+															'access_level'	=>	unserialize($row['st_permission']), 
+															'in_org_user_id'    =>  $row['in_org_user_id'],
+															'in_user_id'    =>  $row['in_user_id']
+													);
+			}
+			
+		}
+		return $data;
+		
+	}
+	
+	public function status_accept($orguserId)
+	{
+		$arrUser = 	array('in_status' 	=> '1' );		
+		$this->db->where_in('in_org_user_id', $orguserId);
+		$this->db->update('tbl_organization_user', $arrUser);	
+		//echo $this->db->last_query(); die;	
+		
+	}
+	
+	public function status_reject($orguserId)
+	{
+		$arrUser = 	array('in_status' 	=> '4','in_deleted' 	=> '1' );		
+		$this->db->where_in('in_org_user_id', $orguserId);
+		$this->db->update('tbl_organization_user', $arrUser);	
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_org_req_sent	
+	#	Purpose		:	Checking organization request sent or not
+	# *******************************************************************************************
+	
+	public function check_org_req_sent($id) {
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_organization_user');
+		
+		$this->db->where('in_user_id',$id);
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		
+		$this->db->where('in_status',5);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	#==========================================================================
+	#	Function : get_volunteer_users
+	#	Purpose  : Getting all preferred volunteer for current organization
+	#==========================================================================
+	
+	
+	public function get_volunteer_users($limit,$start,$username,$sort_value) 
+	{
+		$data= array();
+		
+		$this->db->select("SQL_CALC_FOUND_ROWS in_user_id,in_status,CONCAT(st_display_name,' ',st_last_name) as st_display_name_user,st_email,st_display_name,st_last_name",FALSE);
+		$this->db->from('tbl_users');
+		//$this->db->where("in_user_id NOT IN (SELECT in_user_id FROM tbl_organization_user WHERE in_organization_id = '".$this->session->userdata('org_id')."' AND in_deleted = 0 AND in_status != 4)");
+		
+		//$this->db->or_where("in_user_id NOT IN (SELECT in_user_id FROM tbl_organization_user WHERE in_organization_id = '".$this->session->userdata('org_id')."' AND in_deleted = 0 AND in_status != 3)");
+		
+		$this->db->where('in_user_id != ',$this->session->userdata('userid'));
+		
+		//$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->where('st_email <>','');
+		
+		if($sort_value != '' || $username != '') {  
+			$this->db->like('st_display_name', $sort_value, 'after'); 
+		}
+		
+		if($username != '') { 
+			$where = "(concat(trim(st_display_name),' ',trim(st_last_name)) LIKE '%".str_replace("%","\%",addslashes($username))."%'					
+					OR st_display_name LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					OR st_email LIKE '%".str_replace("%","\%",addslashes($username))."%'
+					)";
+			
+			$this->db->where($where);		
+		}
+		
+		/*if($username!='') {
+			$this->db->or_where("st_email LIKE '%".str_replace("%","\%",addslashes($username))."%'");
+		}*/
+		
+		$this->db->group_by('in_user_id');	
+		
+		
+		$this->db->order_by('st_display_name','ASC');
+		$this->db->limit($limit,$start);
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();	die;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query && $query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				$data['user_list'][] = array(	'user_id'		=>	$row['in_user_id'],
+												'name'			=>	$row['st_display_name_user'],
+												'email'			=>	$row['st_email'],
+												'full_name'		=>	$row['st_display_name'].' '.$row['st_last_name'],
+												'joined_user'	=>	$this->check_user_volunteer_the_org($row['in_user_id']),
+											);
+			}
+		}
+		return $data;
+	}
+	
+	public function get_all_approved_transporter_old($sort,$order,$limit,$start,$userid,$org_id) 
+	{
+		$data= array();
+		
+		$this->db->select("SQL_CALC_FOUND_ROWS o.in_vol_user_id,o.dt_created,o.in_organization_id,o.in_user_id,up.st_primary_phone,up.st_city,up.st_state,up.st_zip,u.st_email,CONCAT(u.st_display_name,' ' ,u.st_last_name) as st_display_name,u.st_display_name as first_name,u.st_last_name as last_name",FALSE);
+		$this->db->from('tbl_organization_preferred_volunteer as o');
+		
+		$this->db->join('tbl_user_profile as up','o.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_users as u','o.in_user_id = u.in_user_id','INNER');
+		
+		//$this->db->where('u.in_user_id NOT IN(select in_transfer_to from tbl_organization_transfer where in_status = 1 AND in_deleted = 0 AND in_organization_id='.$org_id.')');
+		
+		$this->db->where('o.in_deleted',0);
+		//$this->db->where('o.in_status',1);
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('o.in_organization_id',$org_id);
+		
+		//$this->db->order_by('o.in_organization_id','DESC');
+		//$this->db->order_by('u.st_display_name');
+		
+		switch($sort)
+		{							
+			case 'name':								
+				$this->db->order_by('u.st_display_name',$order);
+			break;
+			
+			case 'date': 								
+				$this->db->order_by('o.dt_created',$order);
+			break;	
+			
+			case 'phone': 								
+				$this->db->order_by('up.st_primary_phone',$order);
+			break;
+			
+			default: 								
+				$this->db->order_by('u.st_display_name',$order);
+			break;	
+						 
+		}
+		
+		if(!isset($limit))
+		{
+			$limit=0;
+		}					
+		$this->db->limit($start,$limit);	
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+			
+				$location = '';
+				
+				if(isset($row['st_city']) && $row['st_city'] != '')
+				{
+					$location .= $row['st_city'].', ';
+				}
+				
+				if(isset($row['st_state']) && $row['st_state'] != '')
+				{
+					$location .= $row['st_state'].', ';
+				}
+				
+				if(isset($row['st_zip']) && $row['st_zip'] != '')
+				{
+					$location .= $row['st_zip'];
+				}
+				
+				$data['approved_user_list'][] = array(	'user_id'		=>	$row['in_user_id'],
+														'name'			=>	$row['st_display_name'],
+														'first_name'	=>  $row['first_name'],
+														'last_name'		=>	$row['last_name'],
+														'date'			=>	$row['dt_created'],
+														'location'		=>	$location,
+														'primary_phone'	=>	$row['st_primary_phone'],
+														'email'			=>	$row['st_email'],
+														'org_id'		=>	$row['in_organization_id'],
+														'in_id'			=>	$row['in_vol_user_id'],
+													);
+			}
+		}
+		return $data;
+	}
+	
+	public function get_all_approved_transporter($sort,$order,$limit,$start,$userid,$org_id) 
+	{
+		$data= array();
+		$sql = '';
+		$sql .= "SELECT  o.in_vol_user_id as 'in_id',o.in_user_id as 'user_id',o.dt_created,o.in_organization_id,u.st_email as 'email_address',CONCAT(u.st_display_name,' ' ,u.st_last_name) as 'st_display_name',u.st_display_name as 'first_name',u.st_last_name as 'last_name',1 as 'vol_type'
+				 FROM tbl_organization_preferred_volunteer o
+				 INNER JOIN tbl_users u on u.in_user_id = o.in_user_id	
+				 where o.in_organization_id='".$org_id."' AND o.in_deleted = 0 AND u.in_deleted = 0";
+				 
+		$sql .= " UNION ";
+
+		$sql .= "SELECT  o.in_vol_user_id as 'in_id',o.in_vol_user_id as 'user_id',o.dt_created,o.in_organization_id,o.st_email as 'email_address',CONCAT(o.st_first_name,' ' ,o.st_last_name) as 'st_display_name',o.st_first_name as 'first_name',o.st_last_name as 'last_name',0 as 'vol_type'
+				 FROM tbl_org_nondoobert_preferred_vol o	
+				 where o.in_organization_id='".$org_id."' AND o.in_deleted = 0 ";
+	
+		switch($sort)
+		{
+			case 'name':
+					$sql .= "order by st_display_name ".$order;
+			break;
+			case 'date':
+					$sql .= "order by o.dt_created ".$order;
+			break;
+			case 'phone':
+					$sql .= "order by email_address ".$order;
+			break;
+			case 'phone':
+					$sql .= "order by vol_type ".$order;
+			break;		
+			default:
+					$sql .= "order by st_display_name ".$order;
+			break;	
+		}
+			
+		$query2 = $this->db->query($sql);	
+		$data["num_rows"] = $query2->num_rows();
+		$sql1 .= $sql." LIMIT ".$limit.",".$start;
+		$query = $this->db->query($sql1);
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+			
+				
+				$data['approved_user_list'][] = array(	'user_id'		=>	($row['vol_type']==1)?$row['user_id']:'',
+														'name'			=>	$row['st_display_name'],
+														'first_name'	=>  $row['first_name'],
+														'last_name'		=>	$row['last_name'],
+														'date'			=>	$row['dt_created'],
+														'email'			=>	$row['email_address'],
+														'org_id'		=>	$row['in_organization_id'],
+														'in_id'			=>	$row['in_id'],
+														'vol_type'		=>  $row['vol_type'],
+													);
+			}
+		}
+		return $data;
+	}
+	
+	public function check_user_volunteer_the_org($id) 
+	{
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_organization_preferred_volunteer');
+		
+		$this->db->where('in_user_id',$id);
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+
+	public function verify_doobertuser($email_address)
+	{
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_users');
+		$this->db->where('st_email',$email_address);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function check_nondoobert_volunteer_org($email_address) 
+	{
+		$this->db->select('in_vol_user_id');
+		$this->db->from('tbl_org_nondoobert_preferred_vol');
+		
+		$this->db->where('st_email',$email_address);
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	public function update_coordinate($coordinates,$org_id)
+	{
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->update('tbl_organization',$coordinates);
+		//echo $this->db->last_query();die;
+		return $this->db->affected_rows();
+	}
+	public function getOrgId($org_name)
+	{
+		$this->db->select('in_organization_id');
+		$this->db->from('tbl_organization');
+		$this->db->where('st_org_name',$org_name);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	public function getCoordinates($org_id)
+	{
+		$this->db->select('st_coverage_area,st_map_zoom,st_map_center');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+	
+	function insertcoalition($arrData)
+	{  
+		$this->db->insert('tbl_org_coalition', $arrData);
+		return  $this->db->insert_id();
+	}
+	public function get_coalition_details($org_id)
+	{
+		$this->db->select('in_id,in_coalition_id,in_status');
+		$this->db->from('tbl_org_coalition');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->result_array();
+	}
+	public function organization_latlng($zipcode)
+	{
+		$lat_zip_code  = preg_replace('/\s/', '',$zipcode);
+		$zip_code = strtoupper($lat_zip_code);
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zip_code);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	upload_files	
+	#	Purpose		:	Uplaod file in 
+	# *******************************************************************************************	
+	function upload_approval_files($file_name)
+	{  
+		ini_set("post_max_size",'256M');
+		ini_set("upload_max_filesize",'128M');
+
+		$config['upload_path'] = $this->config->item('upload')."shelter_approval/";
+		$config['allowed_types'] = 'doc|docx|pdf';
+		$config['max_size']	= '51200';
+		$config['file_name'] = time();
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		if (!$this->upload->do_upload($file_name)) {
+			//return $this->upload->display_errors();
+			return "";
+		}
+		else {
+			$arrImageInfo = $this->upload->data();
+		   return $arrImageInfo;
+			
+		}	
+	}
+	
+	public function check_org_upload($orgId='')
+	{
+		$this->db->select('in_org_upload_id');
+        $this->db->where('in_organization_id', $orgId);         
+        $this->db->where('in_deleted', 0);
+        $query = $this->db->get('tbl_organization_upload');
+        if ($query->num_rows() > 0) {
+            return true;
+        } else {
+            return false;
+        }
+	}
+	
+	public function add_shelter_approval_letter($data)
+	{
+		$this->db->insert('tbl_organization_upload', $data);
+	}
+
+	
+	# *******************************************************************************************	
+	#	Function	:	shelter_approval_letter	
+	#	Purpose		:	Add shelter Approval letter
+	# *******************************************************************************************		
+	function shelter_approval_letter($data,$id)
+	{   $data=array('st_file_name' => $data);
+		$this->db->where('in_organization_id',$id);
+		$this->db->update('tbl_organization_upload',$data);
+		//echo $this->db->last_query(); die;
+	}
+	
+	function get_request_type($id)
+	{
+		$this->db->select('in_request_type');
+		$this->db->from('tbl_organization_user');
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_user_id',$id);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+
+}
+?>

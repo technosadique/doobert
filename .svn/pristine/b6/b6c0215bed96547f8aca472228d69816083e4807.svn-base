@@ -1,0 +1,197 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 09-Aug-2018
+# File description	: FBBOT Model for admin
+# Special - notes	: none
+# Tables used		: tbl_fbbot_keyword_txt
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class Fbbot_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+	    
+	#============================================================
+	#	Function	:	get_total_fbbot()
+	#  Parameter	: 	name
+	#	Perpose		:	to check valid fbbot
+	#------------------------------------------------------------
+	public function get_total_fbbot($name='')
+	{ 		
+					
+		$this->db->select("in_id", false);						   	
+		$this->db->from('tbl_fbbot_keyword_txt');		
+		$this->db->where('in_deleted','0');
+					
+		if($name!='')
+		{			
+		 $this->db->where("st_keyword_txt LIKE '%".$name."%'", NULL, FALSE);
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_fbbot()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to check valid fbbot
+	#------------------------------------------------------------
+	public function get_fbbot($sort,$order,$limit,$rec_per_page,$name)
+	{		
+				  
+		$this->db->select("in_id,
+						   st_keyword_txt,
+						   st_result_txt,
+						   dt_created,
+						   dt_modified", false);						   	
+		$this->db->from('tbl_fbbot_keyword_txt');		
+		$this->db->where('in_deleted','0');
+					  
+		if($name!='')
+		{			
+		 $this->db->where("st_keyword_txt LIKE '%".$name."%'", NULL, FALSE);
+		}
+		
+			
+					
+					switch($sort)
+					{
+						
+						case 'keywordtxt': 							
+							$this->db->order_by('st_keyword_txt',$order);
+						break;	
+						
+						case 'resulttxt': 							
+							$this->db->order_by('st_result_txt',$order);
+						break;	
+						
+						case "createddate":						
+						$this->db->order_by('dt_created',$order);
+					    break;	
+						
+						case "modifieddate":						
+						$this->db->order_by('dt_modified',$order);
+					    break;	
+						
+						default:						
+						$this->db->order_by('st_keyword_txt',$order);
+						 break; 	         
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 			
+									
+					$arrFBBOT = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrFBBOT[]	=	array('in_id'			=> $Row->in_id,
+												  'st_keyword_txt'	=> $Row->st_keyword_txt,
+												  'st_result_txt'	=> $Row->st_result_txt,
+												  'dt_created'		=> $Row->dt_created,
+												  'dt_modified'		=> $Row->dt_modified																				
+											);
+						}
+						return $arrFBBOT;
+						
+					}
+					
+	}
+	
+	
+	
+	#=====================================================================================
+	#	Function	:	delete_fbbot()
+	#  Parameter	: 	fbbotId
+	#	Perpose		:	to delete single animal type details from tbl_fbbot_keyword_txt table
+	#-------------------------------------------------------------------------------------
+	function delete_fbbot($fbbotId)
+	{
+		$arrFbbot = 	array('in_deleted'	=> '1' );		
+		$this->db->where('in_id', $fbbotId);
+		$this->db->update('tbl_fbbot_keyword_txt', $arrFbbot);		
+	}
+	
+	
+	
+	
+		
+	#=====================================================================================
+	#	Function	:	delete_multiple_fbbot()
+	#  Parameter	: 	animalIds
+	#	Perpose		:	to delete multiple animal types details from tbl_fbbot_keyword_txt table
+	#--------------------------------------------------------------------------------------
+	function delete_multiple_fbbot($fbbotIds)
+	{				
+		$arrFbbot = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_id', $fbbotIds);
+		$this->db->update('tbl_fbbot_keyword_txt', $arrFbbot);		
+		return $this->db->affected_rows();
+	}	
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	get_animal_types_profile()
+	#   Parameter	: 	animalbreedIds
+	#	Perpose		:	getting animal types profile from tbl_animal_type table
+	#------------------------------------------------------------------------------------------	
+	function get_fbbot_profile($fbbotId)
+	{
+		$this->db->select('f.in_id,f.st_keyword_txt,f.st_result_txt');
+		$this->db->from('tbl_fbbot_keyword_txt as f');		
+		$this->db->where('f.in_id',$fbbotId);			
+		$query = $this->db->get();
+		return $query->row_array();	
+	}
+	
+	
+	#==========================================================================================
+	#	Function	:	update_fbbot_info()
+	#   Parameter	: 	table, data, fbbotId
+	#	Perpose		:	updating animal types profile in tbl_animal_type table
+	#------------------------------------------------------------------------------------------	
+	function update_fbbot_info($data,$fbbotId,$table) {		
+		$this->db->where('in_id',$fbbotId);
+		$this->db->update($table,$data);
+		return $this->db->affected_rows();	
+	}
+	
+	
+	#==========================================================================================
+	#	Function	:	insertfbbot()
+	#   Parameter	: 	post
+	#	Perpose		:	inserting animal types details in tbl_animal_type table
+	#------------------------------------------------------------------------------------------	
+	public function insertfbbot($post)
+	{
+		 $arrFbbot = 	  array(
+								'st_keyword_txt'	=>	$post['keywordtxt'],	
+								'st_result_txt'	    =>	$post['resulttxt'],																						
+								'dt_created'		=>  date("Y-m-d H:i:s")																										
+								);	
+								$this->db->insert('tbl_fbbot_keyword_txt', $arrFbbot);												
+	}
+}
+?>

@@ -1,0 +1,261 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by		: Rajshri Mahapure
+# Created date		: 31-May-2018
+# File description	: partner Map controller
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: NONE 
+# Triggers used		: none 
+# --------------------------------------------------------------------------------------
+
+class partner_cron extends CI_Controller {
+	
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->library('common_function');
+		$this->load->model('partner_map_model');		
+		$this->load->model('partner_model');
+		$this->load->model('organimal_model');	
+		ini_set('memory_limit', '1073741824');
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	index	
+	#	Purpose		:	non doobert rescue map cron Map View
+	# *******************************************************************************************	
+	 
+	public function index() {
+		
+	   			 /* Non Doobert Oreganizations */
+				 
+   				
+				$rescue_map1 = $this->partner_map_model->get_non_doobert_org();
+				
+				
+				
+				$data['rescue_map1'] = $rescue_map1;			
+						
+				
+					foreach($data['rescue_map1'] as $row)
+					{							
+							
+							$zip_details = $this->partner_map_model->get_state_by_zipcode($row['zip']);
+							
+							
+							$state_name = isset($zip_details['state_prefix'])?$zip_details['state_prefix']:''; 
+							
+							if(isset($state_name) && !empty($state_name))	
+							{  
+								$st='';			
+								
+								if(isset($row['website']) && !empty($row['website'])){
+								
+								
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';							
+								
+								}
+								
+								else{
+								
+								$st .='<div class="flying-dog-rescue-box">
+										<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}	
+																				
+								$data_to_store1[$state_name]['pop_up_desc'][]  = $st;	
+								$data_to_store1[$state_name]['all_zip'][]  	   = $row['zip'];
+								$data_to_store1[$state_name]['lat'][]		   = isset($zip_details['lat'])?$zip_details['lat']:'';
+								$data_to_store1[$state_name]['lon'][]		   = isset($zip_details['lon'])?$zip_details['lon']:'';								
+								$data_to_store1[$state_name]['img'][]		   = $row['img'];
+								$data_to_store1[$state_name]['count']		   = count($rescue_map1);
+								
+								
+								$fp = fopen('upload/partner_usermaps/non_doobert_org_map/'.$state_name.'.json', 'w');
+								fwrite($fp, json_encode($data_to_store1[$state_name]));
+								fclose($fp);
+								
+							}							
+				    }  
+    	 
+		 
+		
+		 
+		 
+		   /* Doobert Oreganizations */
+          	$data['animaltype'] = $this->organimal_model->get_animal_types();
+   			$rescue_map2 = $this->partner_map_model->get_doobert_org();				
+			$data['rescue_map2'] = $rescue_map2;
+			
+			foreach($data['rescue_map2'] as $row)
+			{					
+					
+					$zip_details = $this->partner_map_model->get_state_by_zipcode($row['zip']);
+					$state_name = isset($zip_details['state_prefix'])?$zip_details['state_prefix']:''; 
+					$partner = $this->partner_model->check_availablity($row['org_id']);	
+					if(isset($state_name) && !empty($state_name))	
+					{				
+						if ($row['st_org_image'] == '') {
+							$path = $this->config->item('upload_url') . "org_doc/63x63/no_photo.png";
+						} else {
+							$path = $this->config->item('upload_url') . "org_doc/63x63/" . $row['st_org_image'];
+						}
+
+						$username = $row['orgname'];
+							
+						$str1='';	
+						
+						foreach($row['provide_animal'] as $v){
+							foreach($data['animaltype'] as $type) {
+							if($type['in_animal_type_id']==$v){
+										$str1 = $str1.$type['st_animal_type_name'].", ";
+										break;
+									}
+								} 	
+							} 
+						//$finalfoster_list[$i]['provide_animal'] = $str1;
+						$str1=rtrim($str1,', ');	
+						$str2='';
+						foreach($row['accept_animal'] as $v){
+								foreach($data['animaltype'] as $type) {
+									if($type['in_animal_type_id']==$v){
+										$str2= $str2.$type['st_animal_type_name'].", ";
+										break;
+									}
+								} 	
+							} 					
+					
+						$str2=rtrim($str2,', ');	
+
+						$st='';	
+						
+					$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);			
+					$st = '<div id="subscribe-pop"><div class="find-partner-popup-result-box"><div class="top-part"><img src="' . $path . '" alt="' . $username . '" title="' . $username . '" class="find-partner-img"/><div class="inner-map-pup"><h4><a href="' .$link.'">' . $username . '</a></h4><div class="provide-animal"><h4>Providing animals:</h4><p>'.$str1.'.</p></div> <div class="accepting-animal"><h4>Accepting animals:</h4><p>'.$str2.'.</p></div></div><div class="clear"></div><a href="'.base_url().'animal-rescue/'.$row['org_id'].'" class="show-animals" style="margin-top:10px;" title="Show available animals">Show available animals</a> ';
+							if(!$partner){
+							$st .=  '<a href="javascript:void(0);" style="margin-top:10px; margin-left: 5px;" class="show-animals" onClick="add_partner('.$row['org_id'].')" >Add partner</a> ';					
+							}
+					$st .= '</div></div></div>';
+											
+					$data_to_store2[$state_name]['pop_up_desc'][]   = $st;	
+					$data_to_store2[$state_name]['all_zip'][]  	   = $row['zip'];
+					$data_to_store2[$state_name]['lat'][]		   = isset($zip_details['lat'])?$zip_details['lat']:'';
+					$data_to_store2[$state_name]['lon'][]		   = isset($zip_details['lon'])?$zip_details['lon']:'';			
+					$data_to_store2[$state_name]['img'][]		   = $row['img'];	
+					$data_to_store2[$state_name]['count']		   = count($rescue_map2);				
+					
+					$fp = fopen('upload/partner_usermaps/doobert_org_map/'.$state_name.'.json', 'w');
+					fwrite($fp, json_encode($data_to_store2[$state_name]));	
+					fclose($fp);
+					}								
+			}	
+			
+			
+			  /*  All Organizations */
+			  
+				$all_non_org = $this->partner_map_model->get_non_doobert_org();
+				$all_org     = $this->partner_map_model->get_doobert_org();		
+				
+				$rescue_map3 = array_merge($all_non_org,$all_org);	
+			
+			
+				
+				$data['rescue_map3'] = $rescue_map3;
+				
+				foreach($data['rescue_map3'] as $row)
+				{					
+						
+						$zip_details = $this->partner_map_model->get_state_by_zipcode($row['zip']);
+					    $state_name = isset($zip_details['state_prefix'])?$zip_details['state_prefix']:''; 
+					    $partner = $this->partner_model->check_availablity($row['org_id']);
+						
+						if(isset($state_name) && !empty($state_name))	
+						{
+
+							if ($row['st_org_image'] == '') {
+								$path = $this->config->item('upload_url') . "org_doc/63x63/no_photo.png";
+							} else {
+								$path = $this->config->item('upload_url') . "org_doc/63x63/" . $row['st_org_image'];
+							}
+
+							$username = $row['orgname'];
+								
+							$str1='';	
+							
+							foreach($row['provide_animal'] as $v){
+								foreach($data['animaltype'] as $type) {
+								if($type['in_animal_type_id']==$v){
+											$str1 = $str1.$type['st_animal_type_name'].", ";
+											break;
+										}
+									} 	
+								} 
+							//$finalfoster_list[$i]['provide_animal'] = $str1;
+							$str1=rtrim($str1,', ');	
+							$str2='';
+							foreach($row['accept_animal'] as $v){
+									foreach($data['animaltype'] as $type) {
+										if($type['in_animal_type_id']==$v){
+											$str2= $str2.$type['st_animal_type_name'].", ";
+											break;
+										}
+									} 	
+								} 					
+						
+							$str2=rtrim($str2,', ');
+
+							$st='';	
+						
+						if(isset($row['status']) && $row['status']=='1'){
+						$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);	
+							
+						$st = '<div id="subscribe-pop"><div class="find-partner-popup-result-box"><div class="top-part"><img src="' . $path . '" alt="' . $username . '" title="' . $username . '" class="find-partner-img"/><div class="inner-map-pup"><h4><a href="' .$link.'">' . $username . '</a></h4><div class="provide-animal"><h4>Providing animals:</h4><p>'.$str1.'.</p></div> <div class="accepting-animal"><h4>Accepting animals:</h4><p>'.$str2.'.</p></div></div><div class="clear"></div><a href="'.base_url().'animal-rescue/'.$row['org_id'].'" class="show-animals" style="margin-top:10px;" title="Show available animals">Show available animals</a> ';
+								if(!$partner){
+								$st .=  '<a href="javascript:void(0);" style="margin-top:10px; margin-left: 5px;" class="show-animals" onClick="add_partner('.$row['org_id'].')" >Add partner</a> ';					
+								}
+								$st .= '</div></div></div>';
+						
+						}
+						
+						else if(isset($row['website']) && !empty($row['website'])){							
+						$st .='<div class="flying-dog-rescue-box">
+								<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+								<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+						
+						}
+						
+						
+						else
+						{
+						$st .='<div class="flying-dog-rescue-box">
+								<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+								<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+						
+						}						
+						
+												
+						$data_to_store3[$state_name]['pop_up_desc'][]  = $st;	
+						$data_to_store3[$state_name]['all_zip'][]  	   = $row['zip'];
+						$data_to_store3[$state_name]['lat'][]		   = isset($zip_details['lat'])?$zip_details['lat']:'';
+						$data_to_store3[$state_name]['lon'][]		   = isset($zip_details['lon'])?$zip_details['lon']:'';				
+						$data_to_store3[$state_name]['img'][]		   = $row['img'];
+						$data_to_store3[$state_name]['count']		   = count($rescue_map3);					
+						
+						$fp = fopen('upload/partner_usermaps/all_doobert_org_map/'.$state_name.'.json', 'w');
+						fwrite($fp, json_encode($data_to_store3[$state_name]));	
+						fclose($fp);	
+						}							
+				}
+				
+				
+   }
+	
+}
+
+/* End of file non_doobert_rescue_map_cron.php */
+/* Location: ./application/controllers/non_doobert_rescue_map_cron.php */

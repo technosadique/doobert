@@ -1,0 +1,1429 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Search extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	public function __construct()
+    {
+		parent::__construct();
+		if($_SERVER['REMOTE_ADDR']=='172.68.144.175' || $_SERVER['REMOTE_ADDR']=='162.158.154.19')
+		{
+			//$this->output->enable_profiler(TRUE);
+		}
+		else
+		{
+			$this->output->enable_profiler(FALSE);
+		}
+		
+		$this->load->model('common_model');
+		$this->load->model('search_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->session->unset_userdata('org_id');
+		$this->session->unset_userdata('transport_id');
+		setcookie("dev_organization_id","",time()-3600,"/","dev.doobert.com");
+		if($this->session->userdata('cart_session_id'))
+		{ }else{
+			$this->session->set_userdata('cart_session_id',md5(uniqid()));			
+		}
+	}	
+	 
+	public function index()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+	}
+
+	# *******************************************************************************************	
+	#	Function	:	search_org	
+	#	Purpose		:	Getting all organization
+	# *******************************************************************************************
+	
+	public function search_org() {
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+		
+		$data = array();
+		
+		$search_module = '';
+		$module_search_org = '';
+		$sort_value = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'search/search_org/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if(($this->input->post('frm_module_action') == 'frm_module_post') || ($this->input->post('frm_module_action1') == "frm_module_post1")) {
+			
+			if($this->session->userdata('search_module'))
+				$this->session->unset_userdata('search_module');
+			
+			if($this->session->userdata('module_search_org'))
+				$this->session->unset_userdata('module_search_org');
+			
+			if($this->session->userdata('sort_value_org'))
+				$this->session->unset_userdata('sort_value_org');
+					
+				$search_module = $this->input->post('select_module');
+				$this->session->set_userdata('search_module',$search_module);
+				
+				$module_search_org = $this->input->post('module_search_text');
+				$this->session->set_userdata('module_search_org',$module_search_org);
+				
+				$sort_value = $this->input->post('sort_by');
+				$this->session->set_userdata('sort_value_org',$sort_value);
+		} else {
+			if($this->session->userdata('search_module'))
+				$search_module	= $this->session->userdata('search_module');
+			else
+				$search_module	= '' ;
+				
+			if($this->session->userdata('module_search_org'))
+				$module_search_org	= $this->session->userdata('module_search_org');
+			else
+				$module_search_org	= '';
+			
+			if($this->session->userdata('sort_value_org'))
+				$sort_value	= $this->session->userdata('sort_value_org');
+			else
+				$sort_value	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['org_data'] = $this->search_model->get_all_org_for_search($config["per_page"],$page,trim(str_replace("'","",$module_search_org)),$sort_value);
+	
+		$this->load->model('organization_privacy_setting_model');	//added by ghanshyam on 28_Oct_2014
+							
+		//Getting total rows
+		$config["total_rows"] 	= $data["org_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('search-results-organization',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_animal	
+	#	Purpose		:	Getting all animals
+	# *******************************************************************************************
+	
+	public function search_animal() {			
+		
+		$data=array();
+		
+			
+			$this->session->unset_userdata('sesstxtorgname');
+			$this->session->unset_userdata('sesstxtanimaltype');
+			$this->session->unset_userdata('sesstxtgender');
+			$this->session->unset_userdata('sesstxtage');
+			$this->session->unset_userdata('sesstxtsize');
+			$this->session->unset_userdata('sesstxtmyloc');
+			$this->session->unset_userdata('sesstxtradius');		
+		    $this->page();	
+	}
+	
+	
+	
+	public function page($limit=false)
+	{
+		
+		$data=array();
+		
+		$data['animal_type'] 	= $this->common_model->get_animal_types();
+		$data['animal_weight'] 	= $this->common_model->get_animal_weight();
+		$data['animal_age']    	= $this->common_model->get_animal_age();	
+		
+		if($this->uri->segment(3))
+			$limit = $this->uri->segment(3);
+		else	
+			$limit = '0';	   
+			
+			
+		if($this->input->post('txtorgname'))
+		{ 
+			$orgname = trim($this->input->post('txtorgname'));				
+			$this->session->set_userdata('sesstxtorgname',$orgname);				
+		}else{
+			$orgname = $this->session->userdata('sesstxtorgname');
+		}
+		
+		if($this->input->post('txtanimal_type'))
+		{ 
+			$animal_type = trim($this->input->post('txtanimal_type'));				
+			$this->session->set_userdata('sesstxtanimaltype',$animal_type);			
+		}else{
+			$animal_type = $this->session->userdata('sesstxtanimaltype');
+		}
+		
+		if($this->input->post('txtgender'))
+		{ 
+			$gender = trim($this->input->post('txtgender'));				
+			$this->session->set_userdata('sesstxtgender',$gender);					
+		}else{
+			$gender = $this->session->userdata('sesstxtgender');
+		}
+		
+		if($this->input->post('txtage'))
+		{ 
+			$age = trim($this->input->post('txtage'));				
+			$this->session->set_userdata('sesstxtage',$age);	
+				
+		}else{
+			$age = $this->session->userdata('sesstxtage');
+		}
+		
+		if($this->input->post('txtsize'))
+		{ 
+			$size = trim($this->input->post('txtsize'));				
+			$this->session->set_userdata('sesstxtsize',$size);						
+		}else{
+			$size = $this->session->userdata('sesstxtsize');
+		}
+		
+		if($this->input->post('txtmyloc'))
+		{ 
+			$myloc = trim($this->input->post('txtmyloc'));				
+			$this->session->set_userdata('sesstxtmyloc',$myloc);						
+		}else{
+			$myloc = $this->session->userdata('sesstxtmyloc');
+		}
+		
+		if($this->input->post('txtradius'))
+		{ 
+			$radius = trim($this->input->post('txtradius'));				
+			$this->session->set_userdata('sesstxtradius',$radius);						
+		}else{
+			$radius = $this->session->userdata('sesstxtradius');
+		}
+		
+			
+		$rec_per_page =	 12; 	
+			
+		
+        $total_record = $this->search_model->get_total_animal_for_search($orgname,$animal_type,$gender,$age,$size,$myloc,$radius);
+		
+		$all_animal = $this->search_model->get_all_animals_for_search($rec_per_page,$limit,$orgname,$animal_type,$gender,$age,$size,$myloc,$radius);	
+		
+		//echo '<pre>'; print_r($all_animal);die;
+		
+		//$data['approvedanimalstatuscount'] =  $this->search_model->get_total_approvedanimalstatuscount();
+		
+		
+		/*if($data['approvedanimalstatuscount'] > 0 )
+		{   
+			
+			$total_record  =  $total_record - $data['approvedanimalstatuscount'];
+		}*/
+		
+		
+		$data['all_animal']       = $all_animal;
+		
+		$config 				  = array();
+		$config['base_url'] 	  = base_url().'search/page/';
+		$config['base_url']	  	  = $config['base_url'];
+		$config['total_rows'] 	  = $total_record;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['cur_page'] 	  = $limit;
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';
+		
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  
+		$this->load->library('pagination');	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();	
+		$data['limit']	=	$limit;	
+		$data['total_rows']	=	$config['total_rows'];		
+		$this->load->view('search-results-animal',$data);		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_user	
+	#	Purpose		:	Getting all users
+	# *******************************************************************************************
+	
+	public function search_user() {
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+		
+		$data = array();
+		
+		$search_module = '';
+		$module_search_user = '';
+		$sort_value = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'search/search_user/';
+		
+		$config["per_page"]	 		= 18;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		//echo 'outside frm_module_action';exit;
+		
+		if(($this->input->post('frm_module_action') == "frm_module_post") || ($this->input->post('frm_module_action1') == "frm_module_post1")) {
+			
+			if($this->session->userdata('search_module'))
+				$this->session->unset_userdata('search_module');
+			
+			if($this->session->userdata('module_search_user'))
+				$this->session->unset_userdata('module_search_user');
+			
+			if($this->session->userdata('sort_value_user'))
+				$this->session->unset_userdata('sort_value_user');
+					
+				$search_module = $this->input->post('select_module');
+				$this->session->set_userdata('search_module',$search_module);
+				
+				$module_search_user = $this->input->post('module_search_text');
+				$this->session->set_userdata('module_search_user',$module_search_user);
+				
+				$sort_value = $this->input->post('sort_by');
+				$this->session->set_userdata('sort_value_user',$sort_value);
+		} else {
+			if($this->session->userdata('search_module'))
+				$search_module	= $this->session->userdata('search_module');
+			else
+				$search_module	= '' ;
+				
+			if($this->session->userdata('module_search_user'))
+				$module_search_user	= $this->session->userdata('module_search_user');
+			else
+				$module_search_user	= '';
+				
+			if($this->session->userdata('sort_value_user'))
+				$sort_value	= $this->session->userdata('sort_value_user');
+			else
+				$sort_value	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['user_data'] = $this->search_model->get_all_users_for_search($config["per_page"],$page,trim(str_replace("'","",$module_search_user)),$sort_value);
+		
+		//echo '<pre>'; print_r($data['user_data']); die;
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["user_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('search-results-doobert-users',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_transport	
+	#	Purpose		:	Getting all transport
+	# *******************************************************************************************
+	
+	public function search_transport() {
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+		
+		$data = array();
+		
+		$search_module = '';
+		$module_search_transport = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'search/search_transport/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if(($this->input->post('frm_module_action')=="frm_module_post") || ($this->input->post('frm_module_action1') == "frm_module_post1")) {	
+			
+			if($this->session->userdata('search_module'))
+				$this->session->unset_userdata('search_module');
+			
+			if($this->session->userdata('module_search_transport'))
+				$this->session->unset_userdata('module_search_transport');
+				
+			if($this->session->userdata('module_search_trans_zip'))
+				$this->session->unset_userdata('module_search_trans_zip');				
+					
+				$search_module = $this->input->post('select_module');
+				$this->session->set_userdata('search_module',$search_module);
+				
+				$module_search_transport = $this->input->post('module_search_text');
+				$this->session->set_userdata('module_search_transport',$module_search_transport);
+		} else {
+			if($this->session->userdata('search_module'))
+				$search_module	= $this->session->userdata('search_module');
+			else
+				$search_module	= '' ;
+				
+			if($this->session->userdata('module_search_transport'))
+				$module_search_transport	= $this->session->userdata('module_search_transport');
+			else
+				$module_search_transport	= '';
+		}
+		
+		/*** This post is comming from fb page of doobert app (Added on 06-01-2015 by Ashok Yadav).***/
+		$transp_zip = $this->input->post('transp_zip');
+		if(isset($transp_zip) && $transp_zip != '')
+		{
+			$module_search_trans_zip = $transp_zip;
+			$this->session->set_userdata('module_search_trans_zip',$module_search_trans_zip);
+		}
+		else
+		{
+			if($this->session->userdata('module_search_trans_zip'))
+				$module_search_trans_zip	= $this->session->userdata('module_search_trans_zip');
+			else
+				$module_search_trans_zip	= '';
+		}
+		
+		
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		
+		
+		//Getting details of organization
+		
+		//$search_val = (trim(strstr(strtoupper($module_search_transport),'DBT')))?str_replace(strtoupper($replace_txt),"",strtoupper($module_search_transport)):str_replace(strtoupper($replace_txt),"",strtoupper($module_search_transport));
+		$search_val = preg_replace('/[^0-9]/', '', $module_search_transport);	
+		
+		$data['transport_data'] = $this->search_model->get_all_transport_for_search($config["per_page"],$page,strtoupper(addslashes(trim($search_val))),$module_search_trans_zip);
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["transport_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('search-results-transport-id',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_user	
+	#	Purpose		:	Getting all users
+	# *******************************************************************************************
+	
+	public function user_search() {
+		
+		$data = array();
+		
+		$search_module = '';
+		$module_search_user = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'search/user_search/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_module_action') == 'frm_module_post') {
+			if($this->session->userdata('search_module'))
+				$this->session->unset_userdata('search_module');
+			
+			if($this->session->userdata('module_search_user'))
+				$this->session->unset_userdata('module_search_user');
+					
+				$search_module = $this->input->post('select_module');
+				$this->session->set_userdata('search_module',$search_module);
+				
+				$module_search_user = $this->input->post('module_search_text');
+				$this->session->set_userdata('module_search_user',$module_search_user);
+		} else {
+			if($this->session->userdata('search_module'))
+				$search_module	= $this->session->userdata('search_module');
+			else
+				$search_module	= '' ;
+				
+			if($this->session->userdata('module_search_user'))
+				$module_search_user	= $this->session->userdata('module_search_user');
+			else
+				$module_search_user	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		//echo $module_search_user;
+		//Getting details of organization
+		if(trim($module_search_user)!='')
+			$data['user_data'] = $this->search_model->get_all_users_for_search($config["per_page"],$page,mysql_real_escape_string(trim($module_search_user)));
+		else 
+			$data['user_data'] = $this->search_model->get_all_users_for_search($config["per_page"],$page,$module_search_user);
+		//Getting total rows
+		$config["total_rows"] 	= $data["user_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('search-results-doobert-users',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	advance_search	
+	#	Purpose		:	Search all modules with advanced search option
+	# *******************************************************************************************
+	
+	public function advance_search() {
+		$data = array();
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		
+		$this->load->view('advance-search',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	adv_search	
+	#	Purpose		:	Search all modules with advanced search option
+	# *******************************************************************************************
+	
+	public function adv_search()
+	{
+		/*if(!$this->session->userdata('userid')) 
+		{
+			redirect($this->config->item('base_url'));
+		}*/
+		$this->session->set_userdata('module_name',$this->input->post('module_search_text'));
+		$this->session->set_userdata('adv_search_redirect','1');	
+		redirect(base_url().'adv_search/search_page_adv');	
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_demeanor	
+	#	Purpose		:	Getting demeanor details
+	# *******************************************************************************************
+	
+	public function get_demeanor() {
+		$data['get_demeanor'] = $this->common_model->get_demeanor($this->input->post('animal_type'));
+		echo json_encode($data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_results_animal_adv	
+	#	Purpose		:	Advance animal search
+	# *******************************************************************************************
+	
+	public function search_results_animal_adv() {
+		$data = array();
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		
+		$country		=	'';
+		$state			=	'';
+		$city			=	'';
+		$animal_type	=	'';
+		$demeanor		=	'';
+		$dates_from 	=	'';
+		$dates_to 		=	'';
+	
+		$this->load->library('pagination');
+		
+		$config = array();
+		
+		$config["base_url"] 		= base_url().'search/search_results_animal_adv/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'frm_value') {
+			/*echo "<pre>";
+			print_r($_POST);
+			echo "</pre>";
+			die;*/
+			
+			if($this->session->userdata('animal_country'))
+				$this->session->unset_userdata('animal_country');
+		
+			if($this->session->userdata('animal_state'))
+				$this->session->unset_userdata('animal_state');
+				
+			if($this->session->userdata('animal_city'))
+				$this->session->unset_userdata('animal_city');
+				
+			if($this->session->userdata('animal_type'))
+				$this->session->unset_userdata('animal_type');
+			
+			if($this->session->userdata('demeanor'))
+				$this->session->unset_userdata('demeanor');
+			
+			if($this->session->userdata('animal_from_date'))
+				$this->session->unset_userdata('animal_from_date');
+			
+			if($this->session->userdata('animal_to_date'))
+				$this->session->unset_userdata('animal_to_date');
+				
+			$country = $this->input->post('country');
+			$this->session->set_userdata('animal_country',$country);
+			
+			$state = $this->input->post('state');
+			$this->session->set_userdata('animal_state',$state);
+			
+			$city = $this->input->post('city');
+			$this->session->set_userdata('animal_city',$city);
+			
+			$animal_type = $this->input->post('animaltype');
+			$this->session->set_userdata('animal_type',$animal_type);
+			
+			$demeanor = $this->input->post('demeanor');
+			$this->session->set_userdata('demeanor',$demeanor);
+			
+			$dates_from = $this->input->post('from');
+			$this->session->set_userdata('animal_from_date',$dates_from);
+			
+			$dates_to= $this->input->post('to');
+			$this->session->set_userdata('animal_to_date',$dates_to);
+			
+		} else {
+			if($this->session->userdata('animal_country'))
+				$country	= $this->session->userdata('animal_country');
+			else
+				$country	= '' ;
+				
+			if($this->session->userdata('animal_state'))
+				$state	= $this->session->userdata('animal_state');
+			else
+				$state	= '';
+				
+			if($this->session->userdata('animal_city'))
+				$city	= $this->session->userdata('animal_city');
+			else
+				$city	= '';
+			
+			if($this->session->userdata('animal_type'))
+				$animal_type	= $this->session->userdata('animal_type');
+			else
+				$animal_type	= '';
+			
+			if($this->session->userdata('demeanor'))
+				$demeanor	= $this->session->userdata('demeanor');
+			else
+				$demeanor	= '';
+			
+			if($this->session->userdata('animal_from_date'))
+				$dates_from	= $this->session->userdata('animal_from_date');
+			else
+				$dates_from	= '';
+			
+			if($this->session->userdata('animal_to_date'))
+				$dates_to	= $this->session->userdata('animal_to_date');
+			else
+				$dates_to	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['animal_data'] = $this->search_model->get_all_animals_adv($config["per_page"],trim($page),trim($country),trim($state),trim($city),trim($animal_type),trim($demeanor),$dates_from,$dates_to);
+		
+		//echo "<pre>";print_r($data['animal_data']);echo "</pre>";die;
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["animal_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('search-results-animal-adv',$data);
+	}
+	
+	//
+	# *******************************************************************************************	
+	#	Function	:	search_animal_fundraiser	
+	#	Purpose		:	Getting all animals which are fundraised
+	# *******************************************************************************************
+	
+	public function search_animal_fundraiser() {
+		//echo $this->session->userdata('search_module');die;
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/	
+		
+			
+		$data = array();
+		
+		$search_module = '';
+		$module_search_animal = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'search/search_animal_fundraiser/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_module_action') == "frm_module_post") {
+			if($this->session->userdata('search_module'))
+				$this->session->unset_userdata('search_module');
+			
+			if($this->session->userdata('module_search_animal_fundraiser'))
+				$this->session->unset_userdata('module_search_animal_fundraiser');
+					
+				$search_module = $this->input->post('select_module');
+				$this->session->set_userdata('search_module',$search_module);
+				
+				$module_search_animal = $this->input->post('module_search_text');
+				$this->session->set_userdata('module_search_animal_fundraiser',$module_search_animal);
+		} else {
+			if($this->session->userdata('search_module'))
+				$search_module	= $this->session->userdata('search_module');
+			else
+				$search_module	= '' ;
+				
+			if($this->session->userdata('module_search_animal_fundraiser'))
+				$module_search_animal	= $this->session->userdata('module_search_animal_fundraiser');
+			else
+				$module_search_animal	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['animal_data'] = $this->search_model->get_all_fundraisinig_animals_for_search($config["per_page"],$page,trim(str_replace("'","",$module_search_animal)));
+		
+		//echo '<pre>'; print_r($data['animal_data']); die;
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["animal_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('search-results-animal-fundraiser',$data);
+	}
+	//
+	
+	# *******************************************************************************************	
+	#	Function	:	search_all_users	
+	#	Purpose		:	Getting all users and organization from resuce map
+	# *******************************************************************************************
+		function search_all_users()
+		{
+			if($this->input->get('zip_code')){
+			$zip_code = $this->input->get('zip_code');
+			$this->session->set_userdata('zipcode',$zip_code);
+			}else {
+			$zip_code = $this->session->userdata('zipcode');
+			}
+			
+				
+			if($_GET['type'] != '')
+			{
+				$type= $_GET['type'];
+				$this->session->set_userdata('type',$type);
+			}else{
+				$type= $this->session->userdata('type');
+			}	
+							
+			/*echo "<br> zip=".$zip_code;
+			echo "<br> type=".$type;
+			die();*/
+			
+			/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+		//echo "zip_code=".$zip_code;
+		$data = array();
+		
+		$search_module = '';
+		$module_search_user = '';
+		$sort_value = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'search/search_all_users/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_module_action') == "frm_module_post") {
+			if($this->session->userdata('search_module'))
+				$this->session->unset_userdata('search_module');
+			
+			if($this->session->userdata('module_search_user'))
+				$this->session->unset_userdata('module_search_user');
+				
+			if($this->session->userdata('sort_value_user'))
+				$this->session->unset_userdata('sort_value_user');
+					
+				$search_module = $this->input->post('select_module');
+				$this->session->set_userdata('search_module',$search_module);
+				
+				$module_search_user = $this->input->post('module_search_text');
+				$this->session->set_userdata('module_search_user',$module_search_user);
+				
+				$sort_value = $this->input->post('sort_by');
+				$this->session->set_userdata('sort_value_user',$sort_value);
+		} else {
+			if($this->session->userdata('search_module'))
+				$search_module	= $this->session->userdata('search_module');
+			else
+				$search_module	= '' ;
+				
+			if($this->session->userdata('module_search_user'))
+				$module_search_user	= $this->session->userdata('module_search_user');
+			else
+				$module_search_user	= '';
+				
+			/*if($this->session->userdata('sort_value_user'))
+				$sort_value	= $this->session->userdata('sort_value_user');
+			else
+				$sort_value	= '';*/
+				$sort_value = '';
+				
+		}
+		
+		$this->load->model('organization_privacy_setting_model');
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['user_data'] = $this->search_model->get_all_users_organization($config["per_page"],$page,trim(str_replace("'","",$module_search_user)),$sort_value,$zip_code,$type);
+		
+		//echo '<pre>'; print_r($data['user_data']); die;
+		
+		//Getting total rows
+		if(isset($data["user_data"]['num_rows1'])){
+		$config["total_rows"] 	= $data["user_data"]['num_rows1'];
+		}
+		else {
+		$config["total_rows"] 	= $data["user_data"]['num_rows2'];	
+		}
+		
+		//print_r($config["total_rows"]);
+		//	die();
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		/*echo "<pre>";
+		print_r($data);
+		die();*/
+		$this->load->view('search-results-doobert-user-org',$data);
+				
+		}
+
+
+
+
+		// transport listing
+	public function completed_transports() {
+		
+		
+		$data = array();
+		
+		$search_module = '';
+		$module_search_transport = '';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'search/completed_transports/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if(($this->input->post('frm_module_action')=="frm_module_post") || ($this->input->post('frm_module_action1') == "frm_module_post1")) {	
+			
+			if($this->session->userdata('search_module'))
+				$this->session->unset_userdata('search_module');
+			
+			if($this->session->userdata('module_search_transport'))
+				$this->session->unset_userdata('module_search_transport');
+				
+			if($this->session->userdata('module_search_trans_zip'))
+				$this->session->unset_userdata('module_search_trans_zip');				
+					
+				$search_module = $this->input->post('select_module');
+				$this->session->set_userdata('search_module',$search_module);
+				
+				$module_search_transport = $this->input->post('module_search_text');
+				$this->session->set_userdata('module_search_transport',$module_search_transport);
+		} else {
+			if($this->session->userdata('search_module'))
+				$search_module	= $this->session->userdata('search_module');
+			else
+				$search_module	= '' ;
+				
+			if($this->session->userdata('module_search_transport'))
+				$module_search_transport	= $this->session->userdata('module_search_transport');
+			else
+				$module_search_transport	= '';
+		}
+		
+		/*** This post is comming from fb page of doobert app (Added on 06-01-2015 by Ashok Yadav).***/
+		$transp_zip = $this->input->post('transp_zip');
+		if(isset($transp_zip) && $transp_zip != '')
+		{
+			$module_search_trans_zip = $transp_zip;
+			$this->session->set_userdata('module_search_trans_zip',$module_search_trans_zip);
+		}
+		else
+		{
+			if($this->session->userdata('module_search_trans_zip'))
+				$module_search_trans_zip	= $this->session->userdata('module_search_trans_zip');
+			else
+				$module_search_trans_zip	= '';
+		}
+		
+		
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$search_val = preg_replace('/[^0-9]/', '', $module_search_transport);
+		
+		$data['transport_data'] = $this->search_model->get_all_transport_for_search($config["per_page"],$page,strtoupper(addslashes(trim($search_val))),$module_search_trans_zip,'2');
+		
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["transport_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('transport-listing',$data);
+	}
+	
+	
+	
+	
+	public function addto_cart()
+	{
+		 $animalId 	= $this->input->post('animalId');
+		 $orgId 	= $this->input->post('orgId');
+		 $sessionId  = $this->session->userdata('cart_session_id'); //session_id();
+		 
+		 if($this->session->userdata('userid'))
+		 {
+			 $userId = $this->session->userdata('userid');
+		 } else {
+			 $userId ='';
+		 }	
+		 
+		$data = array(); 
+
+		
+		$product_Collection = $this->search_model->get_product_cart($animalId, $sessionId, $userId, $orgId);
+		
+		$data['productDetails'] = $product_Collection;	
+		
+		//echo"<pre>"; print_r($product_Collection); exit;
+		echo json_encode($data['productDetails']); exit;	
+		//$this->load->view("product_list", $data);	
+		
+	}
+	
+	public function animal_checkout()
+	{	
+		
+		
+		$data			 =	array();
+		$Err_Msg		 =	'';		
+		$data['request_animal'] = $this->search_model->get_quote_items($this->session->userdata('cart_session_id'));
+		$this->load->model('user_model');
+		$data['user_details'] = $this->user_model->get_user_profile($this->session->userdata('userid'));
+		$state_list 			= $this->common_function->state_list;
+		$data['state_list'] 	= $state_list;
+		
+		
+		$getuserrequest = $this->search_model->get_user_request();		
+						
+								//echo '<pre>'; print_r($getuserrequest); die;
+								
+								
+							  
+								
+		
+		//echo '<pre>'; print_r($data['user_details']);die;
+		
+		$form_field	=	array('st_first_name'		=> "",	
+							  'st_last_name'		=> "",		
+							  'st_email'			=> "",	
+							  'st_phone'			=> "",
+							  'st_addr1'			=> "",
+							  'st_addr2'			=> "",
+							  'st_city'	    		=> "",
+							  'st_state'			=> "",
+							  'st_country'			=> "",
+							  'st_zip'	    		=> "",
+							  'st_notes'			=> ""
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}
+			
+			
+		if($this->input->post('action') == 'checkout')
+		{
+			foreach ($form_field as $key => $value) {	
+					$data['add'][$key] = $this->input->post($key);	
+				}
+								$this->form_validation->set_rules('st_first_name', 'First Name', 'trim|required');
+								$this->form_validation->set_rules('st_last_name', 'Last Name', 'trim|required');
+								$this->form_validation->set_rules('st_email', 'Email Address', 'trim|required|valid_email');	
+								$this->form_validation->set_rules('st_phone', 'Phone', 'trim|required');
+								$this->form_validation->set_rules('st_addr1', 'Address1', 'trim|required');
+								$this->form_validation->set_rules('st_addr2', 'Address2', 'trim');
+								$this->form_validation->set_rules('st_city', 'City', 'trim|required');
+								$this->form_validation->set_rules('st_state', 'State', 'trim|required');
+								$this->form_validation->set_rules('st_country', 'Country', 'trim|required');
+								$this->form_validation->set_rules('st_zip', 'Zip', 'trim|required');
+								$this->form_validation->set_rules('st_notes', 'OrderNotes', 'trim');
+						
+						
+						if($this->form_validation->run() == FALSE)
+						{
+								$data['Err_Msg'] = validation_errors();											
+								$this->load->view('animal-checkout-view',$data);
+						}
+						else{							
+						
+								$dataArr = array(
+												'st_fname'	=> $this->input->post('st_first_name'),
+												'st_lname'	=> $this->input->post('st_last_name'),
+												'st_email'	=> $this->input->post('st_email'),
+												'st_phone'	=> $this->input->post('st_phone'),
+												'st_addr1'	=> $this->input->post('st_addr1'),
+												'st_addr2'	=> $this->input->post('st_addr2'),
+												'st_city'	=> $this->input->post('st_city'),
+												'st_state'	=> $this->input->post('st_state'),
+												'st_country'=> $this->input->post('st_country'),
+												'st_zip'	=> $this->input->post('st_zip'),
+												'st_notes'	=> $this->input->post('st_notes'),
+												'dt_created'=> date('y-m-d H:i:s')									
+								);
+
+								$id = $this->search_model->insertadoption($dataArr);
+
+								$request_animal = $this->search_model->get_quote_items($this->session->userdata('cart_session_id'));
+								
+							
+							
+								// mail functionality starts					
+								
+								
+								$getuserrequest2 = $this->search_model->get_user_request2();		
+						
+								//echo '<pre>'; print_r($getuserrequest); die;
+								
+								foreach($getuserrequest2 as $request2){
+									
+									$animalArr[]=$request2['st_animal_name'];
+									//$orgownerArr[]=$request2['st_email_address'];									
+								}
+								
+								$animalval = implode(', ',$animalArr);
+								//$orgownerval = implode(', ',$orgownerArr);
+								
+								
+								$email_details = $this->common_model->get_email_containt("165");  // adoption request
+								$username= $this->input->post('st_first_name') . ' '. $this->input->post('st_last_name');
+								$useremail = $this->input->post('st_email');					
+								
+								
+								
+								
+								//$orgcarr = explode(', ',$orgownerval);
+								//print_r($orgownerArr); die;
+								
+								foreach($getuserrequest as $request){
+									
+									//$animalArr[]=$request['st_animal_name'];
+									//$orgownerArr[]=$request['st_email_address'];
+									
+									$orgrequestanimal = $this->search_model->get_org_requestanimal($request['in_organization_id']);	
+									$user_name = $request['st_director'];
+									$animalArr2 = '';
+									$organimal = array();
+									
+									foreach($orgrequestanimal as $val){
+										
+										$organimal[] = $val['st_animal_name'];
+										
+									}									
+									$animalArr2 = implode(', ',$organimal); 
+									
+									$templete = $email_details[0]['st_email_body'];				
+									$templete  = str_replace("##user_name##",$user_name,$templete);
+									$templete  = str_replace("##animal##",$animalArr2,$templete);	
+									$templete  = str_replace("##customtext##",'received',$templete);
+									$templete  = str_replace("##current_year##",date('Y'),$templete);
+									$templete  = str_replace("##first_name##",$this->input->post('st_first_name'),$templete);
+									$templete  = str_replace("##last_name##",$this->input->post('st_last_name'),$templete);
+									$templete  = str_replace("##email##",$this->input->post('st_email'),$templete);
+									$templete  = str_replace("##phone##",$this->input->post('st_phone'),$templete);
+									$templete  = str_replace("##addr1##",$this->input->post('st_addr1'),$templete);
+									$templete  = str_replace("##addr2##",$this->input->post('st_addr2'),$templete);
+									$templete  = str_replace("##city##",$this->input->post('st_city'),$templete);
+									$templete  = str_replace("##state##",$this->input->post('st_state'),$templete);
+									$templete  = str_replace("##country##",$this->input->post('st_country'),$templete);
+									$templete  = str_replace("##zip##",$this->input->post('st_zip'),$templete);
+									$templete  = str_replace("##notes##",$this->input->post('st_notes'),$templete);
+									
+									$strMail = $templete;
+									
+									//$to		 = 'sadique.mohammed+o101@pulsesolutions.net';
+									$to = $request['st_email_address'];
+									$message = $strMail;
+									$subject = $email_details[0]['st_email_subject'];
+									$this->load->library('email');				
+									$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);									
+									
+									
+								}
+								
+								
+								
+								
+								
+								
+								if(isset($email_details[0]['st_email_body']))
+								{
+									$templete = $email_details[0]['st_email_body'];				
+									$templete  = str_replace("##user_name##",$username,$templete);
+									$templete  = str_replace("##animal##",$animalval,$templete);	
+									$templete  = str_replace("##customtext##",'sent',$templete);	
+									$templete  = str_replace("##current_year##",date('Y'),$templete);
+									$templete  = str_replace("##first_name##",$this->input->post('st_first_name'),$templete);
+									$templete  = str_replace("##last_name##",$this->input->post('st_last_name'),$templete);
+									$templete  = str_replace("##email##",$this->input->post('st_email'),$templete);
+									$templete  = str_replace("##phone##",$this->input->post('st_phone'),$templete);
+									$templete  = str_replace("##addr1##",$this->input->post('st_addr1'),$templete);
+									$templete  = str_replace("##addr2##",$this->input->post('st_addr2'),$templete);
+									$templete  = str_replace("##city##",$this->input->post('st_city'),$templete);
+									$templete  = str_replace("##state##",$this->input->post('st_state'),$templete);
+									$templete  = str_replace("##country##",$this->input->post('st_country'),$templete);
+									$templete  = str_replace("##zip##",$this->input->post('st_zip'),$templete);
+									$templete  = str_replace("##notes##",$this->input->post('st_notes'),$templete);
+									
+									$strMail = $templete;
+									/*$this->email->message($strMail);
+									$this->email->send();*/
+									
+									//$to		 = 'sadique.mohammed@pulsesolutions.net';
+									$to = $useremail;
+									$message = $strMail;
+									$subject = $email_details[0]['st_email_subject'];
+									$this->load->library('email');				
+									$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);												
+								
+								}									
+								
+								// mail functionality ends	
+							
+							
+								
+								foreach($request_animal  as $val)
+								{
+									
+									$dataAoptionorder = array(
+																'in_adoption_id'	    => $id,																
+																'in_animal_id'          => $val->in_animal_id,																
+																'in_organization_id'    => $val->in_organization_id,																
+																'dt_created'            => date('y-m-d H:i:s')									
+													         );
+
+								$this->search_model->insertadoptionorder($dataAoptionorder);		
+								$this->search_model->updaterequestitem($val->in_request_animal_id);
+								}								
+								
+														
+														
+								redirect($this->config->item('base_url').'search/thankyou');						
+						}
+			
+		}
+		else{		
+		
+		$this->load->view('animal-checkout-view',$data);
+		}
+	}
+	
+	
+	public function thankyou()
+	{
+		$this->load->view('adoption_thank_you',$data);
+	}
+	
+	
+	
+	public function get_cart() 
+	{   		
+        $sessionId  = $this->session->userdata('cart_session_id'); //session_id();		
+		$data = array();  
+		$product_Collection = $this->search_model->get_quote_items($sessionId);
+		$data['productDetails'] = $product_Collection;			
+		echo json_encode($data['productDetails']); exit;		
+    }
+	
+	
+	public function remove_item()
+	{
+		$animalId 	= $this->input->post('animalId');
+		$msg = $this->search_model->delete_quote_items($animalId);	
+		echo json_encode($msg); exit;	
+	}
+	
+	
+	
+}
+
+/* End of file search.php */
+/* Location: ./application/controllers/search.php */

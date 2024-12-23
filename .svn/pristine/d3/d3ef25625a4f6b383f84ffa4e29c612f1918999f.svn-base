@@ -1,0 +1,324 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 26-Dec-2011
+# File description: Home(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Home extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	 public function __construct()
+    {
+		parent::__construct();
+		error_reporting(1);
+		$this->load->library('common_function');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->model('common_model');
+		$this->load->model('login_model');
+		$this->load->helper('cookie');
+	}	
+	 
+	public function index()
+	{		
+			$data				=	array();
+			$data['Err_Msg']	=	'';
+			
+			$data['rem_password'] = get_cookie('pass_admin');
+			$data['rem_email'] 	  = get_cookie('user_admin');
+			$form_field	=	array('email'	=> "",								 
+								  'password'	=> "",
+								  'remember'	=> ""								  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['login'][$key] = $value;	
+			}	
+			
+			if($this->input->post('action')=='Login')
+			{ 			
+				$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password', 'Password', 'trim|required');
+				if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();
+						//echo "<pre>";print_r($data);die;
+						$this->load->view('home_index',$data);	
+				}
+				else
+				{			
+					$username	= 	$this->common_function->CUSTOM_ADDSLASHES($this->input->post('email'));
+					$password	= 	$this->common_function->CUSTOM_ADDSLASHES($this->input->post('password')); 				
+					$data		=	$this->login_model->isValid($username,$password);
+					//echo '<pre>'; print_r($data); die;
+					
+					if(isset($data['admin_id']) && $data['admin_id']!='')
+					{
+						$adminid	=	$data['admin_id'];
+						$logmsg		=	"Admin Login Successfully";
+						$this->login_model->updateAdminLog($adminid, $logmsg);
+						
+						#===================== remember me starts==================#
+						//if($data['login']['remember']!='')
+						if($this->input->post('remember') != '')
+						{
+							set_cookie('user_admin', $username, 86400);							
+							set_cookie('pass_admin', $password, 86400);							
+						}
+						
+						#===================== remember me ends==================#	
+								
+						// VALID ADMIN LOGIN, SET ADMIN SESSIONS
+						$this->session->set_userdata('sess_admin_id',$data['admin_id']);								
+						$this->session->set_userdata('sess_admin_email',$data['email']);
+						$this->session->set_userdata('sess_admin_name',$data['name']);	
+						$this->login_model->updateloginstatus($data['admin_id'],$data['login_count']);					
+						
+						if($this->session->userdata('redirect_url'))
+						{ 
+							redirect($this->session->userdata('redirect_url'));
+						}
+						else
+						{ 
+							redirect($this->config->item('admin_base_url').'account/dashboard');
+						}
+										
+						//redirect($this->config->item('admin_base_url').'account/dashboard');
+						
+						//redirect($this->config->item('admin_base_url').'account/dashboard');						
+						
+					}
+					else
+					{
+						if(isset($data['error']) && $data['error']!='')
+						{
+							$data['Err_Msg']	=	$data['error'];
+							$this->load->view('home_index',$data);
+						}
+					}
+				
+				}
+			}
+		
+			else
+			{
+				$this->load->view('home_index',$data);
+			}
+		
+	}
+	
+	public function forgot_password()	
+	{  
+		$data				=	array();
+		$data['Err_Msg']	=	'';
+		$form_field	=	array('email'	=> ""							 
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['login'][$key] = $value;	
+			
+		}	
+		if($this->input->post('submit')=='forgotpassword')
+		{
+			    foreach ($form_field as $key => $value) {	
+					$data['login'][$key] = $this->input->post($key);	
+			}
+			
+				$result = $this->login_model->admin_forgotpassword($data['login']);
+				//echo '<pre>'; print_r($result); die;
+				$error = '';
+				if(empty($result))
+				{
+					$error = "Email address does not exists.";
+				}
+				$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				
+				if($this->form_validation->run()==FALSE || $error!='')
+				{
+						$data['Err_Msg'] = validation_errors().$error;
+						//echo "<pre>";print_r($data);die;
+						$this->load->view('home_index',$data);	
+				}
+				else
+				{		
+					$token = md5(time().$result['admin_details']['adminid']);
+					$result['admin_details']['url'] = $this->config->item('admin_base_url')."home/forgotpassword/".$result['admin_details']['adminid']."/".$token."/";				
+					$this->forgotpassword_email($result['admin_details']);
+					$this->session->set_userdata('forgot_email_member',$result['admin_details']['email']);
+					redirect($this->config->item('admin_base_url').'home/forgot_password_thankyou/');
+				}
+			
+		}
+		
+		else
+			{  
+					$this->load->view('home_index',$data);
+			}
+			
+	}	
+	
+	
+	function forgotpassword_email($data)
+	 {		
+	 	//echo"<pre>";print_r($data);die;
+		/*$this->load->library('email');
+		$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name'));  
+		$allmail = $data['email'];
+		//echo $allmail;die;
+		$this->email->to($allmail);
+		if($_SERVER['HTTP_HOST']!='crystal9')
+		{
+			$this->email->bcc($this->config->item('bcc_email_id'));
+		}		
+		$email_details = $this->common_model->get_email_containt("2");
+		//echo '<pre>'; print_r($email_details); die;
+		if(isset($email_details[0]['st_email_body']))
+		{
+			$templete = $email_details[0]['st_email_body'];
+			$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+			$templete  = str_replace("##display_name##",$data['admin_name'],$templete);
+			$templete  = str_replace("##forgot_url##",$data['url'],$templete);
+			
+			$this->email->subject($email_details[0]['st_email_subject']);
+		 	$strMail = $templete; 
+			$this->email->message($strMail);
+			$this->email->send();
+			//echo $this->email->print_debugger();
+			//echo "<pre>";print_r($templete);die;		
+		}	*/
+		
+		
+		
+		
+		$allmail = $data['email'];
+		$this->load->library('email');
+		$email_details = $this->common_model->get_email_containt("2");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		if(isset($email_details[0]['st_email_body']))
+		{  
+			$templete	= 	$email_details[0]['st_email_body'];
+			$templete   =   str_replace("##url##",$this->config->item('base_url'),$templete);
+			$templete   =   str_replace("##forgot_url##",$data['url'],$templete);
+			$templete   =   str_replace("##display_name##",$data['admin_name'],$templete);
+			$templete   =   str_replace("##DONATION##",$donation,$templete);
+			$strMail 	= 	$templete;
+			$to			=	$allmail;
+			$subject	=	$email_details[0]['st_email_subject'];
+			$message	=	$strMail;
+			$category  	=   $email_details[0]['st_category'];
+			$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+		}
+	}
+	
+	#=========================================================
+	#Function : forgot-thankyou
+	#Purpose  : Forgot password Thank you page
+	#---------------------------------------------------------	
+	public function forgot_password_thankyou()
+	{
+		$data = array();
+		$data['email'] = $this->session->userdata('forgot_email_member');
+		//$data['success'] = "Password has been sent to your email address";
+		$this->session->unset_userdata('forgot_email_member');
+		$this->load->view('forgot-password-thankyou',$data);		
+		//$this->load->view('home_index',$data);
+	}
+	function forgotpassword()
+	{  
+	
+		$data = array();
+		$data['Err_Msg'] = '';
+		$token = $this->uri->segment(4);
+		$admin_id = $this->uri->segment(3); 
+		//$user_data = $this->login_model->forgotpassword_details($token,$admin_id);
+		/*if(empty($user_data))
+		{
+			redirect($this->config->item('admin_base_url')."home/");
+		}*/
+		
+		$form_field	=	array('password'	=> "",
+							  'rpassword'	=> "",
+							  'action'		=> ""
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['login'][$key] = $value;	
+			
+		}					
+		if($this->input->post('action')=='forgotpassword')
+		{  
+			foreach($form_field as $key => $value)	
+			{		
+				$data['login'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+			}
+			$this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[6]|matches[rpassword]');
+			$this->form_validation->set_rules('rpassword', 'Re-type Your Password', 'trim|required');
+			if($this->form_validation->run() == FALSE)
+			{
+					$data['Err_Msg'] = validation_errors();
+					$this->load->view('forgot-password',$data);	
+			}
+			else
+			{   $adminId= $this->input->post('adminId');
+				$password_arr = array("st_password"=>md5($data['login']['password']));
+				$this->login_model->update_admin($password_arr,$adminId);
+				$this->session->set_flashdata('success', 'Your Password has been reset successfully.');
+				redirect($this->config->item('admin_base_url'));
+			}
+		}
+		else
+		{   $data['adminId']	=	$admin_id;
+			$this->load->view('forgot-password',$data);	
+		}
+		
+		
+	}
+}
+
+/* End of file home.php */
+/* Location: ./application/controllers/home.php */

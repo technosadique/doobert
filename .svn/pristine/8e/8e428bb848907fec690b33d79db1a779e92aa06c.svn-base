@@ -1,0 +1,1486 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by			: Ghanshyam Maurya
+# Created date			: 19-August-2014
+# File description		: Transportation_history controller 
+# Special- notes		: All functionality related to transportation history
+# Tables used			: 
+# Stored procedures		: none 
+# Triggers used			: none
+# --------------------------------------------------------------------------------------
+
+class Transportation_history extends CI_Controller {
+	
+	public function __construct()
+    {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		//$this->load->model('trasnportation_model');
+		$this->load->model('transportation_history_model');
+		$this->load->library('Upload');
+		$this->load->library('pagination');
+		$this->session->unset_userdata('org_id');
+		$this->session->unset_userdata('transport_id');
+	}	
+	 
+	public function index()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}		
+	}
+	
+	#=========================================================
+	#	Function : transportation_history_subscription
+	#	Purpose  : transportation history subscription page
+	#=========================================================		
+	
+	function transportation_history_subscription()
+	{  
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}	
+	
+		//$user_sub_details = $this->common_function->get_user_subscription_detail($this->session->userdata('userid'));
+		
+		//echo '<pre>'; print_r($user_sub_details);die;
+		
+		//if($user_sub_details['in_status'] == 1) { 
+			redirect(base_url().'my-transportation-history');
+		//}
+		
+		//$data = array();
+		//return $this->load->view('my-transportation-history-subscription',$data);	
+	}
+
+	#=========================================================
+	#	Function : transportation_history_list
+	#	Purpose  : transportation history listing page
+	#=========================================================		
+	
+	function transportation_history_list($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}	
+
+		$this->session->unset_userdata('searchadmin1');	
+		$this->session->unset_userdata('searchadmin2');	
+		//$user_sub_details = $this->common_function->get_user_subscription_detail($this->session->userdata('userid'));		
+		
+		//if((isset($user_sub_details) && count($user_sub_details) == 0) || $user_sub_details['in_status'] == 0) {
+			//redirect(base_url().'my-transportation-history-subscription');
+		//}
+		
+		if(!$this->session->userdata('userid'))
+		{
+			$redirect_url  = "http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('url_data',$redirect_url);
+			redirect($this->config->item('base_url'));
+		}
+		
+		/*$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');*/
+		
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';			
+		$fromdate			=	'';
+		$todate				=	'';
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		if($this->input->post('from') || ($this->input->post('action') == 'search'))
+		{	
+			
+			if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');										
+			 	$fromdate = date('Y-m-d',strtotime($this->input->post('from'))); 
+				$this->session->set_userdata('searchadmin1',$fromdate);
+		}
+		
+		if($this->input->post('to') || ($this->input->post('action') == 'search'))
+		{
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');			
+				$todate = date('Y-m-d',strtotime($this->input->post('to')));	
+				$this->session->set_userdata('searchadmin2',$todate);			
+				
+		}
+		$rec_per_page 		= $this->config->item('records_per_page');	
+		
+		//echo $this->session->userdata('searchadmin1'); exit;
+		if(!($this->session->userdata('searchadmin1')))
+		{
+			//echo 'created date as from date';
+			$fromdate = date('Y-m-d',strtotime($user_sub_details['dt_created']));
+			$this->session->set_userdata('searchadmin1',$fromdate); 
+		}
+		
+		if(!($this->session->userdata('searchadmin2')))
+		{
+			$todate = date('Y-m-d',strtotime($user_sub_details['dt_renewal'])); 
+			$this->session->set_userdata('searchadmin2',$todate);
+		}
+		//exit;
+		$totalrecord		= $this->transportation_history_model->get_total_history($this->session->userdata('userid'),$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		
+		$data['history_list']	= $this->transportation_history_model->get_history($sort,$order,$limit,$rec_per_page,$this->session->userdata('userid'),$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('base_url').'transportation_history/transportation_history_list/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';	
+		$config['display_pages'] 	= TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] 		= $this->pagination->create_links();
+		$data['total_rows'] 		= $config['total_rows'];
+		$data['currrent_page'] 		= floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] 		= ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']     		= $config['per_page'];
+		
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;			
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		//print_r($user_sub_details);exit;
+		$data['user_sub_details']	=	$user_sub_details;	
+		
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Transportation History Information Available.';
+		}
+		
+		$this->load->view('my-transportation-history',$data);	
+	}
+	
+	#=========================================================
+	#	Function : user_subscription_payment
+	#	Purpose  : user subscription payment
+	#=========================================================		
+	
+	function user_subscription_payment()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}		
+		//print_r($_POST);die;
+		//echo "<pre>";print_r($this->input->post());die;
+		$cancel_url  = "http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+		//echo $cancel_url;die;
+		$amount  = $this->input->post('amount');
+		$user_id  = $this->input->post('user_id');
+		$subscription_type  = $this->input->post('subscription_type');
+		
+		$this->session->set_userdata('user_thank_you',$user_id);
+		
+		$current_date = strtotime(date("Y-m-d"));
+		
+		$created_date = date('Y-m-01 00:00:00', $current_date);
+		//echo $created_date;
+		//exit;
+		$renewal_date = '' ;
+		if($subscription_type == 1)
+		{
+			$renewal_date = date("Y-m-d", strtotime("+1 month", $current_date));
+		}
+		if($subscription_type == 2)
+		{
+			$renewal_date = date("Y-m-d", strtotime("+2 month, +1 year", $current_date));			
+		}
+		$insert_data = array("in_user_id"			=> $user_id,
+							 "in_subscription_type"	=> $subscription_type,
+							 "in_subscription_amt"	=> $amount,
+							 "in_status"			=> "0",
+							 //"dt_created"			=> date("Y-m-d H:i:s"),
+							 "dt_created"			=> $created_date,
+							 "dt_renewal"			=> $renewal_date,
+							 "in_deleted"			=> "0");
+		//print_r($insert_data);exit;
+		$subscription_id = $this->transportation_history_model->add_user_subscription($insert_data);
+		
+		//added by amit for subscription log dated 8/2/2017
+		$insert_log_data=array();
+		$insert_log_data['in_user_id']=$insert_data['in_user_id'];
+		$insert_log_data['in_subscription_type']=$insert_data['in_subscription_type'];
+		$insert_log_data['in_subscription_amt']=$insert_data['in_subscription_amt'];
+		$insert_log_data['in_subscription_id']=$subscription_id;
+		$insert_log_data['dt_subscription_created']=$insert_data['dt_created'];
+		$insert_log_data['dt_subscription_renewal']=$insert_data['dt_renewal'];
+		$insert_log_data['in_deleted']=$insert_data['in_deleted'];
+		$insert_log_data['dt_created']=date('Y-m-d H:i:s');
+		$this->transportation_history_model->add_user_subscription_log($insert_log_data);	
+				
+		//code to delete user previous subscriptions if any
+		if(isset($subscription_id) && ($subscription_id != ''))
+		{
+			$delete_subscription = $this->transportation_history_model->delete_user_subscription($user_id,$subscription_id);
+		}
+		
+		$data['amount'] = $amount; 
+		$data['trans_id'] = "user_subscription".$subscription_id; 
+		$data['subscription_id'] = $subscription_id; 
+		$data['subscription_type'] = $subscription_type;
+		
+		return $this->load->view('my-transportation-paypal-payment',$data);
+		
+		#=================================Paypal Payment Process=================================#
+		/*$paypal_email = $this->config->item('doobert_paypal_acc');
+		$paypal_details = array("paypal_email"		=> $paypal_email,
+								"doobert_amount"	=> $amount,
+								//"user_amount"		=> $actual_amount,
+								//"fullamount"		=> $full_amount,
+								"tracking_id"		=> "user_subscription".$subscription_id,
+								"st_custom_url"		=> $cancel_url,
+								//"thank_you"			=> $this->config->item('base_url')."transportation_history/thank_you/"
+								"thank_you"			=> $this->config->item('base_url')."my-transportation-history/thank-you/"
+								);					 					 
+		$paypal_error = $this->paypal_payment($paypal_details);	
+		//print_r($paypal_error);exit;
+		if(isset($paypal_error['error']) && !empty($paypal_error['error']))
+		{
+			$data['Err_Msg'] = $paypal_error['error'];
+			$this->load->view('my-transportation-history-subscription',$data);
+		}*/
+		#==========================================End===========================================#
+	}
+	
+	function thank_you()
+	{
+		if(!$this->session->userdata('user_thank_you')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$user_id = $this->session->userdata('user_thank_you');
+		if($_SERVER['HTTP_HOST']!='crystal9')
+		{
+			$this->session->unset_userdata('user_thank_you');
+		}		
+		
+		$data = array();
+		$this->load->view('user-subscription-thank-you',$data);
+		
+	}
+	
+	function paypal_payment($paypal_detail)
+	{
+			
+		$this->load->model('paypal_model');		
+		//-------------------------------------------------
+		// When you integrate this code
+		// look for TODO as an indication
+		// that you may need to provide a value or take action
+		// before executing this code
+		//-------------------------------------------------
+		
+		//require_once ("paypalplatform.php");
+		// ==================================
+		// PayPal Platform Parallel Payment Module
+		// ==================================
+		
+		// Request specific required fields
+		$actionType            	= "PAY";
+		$cancelUrl				= $paypal_detail['st_custom_url'];//"http://crystal9/Jigar/session.php?success=no";    // TODO - If you are not executing the Pay call for a preapproval,
+														//        then you must set a valid cancelUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$returnUrl  			= $paypal_detail['thank_you'];//"http://crystal9/Jigar/session.php?success=yes";    // TODO - If you are not executing the Pay call for a preapproval,
+														//        then you must set a valid returnUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$currencyCode        	=  $this->config->item('currency_code');
+		
+		
+		// A parallel payment can be made among two to six receivers
+		// TODO - specify the receiver emails
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		$receiverEmailArray    = array(
+				$this->config->item('doobert_paypal_acc')
+				);
+		
+		// TODO - specify the receiver amounts as the amount of money, for example, '5' or '5.55'
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		//$full_amount =		$paypal_detail['doobert_amount']+$paypal_detail['user_amount'];
+		$receiverAmountArray = array(
+				$paypal_detail['doobert_amount'],
+				//$paypal_detail['fullamount']
+				);
+		
+		// for parallel payment, no primary indicators are needed, so set empty array
+		//$receiverPrimaryArray = array("false","true");
+		
+		// TODO - Set invoiceId to uniquely identify the transaction associated with each receiver
+		//        set the array entries with value for receivers that you have
+		//          each of the array values must be unique
+		$receiverInvoiceIdArray = array(
+				'',
+				'',
+				'',
+				'',
+				'',
+				''
+				);
+		
+		// Request specific optional fields
+		//   Provide a value for each field that you want to include in the request, if left as an empty string the field will not be passed in the request
+		$senderEmail                    	= "";        // TODO - If you are executing the Pay call against a preapprovalKey, you should set senderEmail
+													//        It is not required if the web approval flow immediately follows this Pay call
+		//$feesPayer                        	= "PRIMARYRECEIVER";
+		$ipnNotificationUrl                	= ($_SERVER['HTTP_HOST']!='crystal9')?$this->config->item('base_url')."transportation_history/ipn_notification/":"http://9277.us/doobert/session1.php";;
+		$memo                            	= "";        // maxlength is 1000 characters
+		$pin                           		= "";        // TODO - If you are executing the Pay call against an existing preapproval
+													//        the requires a pin, then you must set this
+		$preapprovalKey                    	= "";        // TODO - If you are executing the Pay call against an existing preapproval, set the preapprovalKey here
+		$reverseAllParallelPaymentsOnError  = "";    // TODO - Set this to "true" if you would like each parallel payment to be reversed if an error occurs
+													//        defaults to "false" if you don't specify
+		$trackingId                        	= $paypal_detail['tracking_id'];//$this->generateTrackingID();    // generateTrackingID function is found in paypalplatform.php
+		
+		//-------------------------------------------------
+		// Make the Pay API call
+		//
+		// The CallPay function is defined in the paypalplatform.php file,
+		// which is included at the top of this file.
+		//-------------------------------------------------
+		//echo "<pre>";print_r($receiverAmountArray);die;
+		/*$resArray = $this->paypal_model->CallPay($actionType, $cancelUrl, $returnUrl, $currencyCode, $receiverEmailArray,
+								$receiverAmountArray, $receiverPrimaryArray, $receiverInvoiceIdArray,
+								$feesPayer, $ipnNotificationUrl, $memo, $pin, $preapprovalKey,
+								$reverseAllParallelPaymentsOnError, $senderEmail, $trackingId
+		);*/
+		
+		$resArray = $this->paypal_model->subscription_payment($actionType, $cancelUrl, $returnUrl, $currencyCode, $receiverEmailArray,
+								$receiverAmountArray, $receiverInvoiceIdArray,
+								$ipnNotificationUrl, $memo, $pin, $preapprovalKey,
+								$reverseAllParallelPaymentsOnError, $senderEmail, $trackingId
+		);
+		
+		//echo "<pre>";print_r($resArray);die;
+		if(isset($resArray) && !empty($resArray))
+		{
+			$ack = strtoupper($resArray["responseEnvelope.ack"]);
+			
+			if($ack=="SUCCESS")
+			{
+				if ("" == $preapprovalKey)
+				{
+					// redirect for web approval flow
+					$cmd = "cmd=_ap-payment&paykey=" . urldecode($resArray["payKey"]);
+					$this->paypal_model->RedirectToPayPal ( $cmd );
+			
+				}
+				else
+				{
+					//echo "<pre>elsecnd";print_r($resArray);die;
+					// payKey is the key that you can use to identify the result from this Pay call
+					$payKey = urldecode($resArray["payKey"]);
+					// paymentExecStatus is the status of the payment
+					$paymentExecStatus = urldecode($resArray["paymentExecStatus"]);
+				}
+			}
+			else  
+			{
+				//Display a user friendly Error on the page using any of the following error information returned by PayPal
+				//TODO - There can be more than 1 error, so check for "error(1).errorId", then "error(2).errorId", and so on until you find no more errors.
+				$ErrorCode = urldecode($resArray["error(0).errorId"]);
+				$ErrorMsg = urldecode($resArray["error(0).message"]);
+				$ErrorDomain = urldecode($resArray["error(0).domain"]);
+				$ErrorSeverity = urldecode($resArray["error(0).severity"]);
+				$ErrorCategory = urldecode($resArray["error(0).category"]);
+			   
+				/*echo "Preapproval API call failed. "."<br />";
+				echo "Detailed Error Message: " . $ErrorMsg."<br />";
+				echo "Error Code: " . $ErrorCode."<br />";
+				echo "Error Severity: " . $ErrorSeverity."<br />";
+				echo "Error Domain: " . $ErrorDomain."<br />";
+				echo "Error Category: " . $ErrorCategory."<br />";die;*/
+				$error['error'] = $ErrorMsg;
+				return $error;
+			}
+		}
+		else
+		{
+			$error['error'] = "Invalid paypal email address configure";
+			return $error;
+		}
+	}
+	
+	function ipn_notification()
+	{
+		$postData = file_get_contents('php://input');
+		$postData = urldecode($postData);
+		$rawPostArray = explode('&', $postData);			
+		$data_arr= array();
+		//use for testing purpose
+		/*$rawPostArray = array(	"payment_request_date=Wed Aug 20 05:08:50 PDT 2014",
+								"return_url=http://crystal9/doobert-v3/transportation_history/thank_you/",
+								"fees_payer=EACHRECEIVER",
+								"ipn_notification_url=http://9277.us/doobert/session1.php",
+								"sender_email=doobertc@gmail.com",
+								"verify_sign=AnsTt2BphwV0MlhgMeFlr07m0d7MAzN5wEW72SJmMEVGMpDZP9lzE-ka",
+								"test_ipn=1",
+								"transaction[0].id_for_sender_txn=9BS33493CA599103D",
+								"transaction[0].receiver=doobertm@gmail.com",
+								"cancel_url=http://crystal9/doobert-v3/transportation_history/user_subscription_payment",
+								"transaction[0].is_primary_receiver=false",
+								"pay_key=AP-822774722N090670A",
+								"action_type=PAY",
+								"transaction[0].id=9D470144CC928442T",
+								"transaction[0].status=Completed",
+								"transaction[0].paymentType=SERVICE",
+								"transaction[0].status_for_sender_txn=Completed",
+								"transaction[0].pending_reason=NONE",
+								"transaction_type=Adaptive Payment PAY",
+								"tracking_id=user_subscription20",
+								"transaction[0].amount=USD 19.00",
+								"status=COMPLETED",
+								"log_default_shipping_address_in_transaction=false",
+								"charset=windows-1252",
+								"notify_version=UNVERSIONED",
+								"reverse_all_parallel_payments_on_error=false",
+							);
+									*/
+		//mail('ghanshyam.maurya@pulsesolutions.net','rawPostArray',print_r($rawPostArray));
+		
+		foreach($rawPostArray as $key=>$value)
+		{
+			
+			$data_val = explode("=",$value);		
+			
+			if(isset($data_val[0]) && $data_val[0] == "transaction[0].id")
+			{
+				$data_arr['st_trans_id'] = $data_val[1];
+			}
+			if(isset($data_val[0]) && $data_val[0] == "transaction[0].status" && $data_val[1]=="Completed")
+			{
+				$data_arr['transaction_0'] = "1";
+			}
+			elseif(isset($data_val[0]) && $data_val[0] == "tracking_id")
+			{
+				$data_arr['in_subscription_id'] = str_replace("user_subscription","",$data_val[1]);
+			}
+				
+			//echo "<pre>";print_r($data_val);
+		}
+		//echo "<pre>";print_r($data_arr);die;
+		/*$file = fopen("test.txt","w");
+		echo fwrite($file,"<pre>".print_r($data_arr,true)."===".print_r($rawPostArray,true));
+		fclose($file);*/
+		if(isset($data_arr) && !empty($data_arr))
+		{
+			$id = $data_arr['in_subscription_id'];
+			$status = 0;
+			if($data_arr['transaction_0']=='1')
+			{
+				$status = 1;
+			}
+			$update_details = array("st_trans_id"		=> $data_arr['st_trans_id'],
+									"st_raw_response"	=> serialize($rawPostArray),
+									"in_status"			=> $status);			
+			//mail('jigar.patel@pulsesolutions.com','DataBase data',print_r($update_details,true));																		
+			$this->transportation_history_model->update_user_subscription_details($id,$update_details);			
+		}
+	}
+	
+	
+	function charitable_ipn_notification()
+	{
+		//echo 'test11';
+		$this->load->library('email');
+		$to = 'ghanshyam.maurya@pulsesolutions.net';
+		$category = '';
+		$this->common_function->send_mail($this->email, $to, 'IPN response','ipn notify url called', $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		
+		//echo 'test22';
+		$raw_post = '';
+		$post_array = array();
+		$raw_post       = file_get_contents("php://input");
+		$post_array     = $this->decodePayPalIPN($raw_post);
+		
+		
+		$post_data = '';
+		if(isset($post_array) && !empty($post_array))
+		{
+			$post_data      = var_export($post_array, true);
+		}
+		//mail('ghanshyam.maurya@pulsesolutions.net','paypal post raw details',print_r($post_data,true));	
+		
+		//$this->load->library('email');
+		$to = 'ghanshyam.maurya@pulsesolutions.net';
+		$category = '';
+		$this->common_function->send_mail($this->email, $to, 'IPN response',$post_data, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		$custom_array = array();
+	    
+		//if(isset($custom_array) && !empty($custom_array))
+		//{
+		$custom_array   = explode('|',$post_array['custom']);
+		//}
+		//echo 'test33';
+		$user_id    = '';
+		$subscription_id = '';
+		$paypal_subscr_id = '';
+		
+		
+		if(isset($post_array) && !empty($post_array))
+		{
+		
+		if(isset($custom_array) && !empty($custom_array))
+		{
+		$user_id          = $custom_array[1];
+		$subscription_id  = $custom_array[3];
+		//$trans_id         = $custom_array[3];
+		}
+		
+		$payment_status   = $post_array['payment_status'];
+		$transaction_id   = $post_array['txn_id'];
+		$paypal_subscr_id = $post_array['subscr_id'];
+		$payment_amount   = $post_array['payment_gross'];
+		
+		//$subscr_id      = $post_array['subscr_id'];
+		
+		$to = 'ghanshyam.maurya@pulsesolutions.net';
+		$category = '';
+		$this->common_function->send_mail($this->email, $to, 'IPN response','paypal_subscr_id:'.$paypal_subscr_id.'payment_status:'.$payment_status, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		
+		if($payment_status == 'Completed'){
+			$payment_data['payment_status'] = 'Y';
+				if(isset($subscription_id) && $subscription_id > 0){
+				$subscription_type = $this->transportation_history_model->get_subscription_type($subscription_id);	
+				
+				$current_date = strtotime(date("Y-m-d"));	
+				$created_date = date('Y-m-01 00:00:00', $current_date);
+				$renewal_date = '' ;
+				$log_subscription_type = '';
+				if(isset($subscription_type['in_subscription_type']) && $subscription_type['in_subscription_type'] == '2')
+				{
+						$log_subscription_type = $subscription_type['in_subscription_type'];
+						$renewal_date = date("Y-m-d", strtotime("+2 month, +1 year", $current_date));
+				} else if(isset($subscription_type['in_subscription_type']) && $subscription_type['in_subscription_type'] == '1')
+				{
+						$log_subscription_type = $subscription_type['in_subscription_type'];
+						$renewal_date = date("Y-m-d", strtotime("+1 month", $current_date));
+				} else {
+						$log_subscription_type = 0;
+				}	
+				
+					$insert_log_data = array();
+					$insert_log_data['in_user_id'] = $user_id;
+					$insert_log_data['in_subscription_type'] =	$log_subscription_type;
+					$insert_log_data['in_subscription_amt']	= $payment_amount;
+					$insert_log_data['in_subscription_id'] = $subscription_id;
+					$insert_log_data['dt_subscription_created'] = $created_date;
+					$insert_log_data['dt_subscription_renewal'] = $renewal_date;
+					$insert_log_data['in_deleted'] = '0';
+					$insert_log_data['dt_created'] = date('Y-m-d H:i:s');
+					$this->transportation_history_model->add_user_subscription_log($insert_log_data);
+						
+					//$this->payment_model->update_payment_detail_by_user_id($payment_data);
+					$update_details = array("st_trans_id"		=> $transaction_id,
+											"st_raw_response"	=> serialize($post_data),
+											"in_status"			=> '1',
+											"dt_created"		=> $created_date,
+											"dt_renewal"		=> $renewal_date,
+											"st_paypal_subscr_id" => $paypal_subscr_id,
+											"dt_modified_date"	=>	date('Y-m-d H:i:s')
+											);			
+					//mail('ghanshyam.maurya@pulsesolutions.net','DataBase data',print_r($update_details,true));																		
+					$this->transportation_history_model->update_user_subscription_data($subscription_id,$update_details);	
+				}
+		}
+		}
+		//echo 'test44';
+	}
+	
+	function decodePayPalIPN($raw_post)
+    {
+        //log_message('error', "testing");
+        if (empty($raw_post)) {
+            return array();
+        } # else:
+        $post = array();
+        $pairs = explode('&', $raw_post);
+        foreach ($pairs as $pair) {
+            list($key, $value) = explode('=', $pair, 2);
+            $key = urldecode($key);
+            $value = urldecode($value);
+            # This is look for a key as simple as 'return_url' or as complex as 'somekey[x].property'
+            preg_match('/(\w+)(?:\[(\d+)\])?(?:\.(\w+))?/', $key, $key_parts);
+            switch (count($key_parts)) {
+                case 4:
+                    # Original key format: somekey[x].property
+                    # Converting to $post[somekey][x][property]
+                    if (!isset($post[$key_parts[1]])) {
+                        $post[$key_parts[1]] = array($key_parts[2] => array($key_parts[3] => $value));
+                    } else if (!isset($post[$key_parts[1]][$key_parts[2]])) {
+                        $post[$key_parts[1]][$key_parts[2]] = array($key_parts[3] => $value);
+                    } else {
+                        $post[$key_parts[1]][$key_parts[2]][$key_parts[3]] = $value;
+                    }
+                    break;
+                case 3:
+                    # Original key format: somekey[x]
+                    # Converting to $post[somkey][x] 
+                    if (!isset($post[$key_parts[1]])) {
+                        $post[$key_parts[1]] = array();
+                    }
+                    $post[$key_parts[1]][$key_parts[2]] = $value;
+                    break;
+                default:
+                    # No special format
+                    $post[$key] = $value;
+                    break;
+            }#switch
+        }#foreach
+
+        return $post;
+    }#decodePayPalIPN()
+	
+	//download files
+	function generate_download($document)
+    {	
+	
+		$this->load->library('user_agent');
+		if($document=='')
+		{
+			redirect($this->agent->referrer());	
+		}
+		//$document = $this->common_function->decode_base64($document);
+        $file = $this->config->item('upload')."trasnportation/".$document;
+		
+		if ($document!='' && file_exists($file)) {
+			$this->load->helper('download');
+			$data = file_get_contents($file); // Read the file's contents
+			$name = $document;
+			force_download($name, $data);
+		}
+		else
+		{   		
+			$this->session->set_flashdata('upload_error', 'File does not exist.');
+			redirect($this->agent->referrer());		
+			
+		}
+    }
+	
+	//download pdf
+	function download_transportation_pdf($id)
+	{	
+		if(!is_numeric($id) && $id == ''){
+			redirect($this->config->item('base_url').'my-transportation-history');
+		}
+		$pdf = $this->load->helper('pdf');
+		//get data to show in pdf
+		//$pdf->set_base_path(base_url(). 'assets/css/style.css');
+		$this->session->set_userdata('transport_id',$id);
+		$leg_details = array();
+		$user_transport_history_files = array();
+		$user_transport_cost_history  = array();
+		
+		$this->load->model('orgtrasnportation_model');
+		$transport_details 	= $this->orgtrasnportation_model->get_transport_details($id);
+		//echo '<pre>';print_r($transport_details); //exit;
+		$user_legs_distance_data	= $this->transportation_history_model->get_user_leg_distance($id,$this->session->userdata('userid'));
+		$user_legs_distance = 0;
+		if(isset($user_legs_distance_data) && !empty($user_legs_distance_data))
+		{
+			$user_legs_distance = $user_legs_distance_data[0]['leg_distance'];
+		}
+		$transport_files 			= $this->orgtrasnportation_model->get_transport_files($id);
+		//echo '<pre>';print_r($transport_files);//exit;
+		$user_transport_history_details 		= $this->transportation_history_model->get_user_transport_history($id);
+		//print_r($user_transport_history_details);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_file'] == 1){
+				$user_transport_history_files = $this->transportation_history_model->get_user_transport_files($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_tot_cost'] > 0){
+				$user_transport_cost_history = $this->transportation_history_model->get_user_transport_costs($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		
+		$transport_animals 			= $this->orgtrasnportation_model->get_transport_animals($id);
+		//echo '<pre>';print_r($transport_animals); //exit;
+		//echo 'transport_id'.$this->session->userdata('transport_id');		
+		$leg_details = $this->orgtrasnportation_model->get_trans_legs_details();
+		//echo 'legs details<pre>';print_r($leg_details);
+		
+		$data['transport_details']  = $transport_details;		
+		$data['transport_files'] 	= $transport_files;
+		$data['transport_animals']  = $transport_animals;
+		$data['leg_details'] 		= $leg_details;
+		$data['user_transport_history_details'] = $user_transport_history_details;
+		$data['user_transport_history_files'] = $user_transport_history_files;
+		$data['user_transport_cost_history'] = $user_transport_cost_history;
+		$data['user_legs_distance'] 		= $user_legs_distance;
+		
+		//print_r($data);exit;
+		$file_name = 'Transportation-Details';
+		ob_start();
+			$this->load->view('download_transportation_pdf',$data);
+			$message	=	ob_get_contents();
+		ob_end_clean();
+		//echo $message; exit;
+		pdf_create($message,$file_name);
+	}
+	
+	//download pdf
+	/*function download_transportation_pdf($id)
+	{	
+		if(!is_numeric($id) && $id == ''){
+			redirect($this->config->item('base_url').'my-transportation-history');
+		}
+		$pdf = $this->load->helper('mpdf');
+		//get data to show in pdf
+		//$pdf->set_base_path(base_url(). 'assets/css/style.css');
+		
+		$this->load->model('orgtrasnportation_model');
+		$transport_details 	= $this->orgtrasnportation_model->get_transport_details($id);
+		//echo '<pre>';print_r($transport_details); //exit;
+		$transport_files 			= $this->orgtrasnportation_model->get_transport_files($id);
+		//echo '<pre>';print_r($transport_files);//exit;
+		$user_transport_history_details 		= $this->transportation_history_model->get_user_transport_history($id);
+		//print_r($user_transport_history_details);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_file'] == 1){
+				$user_transport_history_files = $this->transportation_history_model->get_user_transport_files($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		//print_r($user_transport_history_files);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_tot_cost'] > 0){
+				$user_transport_cost_history = $this->transportation_history_model->get_user_transport_costs($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		
+		$transport_animals 			= $this->orgtrasnportation_model->get_transport_animals($id);
+		$this->session->set_userdata('transport_id',$id);
+		$leg_details = array();
+		$leg_details = $this->orgtrasnportation_model->get_trans_legs_details();
+		
+		$data['transport_details']  = $transport_details;		
+		$data['transport_files'] 	= $transport_files;
+		$data['transport_animals']  = $transport_animals;
+		$data['leg_details'] 		= $leg_details;
+		$data['user_transport_history_details'] 	= $user_transport_history_details;
+		$data['user_transport_history_files'] 		= $user_transport_history_files;
+		$data['user_transport_cost_history'] 		= $user_transport_cost_history;
+		
+		$data['pdf'] = $pdf;
+		$file_name = 'transportation-details';
+		$title = "Transportation-details";
+		ob_start();
+			$this->load->view('download_transportation_pdf',$data);
+			$message	=	ob_get_contents();
+		ob_end_clean();
+		//echo $message; exit;
+		pdf_create($message,$file_name,$title);
+	}*/
+	
+	
+	#=========================================================
+	#	Function : transportation_history_list
+	#	Purpose  : transportation history listing page
+	#=========================================================		
+	
+	function transportation_history_details()
+	{
+		$id = $this->input->post('trans_detail_id');	
+		
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		if(!is_numeric($id) && $id == ''){
+			redirect($this->config->item('base_url').'my-transportation-history');
+		}
+		
+		$this->session->set_userdata('transport_id',$id);
+		
+		$leg_details = array();
+		$user_transport_history_files = array();
+		$user_transport_cost_history  = array();
+		
+		$this->load->model('orgtrasnportation_model');
+		$transport_details 	= $this->orgtrasnportation_model->get_transport_details($id);
+		//echo '<pre>';print_r($transport_details); //exit;
+		$user_legs_distance_data	= $this->transportation_history_model->get_user_leg_distance($id,$this->session->userdata('userid'));
+		$user_legs_distance = 0;
+		if(isset($user_legs_distance_data) && !empty($user_legs_distance_data))
+		{
+			$user_legs_distance = $user_legs_distance_data[0]['leg_distance'];
+		}
+		
+		$transport_files 	= $this->orgtrasnportation_model->get_transport_files($id);
+		//echo '<pre>';print_r($transport_files);//exit;
+		$user_transport_history_details 		= $this->transportation_history_model->get_user_transport_history($id);
+		//print_r($user_transport_history_details);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_file'] == 1){
+				$user_transport_history_files = $this->transportation_history_model->get_user_transport_files($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_tot_cost'] > 0){
+				$user_transport_cost_history = $this->transportation_history_model->get_user_transport_costs($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		
+		$transport_animals 			= $this->orgtrasnportation_model->get_transport_animals($id);
+		//echo '<pre>';print_r($transport_animals); //exit;
+		//echo 'transport_id'.$this->session->userdata('transport_id');		
+		$leg_details = $this->orgtrasnportation_model->get_trans_legs_details();
+		//echo 'legs details<pre>';print_r($leg_details);
+		
+		$data['transport_details']  = $transport_details;		
+		$data['transport_files'] 	= $transport_files;
+		$data['transport_animals']  = $transport_animals;
+		$data['leg_details'] 		= $leg_details;
+		$data['user_transport_history_details'] = $user_transport_history_details;
+		$data['user_transport_history_files'] = $user_transport_history_files;
+		$data['user_transport_cost_history'] = $user_transport_cost_history;
+		$data['user_legs_distance'] 		= $user_legs_distance;
+		
+		//exit;
+		$this->load->view('my-transportation-history-details',$data);	
+	}
+	
+	function genratecsv($sort=false,$order=false)
+	{		//echo $this->config->item('doc_root')."/img/logo-footer.png";die;
+			if(!$this->session->userdata('userid'))
+			{
+				redirect($this->config->item('base_url'));
+			}
+
+			
+			
+			$frmdt =  $this->session->userdata('searchadmin1');
+			$todt =  $this->session->userdata('searchadmin2');
+			
+			if($frmdt =='1969-12-31')
+			{
+				$frmdt =  '';
+			}
+			else{
+				$frmdt=$this->session->userdata('searchadmin1');
+			}
+			
+			if($todt == '1969-12-31')
+			{
+				$todt =  '';
+			}
+			else{
+				$todt =  $this->session->userdata('searchadmin2');
+			}
+			
+			$report=$this->transportation_history_model->history_report($this->session->userdata('userid'),$frmdt,$todt);		
+			
+			
+			
+			//echo '<pre>'; print_r($report); die;
+			
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		
+		$objPHPExcel = new PHPExcel();	
+		//$serialnumber=0;
+		//Set header with temp array
+		$tmparray =array("Transportation ID","For Organization","EIN #","501c(3)","Transport Date","Leg Dist. (miles) x 2","Cost","Edited?","Attachment");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		for($i = 0; $i < count($report); $i++)
+		{ 
+		$tmparray =array();
+		//$serialnumber = $serialnumber + 1;
+		//array_push($tmparray,$serialnumber);
+		$transportation_id = 'DBT'.$report[$i]['in_transportation_id'];
+		array_push($tmparray,$transportation_id);
+		$st_org_name = $report[$i]['st_org_name'];
+		array_push($tmparray,$st_org_name);
+		$st_org_ein = $report[$i]['st_org_ein'];
+		array_push($tmparray,$st_org_ein);
+		$st_has_501c3 = $report[$i]['st_has_501c3'];
+		array_push($tmparray,$st_has_501c3);
+		
+		
+		$dt_created = ($report[$i]['dt_created']!='') ? date('M d, Y',strtotime($report[$i]['dt_created'])):"";
+		array_push($tmparray,$dt_created);
+		//$fl_distance = ($report[$i]['fl_distance'] != '') ? $report[$i]['fl_distance'] .' miles x 2 = '. ($report[$i]['fl_distance']) * 2 . ' miles': '';  
+		$fl_distance = ($report[$i]['fl_distance'] != '') ? ($report[$i]['fl_distance']) * 2 .' miles': '';  
+		array_push($tmparray,$fl_distance);
+		$in_miles = ($report[$i]['in_miles'] != '') ? '$ '.(($report[$i]['in_miles']*2*0.14) + $report[$i]['in_tot_cost']) : ''; 		
+		array_push($tmparray,$in_miles);
+		$edited = (date('Y-m-d',strtotime($report[$i]['dt_modified'])) == date('Y-m-d')) ? 'Y' : 'N'; 		
+		array_push($tmparray,$edited);		
+		$in_file = ($report[$i]['in_file'])=='1' ? 'Y' : 'N';
+		array_push($tmparray,$in_file);
+		array_push($sheet,$tmparray);
+		}
+		
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="Transportation History Report-'.date("m-d-Y").'.xls"');
+		
+		
+		
+		
+		$objDrawing = new PHPExcel_Worksheet_Drawing();
+		$objDrawing->setName('Doobert logo');
+		$objDrawing->setDescription('Doobert logo');	
+		
+		//$path=$_SERVER["DOCUMENT_ROOT"]."/img/logo-footer.png";	
+		$path= $this->config->item('doc_root')."/img/logo-footer.png";
+		
+		
+		$objDrawing->setPath($path);		
+		$objDrawing->setHeight(97);
+		$objDrawing->setWidth(171);
+		$objDrawing->setCoordinates('A1');
+		$objDrawing->setOffsetX(10);
+		$objDrawing->setWorksheet($objPHPExcel->getActiveSheet());
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();			
+		$worksheet->setTitle('Transportation History Report');		
+		$worksheet->SetCellValue('A8', 'Transportation History Report');
+		$worksheet->SetCellValue('A4', 'The information provided in this report is accurate to the best of our ability and for information');
+		$worksheet->SetCellValue('A5', 'purposes to assist you in determining the eligibility of your charitable contributions from Doobert.com transports.');
+		$worksheet->SetCellValue('A6', 'Please verify current deductibility status and eligibility by using the IRS Select Check online tool');
+		$worksheet->SetCellValue('A7', '(http://http://www.irs.gov/Charities-&-Non-Profits/Exempt-Organizations-Select-Check)');	
+		$worksheet->mergeCells('A4:I4');
+		$worksheet->mergeCells('A5:I5');
+		$worksheet->mergeCells('A6:I6');		
+		$worksheet->getStyle('A8:I8')->applyFromArray($title);
+		$worksheet->mergeCells('A8:I8');
+		$worksheet->mergeCells('A1:I1');
+		$worksheet->mergeCells('A2:I2');
+		$worksheet->mergeCells('A3:I3');
+		//$worksheet->mergeCells('A4:I4');
+		//$worksheet->mergeCells('A5:I5');		
+
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 9, $data);
+		}
+		}		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A9:I9")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');			
+		$objWriter->save("php://output");						
+	}
+	
+	#=========================================================
+	#	Function : edit_transportation_history_details
+	#	Purpose  : edit_transportation_history_details
+	#=========================================================		
+	function edit_transportation_history_details($id,$trans_his_id = 0)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		if(!is_numeric($id) && $id == ''){
+			redirect($this->config->item('base_url').'my-transportation-history');
+		}
+		$data['Err_Msg'] 		= '';
+		$leg_details = array();
+		$user_transport_history_files = array();
+		$user_transport_cost_history  = array();
+		
+		$this->load->model('orgtrasnportation_model');
+		$transport_details 	= $this->orgtrasnportation_model->get_transport_details($id);
+		//echo '<pre>';print_r($transport_details); //exit;
+		
+		$user_legs_distance_data	= $this->transportation_history_model->get_user_leg_distance($id,$this->session->userdata('userid'));
+		$user_legs_distance = 0;
+		if(isset($user_legs_distance_data) && !empty($user_legs_distance_data))
+		{
+			$user_legs_distance = $user_legs_distance_data[0]['leg_distance'];
+		}
+		
+		$transport_files 			= $this->orgtrasnportation_model->get_transport_files($id);
+		//echo '<pre>';print_r($transport_files);//exit;
+		$user_transport_history_details 		= $this->transportation_history_model->get_user_transport_history($id);
+		//print_r($user_transport_history_details);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_file'] == 1){
+				$user_transport_history_files = $this->transportation_history_model->get_user_transport_files($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		//print_r($user_transport_history_files);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_tot_cost'] > 0){
+				$user_transport_cost_history = $this->transportation_history_model->get_user_transport_costs($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		
+		$transport_animals 			= $this->orgtrasnportation_model->get_transport_animals($id);
+		//echo '<pre>';print_r($transport_animals); //exit;
+		//echo 'transport_id'.$this->session->userdata('transport_id');
+		$this->session->set_userdata('transport_id',$id);
+		$leg_details = $this->orgtrasnportation_model->get_trans_legs_details();
+		//echo 'legs details<pre>';print_r($leg_details);
+		
+		
+		$data['transport_details']  = $transport_details;		
+		$data['transport_files'] 	= $transport_files;
+		$data['transport_animals']  = $transport_animals;
+		$data['leg_details'] 		= $leg_details;
+		$data['user_transport_history_details'] 	= $user_transport_history_details;
+		$data['user_transport_history_files'] 		= $user_transport_history_files;
+		$data['user_transport_cost_history'] 		= $user_transport_cost_history;
+		$data['user_legs_distance'] 		= $user_legs_distance;
+		
+		if(isset($_POST) && !empty($_POST)) {	
+			$miles = $this->input->post('miles');
+			$notes = $this->input->post('notes');
+			//$tot_cost = $this->input->post('total_cost');
+			$tot_cost = $this->input->post('updated_cost');
+			//echo $tot_cost; exit;
+			$user_id = $this->session->userdata('userid');
+			//validate post data
+			$this->form_validation->set_rules('miles', 'Updated Distance', 'trim|required|numeric|callback_greater_than_zero');
+			$error = '';	
+			if($this->form_validation->run()==FALSE ||$error!='')
+			{
+					$data['Err_Msg'] = validation_errors().$error;
+					return $this->load->view('my-transportation-history-edit',$data);
+			}else {
+			if(isset($_POST['image_file']) && $_POST['image_file'] !='' ) {
+					$img_file = 1;
+				}
+				else if(empty($_POST['image_file']) && isset($user_transport_history_details[0]['in_file'])){
+					$img_file = $user_transport_history_details[0]['in_file'];
+				}
+				else{
+					$img_file = 0;
+				}
+				
+			$data['transaction_history'] = array('in_transportation_id'	=>	$id,
+												'in_miles'		=>	$miles,
+												'st_notes'		=>	$notes,
+												'in_tot_cost'	=>	$tot_cost,
+												'in_file'		=>	isset($img_file) ? $img_file : $user_transport_history_details[0]['in_file'],
+												'dt_modified'	=>	date('Y-m-d H:i:s'),
+												);
+			if(!empty($trans_his_id)){
+				$data['update_transaction_history'] = $this->transportation_history_model->update_transaction_history($data['transaction_history'],$id,$user_id);
+			}
+			else if (empty($trans_his_id) || $trans_his_id == ''){
+				if(isset($_POST['image_file']) && $_POST['image_file'] !='' ) {
+					$img_file = 1;
+				}else{
+					$img_file = 0;
+				}
+				$data['transaction_history'] = array('in_transportation_id'	=>	$id,
+												'in_user_id'	=>  $user_id,
+												'in_miles'		=>	$miles,
+												'st_notes'		=>	$notes,
+												'in_tot_cost'	=>	$tot_cost,
+												'in_file'		=>	$img_file,
+												'dt_created'	=>	date('Y-m-d H:i:s'),
+												'dt_modified'	=>	date('Y-m-d H:i:s'),
+												);
+				$trans_his_id = $this->transportation_history_model->insert_transaction_history($data['transaction_history']);
+			}
+			//print_r($_POST['image_file']);exit;
+			if(isset($_POST['image_file']) && $_POST['image_file'] !='' ) {
+				//print_r($_POST['image_file']);exit; 
+				$explode_file = explode(',',$_POST['image_file']);
+				$date = date('Y-m-d H:i:s');
+				
+				foreach($explode_file as $row) {
+					if(trim($row)!='') {
+						$file_data = array(	'in_trans_his_id'	=> $trans_his_id,
+											'st_file'	=>	trim($row),
+											'dt_created'	=>	$date,
+											'in_deleted'	=>	0
+										);
+						$this->transportation_history_model->add_trans_history_files($file_data);
+					}
+				}
+			}
+			
+			$cost_desc1	= $this->input->post('cost_desc1');
+			$cost_price1 = $this->input->post('cost_price1');
+			
+			$cost_desc2	= $this->input->post('cost_desc2');
+			$cost_price2 = $this->input->post('cost_price2');
+			
+			$cost_description = (!empty($cost_desc1) && !empty($cost_desc2))?array_merge($cost_desc1,$cost_desc2):((!empty($cost_desc1))?$cost_desc1:$cost_desc2);
+				
+			$cost_price = (!empty($cost_price1) && !empty($cost_price2))?array_merge($cost_price1,$cost_price2):((!empty($cost_price1))?$cost_price1:$cost_price2);
+			
+			//print_r($cost_description);
+			//print_r($cost_price);
+			//exit;
+			$data['delete_cost_details'] = $this->transportation_history_model->delete_trans_cost_details($trans_his_id);
+			$date = date('Y-m-d H:i:s');
+			for($i=0;$i<count($cost_description);$i++) {
+				if(trim($cost_description[$i]) != '' && trim($cost_price[$i]) != '' && trim($cost_price[$i]) != 0 ){
+					$data['trans_cost'] = array('in_trans_his_id'	=>	$trans_his_id,
+												 'st_cost_details'	=>	$cost_description[$i],
+												 'in_cost'	=>	$cost_price[$i],
+												 'dt_created'	=>	$date,
+												 'in_deleted'	=>	'0'
+												);
+				
+					$data['add_trans_cost'] = $this->transportation_history_model->add_trans_cost_details($data['trans_cost']);
+				}
+			}
+			$this->session->set_flashdata('success', 'Transportation details updated successfully.');
+			redirect($this->config->item('base_url').'my-transportation-history-success/'.$id);
+			}
+			
+		}else{
+		
+		
+		return $this->load->view('my-transportation-history-edit',$data);
+		
+		}
+		
+	}
+	
+	#=========================================================
+	#	Function : save_transportation_history_details
+	#	Purpose  : save_transportation_history_details
+	#=========================================================		
+	function save_transportation_history_details($id,$trans_his_id = 0)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		if(!is_numeric($id) && $id == ''){
+			redirect($this->config->item('base_url').'my-transportation-history');
+		}
+		
+		//$leg_details = array();
+		//$user_transport_history_files = array();
+		//$user_transport_cost_history  = array();
+		
+		$this->load->model('orgtrasnportation_model');
+		$transport_details 	= $this->orgtrasnportation_model->get_transport_details($id);
+		//echo '<pre>';print_r($transport_details); //exit;
+		$user_legs_distance_data	= $this->transportation_history_model->get_user_leg_distance($id,$this->session->userdata('userid'));
+		$user_legs_distance = 0;
+		if(isset($user_legs_distance_data) && !empty($user_legs_distance_data))
+		{
+			$user_legs_distance = $user_legs_distance_data[0]['leg_distance'];
+		}
+		
+		$transport_files 			= $this->orgtrasnportation_model->get_transport_files($id);
+		//echo '<pre>';print_r($transport_files);//exit;
+		$user_transport_history_details 		= $this->transportation_history_model->get_user_transport_history($id);
+		//print_r($user_transport_history_details);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_file'] == 1){
+				$user_transport_history_files = $this->transportation_history_model->get_user_transport_files($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		//print_r($user_transport_history_files);exit;
+		if(isset($user_transport_history_details) && count($user_transport_history_details)>0){
+			if($user_transport_history_details[0]['in_tot_cost'] > 0){
+				$user_transport_cost_history = $this->transportation_history_model->get_user_transport_costs($user_transport_history_details[0]['in_trans_his_id']);
+			}
+		}
+		
+		//print_r($user_transport_cost_history);
+		//exit;
+		
+		$transport_animals 			= $this->orgtrasnportation_model->get_transport_animals($id);
+		$this->session->set_userdata('transport_id',$id);
+		$leg_details = $this->orgtrasnportation_model->get_trans_legs_details();
+		
+		$data['transport_details']  = $transport_details;		
+		$data['transport_files'] 	= $transport_files;
+		$data['transport_animals']  = $transport_animals;
+		$data['leg_details'] 		= $leg_details;
+		$data['user_transport_history_details'] 	= $user_transport_history_details;
+		$data['user_transport_history_files'] 		=  (isset($user_transport_history_files) && count($user_transport_history_files)>0) ? $user_transport_history_files : array();
+		$data['user_transport_cost_history'] 		= (isset($user_transport_cost_history) && count($user_transport_cost_history)>0) ? $user_transport_cost_history : array();
+		$data['user_legs_distance'] 		= $user_legs_distance;
+		
+		$this->load->view('my-transportation-history-success',$data);
+		
+		
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_images
+	#	Purpose		:	For Adding transportation Images
+	# *******************************************************************************************
+	
+	public function add_images() 
+	{
+		
+		if(!isset($_FILES['files']['name'])) {
+			return false;
+		}
+		
+		$ext = pathinfo($_FILES['files']['name'], PATHINFO_EXTENSION);
+		
+		ini_set("post_max_size",'256M');
+		ini_set("upload_max_filesize",'128M');
+		$config['upload_path'] = $this->config->item('upload')."trasnportation/";
+		$config['allowed_types'] = 'jpg|jpeg|doc|docx|xls|xlsx|pdf';
+		$config['max_size']	= '5120';
+		$config['remove_spaces']  	= TRUE;
+		//$config['file_name'] 		= str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['files']['name']);
+		$config['file_name'] = time().".".$ext;
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		$this->upload->do_upload('files');
+
+		
+		$file_errors = array('errors' => $this->upload->display_errors());
+			
+		//Display errors of file upload.
+		if(!empty($file_errors['errors'])){
+			$data = array('error' => strip_tags($file_errors['errors']));
+			echo json_encode(array('files' => array($data) ));
+			return false;
+		}		
+		$data = array(	'name' => $config['file_name'],
+						'size' => $_FILES['files']['size'],
+						'type' => $_FILES['files']['type'],
+						"url"  => $this->config->item('upload_url')."trasnportation/".urlencode($config['file_name']),
+						"deleteUrl"  => $this->config->item('base_url')."transportation_history/delete_files/trasnportation/?files=".urlencode($config['file_name']),
+						"deleteType"=>"DELETE"
+					);
+		echo json_encode(array('files' => array($data) ));
+		//return $data;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_files
+	#	Purpose		:	For deleting files
+	# *******************************************************************************************
+	function delete_files($path)
+	{
+		if($this->input->get('files')!='')
+		{
+			$files = $this->input->get('files');
+			@unlink($this->config->item('upload').$path."/".$files);
+			//delete_files($this->config->item('upload').$path."/".$files);
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_transportation_history_files
+	#	Purpose		:	updating transporation files status
+	# *******************************************************************************************
+	public function delete_transportation_history_files() {
+		$file_id = $this->input->post('id');
+		return $this->transportation_history_model->delete_transportation_history_files($file_id);		
+	}
+
+	#=========================================================
+	#	Function : greater_than_zero
+	#	Purpose  : Call Back function greater_than_zero
+	#=========================================================	
+	function greater_than_zero($str) {
+		if($str=='')
+		{
+			return TRUE;
+		}
+		$pattern = "/^(([0-9]*[1-9][0-9]*([.][0-9]+)?)|([0]+[.][0-9]*[1-9][0-9]*))$/i";
+        if (!preg_match($pattern, $str)){
+            $this->form_validation->set_message('greater_than_zero', 'Distance should be greater than 0.');
+            return FALSE;
+		}else {
+			return TRUE;
+		}
+	}
+	
+	
+	/*function pdf()
+	{
+		$this->load->helper('pdf');		
+		$data['details']="Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.Hi! This is doobert.com.";
+		$data['img']=$this->config->item('base_url').'assets/img/logo-doobert.gif';
+		
+		$file_name = 'Transportation-Details';
+		ob_start();
+			$this->load->view('pdfreport',$data);
+			$message	=	ob_get_contents();
+		ob_end_clean();	
+		pdf_create($message,$file_name);		
+	}*/
+	
+	function cancel_subsription()
+	{
+		//$sub_id =  $this->uri->segment('3');
+		
+		$user_subs_id =  $this->input->post('user_subs_id');
+		$paypal_subs_id =  $this->input->post('paypal_subs_id');
+		
+		$this->change_subscription_status($paypal_subs_id, 'Cancel');
+		//"in_status"	=> '2'
+		$update_details = array('in_status'	=> '2','dt_cancel_date'=> date('Y-m-d H:i:s'),'dt_modified_date' => date('Y-m-d H:i:s'));			
+		$this->transportation_history_model->update_user_subscription_details($user_subs_id,$paypal_subs_id,$update_details);	
+		
+		$this->session->set_flashdata('transport_subscription_cancel', 'Your subscription has been canceled successfully.');
+		
+		redirect($this->config->item('base_url').'my-transportation-history-subscription');
+	}
+	
+	/**
+	 * Performs an Express Checkout NVP API operation as passed in $action.
+	 *
+	 * Although the PayPal Standard API provides no facility for cancelling a subscription, the PayPal
+	 * Express Checkout  NVP API can be used.
+	 */
+	function change_subscription_status( $profile_id, $action ) {
+	 	
+		$API_UserName		= "chris_api1.doobert.com";
+		$API_Password		= "UFSUSKWLTYT7367F";
+		$API_Signature		= "AFcWxV21C7fd0v3bYYYRCpSSRl31AhhU1IbIB1oSmcpaDzTrZojOf0gR";
+		
+		$this->load->library('email');
+		$to = 'ghanshyam.maurya@pulsesolutions.net';
+		$category = '';
+		$this->common_function->send_mail($this->email, $to, 'IPN response: for cancel subscription','profile id:'.$profile_id.' and action:'.$action, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		
+		/*$api_request = 'USER=' . urlencode($this->config->item('API_UserName'))
+					.  '&PWD=' . urlencode($this->config->item('API_Password'))
+					.  '&SIGNATURE=' . urlencode($this->config->item('API_Signature'))
+					.  '&VERSION=76.0'
+					.  '&METHOD=ManageRecurringPaymentsProfileStatus'
+					.  '&PROFILEID=' . urlencode( $profile_id )
+					.  '&ACTION=' . urlencode( $action )
+					.  '&NOTE=' . urlencode( 'Profile cancelled at store' );*/
+		 $api_request = 'USER=' . urlencode($API_UserName)
+					.  '&PWD=' . urlencode($API_Password)
+					.  '&SIGNATURE=' . urlencode($API_Signature)
+					.  '&VERSION=76.0'
+					.  '&METHOD=ManageRecurringPaymentsProfileStatus'
+					.  '&PROFILEID=' . urlencode( $profile_id )
+					.  '&ACTION=' . urlencode( $action )
+					.  '&NOTE=' . urlencode( 'Profile cancelled at store' );
+	 
+		$ch = curl_init();
+		curl_setopt( $ch, CURLOPT_URL, 'https://api-3t.paypal.com/nvp' ); // For live transactions, change to 'https://api-3t.paypal.com/nvp' 'https://api-3t.sandbox.paypal.com/nvp'
+		//curl_setopt( $ch, CURLOPT_URL, 'https://api-3t.sandbox.paypal.com/nvp' ); 
+		curl_setopt( $ch, CURLOPT_VERBOSE, 1 );
+	 	curl_setopt($ch, CURLOPT_SSLVERSION, 6);
+		// Uncomment these to turn off server and peer verification
+		curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, FALSE );
+		curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, FALSE );
+		
+		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1 );
+		curl_setopt( $ch, CURLOPT_POST, 1 );
+	 
+		// Set the API parameters for this transaction
+		curl_setopt( $ch, CURLOPT_POSTFIELDS, $api_request );
+	 
+		// Request response from PayPal
+		$response = curl_exec( $ch );
+	 
+		// If no response was received from PayPal there is no point parsing the response
+		if( ! $response )
+			die( 'Calling PayPal to change_subscription_status failed: ' . curl_error( $ch ) . '(' . curl_errno( $ch ) . ')' );
+	 
+		curl_close( $ch );
+	 
+		// An associative array is more usable than a parameter string
+		//parse_str( $response, $parsed_response );
+	 	$parsed_response = '';
+		if(isset($response) && !empty($response))
+		{
+			$parsed_response      = var_export($response, true);
+		}
+		
+		$this->load->library('email');
+		$to = 'ghanshyam.maurya@pulsesolutions.net';
+		$category = '';
+		$this->common_function->send_mail($this->email, $to, 'IPN response: for cancel subscription',urldecode($parsed_response), $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		
+		return $parsed_response;
+	}
+}
+
+/* End of file Transportation_history.php */
+/* Location: ./application/controllers/Transportation_history.php */

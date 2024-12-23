@@ -1,0 +1,788 @@
+<?php
+# ======================================================================================
+# Created by		: Chetan Pedgaonkar
+# Created date		: 6-May-2014
+# File description	: Sponsorship model
+# Special - notes	: none
+# Tables used		: 
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class sponsorship_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	# *******************************************************************************************	
+	#	Function	:	cost_breakdown	
+	#	Purpose		:	Cost to organization
+	# *******************************************************************************************
+	
+	public function cost_breakdown($id) {
+		$this->db->select('st_cost_desc,in_amount,in_cost_id');
+		$this->db->from('tbl_animal_cost');
+		$this->db->where('in_animal_id',$id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_animal_name	
+	#	Purpose		:	Animal details
+	# *******************************************************************************************
+	
+	public function get_animal_details($id) {
+		$this->db->select('st_animal_name,st_profile_story,in_organization_id');
+		$this->db->from('tbl_animal');
+		$this->db->where('in_animal_id',$id);
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		
+		//$this->db->where('in_status',1);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_custom_url	
+	#	Purpose		:	Checking page URL
+	# *******************************************************************************************
+	
+	public function check_custom_url($url,$id='') {
+		//echo $id;die;
+		$this->db->select('st_custom_url,in_status,dt_campaign_end');
+		$this->db->from('tbl_campaign');
+		
+		if($id!='') {
+			$this->db->where('in_campaign_id != ',$id);
+		}
+		
+		$this->db->where('st_custom_url',$url);
+		
+		//$this->db->where("dt_campaign_end >= ",date('Y-m-d'));
+		
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		//return $query->num_rows();
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_url	
+	#	Purpose		:	Checking page URL
+	# *******************************************************************************************
+	
+	public function check_url($url,$id='') {
+		$this->db->select('st_custom_url,in_status,dt_campaign_end');
+		$this->db->from('tbl_campaign');
+		
+		if(trim($id)!='') {
+			$this->db->where('in_campaign_id != ',$id);
+		}
+		
+		$this->db->where('st_custom_url',$url);
+		//$this->db->where('dt_campaign_end >=',date('Y-m-d'));
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		//return $query->num_rows();
+		return $query->row_array();
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_animal_id	
+	#	Purpose		:	Checking valid animal ID
+	# *******************************************************************************************
+	
+	public function check_animal_id($animal_id) {
+		$this->db->select('in_animal_id');
+		$this->db->from('tbl_animal');
+		$this->db->where('in_animal_id',$animal_id);
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		$this->db->where('in_deleted',0);
+		//$this->db->where('in_status',1);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_campaign_data	
+	#	Purpose		:	Add Campaign data
+	# *******************************************************************************************
+	
+	public function add_campaign_data($data) {
+		$this->db->insert('tbl_campaign',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_campaign_cost	
+	#	Purpose		:	Add Campaign cost
+	# *******************************************************************************************
+	
+	public function add_campaign_cost($data) {
+		$this->db->insert('tbl_campaign_cost',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_animal_photos	
+	#	Purpose		:	Getting all selected animal photo
+	# *******************************************************************************************
+	
+	public function get_animal_photos($id) {
+		$this->db->select('st_file_name,in_file_id,st_file_type,in_profile_pic');
+		$this->db->from('tbl_animal_file');
+		$this->db->where('in_animal_id',$id);
+		$this->db->where('in_deleted',0);
+		$this->db->where('st_file_type != ','O');
+		$this->db->order_by('st_file_type','ASC');
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	#=========================================================
+	#	Function : organization_profile
+	#	Purpose  : Getting organization details
+	#=========================================================
+	
+	public function organization_profile($org_id) {
+		$this->db->select('in_organization_id,st_org_image,st_org_type,st_org_ein,st_has_501c3,st_has_contract,st_organization_501c3,
+							st_director,st_org_name,st_address1,st_address2,st_city,st_state,st_zip,
+							st_primary_phone,st_secondary_phone,st_fax,st_email_address,st_website');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	#=========================================================
+	#	Function : campaign_details_by_page
+	#	Purpose  : Details of campaign page
+	#=========================================================
+	
+	public function campaign_details_by_page($page) {
+		$this->db->select('c.in_campaign_id,c.in_animal_id,c.st_campaign_type,c.st_page_title,c.st_custom_url,
+							c.dt_campaign_start,c.dt_campaign_end,c.st_profile_story,c.st_paypal_email,
+							c.in_created_by,c.in_goal_fund,c.in_fund_raised,c.st_template,c.st_background,
+							c.st_font,c.dt_created,
+							cc.in_campaign_cost_id,cc.st_items,cc.in_cost,
+							cd.in_donation_id,cd.st_donation_type,cd.in_donation_amount,cd.in_donation_for,
+							cd.flg_refund,cd.st_firstname,cd.st_lastname,cd.st_hide,cd.st_email,cd.st_country,
+							cd.st_state,cd.st_city,cd.st_zipcode,cd.st_comment,cd.dt_created,cd.st_transaction_id,
+							cd.st_pp_response,
+							cp.in_post_id,cp.in_posted_by_id,cp.st_posted_by_name,cp.st_title,cp.st_desc,
+							cp.dt_created,
+							u.st_display_name,
+							a.st_animal_name,a.in_organization_id,
+							o.st_org_name,o.st_org_image
+							');
+		$this->db->from('tbl_campaign as c');
+		$this->db->join('tbl_campaign_cost as cc','c.in_campaign_id = cc.in_campaign_id','LEFT');
+		$this->db->join('tbl_campaign_donation as cd','c.in_campaign_id = cd.in_campaign_id','LEFT');
+		$this->db->join('tbl_campaign_post as cp','c.in_campaign_id = cp.in_campaign_id','LEFT');
+		$this->db->join('tbl_users as u','u.in_user_id = c.in_created_by','LEFT');
+		$this->db->join('tbl_animal as a','a.in_animal_id = c.in_animal_id','LEFT');
+		$this->db->join('tbl_organization as o','a.in_organization_id = o.in_organization_id','LEFT');
+		
+		
+		$this->db->where('c.st_custom_url',$page);
+		
+		$this->db->where('c.in_deleted',0);
+		//$this->db->where('c.in_status',1);
+		$this->db->where('c.dt_campaign_end >= ',date('Y-m-d'));
+		
+		//$this->db->where('cc.in_deleted',0);
+		//$this->db->where('cd.in_deleted',0);
+		//$this->db->where('cp.in_deleted',0);
+		
+		$query = $this->db->get();
+		
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_sponsorship_for_org	
+	#	Purpose		:	Getting Sponsorship list for current organization
+	# *******************************************************************************************
+	public function get_all_sponsorship_for_org($limit,$start,$userid,$org_id,$status_value) {
+		$data= array();
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS c.in_campaign_id,c.in_animal_id,c.st_campaign_type,c.st_custom_url,
+							c.st_page_title,c.dt_campaign_start,c.dt_campaign_end,c.dt_created,c.in_status,
+							c.in_goal_fund,c.in_fund_raised,c.st_template,a.st_animal_name,a.in_primary_breed_id,
+							c.in_organization_id,b.st_animal_breed_name,(SELECT SUM(d.in_donation_amount) FROM tbl_campaign_donation d WHERE d.in_campaign_id=c.in_campaign_id AND d.in_deleted="0" AND d.in_status IN(1,2)) AS donation',FALSE);
+							
+		$this->db->from('tbl_campaign as c');
+		
+		$this->db->join('tbl_animal as a','a.in_animal_id = c.in_animal_id AND a.in_deleted = 0','LEFT');
+		$this->db->join('tbl_animal_breed as b','b.in_animal_breed_id = a.in_primary_breed_id','LEFT');
+		//$this->db->join('tbl_organization as o','o.in_organization_id = a.in_organization_id','INNER');
+		
+		if($status_value != '') {	
+			$now=date('Y-m-d');
+		    if($status_value==1)
+			{   
+				$cwhere = "(c.in_status=1 AND c.dt_campaign_end >='".$now."')";
+				$this->db->where($cwhere);
+			}			
+			else if($status_value==2 || $status_value==3 || $status_value==4)
+			{
+				$this->db->where('c.in_status',$status_value);
+			}
+			
+		}
+		
+		$this->db->where('c.in_organization_id',$org_id);
+		$this->db->where('c.in_deleted',0);
+		//$this->db->where('a.in_deleted',0);
+		
+		$this->db->order_by('c.in_campaign_id','DESC');
+		
+		$this->db->limit($limit,$start);
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row) {
+				$data['sponsorship_list'][] = array('campaign_id'		=>	$row['in_campaign_id'],
+													'animal_id'			=>	$row['in_animal_id'],
+													'org_id'			=>	$row['in_organization_id'],
+													'animal_name'		=>	($row['st_animal_name'] != '')?$row['st_animal_name']."-".$row['st_animal_breed_name']:'',
+													'page_title'		=>	$row['st_page_title'],
+													'custom_url'		=>	$row['st_custom_url'],
+													'campaign_type'		=>	$row['st_campaign_type'],
+													'campaign_start'	=>	$row['dt_campaign_start'],
+													'campaign_end'		=>	$row['dt_campaign_end'],
+													'status'			=>	$row['in_status'],
+													'created_date'		=>	$row['dt_created'],
+													'goal_fund'			=>	$row['in_goal_fund'],
+													'fund_raised'		=>	$row['donation'],
+													'in_fund_raised'	=>	$row['in_fund_raised'],
+													'template'			=>	$row['st_template']
+												);
+			}
+		}
+		
+		return $data;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	update_sponsorship	
+	#	Purpose		:	Updating sponsorship
+	# *******************************************************************************************
+	
+	public function update_sponsorship($id,$data) {
+		$this->db->where('in_campaign_id',$id);
+		$this->db->update('tbl_campaign',$data);
+		
+		return $this->db->affected_rows();
+	}
+	
+	//
+	# *******************************************************************************************	
+	#	Function	:	sponsorship_details	
+	#	Purpose		:	Getting Sponsorship details
+	# *******************************************************************************************
+	
+	public function sponsorship_details($animal_id) {
+		$this->db->select('c.in_campaign_id,c.st_campaign_type,c.st_page_title,c.st_custom_url,
+							c.st_page_story_title,c.dt_campaign_start,c.dt_campaign_end,
+							c.st_page_story_title,c.st_profile_story,c.st_paypal_email,
+							c.in_created_by,c.st_template,c.st_background,c.st_font,
+							cc.in_campaign_cost_id,cc.st_items,cc.in_cost');
+		$this->db->from('tbl_campaign as c');
+		$this->db->join('tbl_campaign_cost as cc','c.in_campaign_id = cc.in_campaign_id','LEFT');					
+		
+		$this->db->where('in_animal_id',$animal_id);
+		$this->db->where('c.in_deleted',0);
+		//$this->db->where('cc.in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	//
+	
+	# *******************************************************************************************	
+	#	Function	:	update_sponsorship	
+	#	Purpose		:	Updating sponsorship
+	# *******************************************************************************************
+	
+	public function delete_cost($id,$data) {
+		$this->db->where('in_campaign_cost_id',$id);
+		$this->db->update('tbl_campaign_cost',$data);
+		
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_custom_url_edit	
+	#	Purpose		:	Checking page URL
+	# *******************************************************************************************
+	
+	public function check_custom_url_edit($url,$id) {
+		$this->db->select('st_custom_url');
+		$this->db->from('tbl_campaign');
+		
+		$this->db->where('in_campaign_id != ',$id);
+		$this->db->where('st_custom_url',$url);
+		$this->db->where('in_deleted',0);
+		//$this->db->where('in_status',1);
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	//
+	# *******************************************************************************************	
+	#	Function	:	check_url_edit	
+	#	Purpose		:	Checking page URL
+	# *******************************************************************************************
+	
+	public function check_url_edit($url,$id) {
+		$this->db->select('st_custom_url');
+		$this->db->from('tbl_campaign');
+		
+		$this->db->where('in_campaign_id != ',$id);
+		$this->db->where('st_custom_url',$url);
+		$this->db->where('in_deleted',0);
+		//$this->db->where('in_status',1);
+		$query = $this->db->get();
+		return $query->num_rows();
+		
+	}
+	//
+	
+	# *******************************************************************************************	
+	#	Function	:	edit_campaign_data	
+	#	Purpose		:	Edit Campaign data
+	# *******************************************************************************************
+	
+	public function edit_campaign_data($data,$id) {
+		$this->db->where('in_campaign_id',$id);
+		$this->db->update('tbl_campaign',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_cost_details	
+	#	Purpose		:	Delete campaign data
+	# *******************************************************************************************
+	
+	public function delete_cost_details($id) {
+		$this->db->where('in_campaign_id',$id);
+		$this->db->delete('tbl_campaign_cost');
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_animal_exist	
+	#	Purpose		:	Checking animal is exist in campaign table
+	# *******************************************************************************************
+	
+	public function check_animal_exist($animal_id) {
+		$this->db->select('in_animal_id');
+		$this->db->from('tbl_campaign');
+		$this->db->where('in_animal_id',$animal_id);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_detail_temp	
+	#	Purpose		:	Getting campaign details
+	# *******************************************************************************************
+	
+	public function get_campaign_detail_temp($campaign_id) {
+		$this->db->select('c.in_campaign_id,c.in_animal_id,c.st_campaign_type,c.st_page_title,
+							c.st_custom_url,c.st_page_story_title,
+							c.dt_campaign_start,c.dt_campaign_end,c.st_profile_story,c.st_paypal_email,
+							c.in_created_by,cc.in_campaign_cost_id,cc.st_items,cc.in_cost');
+		$this->db->from('tbl_campaign as c');
+		$this->db->join('tbl_campaign_cost as cc','c.in_campaign_id = cc.in_campaign_id','LEFT');					
+		
+		$this->db->where('c.in_campaign_id',$campaign_id);
+		$this->db->where('c.in_deleted',0);
+		$this->db->where('cc.in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	cost_breakdown_details	
+	#	Purpose		:	Cost to organization
+	# *******************************************************************************************
+	
+	public function cost_breakdown_details($id) {
+		$this->db->select('in_campaign_cost_id,in_campaign_id,st_items,in_cost');
+		$this->db->from('tbl_campaign_cost');
+		$this->db->where('in_campaign_id',$id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	sponsorship_design_details	
+	#	Purpose		:	Getting Sponsorship design sdetails
+	# *******************************************************************************************
+	
+	public function sponsorship_design_details($animal_id) {
+		$this->db->select('in_campaign_id,st_template,st_background,st_font');
+		$this->db->from('tbl_campaign');
+		
+		$this->db->where('in_campaign_id',$animal_id);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function get_campaign_cost($campaign_id) {
+		$this->db->select('in_campaign_id,st_items,in_cost');
+		$this->db->from('tbl_campaign_cost');
+		
+		$this->db->where('in_campaign_id',$campaign_id);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	public function get_donation_detail($campaignId)
+	{
+		$this->db->select("	camp.st_page_title,	
+							don.st_donation_type,															
+							don.st_email,
+							don.dt_created,
+							don.in_donation_amount,
+							don.in_status,
+							don.st_firstname,
+							don.st_lastname,
+							don.in_donation_id", false);															   	
+						$this->db->from('tbl_campaign_donation don');					
+						$this->db->join('tbl_campaign camp', 'camp.in_campaign_id = don.in_campaign_id','INNER');
+						$this->db->where('don.in_campaign_id',$campaignId);	
+						$this->db->where('don.in_deleted','0');	
+						$this->db->where('camp.in_deleted','0');
+						$this->db->where_in('don.in_status',array('1','2'));		
+						$query = $this->db->get();
+						return $query->result_array();					
+						
+	}
+	
+	public function get_campaign_detail($campaignId)
+	{
+			$this->db->select("	camp.st_campaign_type,
+								camp.dt_campaign_end,
+								camp.in_goal_fund,
+								camp.st_page_title,
+								camp.st_paypal_email,
+								a.st_animal_name,
+								a.in_animal_type_id", false);															   	
+						$this->db->from('tbl_campaign camp');					
+						$this->db->join('tbl_animal a', 'camp.in_animal_id = a.in_animal_id AND a.in_deleted = 0','LEFT');
+						$this->db->where('camp.in_campaign_id',$campaignId);	
+						//$this->db->where('a.in_deleted','0');	
+						$this->db->where('camp.in_deleted','0');	
+						$query = $this->db->get();
+											
+						$arrCampaign = array();
+						if($query->num_rows()>0)
+								{ 
+								
+								foreach($query->result() as $Row)
+									{
+										
+										$sqlanimaltype = "SELECT st_animal_type_name FROM tbl_animal_type  where in_animal_type_id = '".$Row->in_animal_type_id."'";
+										$sqanimaltype	=	$this->db->query($sqlanimaltype);
+										$numrows	=	$sqanimaltype->num_rows($sqanimaltype);	
+										$animaltyp		=	$sqanimaltype->result();
+										
+										if($numrows==1)
+											$animaltype	=	$animaltyp[0]->st_animal_type_name;
+										else
+											$animaltype	=	'';											
+										
+										$arrCampaign	=	array('st_campaign_type' 		=> $Row->st_campaign_type,
+														          'st_animal_name'			=> $Row->st_animal_name,
+																  'dt_campaign_end'			=> $Row->dt_campaign_end,
+																  'in_goal_fund'			=> $Row->in_goal_fund,
+																 'st_animal_type'			=> $animaltype,
+																  'st_page_title'			=> $Row->st_page_title,
+																  'st_paypal_email'			=>	$Row->st_paypal_email
+																  );										
+									}
+									return $arrCampaign;
+								}
+	}	
+	
+	
+	
+	
+	
+	public function get_donation_summary($orgId)
+	{
+		$this->db->select("	camp.st_page_title,
+							camp.st_custom_url,
+							don.st_donation_type,															
+							don.st_email,
+							don.dt_created,
+							don.in_donation_amount,							
+							don.st_firstname,
+							don.st_lastname", false);															   	
+						$this->db->from('tbl_campaign_donation don');					
+						$this->db->join('tbl_campaign camp', 'camp.in_campaign_id = don.in_campaign_id','INNER');
+						$this->db->where('camp.in_organization_id',$orgId);	
+						$this->db->where('don.in_deleted','0');	
+						$this->db->where('camp.in_deleted','0');
+						$this->db->where_in('don.in_status',array('1','2'));	
+						$this->db->order_by('don.dt_created','DESC');
+						$this->db->limit('10');
+						$query = $this->db->get();
+						//echo $this->db->last_query(); die;
+						return $query->result_array();	
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_notification	
+	#	Purpose		:	For adding sponsorship notification
+	# *******************************************************************************************
+	
+	public function add_notification($data) {
+		$this->db->insert('tbl_notification',$data);
+		$this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_photos	
+	#	Purpose		:	Getting all selected photo
+	# *******************************************************************************************
+	
+	public function get_campaign_photos($id) {
+		$this->db->select('in_campaign_file_id,in_campaign_id,st_file_name,st_file_type,in_profile_pic');
+		$this->db->from('tbl_campaign_file');
+		$this->db->where('in_campaign_id',$id);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('in_campaign_file_id','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_campaign_images	
+	#	Purpose		:	Adding images
+	# *******************************************************************************************
+
+	public function add_campaign_images($data) {
+		$this->db->insert('tbl_campaign_file',$data);	
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	update_profile_pic	
+	#	Purpose		:	Changing profile picture
+	# *******************************************************************************************
+	
+	public function update_profile_pic($id,$data) {
+		$this->db->where('in_campaign_file_id',$id);
+		$this->db->update('tbl_campaign_file',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	reset_profile_pic	
+	#	Purpose		:	Resetting Profile picture
+	# *******************************************************************************************
+	
+	public function reset_profile_pic($id,$data) {
+		$this->db->where('in_campaign_id',$id);
+		$this->db->update('tbl_campaign_file',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_file	
+	#	Purpose		:	Deleting images
+	# *******************************************************************************************
+	
+	public function delete_file($id) {
+		$this->db->where('in_campaign_file_id',$id);
+		$data = array('in_deleted' => 1);
+		$this->db->update('tbl_campaign_file',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	update_paypal_email	
+	#	Purpose		:	Updating Paypal Email Address
+	# *******************************************************************************************
+	
+	public function update_paypal_email($id,$data) {
+		$this->db->where('in_campaign_id',$id);
+		$this->db->update('tbl_campaign',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_profile_pic	
+	#	Purpose		:	Checking campaign profile pic
+	# *******************************************************************************************
+	
+	public function check_profile_pic($id) {
+		$this->db->select('in_campaign_file_id');
+		$this->db->from('tbl_campaign_file');
+		$this->db->where('in_profile_pic',1);
+		$this->db->where('in_campaign_id',$id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	sponsorship_date_update	
+	#	Purpose		:	Updating Sponsorship Date
+	# *******************************************************************************************
+	
+	public function sponsorship_date_update($id,$cdate){
+		$data = array('dt_campaign_end' => date('Y-m-d',strtotime($cdate)),'in_status' => 1);
+		$this->db->where('in_campaign_id',$id);
+		$this->db->update('tbl_campaign',$data);
+		return $this->db->affected_rows();
+	}
+	
+	public function save_fundraiser($post)
+	{
+			$data   = array(
+						"in_organization_id" 	=>	$this->session->userdata('org_id'),
+						"in_animal_id"			=>	$this->session->userdata('spon_animal_id'),
+						"st_campaign_type"		=>	$this->session->userdata('campaign_type'),
+						"st_page_title"			=>	isset($post['page_title']) ? $post['page_title'] : '',
+						"st_page_story_title"	=>	isset($post['story_title']) ? $post['story_title'] : '',
+						"st_profile_story"		=>	isset($post['profile_title']) ? $post['profile_title'] : '',
+						"st_custom_url"			=>	isset($post['custom_url']) ? $post['custom_url'] : '',
+						"st_paypal_email"		=>	isset($post['paypal_email_id']) ? $post['paypal_email_id'] : '',
+						"dt_campaign_start"		=>	date('Y-m-d',strtotime($post['from_date'])),
+						"dt_campaign_end"		=>	date('Y-m-d',strtotime($post['to_date'])),
+						"dt_created" 			=>	date("Y-m-d H:i:s"),
+						"dt_modified" 			=>	date("Y-m-d H:i:s"),
+						"in_created_by"			=>	$this->session->userdata('userid'),
+						"in_status"				=>	"4"			//incomplete status
+		);        
+        $this->db->insert('tbl_campaign', $data);
+		//echo $this->db->last_query();die;		
+		return  $this->db->insert_id();
+	}
+	
+	public function update_fundraiser($post)
+	{  	
+		//echo '<pre>'; print_r($post); die;
+		$data   =  array(
+						"in_organization_id" 	=>	$this->session->userdata('org_id'),
+						"in_animal_id"			=>	$this->session->userdata('spon_animal_id'),
+						"st_campaign_type"		=>	$this->session->userdata('campaign_type'),
+						"st_page_title"			=>  isset($post['page_title']) ? $post['page_title'] : '',
+						"st_page_story_title"	=>  isset($post['story_title']) ? $post['story_title'] : '',
+						"st_profile_story"		=>  isset($post['profile_title']) ? $post['profile_title'] : '',
+						"st_custom_url"			=>  isset($post['custom_url']) ? $post['custom_url'] : '',
+						"st_paypal_email"		=>  isset($post['paypal_email_id']) ? $post['paypal_email_id'] : '',
+						"dt_campaign_start"		=>  date('Y-m-d',strtotime($post['from_date'])),
+						"dt_campaign_end"		=>  date('Y-m-d',strtotime($post['to_date'])),
+						"dt_modified" 			=>  date("Y-m-d H:i:s"),
+						"in_created_by"			=>	$this->session->userdata('userid'),
+						"in_status"				=> "4"			//incomplete status
+			);        
+	 $this->db->where('in_campaign_id', $post['campaign_id']);
+	 //$this->db->where('in_status', 4);
+	 $this->db->where('in_deleted', 0);
+	 $query_result = $this->db->update('tbl_campaign', $data); 
+	 return $query_result;
+	 //echo $this->db->last_query();die;
+	 }
+	 
+	 public function save_fundraiser_cost_breakdown($post)
+	 {
+	 	//$camp_id = $this->session->userdata('camp_id'); 
+		
+		$camp_id = $post['campaign_id'];
+		
+		//echo 'camp_id'.$camp_id;exit;
+		//if((isset($post['cost_price_new']) && $post['cost_price_new'] > 0) || (isset($post['cost_price1_new_cnt']) && $post['cost_price1_new_cnt'] > 0)){
+		$this->db->where('in_campaign_id', $camp_id);		
+		$this->db->delete('tbl_campaign_cost'); 
+		//}
+		
+		/*if(isset($post['cost_price1']) && trim($post['cost_price1'])!='' && isset($post['cost_description1']) && trim($post['cost_description1'])!='') {
+			$data['campaign_cost'] = array(	'in_campaign_id'	=>	$camp_id,
+											'st_items'			=>	$post['cost_description1'],
+											'in_cost'			=>	$post['cost_price1'],
+											'in_deleted'		=>	'0'
+											);
+			
+			$data['add_campaign_cost'] = $this->add_campaign_cost($data['campaign_cost']);
+			
+			//echo 'data inserted';
+		}*/
+		
+		
+		for($i=0;$i<$post['cost_price1_new_cnt'];$i++) {
+			if(isset($post['cost_price1_new'][$i]) && trim($post['cost_price1_new'][$i])!='' && isset($post['cost_desc1_new'][$i]) && trim($post['cost_desc1_new'][$i])!='') {
+				$data['campaign_cost'] = array(	'in_campaign_id'	=>	$camp_id,
+												'st_items'			=>	$post['cost_desc1_new'][$i],
+												'in_cost'			=>	$post['cost_price1_new'][$i],
+												'in_deleted'		=>	'0'
+												);
+				
+				$data['add_campaign_cost'] = $this->add_campaign_cost($data['campaign_cost']);
+		}
+		}
+		
+		for($i=0;$i<$post['cost_price_new'];$i++) {
+			if(isset($post['cost_price2'][$i]) && trim($post['cost_price2'][$i])!='' && isset($post['cost_desc2'][$i]) && trim($post['cost_desc2'][$i])!='') {
+				$data['campaign_cost'] = array(	'in_campaign_id'	=>	$camp_id,
+												'st_items'			=>	$post['cost_desc2'][$i],
+												'in_cost'			=>	$post['cost_price2'][$i],
+												'in_deleted'		=>	'0'
+												);
+				
+				$data['add_campaign_cost'] = $this->add_campaign_cost($data['campaign_cost']);
+				//echo 'data inserted2';
+			}
+		}   
+       //echo $this->db->last_query();die;	
+	   
+	    //$cost_price1 = isset($post['cost_price1']) ? $post['cost_price1'] : 0;
+		
+		$cost_price2 = isset($post['cost_price2']) && !empty($post['cost_price2']) ? array_sum($post['cost_price2']) : 0;
+		
+		$cost_price_new = isset($post['cost_price1_new']) && !empty($post['cost_price1_new']) ? array_sum($post['cost_price1_new']) : 0;
+		
+		//$total_cost_price = $cost_price1 + $cost_price2 + $cost_price_new;
+		
+		$total_cost_price = $cost_price2 + $cost_price_new;
+		
+		if(isset($total_cost_price) && $total_cost_price > 0)
+		{	   	
+		 	$update_data = array("in_goal_fund"	=> $total_cost_price);
+			$this->db->where('in_campaign_id', $camp_id);
+			$this->db->where('in_status', 4);
+			$this->db->where('in_deleted', 0);
+			$query_result = $this->db->update('tbl_campaign', $update_data);
+		}
+			
+		return  $this->db->insert_id();
+	 }
+}
+?>

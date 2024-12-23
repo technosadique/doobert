@@ -1,0 +1,234 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Facebook_test extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		if($_SERVER['REMOTE_ADDR']=='162.158.46.16' || $_SERVER['REMOTE_ADDR']=='172.68.144.175')
+		{
+			//$this->output->enable_profiler(TRUE);
+		}
+		else
+		{
+			$this->output->enable_profiler(FALSE);
+		}
+		$this->load->model('common_model');
+		$this->load->model('organimal_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');
+		$this->load->model('rescue_animal_model');		
+		error_reporting(0);
+	
+		
+		/*
+		if($this->session->userdata('org_id') && $this->session->userdata('org_id')!='')
+			$org_id = $this->session->userdata('org_id');
+		else if($_COOKIE['organization_id'])
+		{
+			$org_id = $_COOKIE['organization_id'];
+			$this->session->set_userdata('org_id',$org_id);
+			$this->session->set_userdata('user_org_id',$org_id);
+		}
+
+	*/
+		if($this->session->userdata('cart_session_id'))
+		{ 
+			
+		}else{
+			$this->session->set_userdata('cart_session_id',md5(uniqid()));			
+		}
+	}
+
+	function post_fb_animal_img()
+	{
+		
+		$id = '2939';
+		$ani_data = $this->organimal_model->animal_profile_details($id);
+		$fb_post_id = '';
+		if(count($ani_data)>0)
+		{
+			$main_image = 'ani_'.$id.".jpg";
+						
+			$UrlTopass_t  =  base_url()."animal-".$ani_data['in_animal_id']."-".$ani_data['st_animal_name'];	
+			//$main_image   =  (isset($ani_data['st_fb_image']) && !empty($ani_data['st_fb_image']))?$ani_data['st_fb_image']:'';
+			if($main_image!='')
+			{
+				$this->load->library('facebook');
+				$facebook = new Facebook(array(
+				  'appId'  => '583989315385497',
+				  'secret' => '16db615a5e6adaaef4c7c3f988b5b510',
+				));
+				
+				
+				//$group_id = '668444446839315';
+				//$group_id = '463884754439851';
+				
+				$group_id = '2421711414764796';
+				
+				$fb_access_token = 'EAAITIpuyOJkBALKS8mN1Cm7eEKNKvisF5xv5QCRWCm0i6x8exSMDnXLa9ZA9frsfLOyh4V6hTUaIcMf6KYJuIsPlBxreL5TjGrEMX2gXL7QBHGh7Fqbh10ctv6OQtyoDNRTtiRPZBflqQPoW5gbSXEmFsVoziMuVl6bZBA1egZDZD';
+				//$fb_access_token = 'EAADXZChL4qkIBANZA60XGZBrcKtsOZCVzgGUg4ZCBPZAkWljVCZA8YtNGZA94CZAXBZCNdZBogNxGMXOTy2tZAaYyHQBrbeQyZAhgkRcEyWx8ceJ3d6z9hwjFeIFi1XptNew98NB9yT1KZCIjUHZBtni4wOjFXyAtxGOQTzB0QZD';		
+				$publish = $facebook->api('/'.$group_id.'/feed', 'post',
+								array(
+								'scrape'=>'true',
+								'access_token' => $fb_access_token,
+								'message'=> 'Animal with '.$org_details['st_org_name'],
+								'link' => $UrlTopass_t,
+								//'link' => 'apps.facebook.com/doobert-rescue/?fb_appcenter=1',
+								'picture' => base_url()."upload/fb_animal_share/".$main_image,
+								'description' => 'Animal with '.$org_details['st_org_name']
+								));
+								
+				
+				if(isset($publish) && count($publish)>0)
+				{
+					if(isset($publish['id']) && !empty($publish['id']))
+					{	
+						$fb_post_id = $publish['id'];
+					}	
+				}		
+								
+				$this->db->where('in_animal_id',$id);
+				$this->db->update('tbl_animal',array('st_fb_img'=>$main_image,'in_fb_post_id'=>$fb_post_id));
+			}
+
+		}	
+					
+		
+	}
+	
+	
+	public function delete_fb_post()
+	{
+		$this->load->helper('facebook');		
+		$fb = init_facebook();
+		//668444446839315_888916334792124
+		$post_id = '668444446839315_888916334792124';
+		$fb_access_token = 'EAAITIpuyOJkBALKS8mN1Cm7eEKNKvisF5xv5QCRWCm0i6x8exSMDnXLa9ZA9frsfLOyh4V6hTUaIcMf6KYJuIsPlBxreL5TjGrEMX2gXL7QBHGh7Fqbh10ctv6OQtyoDNRTtiRPZBflqQPoW5gbSXEmFsVoziMuVl6bZBA1egZDZD'; 
+		
+		//die;
+		try {
+				$response = $fb->delete('/'.$post_id,array(),$fb_access_token);
+			} catch(Facebook\Exceptions\FacebookResponseException $e) {
+				echo 'Graph returned an error: ' . $e->getMessage();
+				exit;
+			} catch(Facebook\Exceptions\FacebookSDKException $e) {
+				echo 'Facebook SDK returned an error: ' . $e->getMessage();
+			}
+			
+			echo "<pre>"; print_r($response); echo "</pre>";
+			die;
+			
+		/*try {
+				$response = $fb->delete('/'.$post_id,array (),$fb_access_token);
+			} catch(Facebook\Exceptions\FacebookResponseException $e) {
+				echo 'Graph returned an error: ' . $e->getMessage();
+				exit;
+			} catch(Facebook\Exceptions\FacebookSDKException $e) {
+				echo 'Facebook SDK returned an error: ' . $e->getMessage();
+			}*/
+	}
+
+	public function delete_fb_post1()
+	{
+				$this->load->library('facebook');
+				$facebook = new Facebook(array(
+				  'appId'  => '583989315385497',
+				  'secret' => '16db615a5e6adaaef4c7c3f988b5b510',
+				));
+				$group_id = '668444446839315';
+				$post_id = '668444446839315_888916334792124';
+				//$fb_access_token = 'EAAITIpuyOJkBAKbv2UOrZBslYN09twFowF1NoNGF1HkB3RRwWxNJCjOdweSBHDjYYAQKzZCRltRzDwwHHfHrVm3BvDFLmD0LaKVmlEBCgwr8bhgpqnkQYK0QKZB04d1tAkDaZCQqxUgxxnZBnHtBRMcxWSfkwVh8ZD'; 
+				//$fb_access_token = 'EAADXZChL4qkIBAA5So8A9CCS7ob3z6FpirJsDbAFgm4U7P2fh7EIY8kxbrOFBJZBFBBX8PFIoNgBl2qlHHwGdnZBlNXM9ZAldHiN6G7fcxZByeiocO9ZA6ygIgxoKNcA7wADpDszfeZAfoa6QTDAWQVHkBm9OxMplBbEdkRvTP4kzBg2R3pWY61otZBpOXm42ydwl7ZAOfs1ROAZDZD';
+				//$fb_access_token   = 'EAAEfaggKHm8BAHg4SDY6IxBmH76ExLLe2dzFiaEW6MkBIo6YUofpQvvZB79WhxHto6YWfZAidQYZCqyzZBdqpml3BxLEhEDUDcuuiIuCaJ8wcsDsD6pOosCzx7ZAyeiYt9y1LAlTWdj2gsYBOi0rfNO98qVni8D4ZD';
+				$fb_access_token = 'EAAITIpuyOJkBALKS8mN1Cm7eEKNKvisF5xv5QCRWCm0i6x8exSMDnXLa9ZA9frsfLOyh4V6hTUaIcMf6KYJuIsPlBxreL5TjGrEMX2gXL7QBHGh7Fqbh10ctv6OQtyoDNRTtiRPZBflqQPoW5gbSXEmFsVoziMuVl6bZBA1egZDZD';  
+				/*$args = array(
+                  'access_token' => 'EAAITIpuyOJkBALKS8mN1Cm7eEKNKvisF5xv5QCRWCm0i6x8exSMDnXLa9ZA9frsfLOyh4V6hTUaIcMf6KYJuIsPlBxreL5TjGrEMX2gXL7QBHGh7Fqbh10ctv6OQtyoDNRTtiRPZBflqQPoW5gbSXEmFsVoziMuVl6bZBA1egZDZD';
+				);*/
+			try {		
+				$response = $facebook->api('/'.$post_id, 'DELETE',array('access_token' => $fb_access_token));
+				} catch(Facebook\Exceptions\FacebookResponseException $e) {
+				echo 'Graph returned an error: ' . $e->getMessage();
+				exit;
+			} catch(Facebook\Exceptions\FacebookSDKException $e) {
+				echo 'Facebook SDK returned an error: ' . $e->getMessage();
+			}
+			
+			echo "<pre>"; print_r($response); echo "</pre>";
+			die;
+	}
+
+	public function delete_fb_post2()
+	{
+		$this->load->helper('facebook');		
+		$fb = init_facebook();
+		//668444446839315_888916334792124
+		$post_id = '668444446839315_888916334792124';
+		//$post_id = '888916334792124';
+		$fb_access_token = 'EAAITIpuyOJkBALKS8mN1Cm7eEKNKvisF5xv5QCRWCm0i6x8exSMDnXLa9ZA9frsfLOyh4V6hTUaIcMf6KYJuIsPlBxreL5TjGrEMX2gXL7QBHGh7Fqbh10ctv6OQtyoDNRTtiRPZBflqQPoW5gbSXEmFsVoziMuVl6bZBA1egZDZD'; 
+		//die;
+		try {
+				$response = $fb->request('DELETE','/'.$post_id,[],$fb_access_token);
+			} catch(Facebook\Exceptions\FacebookResponseException $e) {
+				echo 'Graph returned an error: ' . $e->getMessage();
+				exit;
+			} catch(Facebook\Exceptions\FacebookSDKException $e) {
+				echo 'Facebook SDK returned an error: ' . $e->getMessage();
+			}
+			
+			echo "<pre>"; print_r($response); echo "</pre>";
+			die;
+			
+		/*try {
+				$response = $fb->delete('/'.$post_id,array (),$fb_access_token);
+			} catch(Facebook\Exceptions\FacebookResponseException $e) {
+				echo 'Graph returned an error: ' . $e->getMessage();
+				exit;
+			} catch(Facebook\Exceptions\FacebookSDKException $e) {
+				echo 'Facebook SDK returned an error: ' . $e->getMessage();
+			}*/
+	}	
+
+	function fb_group_post()
+	{
+		//echo 'test';exit;
+		$fb_post_id = '';
+						
+		$UrlTopass_t  =  "https://www.doobert.com/";	
+		$this->load->library('facebook');
+		$facebook = new Facebook(array(
+		  'appId'  => '237486239951426',
+		  'secret' => 'df3b2d88b4760b81f9d7f7f6d1dc0654',
+		));
+		
+		//$group_id = '2421711414764796';
+		
+		
+		$group_id = '370233596851467';
+		
+		$fb_access_token = 'EAADXZChL4qkIBAB8sUjvKAJgCN9ix9LI2IbZCBqEwnxDxr5EbtDca2v9lj52gWeZClTsYkSonruygNvw0J60mpiMZAUbnFdRs7c8a7PToFWnaH8Vi5RWd2XLZCcjJcYZBrkNo1TlClvGhLSRsyA5uIfrq8qJHxY3zgLrTzsWomQAZDZD';
+		//$fb_access_token ='EAADXZChL4qkIBAPd5QpWfa0byttk6a0IZBVMGT21aQxLNnh9ybZAgMvnpZAfdG9lHWZASWDHaZAFdXiZATkBf1VrJOCefjeSMDGFPWZC9husta8UxIqBklAAPuJtEOZBJa9qZBCbdO5dHrhQWpY1fCtPZAWAUOgNqjX76UZCZCwZBkrIN2rgZDZD';
+		$publish = $facebook->api('/'.$group_id.'/feed', 'post',
+						array(
+						'access_token' => $fb_access_token,
+						'message'=> 'This is a test group post1.',
+						'link' => $UrlTopass_t,
+						));
+						
+		
+		echo "Post result:";
+		echo '<pre/>';
+		print_r($publish);
+		exit;			
+		
+	}	
+
+	
+	
+}
+	
+
+
+/* End of file org_animal.php */
+/* Location: ./application/controllers/org_animal.php */

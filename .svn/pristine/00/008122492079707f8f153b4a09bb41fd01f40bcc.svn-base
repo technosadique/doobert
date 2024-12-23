@@ -1,0 +1,171 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 17-May-2014
+# File description	: Sponsorship Model for admin
+# Special - notes	: none
+# Tables used		: tbl_admin
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class sponsorship_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#	Function	:	get_total_sponsorship()
+	#   Parameter	: 	searchtxt
+	#	Perpose		:	to get no of users
+	#------------------------------------------------------------
+	public function get_total_sponsorship($searchtxt='')
+	{ 			
+	 
+			$campaigntype	=substr($searchtxt,0,1);
+	
+			$this->db->select("camp.in_campaign_id", false);						   	
+			$this->db->from('tbl_campaign camp');		 				
+			$this->db->join('tbl_animal a', 'camp.in_animal_id = a.in_animal_id','INNER');
+			$this->db->join('tbl_users usr', 'camp.in_created_by = usr.in_user_id','INNER');
+			$this->db->where('camp.in_deleted','0');
+			$this->db->where('usr.in_deleted','0');
+			$this->db->where('a.in_deleted','0');
+		  
+			//if(trim($searchtxt) != '') {
+				//	$this->db->where("a.st_animal_name LIKE '%".$searchtxt."%' OR camp.st_page_title LIKE '%".$searchtxt."%'  OR camp.st_campaign_type LIKE '".$campaigntype."%'  OR usr.st_display_name LIKE '%".$searchtxt."%' ", NULL, FALSE);
+			//}
+			
+			
+			if($searchtxt!= '') {
+			$searchtxt = str_replace("%","\%",$searchtxt);		
+			$this->db->where("(a.st_animal_name LIKE '%".$searchtxt."%' OR camp.st_page_title LIKE '%".$searchtxt."%' 
+			OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '%".$searchtxt."%')", NULL, FALSE);	
+								
+			}
+			if($searchtxt!='' && strtolower($searchtxt)=='pledge' ){ 
+				$this->db->or_where("camp.st_campaign_type LIKE '".$campaigntype."'");
+			//OR camp.st_campaign_type LIKE '%".$campaigntype."%'
+			}	
+			
+			if($searchtxt!='' && strtolower($searchtxt)=='donation' ){
+				$this->db->or_where("camp.st_campaign_type LIKE '".$campaigntype."'");
+			//OR camp.st_campaign_type LIKE '%".$campaigntype."%'
+			}
+			
+			
+			
+			$query = $this->db->get();
+			
+			//echo $this->db->last_query(); die;	
+			
+			return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_user()
+	#   Parameter	: 	sort,order,limit,rec_per_page,searchtxt
+	#	Perpose		:	to get user details
+	#------------------------------------------------------------
+	public function get_sponsorship($sort,$order,$limit,$rec_per_page,$searchtxt)
+	{
+					 	$campaigntype	=substr($searchtxt,0,1);
+		
+				  		$this->db->select("camp.in_campaign_id,
+									camp.st_campaign_type,
+									camp.st_page_title,											
+									(SELECT SUM(in_donation_amount) FROM  tbl_campaign_donation WHERE in_campaign_id=camp.in_campaign_id AND in_status IN('1','2') AND in_deleted='0') as in_fund_raised,	
+									(SELECT SUM(in_doobert_amt) FROM  tbl_campaign_donation WHERE in_campaign_id=camp.in_campaign_id AND in_status IN('1','2') AND in_deleted='0') as commission,	
+									camp.st_paypal_email,										
+									a.st_animal_name,									
+									concat(usr.st_display_name,' ',usr.st_last_name) as st_display_name", false);
+																   	
+						$this->db->from('tbl_campaign camp');
+						$this->db->join('tbl_animal a', 'camp.in_animal_id = a.in_animal_id','INNER');
+						$this->db->join('tbl_users usr', 'camp.in_created_by = usr.in_user_id','INNER');
+						$this->db->where('camp.in_deleted','0');
+						$this->db->where('a.in_deleted','0');
+						$this->db->where('usr.in_deleted','0');	
+					
+					if($searchtxt!= '') { 
+					
+						$searchtxt = str_replace("%","\%",$searchtxt);		
+						$this->db->where("(a.st_animal_name LIKE '%".$searchtxt."%' OR camp.st_page_title LIKE
+						'%".$searchtxt."%' OR concat(usr.st_display_name, ' ', usr.st_last_name) LIKE '%".$searchtxt."%')", NULL, FALSE);						
+						}
+						if($searchtxt!='' && strtolower($searchtxt)=='pledge' ){ 
+							$this->db->or_where("camp.st_campaign_type LIKE '".$campaigntype."'");
+						//OR camp.st_campaign_type LIKE '%".$campaigntype."%'
+						}	
+						
+						if($searchtxt!='' && strtolower($searchtxt)=='donation' ){
+							$this->db->or_where("camp.st_campaign_type LIKE '".$campaigntype."'");
+						//OR camp.st_campaign_type LIKE '%".$campaigntype."%'
+						}
+					
+					switch($sort)
+					{
+						
+						case 'animalname': 							
+							$this->db->order_by('a.st_animal_name',$order);							
+						break;		
+						
+						case 'title': 							
+							$this->db->order_by('camp.st_page_title',$order);
+						break;	 
+						
+						case 'camptype': 							
+							$this->db->order_by('camp.st_campaign_type',$order);
+						break;	
+						
+						case 'createdby':							
+							$this->db->order_by('usr.st_display_name',$order);							
+						break;
+						
+						case 'fundraised':							
+							$this->db->order_by('camp.in_fund_raised',$order);							
+						break;
+						
+						case 'paypal':							
+							$this->db->order_by('camp.st_paypal_email',$order);							
+						break;
+												
+						default:						
+							$this->db->order_by('a.st_animal_name',$order);	
+						 break;        
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 					
+					//echo $this->db->last_query(); die;
+					$arrCampaign = array();
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+							//$commission	=	($Row->in_fund_raised*25)/100;		
+									
+							$arrCampaign[]	= array('in_campaign_id'	    => $Row->in_campaign_id,
+											'st_campaign_type'				=> $Row->st_campaign_type,															
+											'st_page_title'				    => $Row->st_page_title,	
+											'in_fund_raised'				=> ($Row->in_fund_raised)?$Row->in_fund_raised:"0.00",
+											'st_animal_name' 				=> $Row->st_animal_name,
+											'st_paypal_email' 				=> $Row->st_paypal_email,
+											'commission' 					=> ($Row->commission)?$Row->commission:"0.00",
+											'st_display_name' 				=> $Row->st_display_name
+											);
+						}
+						return $arrCampaign;						
+					}
+					
+	}
+}
+?>

@@ -1,0 +1,514 @@
+<?php
+$base_url = $this->config->item('base_url');
+if(!isset($owner_id))
+{
+	$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+}
+$make_array_user = array();
+$check_per_flag = '';
+#echo "<pre>";print_r($user_permission);die;
+if(!isset($user_permission) && $owner_id!=$this->session->userdata('userid'))
+{
+	$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+}		
+if(isset($user_permission) && !empty($user_permission)) {
+	$make_array_user = unserialize($user_permission);
+}
+
+$routing_status = $this->common_model->transport_routing_enable($this->session->userdata('userid'));
+?>
+<!DOCTYPE html>
+<!--[if IE 8]> <html lang="en" class="ie8 no-js"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie9 no-js"> <![endif]-->
+<!--[if !IE]><!-->
+<html lang="en" class="no-js">
+<!--<![endif]-->
+<!-- BEGIN HEAD -->
+<head>
+<meta charset="utf-8"/>
+<title>Requests Assigned to Me - Doobert</title>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url();  ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+<!-- BEGIN PAGE LEVEL STYLES -->
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.css"/>
+<!-- END PAGE LEVEL STYLES -->
+
+<?PHP //include APPPATH."views/includes/head-links-inside.php"; ?>
+<?php include APPPATH."views/inc/header-css-js.php";?>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/css/datepicker.css" />
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-timepicker/css/bootstrap-timepicker.min.css" />
+<!--<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.css"/> -->
+<link rel="stylesheet" type="text/css"  href="<?php echo base_url(); ?>assets/css/tipso.css">
+<style type="text/css">
+ul#ui-id-1 {background:#fff; font:600 14px/20px 'Open Sans', Helvetica, Arial, sans-serif; color:#c51f53; z-index:999; overflow-x:hidden !important; z-index:99999}
+</style>
+</head>
+<!-- BEGIN BODY -->
+<body class="test-match-height test-rows test-responsive test-border-box test-margin test-padding test-border">
+
+<!--Menu Active Link-->
+<?php $display_menu = 1; ?>
+<!-- BEGIN HEADER -->
+<?PHP include APPPATH."views/inc/header-myaccount.php" ?>
+<!-- END HEADER -->
+
+<section class="breadcrumb inner-breadcrumb">
+	<div class="container">
+		<div class="text-left"><a href="<?php echo base_url(); ?>dashboard/">My Dashboard</a> <i class="fa fa-angle-right"></i>Requests Assigned to Me</div>
+	</div>
+</section>
+
+<!-- BEGIN CONTAINER -->
+<section class="main-content-wrapper inner-wrapper">
+        <div class="container">
+         	<div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12">
+	                <article>
+						<div class="entry-content">
+							<div class="sub-content main-container clearfix">
+								<div class="col-md-12 col-sm-12 col-xs-12 no-space">
+									<!-- Main content start -->
+									<!------------------------ Add content here ---------------------->
+									<div class="page-container"><h2>Requests Assigned to Me</h2>
+	<?php if (isset($routing_status) && $routing_status=='2' ) {?> <div class="text-center"><a href="<?php echo base_url(); ?>org_transportation/submitted_routing_request/" class="btn orange-small waves-effect waves-light add-new-trip">Submitted Routing Requests</a></div>
+	<?php } ?>
+  <!-- BEGIN CONTENT -->
+  <div class="page-content-wrapper">
+<?php if($this->session->flashdata('message')): ?>
+			<!-- BEGIN THANK YOU MODAL POPUP-->
+			<div class="modal fade" id="message-config" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+			  <div class="modal-dialog">
+			    <div class="modal-content">
+			      <div class="modal-header"> 
+			        <h4 class="modal-title">THANK YOU</h4>
+			        </div>
+			      <div class="modal-body"><?php echo $this->session->flashdata('message');?></div>
+			      <div class="modal-footer text-center no-margin"> <a class="btn orange" href="javascript:void(0);" data-dismiss="modal" title="Close">Close</a> </div>
+			      </div>
+			    <!-- /.modal-content --> 
+			    </div>
+			  <!-- /.modal-dialog --> 
+			  </div>
+		<!-- END THANK YOU MODAL POPUP-->
+		<?php endif; ?>
+        <!--End Section Title-->
+        <div class="row no-space routing-request">
+          <div class="no-margin marb25">
+            <table class="table list-animal-profile" id="card-table">
+              <thead>
+                <tr>
+                  <th scope="col">Request #</th>
+                  <th scope="col">Sending Organization</th>
+                  <th scope="col" class="padlr0">501c3 Certified?</th>
+                  <th scope="col">Receiving Organization</th>
+                  <th scope="col" class="padlr0">501c3 Certified?</th>
+				  <th scope="col">Type</th>
+                  <th scope="col">Location Details</th>
+                  <th scope="col" class="w101">Dates</th>
+                  <th scope="col" class="w165">Action</th>
+                  </tr>
+                </thead>
+              <tbody>
+                <?php if (count($routing_data) >0 ) 
+				  {
+					 foreach ($routing_data  as $key=>$value)
+					 {
+						
+						$organization_code = $this->common_model->get_single_org_details($value['in_organization_id']);
+						$transport_batch = (isset($organization_code) && count($organization_code)>0 && $organization_code['st_org_code']!='' )?$organization_code['st_org_code']:'DBT';	
+			?>
+                <tr>
+                  <td class="w120">
+                  
+                 <?php /*?> <a onClick = "transport_details('<?php echo $value['transportation_id'];  ?>')" href="javascript:void(0);" data-toggle="modal" class="id">DBT<?php echo $value['transportation_id']; ?></a><?php */?>
+                <?php if($value['in_status'] == '1'){?>
+					<a href="<?php echo base_url();?>org-transportation-scheduled/<?php echo $value['transportation_id'];  ?>/" data-toggle="" class="id"><?php echo $transport_batch.$value['transportation_id']; ?></a><br>
+                <?php }  else { ?>  
+					<a href="javascript:void(0);" onClick = "transport_details('<?php echo $value['transportation_id'];  ?>')" data-toggle="modal" class="id"><?php echo $transport_batch.$value['transportation_id']; ?></a><br>  
+                <?php } ?>  
+                          <?php
+                            if($value['type'] == 'Airline'){
+                              echo '<img src="'.base_url().'assets/img/icon-airline.png">'; 
+							  echo "Airline";
+                            }else {
+								echo '<img src="'.base_url().'assets/img/icon-assisted.png">';
+                              echo "Assisted";
+                            }
+                          ?>
+                  </td>
+                  <td><?php echo $value['st_org_name']; ?></td>
+                  <td><?php echo (isset($value['st_has_501c3']) && $value['st_has_501c3']=='Y')?'Yes':'No'; ?></td>
+                  <td><?php echo $value['st_receiving_org_name']; ?></td>
+                  <td><?php echo (isset($value['receiving_501c3_cert']) && $value['receiving_501c3_cert']=='Y')?'Yes':'No'; ?></td>
+                  <td><?php echo $value['type']; ?></td>
+				  <?php if($value['type'] == 'Airline') { ?>
+				<td><?php echo ((isset($value['from_city']) && !empty($value['from_city']))?$value['from_city'].' ':'').'('.$value['from_street'].')'; ?> <i class="material-icons backspace">keyboard_backspace</i> <?php echo ((isset($value['to_city'])&& !empty($value['to_city']))?$value['to_city'].' ':'').'('.$value['to_street'].')'; ?> <br>
+					<?php if(isset($value['st_trans_name']) && $value['st_trans_name'] != '') { ?>
+					<a href="#" onClick = "transport_details('<?php echo $value['transportation_id'];  ?>')" class="link-orange"><?php echo $value['st_trans_name']; ?></a>
+					<?php }  ?>
+                </td>
+				<?php } else { ?>
+				<td><?php echo ((isset($value['from_city']) && !empty($value['from_city']))?$value['from_city'].', ':'').$value['from_state']; ?> <i class="material-icons backspace">keyboard_backspace</i> <?php echo ((isset($value['to_city'])&& !empty($value['to_city']))?$value['to_city'].', ':'').$value['to_state']; ?> <br>
+				<?php if(isset($value['st_trans_name']) && $value['st_trans_name'] != '') { ?>
+                <a href="#" onClick = "transport_details('<?php echo $value['transportation_id'];  ?>')" class="link-orange"><?php echo $value['st_trans_name']; ?></a>
+                <?php }  ?>
+                </td>
+				<?php } ?>					
+				      <td><?php echo(isset($value['pick_date'])&& $value['pick_date'] != '1969-12-31' && $value['pick_date'] !='' && $value['pick_date'] != '0000-00-00')?date('M d',strtotime($value['pick_date'])):'TBD'; ?>  -<br/><?php echo (isset($value['drop_date'])&& $value['drop_date'] != '1969-12-31' && $value['drop_date'] !=''  &&  $value['drop_date'] != '0000-00-00')?date('M d',strtotime($value['drop_date'])):'TBD'; ?></td>		
+                    
+                  <td class="action">
+				  <?php if($value['in_status'] == '2'){?>
+				  <a  href="<?php echo base_url().'org-transportation-scheduled/'.$value['transportation_id']; ?>" data-toggle="modal" class="btn orange action" title="View"><i class="fa fa-eye"></i></a>
+				  <?php } else { ?>
+					<a onClick = "transport_details('<?php echo $value['transportation_id'];  ?>')" href="javascript:void(0);" data-toggle="modal" class="btn orange action" title="View"><i class="fa fa-eye"></i></a> <a href="<?php echo ($value['type'] == 'Airline')? base_url().'edit-airline-transport?id='.$value['transportation_id'] : base_url().'org-edit-transport?id='.$value['transportation_id']; ?>"  class="btn greyaction action" title="Edit"><i class="fa fa-pencil"></i></a> <a href="<?php echo base_url(); ?>org_transportation/delete_assigned_transport/<?php echo $value['transportation_id'];  ?>/" onClick="javascript:return confirm('Are you sure you want to unassign this transport?');" class="btn greyaction action" title="Delete"><i class="fa fa-trash-o"></i></a>                    
+                    <?php if($value['in_status'] == '1'){?>
+                    <a title="Review Suggested Legs" href="<?php echo base_url().'user-submission/'.$value['transportation_id']; ?>" class="action btn orange btngreen reviewedit"><i class="fa fa-edit"></i></a>
+                    <?php } } ?>
+                    </td>
+                  </tr>
+                <?php } } else { ?>
+                <tr>
+                  <td colspan="9"> No Record found</td>
+                  </tr>
+                <?php } ?> 
+                </tbody>
+              </table>
+            </div>
+          <div class="dataTables_paginate dobt-pagination paging_bootstrap">		
+            <?php echo $pagination;?>
+            </div>			
+          
+        </div>
+  </div>
+<!-- END CONTAINER -->
+
+<?php /*<div class="modal fade unconfirm_transport_popup" id="transport-details" tabindex="-1" role="basic" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close close_model"  data-dismiss="modal" title="Close" aria-hidden="true"></button>
+        <h4 class="modal-title">Requested Transport Details</h4>
+      </div>
+      <div class="modal-body">
+        <p><strong>Request:</strong> <span id='transport-id'></span>
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Type:</strong> <span id='transport-type'>  </span>
+		</p>
+		<p class="padb5"><strong>Transport Name:</strong> <span id='transport-name'>  </span></p>
+      <div class="row no-margin">
+              <div class="col-md-6 padl0">
+              	<ul>
+              		<li class="heading">Sending Organization</li>
+              		<li><h3><span id='sending-org-name'></span></h3>
+     <p><i class="fa fa-user"></i><span id='sending-user-name'> </span></p>
+     <p><i class="fa fa-envelope-o"></i> <a class="email" id='sending-email-address' href="#"></a></p>
+     <p><i class="fa fa-phone"></i> <a id='sending-telphone-no' href="tel:+12345678910" class="decoration-none"></a></p>
+     <p class="marb0"><i class="fa fa-sending-ceritfied"></i> <strong> <span id='sending-ceritfied'>501c3 Certified</span></strong></p></li>
+             	<li class="blank"></li>
+					<li class="heading other">Transport Origin:</li>
+					<li>
+     <p class="marb0"><span id='transport-origin'></span></p></li>
+             	<li class="blank display_date_blank"></li>
+					<li class="heading other display_date">Pick Up Date:</li>
+     <li class="display_date"><p class="marb0"><span id='pick_date'> </span> </p>
+  					</li>
+              	</ul>
+              </div>
+              <div class="col-md-6 padl0 padr0 padt30">
+              	<ul>
+              		<li class="heading">Receiving Organization</li>
+              		<li><h3><span id='receiving-org-name'></h3>
+     <p><i class="fa fa-user"></i> <span id='receiving-user-name'></span></p>
+     <p><i class="fa fa-envelope-o"></i> <a id='receiving-email-address' class="email" href="#"></a></p>
+     <p><i class="fa fa-phone"></i> <a id='receiving-telphone-no' href="tel:+12345678910" class="decoration-none"></a></p>
+     <p class="marb0"><i class="fa fa-receiving-ceritfied"></i> <strong> <span id='receiving-ceritfied'> 501c3 Certified</span></strong></p>
+             	    </li>
+             	    <li class="blank"></li>
+             	    <li class="heading other">Transport Destination:</li>
+					<li><p class="marb0"><span id='transport-dest'></span></p></li>
+             	<li class="blank display_date_blank"></li>
+					<li class="heading other display_date">Drop Off Date:</li>
+					<li class="display_date"><p class="marb0"><span id='drop_date'></span></p></li>
+              	</ul>
+              </div><div class="clearfix"> </div>
+	  </div> 
+      </div>
+      <div class="modal-footer text-center no-margin">
+        <button class="btn black waves-effect waves-light close_model" data-dismiss="modal" title="Close" type="button">Close</button>
+        <!--<button class="btn orange" id='assign-me' data-dismiss="modal" title="Close" type="button"><i class="fa fa-sign-in"></i> Assign to Me</button>-->
+      </div>
+    </div>
+    <form class="horizontal-form" role="form" id="unconfirm_transport" name="unconfirm_transport" enctype="multipart/form-data" action="<?php echo base_url().'org-confirm-transport/'.$this->session->userdata('transport_id').'/'; ?>" method="post" data-ajax="false">
+      <input type="hidden" name="unconf_transport" id="unconf_transport" value="unconfirm" />
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>*/ ?>
+ 
+</div>
+									<!-- Main content end --> 
+					  			</div>
+					  		</div>
+						</div><!-- .entry-content -->
+					</article><!-- #post-## -->
+                </div>
+            </div>
+        </div>
+</section>
+<!-- END CONTAINER --> 
+
+<!-- View details MODAL POPUP-->
+<div class="modal fade unconfirm_transport_popup" id="transport-details" tabindex="-1" role="basic" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+        <h4 class="modal-title">Requested Transport Details</h4>
+      </div>
+      <div class="modal-body">
+        <p><strong>Request:</strong> <span id='transport-id'></span>
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Type:</strong> <span id='transport-type'>  </span>
+		</p>
+		<p class="padb5"><strong>Transport Name:</strong> <span id='transport-name'>  </span></p>
+      <div class="row no-margin">
+              <div class="col-md-6 padl0">
+              	<ul>
+              		<li class="heading">Sending Organization</li>
+              		<li><h3><span id='sending-org-name'></span></h3>
+     <p><i class="fa fa-user"></i><span id='sending-user-name'> </span></p>
+     <p><i class="fa fa-envelope-o"></i> <a id='sending-email-address' class="email" href="#"></a></p>
+     <p><i class="fa fa-phone"></i> <a id='sending-telphone-no' href="tel:+12345678910" class="decoration-none"></a></p>
+     <p class="marb0"><i class="fa fa-sending-ceritfied"></i> <strong> <span id='sending-ceritfied'>501c3 Certified</span></strong></p></li>
+             	<li class="blank"></li>
+					<li class="heading other">Transport Origin:</li>
+					<li>
+     <p class="marb0"><span id='transport-origin'></span></p></li>
+             	<li class="blank display_date_blank"></li>
+					<li class="heading other display_date">Pick Up Date:</li>
+     <li class='display_date'><p class="marb0"><span id='pick_date'> </span> </p>
+  					</li>
+              	</ul>
+              </div>
+              <div class="col-md-6 padl0 padr0 padt30">
+              	<ul>
+              		<li class="heading">Receiving Organization</li>
+              		<li><h3><span id='receiving-org-name'></h3>
+     <p><i class="fa fa-user"></i> <span id='receiving-user-name'></span></p>
+     <p><i class="fa fa-envelope-o"></i> <a id='receiving-email-address' class="email" href="#"></a></p>
+     <p><i class="fa fa-phone"></i> <a id='receiving-telphone-no' href="tel:+12345678910" class="decoration-none"></a></p>
+     <p class="marb0"><i class="fa fa-receiving-ceritfied"></i> <strong> <span id='receiving-ceritfied'> 501c3 Certified</span></strong></p>
+             	    </li>
+             	    <li class="blank"></li>
+             	    <li class="heading other">Transport Destination:</li>
+					<li><p class="marb0"><span id='transport-dest'></span></p></li>
+             	<li class="blank display_date_blank"></li>
+					<li class="heading other display_date">Drop Off Date:</li>
+					<li class='display_date'><p class="marb0"><span id='drop_date'></span></p></li>
+              	</ul>
+              </div><div class="clearfix"> </div>
+	  </div>
+      </div>
+      <div class="modal-footer text-center no-margin">
+        <button class="btn black waves-effect waves-light" data-dismiss="modal" title="Close" type="button">Close</button>
+        <!--<button class="btn orange dobt-btn config" id='assign-me' data-dismiss="modal" title="Assign to Me" type="button"><i class="fa fa-sign-in"></i> Assign to Me</button>-->
+      </div>
+    </div>
+    <form class="horizontal-form" role="form" id="unconfirm_transport" name="unconfirm_transport" enctype="multipart/form-data" action="<?php echo base_url().'org-confirm-transport/'.$this->session->userdata('transport_id').'/'; ?>" method="post" data-ajax="false">
+      <input type="hidden" name="unconf_transport" id="unconf_transport" value="unconfirm" />
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+<!-- END View details MODAL POPUP-->
+
+ <div class="modal fade transport-created" id="assigntome_loader" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<?php /*?><div class="modal-header no-border">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+										</div><?php */?>
+										<div class="modal-body">
+                                        
+										<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin-left:45%;">&nbsp;<span id="tran-loadertext">Doobert is assigning the transport</span>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div>
+
+<?PHP //include APPPATH."views/includes/footer.php" ?>
+<?php include APPPATH.'views/inc/footer-dashboard.php';?>
+<!-- BEGIN JAVASCRIPTS --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-validation/dist/jquery.validate.min.js" type="text/javascript"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script> 
+<script src="<?php echo base_url(); ?>assets/scripts/custom/components-pickers.js"></script> 
+<!--<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.js"></script>--> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datetimepicker/js/bootstrap-datetimepicker.min.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-timepicker/js/bootstrap-timepicker.min.js"></script>
+<!--Date Picker--> 
+<script>
+        jQuery(document).ready(function() {       
+           // initiate layout and plugins
+		   //App.init();
+		   
+		    <?php if($this->session->flashdata('message')) { ?>
+				$('#message-config').modal('show'); 
+			<?php } ?>
+		   
+		   
+           ComponentsPickers.init();	
+		   $('#auto_split').val('');	
+		   $('#timepicker1').timepicker({
+		   defaultTime:'08:00 AM',
+		   //timeFormat: 'h:mm:ss' 
+		   //defaultTime:false
+		   });
+		   $('#timepicker2').timepicker({
+		   defaultTime:'08:00 PM',
+		   //timeFormat: 'h:mm:ss' 
+		   }); 
+		  
+		  $('.open-timepicker1').click(function(event){
+				event.preventDefault();
+				$('#timepicker1').click();
+			});  
+			
+			 $('.open-timepicker2').click(function(event){
+				event.preventDefault();
+				$('#timepicker2').click();
+			});  
+			
+			$('.numbersOnly').keyup(function () { 
+				this.value = this.value.replace(/[^0-9\.]/g,'');
+			});
+
+        });   	
+</script> 
+
+
+<!--Reset form height end here--> 
+
+<!--demo videos CSS JS-->
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/prettyPhoto/prettyPhoto.css" type="text/css" media="screen" title="prettyPhoto main stylesheet" charset="utf-8" />
+<script src="<?php echo base_url(); ?>assets/plugins/prettyPhoto/jquery.prettyPhoto.js" type="text/javascript" charset="utf-8"></script> 
+<script type="text/javascript">
+//Start media Gallery 
+$(document).ready(function(){
+$("area[rel^='prettyPhoto']").prettyPhoto();
+$(".gallery:first a[rel^='prettyPhoto']").prettyPhoto({animation_speed:'normal',theme:'light_square',slideshow:3000, autoplay_slideshow: false});
+$(".gallery:gt(0) a[rel^='prettyPhoto']").prettyPhoto({animation_speed:'fast',slideshow:10000, hideflash: true});
+});
+//End media Gallery 
+</script>
+
+<script type="text/javascript">	
+//alert('<php echo $this->session->userdata('transport_agree'); ?>')
+
+function assign_to_me(id)
+{
+	if(confirm('Are you sure you want to assign this transport to yourself for coordination?'))
+	{
+	$.ajax({
+			  type: "POST",
+			  url: '<?php echo base_url(); ?>org_transportation/transport_assign_me/',
+			  beforeSend: function(){
+				// $('#loader').show();
+			  },
+			  data: {
+				  id:id
+			  },
+			  //dataType:"json",			  
+			  complete: function(){
+				//$('#loader').hide();
+			  },
+			  success:function(data)
+			  {
+				 var url =  JSON.parse(data);
+				 if(data!='')
+					 //console.log(url);
+						window.location.href=url;
+					//console.log(url);
+					
+					
+					
+			  }
+		   });
+	}	   
+}
+
+function transport_details(id)
+{
+	$.ajax({
+			  type: "POST",
+			  url: '<?php echo base_url(); ?>org_transportation/get_routing_details/',
+			  beforeSend: function(){
+				// $('#loader').show();
+			  },
+			  data: {
+				  id:id
+			  },
+			  dataType:"json",			  
+			  complete: function(){
+				//$('#loader').hide();
+			  },
+			  success:function(data)
+			  	{
+					$('#transport-id').html(data['transportation_id']);
+					$('#transport-type').html('&nbsp;'+data['type']);
+					$('#transport-name').html(data['st_trans_name']);
+					$('#sending-org-name').html(data['st_org_name']);
+					$('#receiving-org-name').html(data['st_receiving_org_name']);
+					$('#sending-user-name').html(data['sending_user_name']);
+					$('#receiving-user-name').html(data['receiving_user_name']);
+					$('#sending-email-address').html(data['sending_email_address']);
+					$('#sending-email-address').attr('href','mailto:'+data['sending_email_address']);
+					$('#sending-telphone-no').html(data['sending_phone_number']);
+					$('#sending-telphone-no').attr('href','tel:+'+data['sending_phone_number']);
+					if(data['st_has_501c3'] == 'Y')
+					{	
+						$('.fa-sending-ceritfied').addClass('fa-check');
+					} else {
+						$('.fa-sending-ceritfied').addClass('fa-times');
+					}	
+					//$('#sending-ceritfied').html(data['transportation_id']); 
+					$('#receiving-email-address').html(data['receiving_email_address']); 
+					$('#receiving-email-address').attr('href','mailto:'+data['receiving_email_address']);
+					$('#receiving-telphone-no').html(data['receiving_phone_number']);
+					$('#receiving-telphone-no').attr('href','tel:+'+data['receiving_phone_number']);
+					//$('#receiving-ceritfied').html(data['transportation_id']);
+					$('#transport-origin').html(data['from_source']);
+					$('#transport-dest').html(data['to_dest']);
+					if(data['airline_status']==1)
+					{
+						$('.display_date').prop('style','display:none');
+						$('.display_date_blank').prop('style','display:none');
+					} else {
+						$('#pick_date').html(data['pick_date']);
+						$('#drop_date').html(data['drop_date']);
+					}	
+					if(data['receiving_501c3_cert'] == 'Y')
+					{	
+						$('.fa-receiving-ceritfied').addClass('fa-check');
+					} else {
+						$('.fa-receiving-ceritfied').addClass('fa-times');
+					}
+					//$('#assign-me').attr('onClick','assign_to_me('+data['transportation_id']+')');
+					
+					$('#transport-details').modal('toggle');
+					//$()
+					//console.log();
+				}
+		   });
+}
+$(document).ready(function(){
+	$(document).on('click','.close_model',function()
+{
+	$('.display_date').removeAttr('style');
+	$('.display_date_blank').removeAttr('style');
+});
+});
+</script>
+</body>
+<!-- END BODY -->
+</html>

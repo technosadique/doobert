@@ -1,0 +1,873 @@
+<?php
+# ======================================================================================
+# Created by		: sadique mohammad
+# Created date		: 22-Nov-2016
+# File description	: Product Model for Product
+# Special - notes	: none
+# Tables used		: tbl_products
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class product_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	function index()
+	{
+	
+	}
+	
+	function insert_product($arrData,$table)
+	{
+		$this->db->insert($table, $arrData);
+		$inser_id = $this->db->insert_id();	
+		return  $inser_id; //$this->db->insert_id();
+		
+	}
+	
+	function insert_wp_post($arrData2)
+	{			
+					$wpdb = $this->load->database('wp_data', TRUE); // the TRUE paramater tells CI that you'd like to return the database object.  									
+					$wpdb->insert('wp_posts',$arrData2);	
+					return $wpdb->insert_id();
+					
+	}
+	
+	function insert_wp_postmeta($id,$data_array)
+	{   
+	    if($data_array['in_stock_status']==1){$stockstatus='instock';}
+		else if($data_array['in_stock_status']==2){$stockstatus='outofstock';}	
+		else{$stockstatus='instock';}
+	    $wpdb = $this->load->database('wp_data', TRUE); 
+	
+		//$arrdata	=	array('object_id'=>$id,'term_taxonomy_id'=>1);
+		//$wpdb->insert('wp_term_relationships', $arrdata);
+		
+		// insert category starts
+		$catArr	=	explode(',',$data_array['st_selected_category']);
+		//echo '<pre>'; print_r($catArr); die;
+		
+		foreach($catArr	 as $val)
+		{  
+			$arrdata	=	array('object_id'=>$id,
+								  'term_taxonomy_id'=>$val);		
+			$wpdb->insert('wp_term_relationships', $arrdata);		
+		}
+		// insert category ends
+		
+		
+		   $data = array(
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_stock_status',
+			  'meta_value' => $stockstatus
+		   ),
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_sku',
+			  'meta_value' => isset($data_array['st_sku'])?$data_array['st_sku']:''
+		   ),
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_regular_price',
+			  'meta_value' => isset($data_array['fl_regular_price'])? $data_array['fl_regular_price'] : ''
+		   ),
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_sale_price',
+			  'meta_value' => isset($data_array['fl_discount_price'])?$data_array['fl_discount_price']:''
+		   ),
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_price',
+			  'meta_value' => isset($data_array['fl_discount_price'])?$data_array['fl_discount_price']:''
+		   ),
+		   
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_visibility',
+			  'meta_value' => 'visible'
+		   ),
+		   
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_auction_start_price',
+			  'meta_value' => isset($data_array['fl_start_price'])?$data_array['fl_start_price']:''
+		   ),
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_auction_reserved_price',
+			  'meta_value' => isset($data_array['fl_reserve_price'])?$data_array['fl_reserve_price']:''
+		   ),
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_auction_bid_increment',
+			  'meta_value' => isset($data_array['fl_bid_price'])?$data_array['fl_bid_price']:''
+		   ),
+		   
+		   array(
+			  'post_id' => $id,
+			  'meta_key' => '_auction_bid_increment',
+			  'meta_value' => isset($data_array['fl_buy_price'])?$data_array['fl_buy_price']:''
+		   ),
+		   
+		   
+		   
+		   
+		   
+		    array(
+			  'post_id' => $id,
+			  'meta_key' => '_auction_dates_from',
+			  'meta_value' => isset($data_array['dt_from'])?$data_array['dt_from']:''
+		   ),
+		    array(
+			  'post_id' => $id,
+			  'meta_key' => '_auction_dates_to',
+			  'meta_value' => isset($data_array['dt_to'])?$data_array['dt_to']:''
+		   )
+		   
+		);
+
+		$wpdb->insert_batch('wp_postmeta', $data); 		
+	}
+	
+	
+	
+	function insert_image_wp_postmeta($postid,$metaval,$filepath)
+	{
+		$wpdb = $this->load->database('wp_data', TRUE); 
+		$data = array('post_id'=>$postid,'meta_key'=>'_thumbnail_id','meta_value'=>$metaval);		
+		$wpdb->insert('wp_postmeta', $data); 
+		$data2 = array('post_id'=>$metaval,'meta_key'=>'_wp_attached_file','meta_value'=>$filepath);	
+		$wpdb->insert('wp_postmeta', $data2); 
+	}
+	
+	function update_wp_post($data_array2,$post_id)
+	{		
+	
+			$wpdb = $this->load->database('wp_data', TRUE);
+			$wpdb->where('ID', $post_id);
+			$wpdb->update('wp_posts', $data_array2); 
+	}
+	
+	function get_product_category()
+	{
+		//$this->db->SELECT("in_cat_id,st_category,wp_category_id");
+		//$this->db->WHERE(array("in_deleted"=>'0'));
+		//$query = $this->db->get("tbl_product_category");
+		//return  $query->result_array();
+		$this->db->SELECT("in_cat_id,st_category,wp_category_id,sort_order");
+		$this->db->WHERE(array("in_deleted"=>'0',"in_status"=>'1'));		
+		$this->db->order_by('sort_order');
+		$query = $this->db->get("tbl_product_category");
+		return  $query->result_array();
+	}
+	
+	public function update_product_data($data,$Id,$table) {
+        $this->db->WHERE('in_prod_id', $Id);
+        $this->db->update($table, $data);
+        return $this->db->affected_rows();
+    }
+	
+	# *******************************************************************************************	
+	#	Function	:	add_product_images	
+	#	Purpose		:	Adding product images
+	# *******************************************************************************************
+
+	public function add_product_images($data,$table) {
+		$this->db->insert($table,$data);	
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_product	
+	#	Purpose		:	Getting all product in products table
+	# *******************************************************************************************
+	
+	public function get_all_product($limit,$start,$sort,$order,$search_text) { 
+	
+		$data= array();
+               
+                switch($sort){
+		    		case 'name': 	
+                        $sort =   'st_product';
+                    break;
+											
+                    case 'sku':								
+                        $sort =   'st_sku';
+                    break;	
+					
+					case 'stock_status':								
+                        $sort =   'in_stock_status';
+                    break;	
+					
+					case 'price':								
+                        $sort =   'fl_regular_price';
+                    break;	
+										
+                    default:							
+                        $sort = 'in_prod_id';
+                    break;
+                }
+		
+		$this->db->SELECT('SQL_CALC_FOUND_ROWS p.in_prod_id,p.st_product,p.st_prod_image,p.st_sku,p.in_stock_status,p.fl_regular_price,p.st_selected_category,p.dt_created,p.st_affiliate_image_url',FALSE);
+		$this->db->FROM('tbl_auction_products as p');  
+		 if($search_text != ''){ 
+                    $searchterm = str_replace('%', '\%', $search_text); 
+                    $this->db->like('p.st_product', stripslashes($searchterm));
+					$this->db->or_like('p.in_prod_id', stripslashes($searchterm));
+                }
+		$this->db->WHERE('p.in_organization_id',$this->session->userdata('org_id'));	
+		$this->db->WHERE('p.in_deleted',0);	
+		$this->db->WHERE('p.in_prod_type','P');			
+		$this->db->ORDER_BY($sort,$order);	
+		$this->db->LIMIT($limit,$start);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//exit;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row){
+			
+			$catArr	=	explode(',',$row['st_selected_category']);
+			
+			//print_r($catArr);die;
+			$cat_name=array();
+			foreach($catArr as $val){			
+			$catdata	=	array();
+			$this->db->SELECT('pc.st_category',FALSE);
+			$this->db->FROM('tbl_product_category as pc'); 	
+			$this->db->WHERE('pc.in_cat_id',$val);					
+		    $query 	= $this->db->get();
+			$res	=	$query->row_array();
+		    $cat_name[]	=	isset($res['st_category'])?$res['st_category']:''; 		
+			}
+			
+			$cname	=	implode(', ',$cat_name);
+			$cat_name='';
+				$data['product_list'][] = array( 'product_id'			=>	$row['in_prod_id'],
+												 'image'				=>	$row['st_prod_image'],
+												 'affiliate_image_url'=>	$row['st_affiliate_image_url'], 	
+                                                 'name'				    =>	$row['st_product'],
+                                                 'sku'					=>	$row['st_sku'],
+                                                 'stock'				=>	($row['in_stock_status']==1) ? 'In Stock' : 'Out of stock',
+                                                 'price'				=>	isset($row['fl_regular_price'])? '$'.$row['fl_regular_price'] : '$0.00' ,
+                                                 'category'				=>	$cname,
+                                                 'publish_date'			=>	($row['dt_created'] != '' && $row['dt_created'] != '0000-00-00 00:00:00' && $row['dt_created'] != '1969-12-31' )?date('M d, Y',strtotime($row['dt_created'])):''
+                                       );
+			}
+		}                 
+		return $data;	
+	}
+	
+	
+	#======================================================================
+	#	Function	:	delete_product()
+	#   Parameter	: 	Id
+	#	purpose		:	to delete single product details from tbl_products table
+	#----------------------------------------------------------------------
+	function delete_product($Id,$table)
+	{
+		$arrProduct = 	array('in_deleted' 	=> '1' );		
+		$this->db->WHERE('in_prod_id', $Id);
+		$this->db->update($table, $arrProduct);		
+	}
+	
+	function get_product_detail($Id,$table)
+	{
+		$this->db->SELECT("*");
+		$this->db->WHERE(array("in_prod_id"=>$Id,"in_deleted"=>'0'));		
+		$query = $this->db->get($table);
+		return  $query->row_array();
+	}
+	
+	
+	function get_product_image($Id,$table)
+	{
+		$this->db->SELECT("in_img_id,in_product_id,st_image");
+		$this->db->WHERE(array("in_product_id"=>$Id,"in_deleted"=>'0'));		
+		$query = $this->db->get($table);
+		//echo $this->db->last_query(); die;
+		return  $query->result_array();
+	}
+	
+	function update_product($data,$id,$table)
+	{
+		$this->db->WHERE('in_prod_id', $id);
+		$this->db->update($table,$data); 
+	}
+	
+	function update_order($status,$id,$table)
+	{$data=array('in_order_status' => $status,
+				 'dt_modified'	 => date("Y-m-d h:i:s")
+				);
+	
+	$this->db->WHERE('in_order_id', $id);
+	$this->db->update($table,$data); 	
+	}
+	
+	function update_product_image($id,$table)
+	{   $data	=	array('in_deleted'=>1);
+		$this->db->WHERE('in_product_id', $id);
+		$this->db->update($table, $data); 
+	}
+	function delete_product_photos($fileid)
+	{
+		 $data	=	array('in_deleted'=>1);
+		 $this->db->WHERE('in_img_id', $fileid);
+		 $this->db->update('tbl_auction_product_image', $data); 
+	}
+	
+	
+	function delete_auction_product_photos($fileid)
+	{
+		 $data	=	array('in_deleted'=>1);
+		 $this->db->WHERE('in_img_id', $fileid);
+		 $this->db->update('tbl_auction_product_image', $data); 
+	}
+	
+	
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_auction_product	
+	#	Purpose		:	Getting all auction product in auction products table
+	# *******************************************************************************************
+	
+	public function get_all_auction_product($limit,$start,$sort,$order) { 
+	
+		$data= array();
+               
+                switch($sort){
+		    		case 'name': 	
+                        $sort =   'st_product';
+                    break;
+											
+                    case 'sku':								
+                        $sort =   'st_sku';
+                    break;			
+					
+					case 'start_price':								
+                        $sort =   'fl_start_price';
+                    break;	
+					
+					case 'bid':								
+                        $sort =   'fl_bid_price';
+                    break;
+					
+					case 'auction_from':								
+                        $sort =   'dt_from';
+                    break;	
+					
+					case 'auction_to':								
+                        $sort =   'dt_to';
+                    break;
+										
+                    default:							
+                        $sort = 'in_prod_id';
+                    break;
+                }
+		
+		$this->db->SELECT('SQL_CALC_FOUND_ROWS p.in_prod_id,p.st_product,
+						  p.st_prod_image,p.st_sku,p.fl_start_price,p.fl_bid_price,
+						  p.st_selected_category,p.dt_from,p.dt_to,p.in_wp_product_id',FALSE);
+		$this->db->FROM('tbl_auction_products as p'); 
+		$this->db->WHERE('p.in_organization_id',$this->session->userdata('org_id'));	 
+		$this->db->WHERE('p.in_deleted',0);			
+		$this->db->WHERE('p.in_prod_type','A');		
+		$this->db->ORDER_BY($sort,$order);	
+		$this->db->LIMIT($limit,$start);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//exit;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row){
+			
+			$catArr	=	explode(',',$row['st_selected_category']);
+			
+			//print_r($catArr);die;
+			
+			$this->db->select('in_bid_amt');
+			$this->db->FROM('tbl_bids'); 
+			$this->db->WHERE('in_prod_id',$row['in_prod_id']);	 
+			$this->db->WHERE('in_deleted',0);
+			$this->db->order_by("tbl_bids.in_bid_id", 'DESC');
+			$this->db->limit(1);
+			$query2 = $this->db->get();
+			$higest_bid = $query2->row_array();	
+			if(isset($higest_bid['in_bid_amt']) && !empty($higest_bid['in_bid_amt']))
+			{
+				$bid_price = $higest_bid['in_bid_amt'];
+			} else if (isset($row['fl_start_price']) && !empty($row['fl_start_price'])) {
+				$bid_price = $row['fl_start_price'];
+			} else {
+				$bid_price = '0.00';
+			}	
+			$cat_name=array();
+			foreach($catArr as $val){			
+			$catdata	=	array();
+			$this->db->SELECT('pc.st_category',FALSE);
+			$this->db->FROM('tbl_product_category as pc'); 	
+			$this->db->WHERE('pc.in_cat_id',$val);					
+		    $query 	= $this->db->get();
+			$res	=	$query->row_array();
+		    $cat_name[]	=	isset($res['st_category'])? $res['st_category']:''; 		
+			}
+			$cname	=	implode(', ',$cat_name);
+			$cat_name='';
+				$data['product_list'][] = array( 'product_id'			=>	$row['in_prod_id'],
+												 'name'				    =>	$row['st_product'],
+                                                 'sku'					=>	$row['st_sku'],                                                
+                                                 'startprice'			=>	isset($row['fl_start_price'])? '$'.$row['fl_start_price'] : '$0.00',
+												 'bidprice'				=>	'$'.$bid_price,
+												 'category'				=>	$cname,
+												 'image'				=>	$row['st_prod_image'],     
+                                                 'from_date'			=>	($row['dt_from'] != '' && $row['dt_from'] != '0000-00-00 00:00:00' && $row['dt_from'] != '1969-12-31' )?date('M d, Y',strtotime($row['dt_from'])):'',
+												 'to_date'				=>	($row['dt_to'] != '' && $row['dt_to'] != '0000-00-00 00:00:00' && $row['dt_to'] != '1969-12-31' )?date('M d, Y',strtotime($row['dt_to'])):'',
+												 'in_wp_product_id'		=>  ($row['in_wp_product_id'] != '')?$row['in_wp_product_id']:'',
+                                       );
+			}
+		}                 
+		return $data;	
+	}
+	
+	
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_orders	
+	#	Purpose		:	Getting all orders in orders table
+	# *******************************************************************************************
+	
+	public function get_all_orders($limit,$start,$sort,$order,$search_text) { 
+	
+		$data= array();
+               
+                switch($sort){
+		    		case 'id': 	
+                        $sort =   'in_order_id';
+                    break;
+											
+                    case 'order_date':								
+                        $sort =   'dt_order_date';
+                    break;	
+					
+					case 'total':								
+                        $sort =   'fl_order_total';
+                    break;		
+					
+					case 'order_status':								
+                        $sort =   'in_order_status';
+                    break;					
+										
+                    default:							
+                        $sort = 'in_order_id';
+                    break;
+                }
+		
+		$this->db->SELECT('SQL_CALC_FOUND_ROWS o.in_order_id,o.in_wp_order_id,
+						   o.dt_order_date,
+						   o.fl_order_total,
+						   o.fl_grand_total,
+						   o.in_order_status,
+						   o.in_payment_status,
+						   oa.st_first_name,
+						   oa.st_last_name,
+						   oa.st_addr1,
+						   oa.st_addr2,
+						   oa.st_city,
+						   oa.st_state,
+						   oa.st_zip,
+						   oa.st_country,
+						   SUM(oi.fl_cost*oi.in_qty) as totalamt,
+						   COUNT(oi.in_id) as totalOrders',FALSE);
+		$this->db->FROM('tbl_order as o'); 		
+		$this->db->JOIN('tbl_order_address as oa', 'o.in_order_id = oa.in_order_id', 'INNER'); 
+		$this->db->JOIN('tbl_order_items as oi', 'oi.in_order_id = o.in_order_id', 'LEFT');
+		//$this->db->JOIN('tbl_products as p', 'oi.in_product_id = p.in_wp_product_id', 'LEFT');
+		$this->db->JOIN('tbl_auction_products as auc', 'oi.in_product_id = auc.in_prod_id', 'LEFT');
+		$where_con = " (auc.in_organization_id = ".$this->session->userdata('org_id').")";
+		$this->db->WHERE($where_con,NULL, FALSE);
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));
+		//$this->db->where('auc.in_organization_id',$this->session->userdata('org_id'));
+		//$this->db->where('oa.in_addr_type',2);	
+		 if($search_text != ''){ 
+                    $searchterm = str_replace('%', '\%', $search_text);                    
+					//$this->db->like('o.in_order_id', $searchterm);					
+					$cwhere="(o.in_order_id LIKE '".$searchterm."%')";
+					$this->db->WHERE($cwhere);
+                }
+		$this->db->WHERE('o.in_deleted',0);
+		$this->db->WHERE('o.in_order_status > ',1);	
+		$this->db->WHERE('oi.in_deleted',0);
+		$this->db->WHERE('o.in_order_status !=',4);	
+		$this->db->WHERE('oa.in_deleted',0);
+		$this->db->GROUP_BY('o.in_order_id');	
+		//$this->db->WHERE(' totalOrders > 0');								
+		$this->db->ORDER_BY($sort,$order);	
+		//$this->db->GROUP_BY('o.in_order_id');	
+		$this->db->LIMIT($limit,$start);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//exit;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row){
+			
+				if($row['in_order_status']==1)
+				{
+					$order_status	=	'On Hold';
+				}
+				else if($row['in_order_status']==2)
+				{ 
+					$order_status	=	'Processing';
+				}
+				else if($row['in_order_status']==3)
+				{ 
+					$order_status	=	'Pending';
+				}
+				else if($row['in_order_status']==4)
+				{ 
+					$order_status	=	'Completed';
+				}
+				else if($row['in_order_status']==5)
+				{ 
+					$order_status	=	'Cancelled';
+				} 
+				else if($row['in_order_status']==6)
+				{ 
+					$order_status	=	'Refunded';
+				}
+				else if($row['in_order_status']==7)
+				{ 
+					$order_status	=	'Failed';
+				}		
+					
+				$data['order_list'][] = array('order_id'			=>	$row['in_order_id'],												
+                                              'total'			    =>	($row['totalamt']!='0.00')? '$'.$row['totalamt']:'$0.00',
+											  'totalOrders'			=>  $row['totalOrders'],
+											  'order_status'		=>  $order_status,
+											  'shipping'			=>  $row['st_addr1'].',' .((isset($row['st_addr2']) && !empty($row['st_addr2']))?$row['st_addr2'].',':'').$row['st_city'].', '.$row['st_state'].', '.$row['st_zip'],                                              
+											  'order_date'		    =>	($row['dt_order_date'] != '' && $row['dt_order_date'] != '0000-00-00 00:00:00' && $row['dt_order_date'] != '1969-12-31' )?date('M d, Y',strtotime($row['dt_order_date'])):'',
+											  'wp_order_id'			=>	 $row['in_wp_order_id'],
+											  'first_name'			=>   $row['st_first_name'],
+											  'last_name'			=>   $row['st_last_name'],
+											  'in_wp_order_id'		=>   $row['in_wp_order_id']	
+                                       );
+			}
+		}                 
+		return $data;	
+	}
+	
+	
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_orders_completed	
+	#	Purpose		:	Getting all orders in orders table
+	# *******************************************************************************************
+	
+	public function get_all_orders_completed($limit,$start,$sort,$order,$search_text) { 
+	
+		$data= array();
+               
+                switch($sort){
+		    		case 'id': 	
+                        $sort =   'in_order_id';
+                    break;
+											
+                    case 'order_date':								
+                        $sort =   'dt_order_date';
+                    break;	
+					
+					case 'total':								
+                        $sort =   'fl_order_total';
+                    break;						
+										
+                    default:							
+                        $sort = 'in_order_id';
+                    break;
+                }
+		
+		$this->db->SELECT('SQL_CALC_FOUND_ROWS o.in_order_id,o.in_wp_order_id,o.dt_modified,o.fl_order_total,o.fl_grand_total, oa.st_first_name,
+						   oa.st_last_name,
+						   oa.st_addr1,
+						   oa.st_addr2,
+						   oa.st_city,
+						   oa.st_state,
+						   oa.st_zip,
+						   SUM(oi.fl_cost*oi.in_qty) as totalamt,
+						   oa.st_country,COUNT(oi.in_order_id) totalOrders',FALSE);
+		$this->db->FROM('tbl_order as o'); 
+		$this->db->JOIN('tbl_order_address as oa', 'o.in_order_id = oa.in_order_id', 'INNER'); 
+		$this->db->JOIN('tbl_order_items as oi', 'oi.in_order_id = o.in_order_id', 'LEFT'); 
+		//$this->db->JOIN('tbl_products as p', 'oi.in_product_id = p.in_wp_product_id', 'LEFT');
+		$this->db->JOIN('tbl_auction_products as auc', 'oi.in_product_id = auc.in_prod_id', 'LEFT');
+		$where_con = " (auc.in_organization_id = ".$this->session->userdata('org_id').")";
+		$this->db->WHERE($where_con,NULL, FALSE);
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));
+		//$this->db->where('oa.in_addr_type',2);	
+		 if($search_text != ''){ 
+                    $searchterm = str_replace('%', '\%', $search_text);                    
+					//$this->db->like('o.in_order_id', $searchterm);					
+					$cwhere="(o.in_order_id LIKE '".$searchterm."%')";
+					$this->db->WHERE($cwhere);
+                }
+		$this->db->WHERE('o.in_deleted',0);	
+		$this->db->WHERE('o.in_order_status', 4);
+		$this->db->WHERE('oa.in_deleted',0);
+		$this->db->GROUP_BY('o.in_order_id');				
+		$this->db->ORDER_BY($sort,$order);	
+		$this->db->LIMIT($limit,$start);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//exit;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row){					
+		
+				$data['order_list'][] = array('order_id'			=>	$row['in_order_id'],												
+                                              'total'			    =>	($row['totalamt']!='0.00')? '$'.$row['totalamt']:'$0.00',
+											  'totalOrders'			=>  $row['totalOrders'],
+											  'shipping'			=>  $row['st_addr1'].','.((isset($row['st_addr2']) && !empty($row['st_addr2']))?$row['st_addr2'].',':'').$row['st_city'].', '.$row['st_state'].', '.$row['st_zip'],                                              
+											  'order_date'		    =>	($row['dt_modified'] != '' && $row['dt_modified'] != '0000-00-00 00:00:00' && $row['dt_modified'] != '1969-12-31' )?date('M d, Y',strtotime($row['dt_modified'])):'',
+											  'first_name'			=>   $row['st_first_name'],
+											  'last_name'			=>   $row['st_last_name'],
+											  'in_wp_order_id'		=>   $row['in_wp_order_id']
+                                       );
+			}
+		}                 
+		return $data;	
+	}
+	
+	
+	function get_order_details($orderId)
+	{
+		$this->db->SELECT('*');
+		$this->db->FROM('tbl_order'); 
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));	
+		$this->db->WHERE('in_order_id',$orderId);	 		
+		$this->db->WHERE('in_deleted',0);
+		$query = $this->db->get();
+		
+		return $query->row_array();
+	}
+	
+	function get_order_address($orderId)
+	{
+		$this->db->SELECT('*');
+		$this->db->FROM('tbl_order_address'); 
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));	
+		$this->db->WHERE('in_order_id',$orderId);	 		
+		$this->db->WHERE('in_deleted',0);
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();	
+	}
+	
+	function get_order_lineitem($orderId)
+	{
+		$this->db->SELECT('li.*,auc.st_prod_image,auc.in_prod_type');
+		$this->db->FROM('tbl_order_items li');
+		//$this->db->JOIN('tbl_products as p', 'li.in_product_id = p.in_wp_product_id', 'LEFT');
+		$this->db->JOIN('tbl_auction_products  auc', 'li.in_product_id = auc.in_prod_id', 'INNER');
+		$where_con = " ( auc.in_organization_id = ".$this->session->userdata('org_id') .")";
+		$this->db->WHERE($where_con,NULL, FALSE);		
+		$this->db->WHERE('li.in_order_id',$orderId);	
+		$this->db->WHERE('li.in_deleted',0);
+		$query = $this->db->get();
+		$order_lineitem = array();
+		foreach($query->result_array() as $key => $value)
+		{
+			
+			/*$this->db->select('p.st_prod_image,p.in_prod_id');
+			$this->db->from('tbl_products p');
+			$this->db->WHERE('p.in_wp_product_id',$value['in_product_id']);
+			$this->db->where('p.in_deleted',0);
+			$query2 = $this->db->get();
+			$prod_count = $query2->num_rows();
+			if($prod_count > 0 )
+			{
+						$prod_detail  = $query2->row_array();
+						$image_name   = $prod_detail['st_prod_image'];
+						$prod_id	  = $prod_detail['in_prod_id'];
+						$product_type = 'product';	
+			
+			} else {
+					$this->db->select('p.st_prod_image,p.in_prod_id');
+					$this->db->from('tbl_auction_products p');
+					$this->db->WHERE('p.in_wp_product_id',$value['in_product_id']);
+					$this->db->where('p.in_deleted',0);
+					$query3 = $this->db->get();
+					$prod_count = $query3->num_rows();
+					if($prod_count > 0 )
+					{
+						$auction_detail  = $query3->row_array();
+						$image_name  	 = $auction_detail['st_prod_image'];
+						$prod_id	 	 = $auction_detail['in_prod_id'];
+						$product_type 	 = 'auction';	
+					} else {
+						$image_name  = '';
+						$prod_id     = '';
+						$product_type = '';
+					}
+					
+			}	*/
+			if($value['in_prod_type']=='A')
+			{
+				$product_type 	 = 'auction';
+			}else{
+				$product_type = 'product';
+			}
+			$order_lineitem[] = array('in_order_id' 	=> $value['in_order_id'],
+									  'in_product_id' 	=> $value['in_product_id'],
+									  'st_product_name' => $value['st_product_name'],
+									  'fl_cost' 		=> $value['fl_cost'],
+									  'in_qty' 			=> $value['in_qty'],
+									  'st_prod_image'	=> $value['st_prod_image'],
+									  'in_prod_id'		=> $value['in_product_id'],
+									  'product_type'	=> $product_type,
+									  'fl_shipping_cost'=> $value['fl_shipping_cost'],
+									 );
+		}
+			return $order_lineitem;
+		//return $query->result_array();	
+	}
+	
+	/*function get_general_detail($orderId)
+	{
+		$this->db->SELECT('o.in_order_id,o.dt_order_date,o.in_order_status,oa.in_addr_type,oa.st_addr1,oa.st_addr2,oa.st_city,oa.st_state,oa.st_zip,
+						  li.st_product_name,li.fl_cost,li.in_qty',FALSE);
+		$this->db->FROM('tbl_order as o'); 
+		$this->db->JOIN('tbl_order_address as oa', 'oa.in_order_id = o.in_order_id', 'LEFT'); 
+		$this->db->JOIN('tbl_order_items as li', 'li.in_order_id = o.in_order_id', 'LEFT');
+		$this->db->JOIN('tbl_products as p', 'li.in_product_id = p.in_wp_product_id', 'LEFT');
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));	
+		$this->db->WHERE('o.in_order_id',$orderId);	 		
+		$this->db->WHERE('o.in_deleted',0);		
+		$this->db->WHERE('oa.in_deleted',0);
+		$this->db->WHERE('li.in_deleted',0);	
+		$query = $this->db->get();
+		//return $query->row_array(); 	
+		$row = $query->row_array();
+		echo "<pre>"; print_r($row); echo "</pre>";
+		exit;
+		$data=array();
+		if(!empty($row)) {
+			
+			$data = array(	'order_id'			    =>	$row['in_order_id'],	
+							'in_addr_type'			=>	$row['in_addr_type'],	
+							'addr1'			        =>  $row['st_addr1'],	
+							'addr2'			        =>  $row['st_addr2'],	
+							'city'			        =>  $row['st_city'],
+							'state'			        =>  $row['st_state'],
+							'zip'			        =>  $row['st_zip'],			
+							'order_date'		    =>	($row['dt_order_date'] != '' && $row['dt_order_date'] != '0000-00-00 00:00:00' && $row['dt_order_date'] != '1969-12-31' )?date('M d, Y',strtotime($row['dt_order_date'])):'',
+							'order_status'			=> $row['in_order_status'],							 			
+							'order_item'			=>	$this->get_order_item($row['in_order_id'])
+							);
+		}
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($data);die;
+		// .',' .$row['st_addr2'].', '.$row['st_city'].', '.$row['st_state'].', '.$row['st_zip']
+		return $data;
+	}*/
+	
+	public function get_order_item($id) {
+		$data = '';
+		$result = array();
+		$this->db->select('p.st_product,p.st_prod_image,oi.fl_cost,oi.in_qty');
+		$this->db->from('tbl_order_items as oi');
+		$this->db->JOIN('tbl_products as p', 'p.in_prod_id = oi.in_product_id', 'LEFT'); 
+		$this->db->where('oi.in_order_id',$id);
+		$this->db->where('oi.in_deleted',0);
+		$this->db->where('p.in_deleted',0);		
+		
+		$query = $this->db->get();
+		
+		if($query->num_rows() > 0) {
+			$result = $query->result_array();
+			
+			foreach($query->result_array() as $row) {
+				
+					$data[] =  array('name'					=>	$row['st_product'],
+									 'image'				=>	$row['st_prod_image'],		
+									 'cost'					=>	($row['fl_cost']!='0.00')? $row['fl_cost']:'0.00',
+									 'qty'					=>	$row['in_qty']
+							);
+				
+			}			
+			return $data;
+		}
+	}
+	
+	function upload_files($file_name)
+	{
+		$lastDot = strrpos($file_name, ".");
+		$file_name = str_replace(".", "", substr($file_name, 0, $lastDot)) . substr($file_name, $lastDot);
+		$config['file_name'] = preg_replace('/[^A-Za-z0-9\-.]/', '', str_replace(" ", "_", $this->session->userdata('userid') . '_' . mt_rand() . '_' . $file_name));
+		
+		$config['upload_path'] = $this->config->item('upload')."product/";
+		$config['allowed_types'] = 'jpg|jpe|jpeg|gif|png';
+		$config['max_size']	= '5120';
+		
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		if (!$this->upload->do_upload($file_name)) {
+			return "";
+		}
+		else {
+			$arrImageInfo = $this->upload->data();
+		    return $arrImageInfo;
+			
+		}	
+	}
+	
+	
+	function delete_image($Id)
+	{
+		$arrdata = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_img_id', $Id);
+		$this->db->update('tbl_auction_product_image', $arrdata);	
+		//echo $this->db->last_query(); die;	
+	}
+
+	function get_auction_users($wp_id)
+	{
+		$this->db->select("b.in_bid_id,
+						   b.in_prod_id,
+						   b.in_bid_amt,
+						   u.st_display_name,
+						   u.st_last_name,
+						   u.st_email,
+						   DATE_FORMAT( b.dt_created,'%m-%d-%Y %H:%i:%s') as dateAdded");
+		$this->db->from('tbl_bids b');
+		$this->db->JOIN('tbl_users as u', 'u.in_user_id = b.in_user_id', 'INNER');
+		$this->db->where('in_prod_id',$wp_id);
+		$this->db->where('b.in_deleted',0);
+		$this->db->order_by('b.in_bid_id','desc');	
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->result_array();		
+	}	
+	function insert_vendorid($vendor_data,$org_id)
+	{
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->update('tbl_organization',$vendor_data);
+	}
+}
+?>

@@ -1,0 +1,228 @@
+<?php
+# ======================================================================================
+# Created by		: Jigar Patel
+# Created date		: 18-March-2013
+# File description	: User Model for User
+# Special - notes	: none
+# Tables used		: tbl_users,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class user_order_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	function index()
+	{
+	
+	}
+	public function get_all_orders($limit,$start,$sort,$order,$search_text) { 
+	  //public function get_all_orders() { 	
+	
+		 //$user_details = $this->get_user_profile();
+		$data= array();
+               
+                switch($sort){
+		    		case 'id': 	
+                        $sort =   'in_wp_order_id';
+                    break;
+											
+                    case 'order_date':								
+                        $sort =   'dt_order_date';
+                    break;	
+					
+					case 'total':								
+                        $sort =   'fl_order_total';
+                    break;		
+					
+					case 'order_status':								
+                        $sort =   'in_order_status';
+                    break;					
+										
+                    default:							
+                        $sort = 'in_order_id';
+                    break;
+                }
+		
+		$this->db->SELECT('SQL_CALC_FOUND_ROWS o.in_order_id,o.in_wp_order_id,
+						   o.dt_order_date,
+						   o.fl_order_total,
+						   o.in_order_status,
+						   oa.st_first_name,
+						   oa.st_last_name,
+						   oa.st_addr1,
+						   oa.st_addr2,
+						   oa.st_city,
+						   oa.st_state,
+						   oa.st_zip,
+						   oa.st_country,
+						   COUNT(oi.in_id) as totalOrders',FALSE);
+		$this->db->FROM('tbl_order as o'); 
+		$this->db->JOIN('tbl_order_address as oa', 'o.in_order_id = oa.in_order_id', 'INNER'); 
+		$this->db->JOIN('tbl_order_address as oai', 'o.in_order_id = oai.in_order_id', 'INNER'); 
+		$this->db->JOIN('tbl_order_items as oi', 'oi.in_order_id = o.in_order_id', 'LEFT');
+		$this->db->JOIN('tbl_products as p', 'oi.in_product_id = p.in_wp_product_id', 'LEFT');
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));
+		$this->db->where('oai.in_addr_type',1);
+		$this->db->where('oai.st_email',$this->session->userdata('email'));
+		$this->db->where('oa.in_addr_type',2);
+			  	
+		 /*if($search_text != ''){ 
+                    $searchterm = str_replace('%', '\%', $search_text);                    
+					//$this->db->like('o.in_order_id', $searchterm);					
+					$cwhere="(o.in_order_id LIKE '".$searchterm."%')";
+					$this->db->WHERE($cwhere);
+                }*/
+		$this->db->WHERE('o.in_deleted',0);	
+		$this->db->WHERE('oi.in_deleted',0);
+		//$this->db->WHERE('o.in_order_status',4);	
+		$this->db->WHERE('oa.in_deleted',0);
+		//$this->db->WHERE(' totalOrders > 0');	
+		$this->db->GROUP_BY('o.in_order_id');						
+		$this->db->ORDER_BY($sort,$order);	
+		$this->db->LIMIT($limit,$start);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//exit;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$data["num_rows"] = $query2->row()->rows;
+		
+		if($query->num_rows() > 0) {
+			foreach($query->result_array() as $row){
+			
+				if($row['in_order_status']==1)
+				{
+					$order_status	=	'On Hold';
+				}
+				else if($row['in_order_status']==2)
+				{ 
+					$order_status	=	'Processing';
+				}
+				else if($row['in_order_status']==3)
+				{ 
+					$order_status	=	'Pending';
+				}
+				else if($row['in_order_status']==4)
+				{ 
+					$order_status	=	'Completed';
+				}
+				else if($row['in_order_status']==5)
+				{ 
+					$order_status	=	'Cancelled';
+				} 
+				else if($row['in_order_status']==6)
+				{ 
+					$order_status	=	'Refunded';
+				}
+				else if($row['in_order_status']==7)
+				{ 
+					$order_status	=	'Failed';
+				}		
+					
+				$data['order_list'][] = array('order_id'			=>	$row['in_order_id'],												
+                                              'total'			    =>	($row['fl_order_total']!='0.00')? '$'.$row['fl_order_total']:'$0.00',
+											  'totalOrders'			=>  $row['totalOrders'],
+											  'order_status'		=>  $order_status,
+											  'shipping'			=>  $row['st_addr1'].','.((isset($row['st_addr2']) && !empty($row['st_addr2']))?$row['st_addr2'].',':'').$row['st_city'].', '.$row['st_state'].', '.$row['st_zip'],                                              
+											  'order_date'		    =>	($row['dt_order_date'] != '' && $row['dt_order_date'] != '0000-00-00 00:00:00' && $row['dt_order_date'] != '1969-12-31' )?date('M d, Y',strtotime($row['dt_order_date'])):'',
+											  'wp_order_id'			=>	 $row['in_wp_order_id'],
+											  'first_name'			=>   $row['st_first_name'],
+											  'last_name'			=>   $row['st_last_name'],
+											  'in_wp_order_id'		=>   $row['in_wp_order_id'],	
+                                       );
+			}
+		} 
+			//echo "<pre>"; print_r($data); "</pre>";
+			//exit(0);
+		return $data;	
+	}
+	
+	function get_order_details($orderId)
+	{
+		$this->db->SELECT('*');
+		$this->db->FROM('tbl_order'); 
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));	
+		$this->db->WHERE('in_order_id',$orderId);	 		
+		$this->db->WHERE('in_deleted',0);
+		$query = $this->db->get();	
+		return $query->row_array();
+	}
+	
+	function get_order_address($orderId)
+	{
+		$this->db->SELECT('*');
+		$this->db->FROM('tbl_order_address'); 
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));	
+		$this->db->WHERE('in_order_id',$orderId);	 		
+		$this->db->WHERE('in_deleted',0);
+		$query = $this->db->get();
+		return $query->result_array();	
+	}
+	
+	function get_order_lineitem($orderId)
+	{
+		$this->db->SELECT('li.*');
+		$this->db->FROM('tbl_order_items li');
+		//$this->db->JOIN('tbl_products as p', 'li.in_product_id = p.in_wp_product_id', 'LEFT');	
+		$this->db->WHERE('li.in_order_id',$orderId);
+		//$this->db->where('p.in_organization_id',$this->session->userdata('org_id'));	
+		$this->db->WHERE('li.in_deleted',0);
+		$query = $this->db->get();
+		//return $query->result_array();
+		$order_lineitem = array();
+		foreach($query->result_array() as $key => $value)
+		{
+			
+			$this->db->select('p.st_prod_image,p.in_prod_id');
+			$this->db->from('tbl_products p');
+			$this->db->WHERE('p.in_wp_product_id',$value['in_product_id']);
+			$this->db->where('p.in_deleted',0);
+			$query2 = $this->db->get();
+			$prod_count = $query2->num_rows();
+			if($prod_count > 0 )
+			{
+						$prod_detail  = $query2->row_array();
+						$image_name   = $prod_detail['st_prod_image'];
+						$prod_id	  = $prod_detail['in_prod_id'];
+						$product_type = 'product';	
+			
+			} else {
+					$this->db->select('p.st_prod_image,p.in_prod_id');
+					$this->db->from('tbl_auction_products p');
+					$this->db->WHERE('p.in_wp_product_id',$value['in_product_id']);
+					$this->db->where('p.in_deleted',0);
+					$query3 = $this->db->get();
+					$prod_count = $query3->num_rows();
+					if($prod_count > 0 )
+					{
+						$auction_detail  = $query3->row_array();
+						$image_name  	 = $auction_detail['st_prod_image'];
+						$prod_id	 	 = $auction_detail['in_prod_id'];
+						$product_type 	 = 'auction';	
+					} else {
+						$image_name  = '';
+						$prod_id     = '';
+						$product_type = '';
+					}
+					
+			}	
+			$order_lineitem[] = array('in_order_id' 	=> $value['in_order_id'],
+									  'in_product_id' 	=> $value['in_order_id'],
+									  'st_product_name' => $value['st_product_name'],
+									  'fl_cost' 		=> $value['fl_cost'],
+									  'in_qty' 			=> $value['in_qty'],
+									  'st_prod_image'	=> $image_name,
+									  'in_prod_id'		=> $prod_id,
+									  'product_type'	=> $product_type
+									 );
+		}
+			return $order_lineitem;
+	}
+	
+		
+}
+?>

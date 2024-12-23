@@ -1,0 +1,1355 @@
+<?php
+class sysmanage_model extends CI_Model {
+
+    function __construct()
+    {
+        parent::__construct();
+    }
+	
+	//============================================================
+	//	Function	:	get_all_pages()
+	//	Purpose		:	to get list of all cms pages to manage
+	//------------------------------------------------------------
+	function get_all_pages()
+	{
+		$sql	= "SELECT  in_page_id, 
+						   st_page_name
+				   FROM tbl_pages
+				   WHERE in_deleted = 0 
+				   ORDER BY st_page_name ASC
+				  ";
+		
+		$query = $this->db->query($sql);
+		
+        $page_list = array();
+        $page_list[''] = 'Select Page';
+		
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$page_list[$Row->in_page_id] = $Row->st_page_name;
+			}
+			return $page_list;
+		}
+	}
+
+	//============================================================
+	//	Function	:	get_page_detail()
+	//  Parameter	: 	$pageId
+	//	Perpose		:	to get cms page Details
+	//------------------------------------------------------------
+	function get_page_detail($pageId)
+	{
+		$arrData['error']	=	'';
+		
+		$this->db->select('in_page_id, 
+						   st_page_name, 
+						   st_page_title,
+						   st_page_meta_keyword,
+						   st_page_meta_desc,
+						   st_page_content
+						  ');
+		
+		$this->db->where('in_page_id', $pageId);
+		
+		$this->db->where('in_deleted', '0');	// 1 -> deleted , 0 -> Not Deleted
+
+		$this->db->from('tbl_pages');
+		
+		$query = $this->db->get();
+		
+		if($query->num_rows()>0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array( 'page_id'    	 => $Row->in_page_id,
+									 'page_name'  	 => $Row->st_page_name,
+									 'page_title' 	 => $Row->st_page_title,
+									 'page_keywords' => $Row->st_page_meta_keyword,
+									 'page_desc' 	 => $Row->st_page_meta_desc,
+									 'page_content'	 => $Row->st_page_content
+								   );
+			}
+			return $arrData;
+		}
+	}
+
+	//============================================================
+	//	Function	:	update_cms_page()
+	//  Parameter	: 	$post
+	//	Perpose		:	to Update cms Page
+	//------------------------------------------------------------
+	function update_cms_page($post)
+	{
+		$arrData	 = 	  array( 'st_page_title' 		=> $post['page_title'],
+								 'st_page_meta_keyword' 	=> $post['meta_keywords'],
+								 'st_page_meta_desc' 	=> $post['meta_desc'],
+								 'st_page_content' 		=> $post['edit_body'],
+								 'dt_modified'			=> date("Y-m-d H:i:s")
+								);
+		
+		$this->db->where('in_page_id', $post['edit_page_id']);
+		
+		$this->db->update('tbl_pages', $arrData);
+	}
+	
+	
+	
+	
+	function get_email_page_detail($pageId)
+	{  
+		$arrData['error']	=	'';		
+		$this->db->select('in_email_id,st_email_body,st_potential_field,st_category,st_email_name,st_email_subject,st_description,in_allow_status');
+		
+		$this->db->where('in_email_id', $pageId);
+		
+		$this->db->where('in_deleted', '0');	// 1 -> deleted , 0 -> Not Deleted
+
+		$this->db->from('tbl_email_template');
+		
+		$query = $this->db->get();
+		
+		//echo $this->db->last_query(); die;
+		
+		if($query->num_rows()>0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array( 'page_id'    	 		=> $Row->in_email_id,									 
+									 'page_content'	 		=> $Row->st_email_body,
+									 'potential_field'	 	=> $Row->st_potential_field,
+									 'category'             => $Row->st_category,
+									 'page_name'           	=> $Row->st_email_name, 
+									 'page_subject'         => $Row->st_email_subject,
+									 'email_desc'           => $Row->st_description,
+									 'block_status'         => $Row->in_allow_status
+								   );
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	
+	function get_all_email_pages()
+	{
+			$sql	= "SELECT  in_email_id, st_email_subject,st_email_name					   
+				   FROM tbl_email_template
+				   WHERE in_deleted = 0
+				   ORDER BY st_email_name,st_email_subject ASC";
+		
+		$query = $this->db->query($sql);
+		
+        $page_list = array();
+        $page_list[''] = 'Select Email Template';
+		
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				if($Row->st_email_name!=NULL){
+					$page_list[$Row->in_email_id] = $Row->st_email_name;
+				}
+				else
+				{
+					$page_list[$Row->in_email_id] = $Row->st_email_subject;
+				}
+			}
+			return $page_list;
+		}
+	}
+	
+	
+	function update_email($post)
+	{
+		$arrData	 = 	  array( 'st_email_body' 		=> $post['edit_body'],
+								 'st_category'          => $post['category'],   
+								 'st_email_name'       	=> $post['page_name'],
+								 'st_email_subject'     => $post['page_subject'],
+								 'st_description'       => $post['email_desc'],								 
+								 'dt_last_modified'		=> date("Y-m-d H:i:s"),
+								 'in_allow_status'		=> $post['block_status']
+								);		
+		$this->db->where('in_email_id', $post['edit_page_id']);		
+		$this->db->update('tbl_email_template', $arrData);
+		
+	}
+	
+	#============================================================
+	#	Function	:	get_email_subscription_detail()
+	#   Parameter	: 	sort,order,limit,rec_per_page,searchtxt
+	#	Perpose		:	to get email template details
+	#------------------------------------------------------------
+	public function get_email_subscription_detail($sort,$order,$limit,$rec_per_page,$interested_in,$more_info,$newsletter)
+	{		
+		$sql1	=	'';	
+		$sql2	=	'';	
+		if(isset($interested_in) && $interested_in != '')
+		{			
+			$interested_in = unserialize($interested_in);
+			
+			foreach($interested_in as $values)
+			{
+				$values = '"'.$values.'"';
+				$sql1	.=  " AND uns.st_interested_in REGEXP '.*;s:[0-9]+:".$values.".*'";
+			}
+		}
+		
+		if(isset($more_info) && $more_info != '')
+		{
+			
+			$more_info = unserialize($more_info);
+			
+			foreach($more_info as $values)
+			{
+				$values = '"'.$values.'"';
+				$sql1	.=  " AND uns.st_more_info REGEXP '.*;s:[0-9]+:".$values.".*'";
+			}
+		}		
+		
+		if(isset($newsletter) && $newsletter != '' && $sql1!='')
+		{		
+			$sql2	.=  " AND (u.in_newsletter='Y' OR u.in_user_id IN (SELECT uns.in_user_id FROM tbl_user_notification_setting uns WHERE uns.in_deleted = 0 AND (uns.st_interested_in !='' || uns.st_more_info !='' || uns.in_new_feature !='') $sql1 ))";
+		}
+		elseif($sql1!='')
+		{		
+			$sql2	.=  " AND u.in_user_id IN (SELECT uns.in_user_id FROM tbl_user_notification_setting uns WHERE uns.in_deleted = 0 AND (uns.st_interested_in !='' || uns.st_more_info !='' || uns.in_new_feature !='') $sql1 )";
+		}
+		elseif(isset($newsletter) && $newsletter != '')
+		{		
+			$sql2	.=  " AND u.in_newsletter='Y'";
+		}
+		else
+		{		
+			$sql2	.=  " AND (u.in_newsletter='Y' OR u.in_user_id IN (SELECT uns.in_user_id FROM tbl_user_notification_setting uns WHERE uns.in_deleted = 0 AND (uns.st_interested_in !='' || uns.st_more_info !='' || uns.in_new_feature !='')))";
+		}
+		
+		$sqlQRY	=	"SELECT u.in_user_id,concat(u.st_display_name,' ',u.st_last_name) as st_display_name,u.st_email FROM tbl_users u WHERE u.in_deleted = 0 $sql2 ";		
+		
+		switch($sort)
+		{							
+			case 'name':								
+				$sqlQRY	.=  " ORDER BY u.st_display_name ".$order;
+			break;	
+			
+			case 'email': 								
+				$sqlQRY	.=  " ORDER BY u.st_email ".$order;
+			break;
+			
+			default: 								
+				$sqlQRY	.=  " ORDER BY u.in_user_id DESC";
+			break;
+										 
+		}
+					  
+					  
+		  if(!isset($limit))
+			{
+				$limit=0;
+			}					
+			$sqlQRY	.=  " Limit ".$limit.",".$rec_per_page."";	
+			$query = $this->db->query($sqlQRY);				
+			//echo $this->db->last_query();  die;					
+			$arrEmail = array();					
+			
+			if($query->num_rows()>0)
+			{  
+				foreach($query->result() as $Row)
+				{			
+					$arrEmail[$Row->in_user_id]	=	array('in_user_id'	           => $Row->in_user_id,
+														  'st_display_name'	       => $Row->st_display_name,
+														  'st_email'	           => $Row->st_email
+									);
+				}
+				return $arrEmail;
+			}
+	}
+	
+	public function get_email_subscription_records($interested_in='',$more_info='',$newsletter='')
+	{		
+		$sql1	=	'';	
+		$sql2	=	'';	
+		if(isset($interested_in) && $interested_in != '')
+		{			
+			$interested_in = unserialize($interested_in);
+			
+			foreach($interested_in as $values)
+			{
+				$values = '"'.$values.'"';
+				$sql1	.=  " AND uns.st_interested_in REGEXP '.*;s:[0-9]+:".$values.".*'";
+			}
+		}
+		
+		if(isset($more_info) && $more_info != '')
+		{
+			
+			$more_info = unserialize($more_info);
+			
+			foreach($more_info as $values)
+			{
+				$values = '"'.$values.'"';
+				$sql1	.=  " AND uns.st_more_info REGEXP '.*;s:[0-9]+:".$values.".*'";
+			}
+		}		
+		
+		if(isset($newsletter) && $newsletter != '' && $sql1!='')
+		{		
+			$sql2	.=  " AND (u.in_newsletter='Y' OR u.in_user_id IN (SELECT uns.in_user_id FROM tbl_user_notification_setting uns WHERE uns.in_deleted = 0 AND (uns.st_interested_in !='' || uns.st_more_info !='' || uns.in_new_feature !='') $sql1 ))";
+		}
+		elseif($sql1!='')
+		{		
+			$sql2	.=  " AND u.in_user_id IN (SELECT uns.in_user_id FROM tbl_user_notification_setting uns WHERE uns.in_deleted = 0 AND (uns.st_interested_in !='' || uns.st_more_info !='' || uns.in_new_feature !='') $sql1 )";
+		}
+		elseif(isset($newsletter) && $newsletter != '')
+		{		
+			$sql2	.=  " AND u.in_newsletter='Y'";
+		}
+		else
+		{		
+			$sql2	.=  " AND (u.in_newsletter='Y' OR u.in_user_id IN (SELECT uns.in_user_id FROM tbl_user_notification_setting uns WHERE uns.in_deleted = 0 AND (uns.st_interested_in !='' || uns.st_more_info !='' || uns.in_new_feature !='')))";
+		}
+		
+		$sqlQRY	=	"SELECT u.in_user_id FROM tbl_users u WHERE u.in_deleted = 0 $sql2 ";
+		
+		$query = $this->db->query($sqlQRY);
+		//echo $this->db->last_query(); die;		
+		return $query->num_rows();
+	}
+	
+	function get_all_demo_videos()
+	{
+		$this->db->select('id_demo_videos,st_title');
+		$this->db->where('in_deleted', '0');	// 1 -> deleted , 0 -> Not Deleted
+		$this->db->from('tbl_demo_videos');
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		$demo_videos = array();
+		if($query->num_rows()>0)
+		{
+			$demo_videos = $query->result_array();
+		}
+		return $demo_videos;
+	}
+	
+	function get_all_demo_video_details()
+	{
+		$this->db->select('id_demo_videos,st_title,st_description,st_url,dt_added,dt_modified');
+		$this->db->where('in_deleted', '0');	// 1 -> deleted , 0 -> Not Deleted
+		$this->db->from('tbl_demo_videos');
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		$demo_videos = array();
+		if($query->num_rows()>0)
+		{
+			$demo_videos = $query->result_array();
+		}
+		return $demo_videos;		
+	}
+	
+	function get_demo_video_details_by_id($id)
+	{
+		$this->db->select('id_demo_videos,st_title,st_url,st_description');
+		$this->db->where('id_demo_videos', $id);
+		$this->db->where('in_deleted', '0');	// 1 -> deleted , 0 -> Not Deleted
+		$this->db->from('tbl_demo_videos');
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		$demo_video_data = array();
+		if($query->num_rows()>0)
+		{
+			$demo_video_data = $query->row_array();
+		}
+		return $demo_video_data;
+	}
+	
+	
+	function insert_demo_video($arrData)
+	{
+		//print_r($arrData);exit;
+		$video_id = $this->db->insert('tbl_demo_videos', $arrData);
+		//echo $this->db->last_query(); die;
+		$this->db->insert_id();	
+		return  $this->db->insert_id();
+	}
+	
+	function update_demo_video_details($post)
+	{
+		$arrData	 = 	  array( 'st_title' 		=> $post['video_title'],
+								 'st_description' 		=> $post['video_description'],
+								 'st_url' 		=> $post['video_url'],
+								 'dt_modified'		=> date("Y-m-d H:i:s")
+								);
+		
+		$this->db->where('id_demo_videos', $post['video_id']);
+		$this->db->update('tbl_demo_videos', $arrData);
+	}
+	
+	function delete_demo_video($videoId)
+	{
+		$arrData	 = 	  array( 'in_deleted' 	=> '1',
+								 'dt_modified'	=> date("Y-m-d H:i:s")
+								);
+		
+		$this->db->where('id_demo_videos', $videoId);		
+		$this->db->update('tbl_demo_videos', $arrData);
+	}
+	
+	public function check_exists_demo_video($video_title) {
+		$this->db->select('id_demo_videos');
+		$this->db->from('tbl_demo_videos');
+		$this->db->where('st_title',$video_title);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->row_array();
+	}
+	#============================================================
+	#  Function	:	get_total_autoemail()
+	#  Parameter	: 	name
+	#  Perpose		:	to check valid volunteer email
+	#------------------------------------------------------------
+	public function get_total_autoemail($fromdate='',$todate='', $searchtxt='')
+	{ 		
+		if($fromdate=='1969-12-31'){$fromdate='';  }
+		if($todate=='1969-12-31'){$todate='';  }		
+		
+		$this->db->select("tbl_volunteers_email.in_id", false);						   	
+		$this->db->from('tbl_volunteers_email');	
+		$this->db->where('in_deleted',0);	
+		if($fromdate!='' && $todate!='') {
+			$this->db->where("tbl_volunteers_email.dt_date >= '".$fromdate."' AND tbl_volunteers_email.dt_date <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}
+		if($searchtxt!='') {
+			$this->db->where("tbl_volunteers_email.st_text LIKE '%".addslashes($searchtxt)."%'", NULL, FALSE);
+		}
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_autoemail()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to check valid user login
+	#------------------------------------------------------------
+	public function get_autoemail($sort,$order,$limit,$rec_per_page,$fromdate,$todate,$searchtxt)
+	{
+		
+		if($fromdate=='1969-12-31'){$fromdate='';  }
+		if($todate=='1969-12-31'){$todate='';  }		  
+		$this->db->select("tbl_volunteers_email.in_id,
+						   tbl_volunteers_email.st_from,
+						   tbl_volunteers_email.st_text, tbl_volunteers_email.dt_date", false);						   	
+		$this->db->from('tbl_volunteers_email');	
+		$this->db->where('in_deleted',0);
+		if($fromdate!='' && $todate!='') {
+			$this->db->where("tbl_volunteers_email.dt_date >= '".$fromdate."' AND tbl_volunteers_email.dt_date <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}
+		
+		if($searchtxt!='') {
+			$this->db->where("tbl_volunteers_email.st_text LIKE '%".addslashes($searchtxt)."%'", NULL, FALSE);
+		}
+		 $this->db->order_by('in_id','DESC');	
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+				
+					
+					//echo $this->db->last_query();  die;					
+					$arrAutoEmail = array();					
+					
+					if($query->num_rows()>0)
+					{  $starttxt='';
+						foreach($query->result() as $Row)
+						{	
+							if(trim($Row->st_from)=='All For Good <admin@allforgood.org>'){
+								
+								$strPosProject	=	strpos(htmlspecialchars($Row->st_text),'Project');
+								$strPosName	=	strpos(htmlspecialchars($Row->st_text),'Volunteer Name');
+								$strPosEmail	=	strpos(htmlspecialchars($Row->st_text),'Volunteer Email');
+								$strPosPlease	=	strpos(htmlspecialchars($Row->st_text),'Please reach out');
+								
+								$strProject	=	substr(htmlspecialchars($Row->st_text), $strPosProject, $strPosName - $strPosProject);
+								
+								$strName	=	substr(htmlspecialchars($Row->st_text), $strPosName, $strPosEmail - $strPosName);
+								
+								$strEmail	=	substr(htmlspecialchars($Row->st_text), $strPosEmail, $strPosPlease - $strPosEmail);
+								
+								$to_name = trim($this->get_string_between($strName,':','&'));
+								$to_email = trim(substr($strEmail,strpos($strEmail,":")+1));
+								
+								$email= $to_name.'&lt;'.$to_email.'&gt;';
+								$starttxt	=	"Hello";
+								
+								$arrAutoEmail[$Row->in_id]	=	array(  'in_id'			=> $Row->in_id,
+																		'st_from'		=> $email,																		
+																		'st_text'		=> $this->get_string_between($Row->st_text,$starttxt,'--_=_swift_v4'),
+																		'name'          => $to_name,
+																		'fromemail'     => $to_email,
+																		'f_title'       => $strProject,
+																		'dt_date'		=> $Row->dt_date																								
+												);
+								
+							}else{
+								
+								$email=$this->get_string_between(htmlspecialchars($Row->st_text),'Reply-To: ','To: ');
+								
+								//echo '<pre>'; echo $Row->st_text;
+								
+								if (strpos(htmlspecialchars($Row->st_text),'Dear Doobert') != false) {$starttxt='Dear Doobert';}
+								else if(strpos(htmlspecialchars($Row->st_text),'Dear Volunteer') != false){$starttxt='Dear Volunteer';}
+								else if(strpos(htmlspecialchars($Row->st_text),'Dear=20') != false){$starttxt='Dear=20';}
+								else if(strpos(htmlspecialchars($Row->st_text),'Dear ') != false){$starttxt='Dear ';}
+								
+								$arrAutoEmail[$Row->in_id]	=	array(  'in_id'			=> $Row->in_id,
+																		'st_from'		=> $email,
+																		//'st_text'		=> $this->get_string_between(htmlspecialchars($Row->st_text),'Dear Doobert','------=_Part_'),
+																		'st_text'		=> $this->get_string_between(htmlspecialchars($Row->st_text),$starttxt,'------=_Part_'),
+																		'name'          => trim($this->get_string_between(htmlspecialchars($Row->st_text),'Reply-To: ','&lt;')),
+																		'fromemail'     => trim($this->get_string_between(($email),'&lt;','&gt;')),
+																		'f_title'       => trim($this->get_string_between(htmlspecialchars($Row->st_text),'Title: ',' ')),
+																		'dt_date'		=> $Row->dt_date																								
+												);
+							}
+						}
+						//print_r($arrAutoEmail);die;
+						return $arrAutoEmail;						
+					}
+					
+	}
+	
+	function get_string_between($string, $start, $end){ 
+		$string = ' ' . $string;
+		$ini = strpos($string, $start);
+		if ($ini == 0) return '';
+		$ini += strlen($start);
+		$len = strpos($string, $end, $ini) - $ini;
+		return substr($string, $ini, $len);
+	}
+	
+		#========================================================================
+	#	Function	:	delete_multiple_email()
+	#   Parameter	: 	inIds
+	#	Perpose		:	to delete multiple email details from tbl_volunteers_email table
+	#------------------------------------------------------------------------
+	function delete_multiple_email($inIds)
+	{			
+		$arrEmail = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_id', $inIds);
+		$this->db->update('tbl_volunteers_email', $arrEmail);		
+		return $this->db->affected_rows();
+	}
+	
+	public function get_facebook_token()
+	{ 		
+				
+		$this->db->select("id,st_access_token,dt_created,dt_modified,in_modified_by,dt_expiry");						   	
+		$this->db->from('tbl_facebook_access_token');
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->row_array();
+	}
+	
+	public function update_facebook_token($access_id,$access_token,$expiry_date)
+	{
+		$arrData	 = 	  array( 'st_access_token' 	=> $access_token,
+								 'dt_modified'	=> date("Y-m-d H:i:s"),
+								 'in_modified_by'	=> $this->session->userdata('sess_admin_id'),
+								 'dt_expiry'	=> date('Y-m-d',strtotime($expiry_date))
+								);
+		
+		$this->db->where('id', $access_id);		
+		$this->db->update('tbl_facebook_access_token', $arrData);
+		//echo $this->db->last_query(); die;	
+		
+	}
+	
+	#============================================================
+	#  Function	:	get_total_transportemails()
+	#  Parameter: 	
+	#  Perpose	:	get_total_transportemails
+	#------------------------------------------------------------
+	public function get_total_transportemails($emailid,$fromdate,$todate)
+	{ 		
+		$this->db->select("in_id", false);						   	
+		$this->db->from('tbl_transportation_emails');	
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_processed',1);	
+		if(trim($emailid) != '') {
+			$where = "st_from like '%$emailid%'";
+			$this->db->where($where);
+		}
+		
+		if($fromdate!='' && $todate!='') {
+			$this->db->where("dt_date >= '".$fromdate."' AND dt_date <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}	
+		if($fromdate!='' && $todate=='') {
+			$this->db->where("dt_date >= '".$fromdate."'", NULL, FALSE);
+		}
+		if($fromdate=='' && $todate!='') {
+			$this->db->where("dt_date <= '".$todate."'", NULL, FALSE);
+		}			
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#  Function	:	get_transportemail()
+	#  Parameter: 	$sort,$order,$limit,$rec_per_page
+	#  Perpose	:	get_transportemail
+	#------------------------------------------------------------
+	public function get_transportemail($sort,$order,$limit,$rec_per_page,$emailid='',$fromdate='',$todate='')
+	{
+		if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+
+
+		$this->db->select("in_id,
+						   st_from,
+						   dt_date,
+						   st_text", false);						   	
+		$this->db->from('tbl_transportation_emails');	
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_processed',1);
+		
+		if(trim($emailid) != '') {
+			$where = "st_from like '%$emailid%'";
+			$this->db->where($where);
+		}
+		
+		if($fromdate!='' && $todate!='') {
+				$this->db->where("dt_date >= '".$fromdate."' AND dt_date <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}	
+		if($fromdate!='' && $todate=='') {
+				$this->db->where("dt_date >= '".$fromdate."'", NULL, FALSE);
+		}
+		if($fromdate=='' && $todate!='') {
+				$this->db->where("dt_date <= '".$todate."'", NULL, FALSE);
+		}				
+		
+		$this->db->order_by('in_id','DESC');	
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+					//echo $this->db->last_query();  die;					
+					$arrAutoEmail = array();					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+							$email= htmlspecialchars($Row->st_from); 
+							$orig_email = trim($this->get_string_between($email,'&lt;','&gt;'));
+							if($orig_email == '')
+							{
+								$orig_email = $email;
+							}
+							$email_data = '';
+							$email_content = $this->get_string_between(htmlspecialchars($Row->st_text),'quoted-printable','END OF TRANSPORT');
+							if(isset($email_content) && $email_content != '')
+							{
+								$get_last_char = substr($email_content,-1);
+								$get_last_nine_char = substr($email_content,-9);
+								if(isset($get_last_char) && $get_last_char == "*");
+								{
+									$email_data = $email_content.'END OF TRANSPORT*';
+								}
+								if(isset($get_last_nine_char) && $get_last_nine_char == "=E2=99=A5")
+								{
+									$email_data = $email_content;
+									$email_data = str_replace("=E2=99=A5","*",$email_data);
+									$email_data = $email_data.'END OF TRANSPORT*';
+								}
+							}
+							$arrAutoEmail[$Row->in_id]	=	array(  'in_id'			=> $Row->in_id,
+																	'st_from'		=> htmlspecialchars($Row->st_from),
+																	'st_text'		=> $email_data,
+																	'dt_date'		=> $Row->dt_date,
+																	'name' 			=> trim($this->get_string_between(htmlspecialchars($Row->st_text),'Reply-To: ','&lt;')),
+																	'fromemail' 	=> $orig_email,
+																	'f_title' 		=> trim($this->get_string_between(htmlspecialchars($Row->st_text),'Title: ',' '))												
+											);
+						}
+						//print_r($arrAutoEmail);die;
+						return $arrAutoEmail;						
+					}
+					
+	}
+	
+	#========================================================================
+	#	Function	:	delete_multiple_transport_email()
+	#   Parameter	: 	inIds
+	#	Perpose		:	delete_multiple_transport_email
+	#------------------------------------------------------------------------
+	function delete_multiple_transport_email($inIds)
+	{			
+		$arrEmail = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_id', $inIds);
+		$this->db->update('tbl_transportation_emails', $arrEmail);		
+		return $this->db->affected_rows();
+	}
+	
+	function get_transportemail_by_id($id)
+	{
+		$this->db->select("in_id,
+						   st_from,
+						   st_text", false);						   	
+		$this->db->from('tbl_transportation_emails');	
+		$this->db->where('in_id',$id);
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_processed',1);
+		$query = $this->db->get(); 
+		//echo $this->db->last_query();  die;
+		return $query->row_array();
+		
+	}
+	
+	function get_transportstory_count($story_title,$transport_id,$story_status)
+	{
+	
+		
+		$this->db->select("trs.in_id,trs.st_rescue_title,trs.in_transportation_id,trs.in_status,trs.dt_created,
+							trs.dt_modified,
+							concat(u.st_display_name,' ',u.st_last_name)as display_name",FALSE);						   	
+		$this->db->from('tbl_transport_rescue_story trs');
+		$this->db->join("tbl_users u","trs.in_created_by = u.in_user_id","LEFT");
+		$this->db->where('trs.in_deleted',0);
+		$this->db->where_not_in('trs.st_rescue_title','');
+		$this->db->where_not_in('trs.st_rescue_story','');
+		
+		if($story_status!='' || $story_status!='all' )
+		{
+			switch($story_status)
+			{
+			case 'pen': 
+				$this->db->where('trs.in_status',0);						
+			break;
+			case 'app':
+					$this->db->where('trs.in_status',1);					
+			break;
+			case 'rej': 
+					$this->db->where('trs.in_status',2);
+			break;
+			}
+		}
+		
+		if(!empty($transport_id))
+		{
+			$this->db->where('trs.in_transportation_id',$transport_id);	
+		}
+		
+		if(!empty($story_title))
+		{
+			$sql = "st_rescue_title LIKE '%".addslashes($story_title)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		$query = $this->db->get(); 
+		
+		//print_r($transport_story);
+		//exit(0);
+			return $query->num_rows();
+	}
+	
+	function get_transportstory_data($sort,$order,$limit,$rec_per_page,$story_title,$transport_id,$story_status)
+	{
+		
+		$this->db->select("trs.in_id,trs.st_rescue_title,trs.in_transportation_id,trs.in_status,trs.dt_created,
+							trs.dt_modified,
+							concat(u.st_display_name,' ',u.st_last_name)as display_name",FALSE);						   	
+		$this->db->from('tbl_transport_rescue_story trs');
+		$this->db->join("tbl_users u","trs.in_created_by = u.in_user_id","LEFT");
+		$this->db->where('trs.in_deleted',0);
+		$this->db->where_not_in('trs.st_rescue_title','');
+		$this->db->where_not_in('trs.st_rescue_story','');
+		
+		if($story_status!='' || $story_status!='all' )
+		{
+			switch($story_status)
+			{
+			case 'pen': 
+				$this->db->where('trs.in_status',0);						
+			break;
+			case 'app':
+					$this->db->where('trs.in_status',1);					
+			break;
+			case 'rej': 
+					$this->db->where('trs.in_status',2);
+			break;
+			}	
+				
+		}
+		
+		if(!empty($transport_id))
+		{
+			$this->db->where('trs.in_transportation_id',$transport_id);	
+		}
+		
+		if(!empty($story_title))
+		{
+			$sql = "st_rescue_title LIKE '%".addslashes($story_title)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		switch($sort)
+		{		
+						case 'trid': 
+							$this->db->order_by('trs.in_transportation_id',$order);							
+						break;
+
+						case 'title':
+							$this->db->order_by('trs.st_rescue_title',$order);						
+						break;
+						
+						case 'author': 
+							  $this->db->order_by('u.st_display_name',$order);
+							  $this->db->order_by('u.st_last_name',$order);
+							//$this->db->order_by('trs.in_transportation_id',$order);
+						break;	 
+						
+						case 'status': 							
+							$this->db->order_by('trs.in_status',$order);
+						break;	
+						
+						case 'crdate':							
+							$this->db->order_by('trs.dt_created',$order);						
+						break;
+						
+						case 'modate':
+							$this->db->order_by('trs.dt_modified',$order);							
+						break;
+						
+						default:						
+							$this->db->order_by('trs.dt_created','desc');	
+						break; 
+						
+						/*default:						
+							$sql .= ' order by in_transport_id desc';	
+						break;*/        
+		 }
+		$this->db->limit($rec_per_page,$limit);
+		$query = $this->db->get(); 
+		$transport_story = array();
+		if($query->num_rows()>0)
+		{  		
+			foreach($query->result() as $Row)
+		    {
+				if($Row->in_status == 1) {
+					$status = 'Approved';
+				} else if($Row->in_status == 2) {
+					$status = 'Rejected';
+				} else {
+					$status = 'Pending';
+				}	
+					
+				$transport_story[] = array('in_id' => $Row->in_id,
+										   'in_transportation_id' => $Row->in_transportation_id,
+											'title_story' => $Row->st_rescue_title,
+											'status'=> $status,
+											'dt_created' => date("m-d-Y H:i:s",strtotime($Row->dt_created)),
+											'dt_modified' => ($Row->dt_modified=='')?'':date("m-d-Y H:i:s",strtotime($Row->dt_modified)),
+											'created_by'  =>  $Row->display_name, 	
+											//'dt_created' => date()
+										);
+			}	
+		}
+			return $transport_story;
+	}
+	
+	function get_detail_transportstory_data($id)
+	{
+		$this->db->select("trs.st_rescue_title,trs.in_id,trs.st_rescue_title,trs.st_rescue_story,trs.in_status,trs.in_transportation_id,
+						  concat(u.st_display_name,' ',u.st_last_name)as display_name,trs.dt_created",FALSE);						   	
+		$this->db->from('tbl_transport_rescue_story trs');
+		$this->db->join("tbl_users u","trs.in_created_by = u.in_user_id","LEFT");
+		$this->db->where('trs.in_id',$id);
+		$this->db->where('trs.in_deleted',0);
+		$query = $this->db->get(); 
+		$transport_story = array();
+		if($query->num_rows()>0)
+		{  		
+			$Row = $query->row();
+				if($Row->in_status == 1) {
+					$status = 'Approved';
+				} else if($Row->in_status == 2) {
+					$status = 'Rejected';
+				} else {
+					$status = 'Pending';
+				}	
+					
+				$transport_story['story'] = array('in_id' => $Row->in_id,
+											'in_transportation_id' => $Row->in_transportation_id,
+											'title_story' => $Row->st_rescue_title,
+											'transport_story' => $Row->st_rescue_story,
+											'status'=> $status,
+											'author_name' => $Row->display_name,
+											'dt_created' => ($Row->dt_created =='' || $Row->dt_created =='1969-12-31')?'':date("m-d-Y H:i:s",strtotime($Row->dt_created)),
+										);
+			
+		}
+		
+		$this->db->select('st_file_name,st_file_type,st_video_provider,st_video_id,in_transport_photo_id',FALSE);
+		$this->db->from('tbl_transportation_photo');
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_transport_story_id',$id);
+		$query = $this->db->get();
+		if($query->num_rows()>0)
+		{  		
+			foreach($query->result() as $Row)
+		    {	
+				
+				if($Row->st_file_type == "P") {	
+				$transport_story['photo'][] = array('st_file_name' => $Row->st_file_name,
+													'in_transportation_story_id' => $Row->in_transport_photo_id,
+													'file_type' => $Row->st_file_type,		
+													);
+			}	
+			
+				if($Row->st_file_type == "V") {	
+				$transport_story['video'][] = array('st_file_name' => $Row->st_file_name,
+													'in_transportation_story_id' => $Row->in_transport_photo_id,
+													'file_type' => $Row->st_file_type,
+													'video_provider' => $Row->st_video_provider,
+													'video_id'=> $Row->st_video_id,		
+													);
+			}	
+			
+			}	
+		}
+			return $transport_story;
+	}
+	
+	
+	function approved_transport_story($Id)
+	{
+		$arrApprovedsts = 	array('in_status' => '1','dt_modified'=>date("Y-m-d H:i:s"));
+		$this->db->where('in_id', $Id);
+		$this->db->update('tbl_transport_rescue_story', $arrApprovedsts);		
+		return $this->db->affected_rows();
+	 
+	}
+	
+	function rejected_transport_story($Id)
+	{
+		$arrApprovedsts = 	array('in_status' => '2','dt_modified'=>date("Y-m-d H:i:s"));
+		$this->db->where('in_id', $Id);
+		$this->db->update('tbl_transport_rescue_story', $arrApprovedsts);		
+		return $this->db->affected_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_exportautoemail()
+	#   Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	
+	#------------------------------------------------------------
+	public function get_exportautoemail($sort,$order,$limit,$rec_per_page,$fromdate,$todate,$searchtxt)
+	{
+		
+		$this->db->select("tbl_volunteers_email.st_from,
+							tbl_volunteers_email.in_id,
+							tbl_volunteers_email.st_text,													   
+						    tbl_volunteers_email.st_subject,tbl_volunteers_email.dt_date", false);						   	
+		$this->db->from('tbl_volunteers_email');	
+		$this->db->where('in_deleted',0);
+		if($fromdate!='' && $todate!='') {
+			$this->db->where("tbl_volunteers_email.dt_date >= '".$fromdate."' AND tbl_volunteers_email.dt_date <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}
+		
+		if($searchtxt!='') {
+			$this->db->where("tbl_volunteers_email.st_text LIKE '%".addslashes($searchtxt)."%'", NULL, FALSE);
+		}
+		
+		
+		 $this->db->order_by('in_id','DESC');	
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+				
+					
+					//echo $this->db->last_query();  die;					
+					$arrAutoEmail = array();					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+							$email=$this->get_string_between(htmlspecialchars($Row->st_text),'Reply-To: ','To: ');
+							$arrAutoEmail[$Row->in_id]	=	array(  
+																	'st_from'		=> $email,																	
+																	'name'          =>trim($this->get_string_between(htmlspecialchars($Row->st_text),'Reply-To: ','&lt;')),
+																	'fromemail'     =>trim($this->get_string_between(($email),'&lt;','&gt;')),																	
+																	'subject'       =>	$Row->st_subject,
+																	'comment'       => trim($this->get_string_between(htmlspecialchars($Row->st_text),'Comments: ','Volunteers are')),
+																	'dt_date'       =>	$Row->dt_date										
+											);
+						}
+						//print_r($arrAutoEmail);die;
+						return $arrAutoEmail;						
+					}
+					
+	}
+	public function get_total_newsletter($searchtxt='')
+	{ 			
+		 $this->db->select("nw.in_newsletter_id", false);						   	
+		 $this->db->from('tbl_newsletter nw');					
+		 $this->db->where('nw.in_deleted',0);	
+		$query = $this->db->get();	
+		//echo $this->db->last_query();die;	
+		return $query->num_rows();
+	}
+	#============================================================
+	#	Function	:	get_user()
+	#   Parameter	: 	sort,order,limit,rec_per_page,searchtxt
+	#	Perpose		:	to get user details
+	#------------------------------------------------------------
+	public function get_newsletter($sort,$order,$limit,$rec_per_page)
+	{
+		
+		
+				  $this->db->select("nw.in_newsletter_id,
+									  nw.st_template_id,
+									  nw.st_subject,
+									  nw.dt_sendtime,
+									  nw.in_sent,
+									  nw.in_reset,
+									  nw.dt_added", false);						   	
+				  $this->db->from('tbl_newsletter nw');					
+				  $this->db->where('nw.in_deleted','0');
+				  
+					
+					
+					switch($sort)
+					{	
+						case 'st_template_id':							
+							$this->db->order_by('nw.st_template_id',$order);							
+						break;
+						
+						default:						
+						$this->db->order_by('nw.in_newsletter_id',$order);
+						 break;        
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 		
+				
+					
+					//echo $this->db->last_query();  die;					
+					$arrUser = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+							$status = '';
+							if($Row->in_sent == '1' and  $Row->in_reset == '1'){ $status='Sent';}
+							if($Row->in_sent == '0' and  $Row->in_reset == '0'){ $status='Pending';}
+							if($Row->in_sent == '0' and  $Row->in_reset == '1'){ $status='Processing';}	
+							$arrUser[$Row->in_newsletter_id]	=	array('in_newsletter_id'	=> $Row->in_newsletter_id,
+																			'st_template_id'	=> $Row->st_template_id,
+																			'st_subject'	   	=> $Row->st_subject,
+																			'dt_sendtime'	   	=> $Row->dt_sendtime,
+																			'in_status'	   	    => $status,
+																			'dt_added'	   	    => $Row->dt_added
+											);
+						}
+						return $arrUser;
+						
+					}
+					
+	}
+	
+	function delete_newsletter($newsletterId)
+	{  
+		$arrNewsletter = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_newsletter_id', $newsletterId);
+		$this->db->update('tbl_newsletter', $arrNewsletter);	
+		
+	}
+	
+	#========================================================================
+	#	Function	:	delete_multiple_admin()
+	#   Parameter	: 	adminIds
+	#	Perpose		:	to delete multiple admin details from tbl_admin table
+	#------------------------------------------------------------------------
+	function delete_multiple_newsletter($newsletterId)
+	{				
+		$arrNewsletter = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_newsletter_id', $newsletterId);
+		$this->db->update('tbl_newsletter', $arrNewsletter);		
+		return $this->db->affected_rows();
+	}
+	
+	
+	#======================================================================
+	#	Function	:	insertNewsletter()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert newsletter details in tbl_newsletter table
+	#----------------------------------------------------------------------
+	public function insertNewsletter($post)
+	{    
+	   if($post['sendnow'] == 1 and $post['dt_sendtime'] == '')
+		{
+			$dtsendtime = date('Y-m-d H:i:s');
+			
+		}
+		elseif($post['sendnow'] == '' and $post['dt_sendtime'] != ''){ 
+			
+			$dtsendtime = date('Y-m-d H:i:s',strtotime($post['dt_sendtime']));
+			//$dtsendtime =  date('Y-m-d H:i:s', strtotime(str_replace(" - ", " ", $post['dt_sendtime'])));
+		}
+		elseif($post['sendnow'] == 1 and $post['dt_sendtime'] != ''){ 
+			
+			$dtsendtime = date('Y-m-d H:i:s',strtotime($post['dt_sendtime']));
+			//$dtsendtime =  date('Y-m-d H:i:s', strtotime(str_replace(" - ", " ", $post['dt_sendtime'])));
+		}
+	     
+		 $arrAdmin = 	  array('st_template_id'	=>	$post['st_template_id'],									
+								'st_subject'        =>	$post['st_subject'],
+								'dt_sendtime'       =>	$dtsendtime,
+								'dt_added'			=>  date("Y-m-d H:i:s")																
+								);	
+								$this->db->insert('tbl_newsletter', $arrAdmin);												
+	}
+	
+	function get_newsletter_profile($newsletterId)
+	{
+		$this->db->select('nw.*');
+		$this->db->from('tbl_newsletter as nw');		
+		$this->db->where('nw.in_newsletter_id',$newsletterId);			
+		$query = $this->db->get();
+		return $query->row_array();	
+	}
+	
+	public function update_newsletter_info($data,$newsletterId,$table) {		
+		$this->db->where('in_newsletter_id',$newsletterId);
+		$this->db->update($table,$data);
+		return $this->db->affected_rows();	
+	}
+	
+	
+	public function get_total_email($searchtxt='')
+	{ 			
+		 $this->db->select("e.in_email_id", false);						   	
+		 $this->db->from('tbl_email_template e');					
+		 $this->db->where('e.in_deleted',0);	
+		 if(trim($searchtxt) != '') {		 
+							
+					//$this->db->where("in_email_id = '".$searchtxt."' OR st_email_name = '%".$searchtxt."%' OR st_description = '%".$searchtxt."%'", NULL, FALSE);
+					$this->db->where("(e.in_email_id = '".$searchtxt."' OR e.st_email_name LIKE '%".$searchtxt."%' OR e.st_description LIKE '%".$searchtxt."%')", NULL, FALSE);											
+					}	
+		$query = $this->db->get();			
+		
+		//echo $this->db->last_query();die;	
+		return $query->num_rows();
+	}
+	
+	
+	#============================================================
+	#	Function	:	get_email()
+	#   Parameter	: 	sort,order,limit,rec_per_page,searchtxt
+	#	Perpose		:	to get email template details
+	#------------------------------------------------------------
+	public function get_email($sort,$order,$limit,$rec_per_page,$searchtxt)
+	{
+		
+		
+				  $this->db->select("e.in_email_id,
+									  e.st_email_name,
+									  e.st_category,
+									  e.st_description,e.dt_last_modified", false);						   	
+				  $this->db->from('tbl_email_template e');					
+				  $this->db->where('e.in_deleted',0);
+				  
+				  if(trim($searchtxt) != '') {
+					
+					$this->db->where("(e.in_email_id = '".$searchtxt."' OR e.st_email_name LIKE '%".$searchtxt."%' OR e.st_description LIKE '%".$searchtxt."%')", NULL, FALSE);	
+											
+					}
+					
+					switch($sort)
+					{	
+						case 'in_email_id':							
+							$this->db->order_by('e.in_email_id',$order);							
+						break;
+						
+						case 'st_email_name':							
+							$this->db->order_by('e.st_email_name',$order);							
+						break;
+						
+						case 'st_category':							
+							$this->db->order_by('e.st_category',$order);							
+						break;
+						
+						case 'dt_last_modified':							
+							$this->db->order_by('e.dt_last_modified',$order);							
+						break;
+						
+						default:						
+						$this->db->order_by('e.in_email_id',$order);
+						 break;        
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					//$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+					//echo $this->db->last_query();  die;					
+					$arrEmail = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrEmail[$Row->in_email_id]	=	array('in_email_id'	   => $Row->in_email_id,
+																  'st_email_name'	   => $Row->st_email_name,
+																  'st_category'	       => $Row->st_category,
+																  'st_description'	   => htmlentities($Row->st_description),
+																  'dt_last_modified'   => $Row->dt_last_modified
+											);
+						}
+						return $arrEmail;
+						
+					}				
+	}
+	
+	public function get_lat_long($zipcode)
+	{
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get()->result_array();
+		return $query;	
+	}
+	
+	public function get_user_volunteer($sort,$order,$zipcode,$radius)
+	{
+		if($zipcode != '' && $radius != '')
+		{	
+			$lat_long = $this->get_lat_long($zipcode);	
+		}
+		
+		$this->db->select("concat(u.st_display_name,' ',u.st_last_name) as st_display_name,u.st_email,u.in_user_id",false);
+		$this->db->from('tbl_users u');
+		$this->db->join('tbl_user_profile up','up.in_user_id = u.in_user_id');
+		
+		 if ($radius != '' && $zipcode != ''){
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		 }	
+		
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('u.in_status',1);
+		
+		if ($radius != '' && $zipcode != ''){ 
+			if (sizeof($lat_long) > 0){
+			  $this->db->where("((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) <= '" . $radius . "')");
+			} 
+		} else if($radius == '' && $zipcode != ''){
+			 $this->db->where('(up.st_zip = "'.$zipcode.'")',NULL,false);
+		}
+		
+		switch($sort)
+		{		
+			case 'email': 							
+				$this->db->order_by('u.st_email',$order);							
+			break;
+
+			case 'name': 							
+				$this->db->order_by('st_display_name',$order);
+			break;	 
+			
+			default:						
+				$this->db->order_by('st_display_name','asc');
+			break;        
+		}
+		
+		$this->db->group_by('u.in_user_id');
+		$query = $this->db->get();	
+		//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+		//exit(0);
+		$arrEmail = array();					
+			
+		if($query->num_rows()>0)
+		{  
+			foreach($query->result() as $Row)
+			{			
+				$arrEmail[$Row->in_user_id]	=	array('in_user_id'	           => $Row->in_user_id,
+													  'st_display_name'	       => $Row->st_display_name,
+													  'st_email'	           => $Row->st_email
+								);
+			}
+			return $arrEmail;
+		}
+	}
+	
+	function insert_volunteer_emails($save_data)
+	{
+		//print_r($save_data);exit;
+		$this->db->insert('tbl_volunteer_emails', $save_data);	
+		return  $this->db->insert_id();
+		//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";exit;
+	}
+	
+	function get_default_emails()
+	{
+		$this->db->select('tve.st_message');
+		$this->db->from('tbl_volunteer_emails tve');
+		$this->db->limit(1);
+		$query = $this->db->get();
+		//return $query->result();
+		return $query->row_array();
+	}
+	
+	public function get_affiliate_info()
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_affiliate_content');
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function create_affiliate_info($save_data)
+	{
+		$this->db->insert('tbl_affiliate_content', $save_data);	
+	}
+	
+	public function update_affiliate_info($save_data,$Id) 
+	{		
+		$this->db->where('in_id',$Id);
+		$this->db->update('tbl_affiliate_content',$save_data);
+		return $this->db->affected_rows();	
+	}
+}
+?>

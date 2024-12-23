@@ -1,0 +1,605 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Transportation extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	public function __construct()
+    {
+		parent::__construct();
+		$this->output->enable_profiler(true);
+		$this->load->library('common_function');
+		$this->common_function->check_front_logged_in($this);
+		$this->load->model('common_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		//$this->load->library('common_function');
+		$this->load->model('trasnportation_model');
+		$this->load->library('Upload');
+		$this->load->library('pagination');
+		//$this->session->set_userdata('org_id','5');
+		//$this->session->unset_userdata('org_id');
+		//$this->session->unset_userdata('transport_id');
+		$this->perPage = 9;
+	}	
+	 
+	public function index()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+	}
+
+	#=========================================================
+	#	Function : transport_list
+	#	Purpose  : Organization Traport List status for Active and nearbyby
+	#=========================================================		
+	
+	function transport_list()
+	{
+		//$this->output->enable_profiler(TRUE);
+		$data = array();
+		//echo $this->session->userdata('userid');die;
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$date 		= array();
+		$post_date 	= array("from"=>"","to"=>"");
+		if($this->input->post('action'))
+		{
+			$post_date 	= array("from"=>$this->input->post('from'),"to"=>$this->input->post('to'));
+			if($this->input->post('from')!='')
+			{
+				$from_date 	= date("Y-m-d",strtotime($this->input->post('from')));
+				$date['from_date'] 	= $from_date;
+			}
+			
+			if($this->input->post('to')!='')
+			{
+				$to_date 	= date("Y-m-d",strtotime($this->input->post('to')));	
+				$date['to_date'] 	= $to_date;
+			}
+			//echo "<pre>";print_r($date);die;	
+		}		
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		//echo "<pre>";print_r($user_details);die;
+		$data['all_trasport'] 		= '';
+		$data['completed_trasport'] = '';
+		$data['cancelled_trasport'] = '';
+		$data['nearby'] 			= '';
+		if((isset($user_details['0']['st_driver']) && $user_details['0']['st_driver']=='Y') || isset($user_details['0']['st_pilot']) && $user_details['0']['st_pilot']=='Y' )
+		{ 
+		$data['enabled_driver_pilot_status'] = 1;
+		#=============Active Trasport============#
+		$all_trasport = $this->trasnportation_model->get_transport_list("1",$date);
+		$data['all_trasport'] = $all_trasport;
+		
+		#=============Completed Trasport============#
+		/*$completed_trasport = $this->trasnportation_model->get_transport_list("2",$date);
+		$data['completed_trasport'] = $completed_trasport;*/
+		
+		#=============Canceled Trasport============#
+		/*$cancelled_trasport = $this->trasnportation_model->get_transport_list("3",$date);
+		$data['cancelled_trasport'] = $cancelled_trasport;*/
+		
+		#=============nearby Trasport============#
+		//$nearby = $this->trasnportation_model->get_transport_nearby($date);
+		$nearby = $this->trasnportation_model->get_transport_nearby_data($date);
+		$data['nearby'] = $nearby;
+		} else {
+			$data['enabled_driver_pilot_status'] = 0;
+		}
+		//echo "<pre>";print_r($data);die;
+		$data['date'] = $post_date;
+		$this->load->view('my-transportations',$data);	
+	}
+	
+	#=========================================================
+	#	Function : active_transport_list
+	#	Purpose  : active_transport_list
+	#=========================================================		
+	function active_transport_list()
+	{
+		$data = array();
+		//echo $this->session->userdata('userid');die;
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$date 		= array();
+		$post_date 	= array("from"=>"","to"=>"");
+		if($this->input->post('action'))
+		{
+			$post_date 	= array("from"=>$this->input->post('from'),"to"=>$this->input->post('to'));
+			if($this->input->post('from')!='')
+			{
+				$from_date 	= date("Y-m-d",strtotime($this->input->post('from')));
+				$date['from_date'] 	= $from_date;
+			}
+			
+			if($this->input->post('to')!='')
+			{
+				$to_date 	= date("Y-m-d",strtotime($this->input->post('to')));	
+				$date['to_date'] 	= $to_date;
+			}
+			//echo "<pre>";print_r($date);die;	
+		}		
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		//echo "<pre>";print_r($user_details);die;
+		$all_trasport 		= array();
+		if((isset($user_details['0']['st_driver']) && $user_details['0']['st_driver']=='Y') || isset($user_details['0']['st_pilot']) && $user_details['0']['st_pilot']=='Y' )
+		{ 
+		$data['enabled_driver_pilot_status'] = 1;
+		#=============Active Trasport============#
+		$all_trasport = $this->trasnportation_model->get_transport_list("1",$date);
+		$data['all_trasport'] = $all_trasport;
+		} else {
+			$data['enabled_driver_pilot_status'] = 0;
+		}
+		$data['date'] = $post_date;
+		$this->load->view('active-transportations',$data);	
+	}
+	
+	#=========================================================
+	#	Function : near_by_transport_list
+	#	Purpose  : near_by_transport_list
+	#=========================================================		
+	function near_by_transport_list()
+	{
+		$data = array();
+		//echo $this->session->userdata('userid');die;
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$date 		= array();
+		$post_date 	= array("from"=>"","to"=>"");
+		if($this->input->post('action'))
+		{
+			$post_date 	= array("from"=>$this->input->post('from'),"to"=>$this->input->post('to'));
+			if($this->input->post('from')!='')
+			{
+				$from_date 	= date("Y-m-d",strtotime($this->input->post('from')));
+				$date['from_date'] 	= $from_date;
+			}
+			
+			if($this->input->post('to')!='')
+			{
+				$to_date 	= date("Y-m-d",strtotime($this->input->post('to')));	
+				$date['to_date'] 	= $to_date;
+			}
+			//echo "<pre>";print_r($date);die;	
+		}		
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		//echo "<pre>";print_r($user_details);die;
+		$nearby 			= array();
+		if((isset($user_details['0']['st_driver']) && $user_details['0']['st_driver']=='Y') || isset($user_details['0']['st_pilot']) && $user_details['0']['st_pilot']=='Y' )
+		{ 
+		$data['enabled_driver_pilot_status'] = 1;
+		#=============Active Trasport============#
+		$nearby = $this->trasnportation_model->get_transport_nearby_data($date);
+		$data['nearby'] = $nearby;
+		} else {
+			$data['enabled_driver_pilot_status'] = 0;
+		}
+		$data['date'] = $post_date;
+		$this->load->view('near-by-transportations',$data);	
+	}
+	
+	#=========================================================
+	#	Function : transport_list
+	#	Purpose  : Organization Traport List status for completed and cancelled
+	#=========================================================		
+	
+	function transport_other_list()
+	{
+		
+       
+		$data = array();		
+		
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$date 		= array();
+		$post_date 	= array("from"=>"","to"=>"");
+		
+		
+		
+		if($this->input->post('action'))
+		{  
+			$post_date 	= array("from"=>$this->input->post('from'),"to"=>$this->input->post('to'));
+			
+			if($this->input->post('from')!='')
+			{
+				$from_date 	= date("Y-m-d",strtotime($this->input->post('from')));
+				$date['from_date'] 	= $from_date;
+			}
+			
+			if($this->input->post('to')!='')
+			{
+				$to_date 	= date("Y-m-d",strtotime($this->input->post('to')));	
+				$date['to_date'] 	= $to_date;
+			}
+			
+		}		
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		
+		$data['all_trasport'] 		= '';
+		$data['completed_trasport'] = '';
+		$data['cancelled_trasport'] = '';
+		$data['nearby'] 			= '';
+		if((isset($user_details['0']['st_driver']) && $user_details['0']['st_driver']=='Y') || isset($user_details['0']['st_pilot']) && $user_details['0']['st_pilot']=='Y' )
+		{ 
+		$data['enabled_driver_pilot_status'] = 1;
+		
+		
+		$totalRec = count($this->trasnportation_model->get_transport_list("2",$date));	
+		$this->load->library('Ajax_pagination_completed');
+       
+        $config['target']      = '#postList';
+        $config['base_url']    = base_url().'transportation/ajaxPaginationData_completed';
+        $config['total_rows']  = $totalRec;
+        $config['per_page']    = $this->perPage; 
+		      
+        $this->ajax_pagination_completed->initialize($config);
+		$data['totalRec'] = $totalRec;
+		$data['completed_trasport'] = $this->trasnportation_model->get_transport_list($status='2',$date,array('limit'=>$this->perPage));
+        
+       
+		$totalRec2 = count($this->trasnportation_model->get_transport_list("3",$date));	
+		
+		$this->load->library('Ajax_pagination_cancelled');
+      
+        $config1['target']      = '#postList2';
+        $config1['base_url']    = base_url().'transportation/ajaxPaginationData_cancelled';
+        $config1['total_rows']  = $totalRec2;
+        $config1['per_page']    = $this->perPage; 		   
+        $this->ajax_pagination_cancelled->initialize($config1);
+		$data['totalRec2'] = $totalRec2;
+		$data['cancelled_trasport'] = $this->trasnportation_model->get_transport_list($status='3',$date,array('limit'=>$this->perPage));	
+		
+		} else {
+			$data['enabled_driver_pilot_status'] = 0;
+		}
+		
+		$data['date'] = $post_date;
+		$this->load->view('my-other-transportations',$data);	
+	}
+	
+	
+	
+	/*
+	function transport_other_list($status = '1',$sort=false,$order=false,$limit=false)
+	{
+	
+		
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		if(!$sort)
+			$sort='trid';
+		
+		if(!$order)
+			$order = 'desc';
+		
+		if($this->uri->segment(6))
+			$limit = $this->uri->segment(6);
+		else	
+			$limit = '0';	
+		$rec_per_page = 5;	
+		
+		$total_record = $this->trasnportation_model->get_transport_list_all_data2($status);
+		
+		$all_trasport = $this->trasnportation_model->get_transport_list_data2($status,$rec_per_page,$limit,$sort,$order);
+		
+		//echo '<pre/>';
+		//print_r($all_trasport);exit;
+		
+		$data['all_trasport']  = $all_trasport;
+		
+		$config 				  = array();
+		$config['base_url'] 	  = base_url().'transportation/transport_other_list/';
+		$config['base_url']	  	  = $config['base_url'].$status.'/'.$sort.'/'.$order.'/';
+		$config['total_rows'] 	  = $total_record;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['cur_page'] 	  = $limit;
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';
+		
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  
+		$this->load->library('pagination');	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		$data['status'] = 	$status;
+		
+		$this->load->view('my-other-transportations',$data);
+	
+	
+	}*/
+	
+	
+	
+	
+	
+	
+	function ajaxPaginationData_completed()
+    {
+        $page 		= $this->input->post('page');
+		$post_date 	= array("from"=>"","to"=>"");	
+		$date		=	array();
+		
+		$post_date 	= array("from"=>$this->input->post('from'),"to"=>$this->input->post('to'));
+			
+			if($this->input->post('from')!='')
+			{
+				$from_date 	= date("Y-m-d",strtotime($this->input->post('from')));
+				$date['from_date'] 	= $from_date;
+			}
+			
+			if($this->input->post('to')!='')
+			{
+				$to_date 	= date("Y-m-d",strtotime($this->input->post('to')));	
+				$date['to_date'] 	= $to_date;
+			}
+	
+		
+			//echo "<pre>";print_r($date);die;			
+		
+        if(!$page){
+            $offset = 0;
+        }else{           
+			$offset = 0;			
+        }
+     
+        //total rows count
+        $totalRec = count($this->trasnportation_model->get_transport_list($status='2',$date));
+        $this->load->library('Ajax_pagination_completed');
+        //pagination configuration
+        $config['target']      = '#postList';
+        $config['base_url']    = base_url().'transportation/ajaxPaginationData_completed';
+        $config['total_rows']  = $totalRec;
+        $config['per_page']    = $this->perPage;  // $page;
+        
+        $this->ajax_pagination_completed->initialize($config);        
+        
+		$data['completed_trasport'] = $this->trasnportation_model->get_transport_list($status='2',$date,array('start'=>$offset,'limit'=>($page+9)));
+		//print_r($data['completed_trasport']); die;
+		$data['totalRec'] = $totalRec;
+        
+        //load the view      
+	   $data['date'] = $post_date;
+	   $this->load->view('more-transportations',$data);
+    }
+	
+	
+	
+	function ajaxPaginationData_cancelled()
+    {
+        $page 		= $this->input->post('page');	
+		$post_date 	= array("from"=>"","to"=>"");		
+		$date		= array();
+		  
+	 	
+		$post_date 	= array("from"=>$this->input->post('from'),"to"=>$this->input->post('to'));
+			
+			if($this->input->post('from')!='')
+			{
+				$from_date 	= date("Y-m-d",strtotime($this->input->post('from')));
+				$date['from_date'] 	= $from_date;
+			}
+			
+			if($this->input->post('to')!='')
+			{
+				$to_date 	= date("Y-m-d",strtotime($this->input->post('to')));	
+				$date['to_date'] 	= $to_date;
+			}
+
+		
+        if(!$page){
+            $offset = 0;
+        }else{          
+			$offset = 0;			
+        }
+     
+        //total rows count
+        $totalRec2 = count($this->trasnportation_model->get_transport_list($status='3',$date));
+        $this->load->library('Ajax_pagination_cancelled');
+        //pagination configuration
+        $config['target']      = '#postList2';
+        $config['base_url']    = base_url().'transportation/ajaxPaginationData_cancelled';
+        $config['total_rows']  = $totalRec2;
+        $config['per_page']    = $this->perPage;  // $page;        
+        $this->ajax_pagination_cancelled->initialize($config);       
+       
+		$data['cancelled_trasport'] = $this->trasnportation_model->get_transport_list($status='3',$date,array('start'=>$offset,'limit'=>($page+9)));
+		$data['totalRec2'] = $totalRec2;        
+        //load the view       
+	   $data['date'] = $post_date;
+	   $this->load->view('more-transportations',$data);
+    }
+	
+	public function near_by_transport_email()
+	{
+		ini_set('max_execution_time', 300);
+		$this->trasnportation_model->get_near_by_transport_users();
+	}
+	
+	function nearby_transport_ride_email()
+	{
+		ini_set('max_execution_time', 300);
+		$this->trasnportation_model->get_near_by_transportride_users();
+	}
+	
+	public function nearby_airline_transport_email()
+	{
+		ini_set('max_execution_time', 300);
+		$this->trasnportation_model->get_nearby_airline_transport_users();
+	}
+	
+	public function manage_my_transports($status = '1',$sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		if(!$sort)
+			$sort='trid';
+		
+		if(!$order)
+			$order = 'desc';
+		
+		if($this->uri->segment(6))
+			$limit = $this->uri->segment(6);
+		else	
+			$limit = '0';	
+		$rec_per_page = 5;	
+		
+		$transport_record = $this->trasnportation_model->get_users_transport_list_data($status,$rec_per_page,$limit,$sort,$order);
+		
+		//$total_record = $this->trasnportation_model->get_transport_list_all_data($status);
+		
+		//$all_trasport = $this->trasnportation_model->get_transport_list_data($status,$rec_per_page,$limit,$sort,$order);
+		
+		$total_record = $transport_record['num_rows'];
+		
+		$data['all_trasport']  = $transport_record['transport_list'];
+		//$data['all_trasport']  	  = $all_trasport;
+		$config 				  = array();
+		$config['base_url'] 	  = base_url().'transportation/manage_my_transports/';
+		$config['base_url']	  	  = $config['base_url'].$status.'/'.$sort.'/'.$order.'/';
+		$config['total_rows'] 	  = $total_record;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['cur_page'] 	  = $limit;
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';
+		
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  
+		$this->load->library('pagination');	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		$data['status'] = 	$status;
+		
+		$this->load->view('manage-my-transports',$data);
+	}
+	
+	public function tell_a_friend() {
+		
+		$this->load->library('email');
+		
+		if($this->input->post('frm_action')=='submit') {
+			//Getting email body
+			$email_body = $this->common_model->get_email_containt('36');
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			
+			$this->email->subject($email_body[0]['st_email_subject']);
+			//echo $this->input->post('txtemail');exit;
+			$patterns = array('%##url##%','%##user_name##%','%##user_msg##%','%##sender_name##%','%##transport_id##%','%##mailto_text##%');
+			$replacements = array(base_url(),$this->input->post('txttoname'),nl2br($this->input->post('txtMessage')),$this->input->post('txtfrom'),base_url()."org-transportation-scheduled/".$this->input->post('share_transport_id'),"info@doobert.com");
+			
+			$content = preg_replace($patterns,$replacements,$email_body[0]['st_email_body']);
+			
+			$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$this->input->post('share_transport_id').'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$this->input->post('share_transport_id').'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}
+						
+						
+			$content	=	str_replace("##fbtransportshare##",$fbtransportshare,$content);
+			$content	=	str_replace("##DONATION##",$donation,$content);
+			
+			$category = $email_body[0]['st_category'];	
+			$this->common_function->send_mail($this->email, $this->input->post('txtemail'), $email_body[0]['st_email_subject'], $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+				
+			$this->session->set_flashdata('success_mail','Mail Sent Successfully.');
+			redirect($_SERVER['HTTP_REFERER']);
+			
+		}
+	}		
+		
+}
+
+/* End of file user.php */
+//http://crystal99/doobertv4/manage-my-transports/1/trid/asc/0/
+/* Location: ./application/controllers/welcome.php */

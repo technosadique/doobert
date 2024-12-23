@@ -1,0 +1,174 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Photos extends CI_Controller { 
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	
+	
+	public function __construct()
+    {
+		parent::__construct();
+		//error_reporting(E_ALL);
+		//ini_set('display_errors', 1);
+		$this->output->enable_profiler(false);
+		$this->load->library('common_function');
+		$this->common_function->check_front_logged_in($this);
+		$this->load->model('common_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');		
+		$this->load->model('photo_model');		
+		$this->load->library('Upload');
+		$this->load->library('user_agent');				
+		$this->load->library('image_lib');
+				
+	}	
+	 
+	public function index()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+	}	
+	public function allphotos() 
+	{  
+		$data = array();	
+		$data['txtsearch'] 	= $this->input->post('txtsearch');		
+		$this->load->view("photo_list", $data);		
+	}
+	public function ajax_photo_list()
+	{	
+		$currpage 		= $this->input->post('currpage');        
+		
+		$orderby='asc'; 
+		 
+		$data["results"] = array();		
+		
+	    $page	=	$currpage*12;	
+				
+		$data["results"] = $this->photo_model->get_photos(12, $page, $orderby);		
+		
+		echo json_encode($data); exit;
+	}	
+	
+	
+	
+	
+	#=========================================================
+	#	Function : org_transport_schedule
+	#	Purpose  : User chnage in trasportation
+	#=========================================================		
+	public function upload_pic()
+	{
+		$data	=	array();	
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}		
+		if($this->input->post('transport_photo'))
+		{
+			$transport_doc = explode(",",$this->input->post('transport_photo'));
+			$photo_more = $this->input->post('photo_more');			
+			
+				for($a=0;$a<count($transport_doc);$a++)
+				{
+					$file_details = array();
+					if($transport_doc[$a]!='')
+					{
+						$file_details = array(	"in_added_by"	=> $this->session->userdata('userid'), 
+												"st_file_name"	=> $transport_doc[$a], 
+												"st_story"		=> $photo_more,	
+												"dt_created"	=> date("Y-m-d H:i:s"),  
+												"in_deleted"	=> "0"
+											);
+						$this->photo_model->add_general_photo($file_details);
+					}
+				}
+			$this->session->set_flashdata('message_sys', 'Photo(s) uploaded successfully.');	
+			redirect($this->config->item('base_url')."photos/upload_pic");	
+		}
+		$this->load->view('photo_upload',$data);		
+	}
+	
+	public function add_photos() 
+	{
+		
+		if(!isset($_FILES['files']['name'])) {
+			return false;
+		}
+		$config['upload_path'] = $this->config->item('upload')."trasnportation/";
+		$config['allowed_types'] = 'jpg|jpeg|png|gif';
+		$config['max_size']	= '51200';
+		$config['remove_spaces']  	= TRUE;
+		//$config['file_name'] 		= str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['files']['name']);
+		//$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['files']['name']));
+		$lastDot = strrpos($_FILES['files']['name'], ".");
+		$_FILES['files']['name'] = str_replace(".", "", substr($_FILES['files']['name'], 0, $lastDot)) . substr($_FILES['files']['name'], $lastDot);
+		$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['files']['name']));
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		$this->upload->do_upload('files');
+		
+		// added by sadique on 26-09-15 start
+		$this->load->library('image_lib'); // added by sadique on 26-09-15
+		$configThumb = array();
+		$configThumb['image_library'] = 'gd2';
+		$configThumb['source_image'] = $this->config->item('upload') . 'trasnportation/' . $config['file_name'];
+		$configThumb['new_image'] = $this->config->item('upload') . 'trasnportation/250x250/' . $config['file_name'];
+		$configThumb['maintain_ratio'] = TRUE;
+		$configThumb['width'] = '250';
+		$configThumb['height'] = '250';
+		$this->image_lib->initialize($configThumb);
+		$this->image_lib->resize();
+		
+		
+		$file_errors = array('errors' => $this->upload->display_errors());
+			
+		//Display errors of file upload.
+		if(!empty($file_errors['errors'])){
+			$data = array('error' => strip_tags($file_errors['errors']));
+			echo json_encode(array('files' => array($data) ));
+			return false;
+		}		
+				
+		//code to upload image in the rackspace end
+		
+		$data = array(	'name' => $config['file_name'],
+						'size' => $_FILES['files']['size'],
+						'type' => $_FILES['files']['type'],
+						"thumbnailUrl"  => $this->config->item('upload_url')."trasnportation/".urlencode($config['file_name']),
+						"url"  => $this->config->item('upload_url')."trasnportation/".urlencode($config['file_name']),
+						"deleteUrl"  => $this->config->item('base_url')."photos/delete_files/trasnportation/?files=".urlencode($config['file_name']),
+						"deleteType"=>"DELETE"
+					);
+		echo json_encode(array('files' => array($data) ));
+		//return $data;
+	}
+	function delete_files($path)
+	{
+		if($this->input->get('files')!='')
+		{
+			$files = $this->input->get('files');
+			@unlink($this->config->item('upload').$path."/".$files);						
+		}
+	}
+	
+}
+/* End of file user.php */
+/* Location: ./application/controllers/welcome.php */

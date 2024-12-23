@@ -1,0 +1,1024 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 24-Nov-2014
+# File description	: Driver Model for admin
+# Special - notes	: none
+# Tables used		: tbl_verification
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class driver_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+	    
+	#============================================================
+	#	Function	:	get_total_pending_driver()
+	#   Parameter	: 	
+	#	Perpose		:	get total pending drivers
+	#------------------------------------------------------------
+	public function get_total_pending_driver($app_type)
+	{ 					   
+				   
+				$this->db->select("v.in_verify_id", false);						   	
+				$this->db->from('tbl_verification v');	
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');		
+				$this->db->where('v.in_deleted', $app_type);
+				$this->db->where('v.in_status', '1');
+				$this->db->where('v.fl_doobert_verified', '0');												
+				$query = $this->db->get();	
+				//print_r($this->db->last_query());				
+				return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_pending_driver()
+	#   Parameter	: 	sort,order,limit,rec_per_page
+	#	Perpose		:	to get pending drivers details
+	#------------------------------------------------------------
+	public function get_pending_driver($sort,$order,$limit,$rec_per_page,$app_type)
+	{						  
+				$this->db->select("v.in_verify_id,
+								   v.in_user_id,
+								   v.st_fname,
+								   v.st_mname,								   
+								   v.st_lname,
+								   v.st_dl_state,								   
+								   v. st_dl_num,
+								   v.dt_dl_exp,
+								   v.fl_have_pets,
+								   v.in_status,
+								  v.fl_animal_volunteer,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_in_person_volunteer,up.st_virtual_support_volunteer",false);					   	
+				$this->db->from('tbl_verification v');	
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');	
+				$this->db->join('tbl_user_profile up', 'up.in_user_id=v.in_user_id AND up.in_deleted=0','INNER');	
+				$this->db->where('v.fl_doobert_verified', '0');	
+				$this->db->where('v.in_status', '1');				
+				$this->db->where('v.in_deleted', $app_type);						
+								
+				
+						switch($sort)
+						{							
+							case 'id':								
+								$this->db->order_by('v.in_verify_id',$order);
+							break;	
+							
+							case 'name': 								
+								$this->db->order_by('v.st_fname',$order);
+							break;
+							
+							case 'state': 								
+								$this->db->order_by('v.st_dl_state',$order);
+							break;
+							
+							case 'expdate': 								
+								$this->db->order_by('v.dt_dl_exp',$order);
+							break;
+							
+							case 'havepets': 								
+								$this->db->order_by('v.fl_have_pets',$order);
+							break;
+							
+							case 'volunteer': 								
+								$this->db->order_by('v.fl_animal_volunteer',$order);
+							break;	
+							
+							case 'status': 								
+								$this->db->order_by('v.in_status',$order);
+							break;	
+							
+							default: 								
+								$this->db->order_by('v.st_fname',$order);
+							break;	
+								         
+						}
+					  
+					  
+					 if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+					//echo $this->db->last_query();  die;					
+					$arrPendingDriver = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{		
+									
+							$arrPendingDriver[]  =	array('in_verify_id'	      		  => $Row->in_verify_id,
+																	'st_fname'	          => $Row->st_fname, 
+																	'st_mname'	          => $Row->st_mname, 
+																	'in_status'	          => ($Row->in_status == 0) ? 'Incomplete Form' : 'Verification Pending', 
+																	'st_lname'	          => $Row->st_lname, 
+																	'st_dl_state'		  => $Row->st_dl_state,		
+																	'st_dl_num'		  	  => $Row->st_dl_num,	
+																	'dt_dl_exp'			  => $Row->dt_dl_exp,		
+																	'fl_have_pets'		  => ($Row->fl_have_pets==1) ?  'Yes' : 'No',  
+																	'fl_animal_volunteer' => ($Row->fl_animal_volunteer==1) ? 'Yes' : 'No',
+																	'st_driver'           => ($Row->st_driver =='Y') ? 'Yes' : 'No',
+																	'st_pilot'			  => ($Row->st_pilot =='Y') ? 'Yes' : 'No',
+																	'st_foster_home'      => ($Row->st_foster_home =='Y') ? 'Yes' : 'No',
+																	'st_photographer'     => ($Row->st_photographer =='Y') ? 'Yes' : 'No',
+																	'st_in_person_volunteer' => ($Row->st_in_person_volunteer =='Y') ? 'Yes' : 'No',
+																	'st_virtual_support_volunteer' => ($Row->st_virtual_support_volunteer =='Y') ? 'Yes' : 'No',
+												);
+						}
+						return $arrPendingDriver;
+						
+					}
+					
+	}
+	
+	
+	
+	public function get_pending_driver_profile($verifyId)
+	{
+			$this->db->select("v.in_verify_id,
+								   v.in_user_id,
+								   v.st_fname,
+								   v.st_mname,								   
+								   v.st_lname,
+								   v.st_age,								   
+								   v.st_dl_state,								   
+								   v. st_dl_num,
+								   v.dt_dl_exp,
+								   v.fl_have_pets,
+								   v.in_num_pets,
+								   v.st_vt_name,
+								   v.st_vt_off_name,
+								   v.st_vt_off_phone,
+								   v.st_vt_email,								   
+								   v.fl_animal_volunteer,
+								   v.st_org_name,
+								   v.dt_volunteer_from,
+								   v.dt_volunteer_to,
+								   v.st_org_phone,
+								   v.st_org_email,
+								   v.st_addi_info,
+								   v.st_info_agree,
+								   v.st_info_agree_name,
+								   v.st_driver_license_photo,
+								   v.st_complete_waiver_form,
+								   v.in_felony,
+								   v.in_dui,
+								   v.st_pet_type,
+								   v.st_pet_name,
+								   v.in_status,
+								   v.st_ph_with_vet,u.dt_modified,uv.dt_modified as driver_modified,p.dt_modified as pilot_modified,pd.dt_modified as photographer_modified,pvd.dt_modified as per_vol_modified,vsd.dt_modified as vir_vol_modified, u.dt_transport_agree ,fud.dt_modified as foster_modified_date", false);						   	
+				$this->db->from('tbl_verification v');	
+				$this->db->where('v.in_verify_id', $verifyId);	
+				$this->db->where('v.fl_doobert_verified', 0);	
+				
+				$this->db->join('tbl_users u', 'v.in_user_id = u.in_user_id  AND `u`.`in_status` = 1 AND `u`.`in_deleted` = 0','INNER');
+				$this->db->join('tbl_user_vehicle uv', 'v.in_user_id = uv.in_user_id  AND `uv`.`in_status` = 1 AND `uv`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_user_pilot p', 'v.in_user_id = p.in_user_id AND `p`.`in_status` = 1 AND `p`.`in_deleted` = 0','LEFT');
+		
+				$this->db->join('tbl_foster_user_detail fud', 'v.in_user_id = fud.in_user_id AND `fud`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_photographer_detail pd', 'v.in_user_id = pd.in_user_id AND `pd`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_in_person_volunteer_detail pvd', 'v.in_user_id = pvd.in_user_id AND `pvd`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_virtual_support_vol_detail vsd', 'v.in_user_id = vsd.in_user_id AND `vsd`.`in_deleted` = 0','LEFT');
+				
+				$query = $this->db->get();
+				//echo $this->db->last_query();die;
+				return $query->row_array();	
+	}
+	
+	
+	public function get_verified_driver_profile($verifyId)
+	{
+		$this->db->select("v.in_verify_id,
+								   v.in_user_id,
+								   v.st_fname,
+								   v.st_mname,								   
+								   v.st_lname,
+								   v.st_age,								   
+								   v.st_dl_state,								   
+								   v. st_dl_num,								  
+								   v.fl_have_pets,
+								   v.in_num_pets,
+								   v.st_vt_name,
+								   v.st_vt_off_name,
+								   v.st_vt_off_phone,
+								   v.st_vt_email,								   
+								   v.fl_animal_volunteer,
+								   v.st_org_name,
+								   v.dt_volunteer_from,
+								   v.dt_volunteer_to,
+								   v.st_org_phone,
+								   v.st_org_email,
+								   v.st_addi_info,
+								   v.st_info_agree,
+								   v.dt_dl_exp,
+								   v.dt_doobert_verified,
+								   v.dt_license_verified,
+								   v.dt_vet_verified,								 
+								   v.dt_org_verified,								   	
+								   v.fl_doobert_verified,
+								   v.fl_license_st_verified,
+								   v.fl_license_exp_verified,
+								   v.fl_license_verified,
+								   v.fl_vet_verified,
+								   v.fl_org_verified,
+								   v.st_driver_license_photo,
+								   v.st_complete_waiver_form,						   								   							   	  
+								   v.st_info_agree_name,
+								   v.in_felony,
+								   v.in_dui,
+								   v.st_pet_type,
+								   v.st_pet_name,
+								   v.st_ph_with_vet,
+								    u.st_email,u.dt_modified,uv.dt_modified as driver_modified,p.dt_modified as pilot_modified,pd.dt_modified as photographer_modified,pvd.dt_modified as per_vol_modified,vsd.dt_modified as vir_vol_modified, u.dt_transport_agree ,fud.dt_modified as foster_modified_date", false);						   	
+				$this->db->from('tbl_verification v');
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');		
+				$this->db->where('v.in_verify_id', $verifyId);	
+				$this->db->where('v.fl_doobert_verified', '1');
+				$this->db->join('tbl_user_vehicle uv', 'v.in_user_id = uv.in_user_id  AND `uv`.`in_status` = 1 AND `uv`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_user_pilot p', 'v.in_user_id = p.in_user_id AND `p`.`in_status` = 1 AND `p`.`in_deleted` = 0','LEFT');
+		
+				$this->db->join('tbl_foster_user_detail fud', 'v.in_user_id = fud.in_user_id AND `fud`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_photographer_detail pd', 'v.in_user_id = pd.in_user_id AND `pd`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_in_person_volunteer_detail pvd', 'v.in_user_id = pvd.in_user_id AND `pvd`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_virtual_support_vol_detail vsd', 'v.in_user_id = vsd.in_user_id AND `vsd`.`in_deleted` = 0','LEFT');
+					
+				$query = $this->db->get();
+				//echo $this->db->last_query();die;
+				return $query->row_array();
+    }
+	
+	
+	
+	
+	function get_user_profile($userId)
+	{
+				$this->db->select("u.st_email",false);	
+				$this->db->from('tbl_users u');	
+				$this->db->where('u.in_user_id', $userId);	
+				$this->db->where('u.in_deleted', '0');	
+				$query = $this->db->get();
+				//echo $this->db->last_query();die;
+				return $query->row_array();
+								   
+	}
+	
+	
+	
+	
+	public function get_verify_doc($userId)
+	{
+			$this->db->select("d.in_doc_id,
+								   d.st_doc", false);						   	
+				$this->db->from('tbl_documents d');
+				$this->db->where('d.in_user_id', $userId);	
+				$this->db->where('d.in_doc_type', '1');	
+				$this->db->where('d.in_deleted', '0');	
+				$query = $this->db->get();
+				//echo $this->db->last_query();die;
+				return $query->result_array();	
+	}
+	
+	
+		
+	#========================================================================
+	#	Function	:	delete_multiple_driver()
+	#   Parameter	: 	driverIds
+	#	Perpose		:	to delete multiple driver application details from tbl_verification table
+	#------------------------------------------------------------------------
+	function delete_multiple_driver($verifyids)
+	{			
+		$arrDriver = 	array('in_deleted' 	=> '1');
+		$this->db->where_in('in_verify_id', $verifyids);
+		$this->db->update('tbl_verification', $arrDriver);		
+		return $this->db->affected_rows();
+	}
+	
+	function undelete_multiple_driver($verifyids)
+	{			
+		$arrDriver = 	array('in_deleted' 	=> '0');
+		$this->db->where_in('in_verify_id', $verifyids);
+		$this->db->update('tbl_verification', $arrDriver);		
+		return $this->db->affected_rows();
+	}
+	
+	
+	
+	#========================================================================
+	#	Function	:	delete_multiple_verified_driver()
+	#   Parameter	: 	driverIds
+	#	Perpose		:	to delete multiple verified driver application details from tbl_verification table
+	#------------------------------------------------------------------------
+	function delete_multiple_verified_driver($verifyids)
+	{			
+		$arrDriver = 	array('in_deleted' 	=> '1');
+		$this->db->where_in('in_verify_id', $verifyids);
+		$this->db->update('tbl_verification', $arrDriver);		
+		return $this->db->affected_rows();
+	}
+	
+	function reverify_multiple_driver($verifyids)
+	{			
+		$this->db->select("v.in_verify_id,
+							v.in_user_id,
+							v.st_fname,								   
+							v.st_lname,
+							u.st_email", false);						   	
+		$this->db->from('tbl_verification v');
+		$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');					
+		$this->db->where_in('in_verify_id', $verifyids);
+		$query = $this->db->get();	
+		//print_r($this->db->last_query());
+		return $query->result_array();
+		
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_total_pending_driver()
+	#   Parameter	: 	
+	#	Perpose		:	get total pending drivers
+	#------------------------------------------------------------
+	public function get_total_verified_driver()
+	{ 					   
+				if($this->nativesession->get('searchadmin1')!="")
+					$name = $this->nativesession->get('searchadmin1');
+				else
+					$name = "";
+					
+					if($this->nativesession->get('searchadmin2')!="")
+					$email = $this->nativesession->get('searchadmin2');
+				else
+					$email = "";
+
+				if($this->nativesession->get('searchadmin3')!="")
+					$fromdate = $this->nativesession->get('searchadmin3');
+				else
+					$fromdate = "";	
+					
+				if($this->nativesession->get('searchadmin4')!="")
+					$todate = $this->nativesession->get('searchadmin4');
+				else
+					$todate = "";
+					
+				if($this->nativesession->get('searchadmin5')!="")
+					$wid = $this->nativesession->get('searchadmin5');
+				else
+					$wid = "";
+				   
+				$this->db->select("v.in_verify_id", false);						   	
+				$this->db->from('tbl_verification v');
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');					
+				$this->db->where('v.in_deleted', '0');					
+				$this->db->where('v.fl_doobert_verified', '1');	
+			
+				if($name!= '') {	
+							$name = str_replace("%","\%",$name);				
+							$this->db->where("concat(v.st_fname,' ',v.st_lname) LIKE '%".$name."%'", NULL, FALSE);
+					}
+				
+				if($email!=''){				
+				
+				$this->db->where("u.st_email LIKE '%".$email."%'", NULL, FALSE);
+				}
+
+				if($fromdate!='' && $todate!='') {
+							$this->db->where("v.dt_doobert_verified >= '".$fromdate."' AND v.dt_doobert_verified <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+				}
+				
+				if($fromdate!='' && $todate=='') {
+						$date = date("Y-m-d");
+						$this->db->where("v.dt_doobert_verified >= '".$fromdate."' AND v.dt_doobert_verified <= '".$date. ' 23:59:59'."'", NULL, FALSE);
+				}
+				
+																		
+				$query = $this->db->get();	
+				//print_r($this->db->last_query());				
+				return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_verified_driver()
+	#   Parameter	: 	sort,order,limit,rec_per_page
+	#	Perpose		:	to get verified drivers details
+	#------------------------------------------------------------
+	public function get_verified_driver($sort,$order,$limit,$rec_per_page)
+	{						  
+				if($this->nativesession->get('searchadmin1')!="")
+					$name = $this->nativesession->get('searchadmin1');
+				else
+					$name = "";
+					
+					if($this->nativesession->get('searchadmin2')!="")
+					$email = $this->nativesession->get('searchadmin2');
+				else
+					$email = "";
+
+				if($this->nativesession->get('searchadmin3')!="")
+					$fromdate = $this->nativesession->get('searchadmin3');
+				else
+					$fromdate = "";	
+					
+				if($this->nativesession->get('searchadmin4')!="")
+					$todate = $this->nativesession->get('searchadmin4');
+				else
+					$todate = "";
+					
+				if($this->nativesession->get('searchadmin5')!="")
+					$wid = $this->nativesession->get('searchadmin5');
+				else
+					$wid = "";
+				
+				
+				$this->db->select("v.in_verify_id,
+								   v.in_user_id,
+								   v.st_fname,
+								   v.st_mname,								   
+								   v.st_lname,
+								   v.st_dl_state,								   
+								   v. st_dl_num,
+								   v.dt_dl_exp,
+								   v.fl_have_pets,
+								   v.fl_animal_volunteer,
+								   v.dt_doobert_verified,
+								  u.st_email,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_in_person_volunteer,up.st_virtual_support_volunteer", false);						   	
+				$this->db->from('tbl_verification v');
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');	
+				$this->db->join('tbl_user_profile up', 'up.in_user_id=v.in_user_id AND up.in_deleted=0','INNER');
+				$this->db->where('v.fl_doobert_verified', '1');	
+				$this->db->where('v.in_deleted', '0');						
+								
+				if($name!= '') {	
+							$name = str_replace("%","\%",$name);				
+							$this->db->where("concat(v.st_fname,' ',v.st_lname) LIKE '%".$name."%'", NULL, FALSE);
+					}
+				
+				if($email!=''){				
+				
+				$this->db->where("u.st_email LIKE '%".$email."%'", NULL, FALSE);
+				}
+
+				if($fromdate!='' && $todate!='') {
+							$this->db->where("v.dt_doobert_verified >= '".$fromdate."' AND v.dt_doobert_verified <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+				}
+				
+				if($fromdate!='' && $todate=='') {
+						$date = date("Y-m-d");
+						$this->db->where("v.dt_doobert_verified >= '".$fromdate."' AND v.dt_doobert_verified <= '".$date. ' 23:59:59'."'", NULL, FALSE);
+				}
+				
+					switch($sort)
+						{							
+							case 'id':								
+								$this->db->order_by('v.in_verify_id',$order);
+							break;	
+							
+							case 'name': 								
+								$this->db->order_by('v.st_fname',$order);
+							break;
+							
+							case 'state': 								
+								$this->db->order_by('v.st_dl_state',$order);
+							break;
+							
+							case 'verifydate': 								
+								$this->db->order_by('v.dt_doobert_verified',$order);
+							break;
+							
+							case 'expdate': 								
+								$this->db->order_by('v.dt_dl_exp',$order);
+							break;
+							
+							case 'havepets': 								
+								$this->db->order_by('v.fl_have_pets',$order);
+							break;
+							
+							case 'volunteer': 								
+								$this->db->order_by('v.fl_animal_volunteer',$order);
+							break;	
+							
+							default: 								
+								$this->db->order_by('v.st_fname',$order);
+							break;	
+								         
+						}
+					  
+					  
+					 if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+					//echo $this->db->last_query();  die;					
+					$arrVerifiedDriver = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{		
+									
+							$arrVerifiedDriver[]  =	array('in_verify_id'	      		  => $Row->in_verify_id,
+																	'st_fname'	          => $Row->st_fname, 
+																	'st_mname'	          => $Row->st_mname, 
+																	'st_lname'	          => $Row->st_lname, 
+																	'st_dl_state'		  => $Row->st_dl_state,		
+																	'st_dl_num'		  	  => $Row->st_dl_num,	
+																	'dt_dl_exp'			  => $Row->dt_dl_exp,		
+																	'fl_have_pets'		  => ($Row->fl_have_pets==1) ?  'Yes' : 'No',  
+																	'fl_animal_volunteer' => ($Row->fl_animal_volunteer==1) ? 'Yes' : 'No',
+																	'st_email' => $Row->st_email,
+																	'doobert_verified_date' => $Row->dt_doobert_verified,
+																	'st_driver'           => ($Row->st_driver =='Y') ? 'Yes' : 'No',
+																	'st_pilot'			  => ($Row->st_pilot =='Y') ? 'Yes' : 'No',
+																	'st_foster_home'      => ($Row->st_foster_home =='Y') ? 'Yes' : 'No',
+																	'st_photographer'     => ($Row->st_photographer =='Y') ? 'Yes' : 'No',
+																	'st_in_person_volunteer' => ($Row->st_in_person_volunteer =='Y') ? 'Yes' : 'No',
+																	'st_virtual_support_volunteer' => ($Row->st_virtual_support_volunteer =='Y') ? 'Yes' : 'No',								
+											);
+						}
+						return $arrVerifiedDriver;
+						
+					}
+					
+	}
+	
+	public function get_verified_driver_export_data($get_all_data,$sort=NULL,$order=NULL,$limit=NULL,$rec_per_page=NULL)
+	{			
+			if($get_all_data == 0)
+			{	
+				if($this->nativesession->get('searchadmin1')!="")
+					$name = $this->nativesession->get('searchadmin1');
+				else
+					$name = "";
+					
+					if($this->nativesession->get('searchadmin2')!="")
+					$email = $this->nativesession->get('searchadmin2');
+				else
+					$email = "";
+
+				if($this->nativesession->get('searchadmin3')!="")
+					$fromdate = $this->nativesession->get('searchadmin3');
+				else
+					$fromdate = "";	
+					
+				if($this->nativesession->get('searchadmin4')!="")
+					$todate = $this->nativesession->get('searchadmin4');
+				else
+					$todate = "";
+					
+				if($this->nativesession->get('searchadmin5')!="")
+					$wid = $this->nativesession->get('searchadmin5');
+				else
+					$wid = "";
+			} 	
+				
+				
+				$this->db->select("v.in_verify_id,   
+								   v.in_user_id,
+								   v.st_fname,
+								   v.st_mname,								   
+								   v.st_lname,
+								   v.st_age,								   
+								   v.st_dl_state,								   
+								   v.st_dl_num,
+								   v.fl_have_pets,
+								   v.in_num_pets,
+								   v.st_vt_name,
+								   v.st_vt_off_name,
+								   v.st_vt_off_phone,
+								   v.st_vt_email,								   
+								   v.fl_animal_volunteer,
+								   v.st_org_name,
+								   v.dt_volunteer_from,
+								   v.dt_volunteer_to,
+								   v.st_org_phone,
+								   v.st_org_email,
+								   v.st_addi_info,
+								   v.st_info_agree,
+								   v.dt_dl_exp,
+								   v.dt_doobert_verified,
+								   v.dt_license_verified,
+								   v.dt_vet_verified,								 
+								   v.dt_org_verified,								   	
+								   v.fl_doobert_verified,
+								   v.fl_license_st_verified,
+								   v.fl_license_exp_verified,
+								   v.fl_license_verified,
+								   v.fl_vet_verified,
+								   v.fl_org_verified,
+								   v.st_driver_license_photo,
+								   v.st_complete_waiver_form,						   								   							   	  
+								   v.st_info_agree_name,
+								   v.in_felony,
+								   v.in_dui,
+								   v.st_pet_type,
+								   v.st_pet_name,
+								   v.st_ph_with_vet,
+								   u.st_email,
+								   u.dt_modified,
+								   uv.dt_modified as driver_modified,
+								   p.dt_modified as pilot_modified,
+								   pd.dt_modified as photographer_modified,
+								   pvd.dt_modified as per_vol_modified,
+								   vsd.dt_modified as vir_vol_modified, 
+								   u.dt_transport_agree ,
+								   fud.dt_modified as foster_modified_date", false);						   	
+				$this->db->from('tbl_verification v');
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');
+				$this->db->join('tbl_user_vehicle uv', 'v.in_user_id = uv.in_user_id  AND `uv`.`in_status` = 1 AND `uv`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_user_pilot p', 'v.in_user_id = p.in_user_id AND `p`.`in_status` = 1 AND `p`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_foster_user_detail fud', 'v.in_user_id = fud.in_user_id AND `fud`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_photographer_detail pd', 'v.in_user_id = pd.in_user_id AND `pd`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_in_person_volunteer_detail pvd', 'v.in_user_id = pvd.in_user_id AND `pvd`.`in_deleted` = 0','LEFT');
+				$this->db->join('tbl_virtual_support_vol_detail vsd', 'v.in_user_id = vsd.in_user_id AND `vsd`.`in_deleted` = 0','LEFT');					
+				$this->db->where('v.fl_doobert_verified', '1');	
+				$this->db->where('v.in_deleted', '0');				
+				if($name!= '') {	
+							$name = str_replace("%","\%",$name);				
+							$this->db->where("concat(v.st_fname,' ',v.st_lname) LIKE '%".$name."%'", NULL, FALSE);
+					}
+				
+				if($email!=''){				
+				
+				$this->db->where("u.st_email LIKE '%".$email."%'", NULL, FALSE);
+				}
+
+				if($fromdate!='' && $todate!='') {
+							$this->db->where("v.dt_doobert_verified >= '".$fromdate."' AND v.dt_doobert_verified <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+				}
+				if($fromdate!='' && $todate=='') {
+						$date = date("Y-m-d");
+						$this->db->where("v.dt_doobert_verified >= '".$fromdate."' AND v.dt_doobert_verified <= '".$date. ' 23:59:59'."'", NULL, FALSE);
+				}
+				
+				$this->db->group_by('u.in_user_id');
+				
+				if($get_all_data == 0)
+				{	
+					switch($sort)
+						{							
+							case 'id':								
+								$this->db->order_by('v.in_verify_id',$order);
+							break;	
+							
+							case 'name': 								
+								$this->db->order_by('v.st_fname',$order);
+							break;
+							
+							case 'state': 								
+								$this->db->order_by('v.st_dl_state',$order);
+							break;
+							
+							case 'verifydate': 								
+								$this->db->order_by('v.dt_doobert_verified',$order);
+							break;
+							
+							case 'expdate': 								
+								$this->db->order_by('v.dt_dl_exp',$order);
+							break;
+							
+							case 'havepets': 								
+								$this->db->order_by('v.fl_have_pets',$order);
+							break;
+							
+							case 'volunteer': 								
+								$this->db->order_by('v.fl_animal_volunteer',$order);
+							break;	
+							
+							default: 								
+								$this->db->order_by('v.st_fname',$order);
+							break;	
+								         
+						}
+					  
+					if($name == '' && $email == '' && $fromdate =='' && $todate =='')
+					{	  
+						if(!isset($limit))
+						{
+							$limit=0;
+						}					
+						$this->db->limit($rec_per_page,$limit);
+					}		
+				}		
+					$query = $this->db->get(); 
+					//echo $this->db->last_query();  die;					
+					$arrVerifiedDriver = array();
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{		
+									$ref_details = $this->get_ref_details($Row->in_verify_id);
+									
+							           $arrVerifiedDriver[] = array('in_verify_id'	      		=>  $Row->in_verify_id,
+																	'st_fname'	          		=>  $Row->st_fname, 
+																	'st_mname'	          		=>  $Row->st_mname, 
+																	'st_lname'	          		=>  $Row->st_lname, 
+																	'st_dl_state'		  		=>  $Row->st_dl_state,		
+																	'st_dl_num'		  	  		=>  $Row->st_dl_num,	
+																	'dt_dl_exp'			  		=> 	($Row->dt_dl_exp =='0000-00-00'  || $Row->dt_dl_exp ==''  || $Row->dt_dl_exp =='1969-12-31' ) ?  '' : date('m/d/Y',strtotime($Row->dt_dl_exp)),		
+																	'fl_have_pets'		  		=> ($Row->fl_have_pets==1) ?  'Yes' : 'No',  
+																	'fl_animal_volunteer' 		=> ($Row->fl_animal_volunteer==1) ? 'Yes' : 'No',
+																	'st_email'            		=> 	$Row->st_email,
+																	'doobert_verified_date' 	=> 	$Row->dt_doobert_verified,
+																	'user_id'               	=> 	$Row->in_user_id,
+																	'st_age'					=> 	($Row->st_age=='0000-00-00'  || $Row->st_age==NULL  || $Row->st_age =='1969-12-31' ) ? '' : date('m/d/Y',strtotime($Row->st_age)),
+																	'in_num_pets' 				=>  isset($Row->in_num_pets) ? $Row->in_num_pets : '',
+																	'dt_license_verified'		=>	$Row->dt_license_verified,
+																	'st_vt_name'				=>	isset($Row->st_vt_name) ? $Row->st_vt_name : '',
+																	'st_vt_off_name'			=>	isset($Row->st_vt_off_name) ? $Row->st_vt_off_name : '',
+																	'st_vt_off_phone'			=>	isset($Row->st_vt_off_phone) ? $Row->st_vt_off_phone : '',
+																	'st_vt_email'				=>	isset($Row->st_vt_email) ? $Row->st_vt_email : '',
+																	'st_org_name'				=>	isset($Row->st_org_name) ? $Row->st_org_name : '',
+																	'dt_vet_verified'			=>	$Row->dt_vet_verified,
+																	'dt_org_verified'			=>	$Row->dt_org_verified,
+																	'fl_doobert_verified'		=>	$Row->fl_doobert_verified,
+																	'fl_license_st_verified' 	=> 	$Row->fl_license_st_verified,
+																	'fl_license_exp_verified'	=>	$Row->fl_license_exp_verified,
+																	'fl_license_verified'		=>	$Row->fl_license_verified,
+																	'fl_vet_verified'			=>  $Row->fl_vet_verified,
+																	'fl_org_verified'			=>	$Row->fl_org_verified,
+																	'st_driver_license_photo'	=>	$Row->st_driver_license_photo,
+																	'st_complete_waiver_form'	=>	$Row->st_complete_waiver_form,
+																	'st_info_agree_name'		=>	isset($Row->st_info_agree_name) ? $Row->st_info_agree_name : '',
+																	'in_felony'					=>	isset($Row->in_felony) ? ($Row->in_felony==0?'Yes':'No') : '',
+																	'in_dui'					=>	isset($Row->in_dui) ? $Row->in_dui==0?'Yes':'No' : '',
+																	'st_pet_type'				=>	isset($Row->st_pet_type) ? $Row->st_pet_type : '',
+																	'st_pet_name'				=>	isset($Row->st_pet_name) ? $Row->st_pet_name : '',
+																	'st_ph_with_vet'			=>	isset($Row->st_ph_with_vet) ? $Row->st_ph_with_vet : '',
+																	'st_info_agree'				=>	isset($Row->st_info_agree) ? $Row->st_info_agree : '',
+																	'dt_volunteer_from'			=>	($Row->dt_volunteer_from =='0000-00-00' || $Row->dt_volunteer_from == NULL) ? '' : date('m/d/Y',strtotime($Row->dt_volunteer_from)),
+																	'dt_volunteer_to'			=>	($Row->dt_volunteer_to =='0000-00-00'   || $Row->dt_volunteer_to == NULL)  ? '' : date('m/d/Y',strtotime($Row->dt_volunteer_to)),
+																	'st_org_phone'				=>	isset($Row->st_org_phone) ? $Row->st_org_phone : '',
+																	'st_org_email'				=>	isset($Row->st_org_email) ? $Row->st_org_email : '',
+																	'st_addi_info'				=>	isset($Row->st_addi_info) ? $Row->st_addi_info : '',
+																	'dt_modified'				=>	($Row->dt_modified =='0000-00-00'  || $Row->dt_modified ==''  || $Row->dt_modified =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->dt_modified)),
+																	'driver_modified'			=>	($Row->driver_modified =='0000-00-00' || $Row->driver_modified ==''  || $Row->driver_modified =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->driver_modified)),
+																	'pilot_modified'			=>	($Row->pilot_modified =='0000-00-00'  || $Row->pilot_modified ==''  || $Row->pilot_modified =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->pilot_modified)),
+																	'photographer_modified'		=>	($Row->photographer_modified =='0000-00-00'  || $Row->photographer_modified ==''  || $Row->photographer_modified =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->photographer_modified)),
+																	'per_vol_modified'			=>	($Row->per_vol_modified =='0000-00-00'  || $Row->per_vol_modified ==''  || $Row->per_vol_modified =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->per_vol_modified)),
+																	'vir_vol_modified'			=>	($Row->vir_vol_modified =='0000-00-00'  || $Row->vir_vol_modified ==''  || $Row->vir_vol_modified =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->vir_vol_modified)),
+																	'dt_transport_agree'		=>	($Row->$Row->dt_transport_agree =='0000-00-00'  || $Row->$Row->dt_transport_agree ==''  || $Row->$Row->dt_transport_agree =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->dt_transport_agree)),
+																	'foster_modified_date'		=>	($Row->foster_modified_date =='0000-00-00'  || $Row->foster_modified_date ==''  || $Row->foster_modified_date =='1969-12-31' ) ?  '' : date('m-d-Y H:i:s',strtotime($Row->foster_modified_date)),
+																	'ref_details'				=>	$ref_details,
+												);
+						}
+						return $arrVerifiedDriver;
+						
+					}
+					
+	}
+	
+	
+	
+	public function update_verification($verify,$verifyId,$table)
+	{  
+		$this->db->where('in_verify_id', $verifyId);
+		$this->db->update($table, $verify); 		
+		//echo $this->db->last_query(); die;
+	}
+	
+	public function update_verification_status($verifyId)
+	{  
+	    $arrDriver = 	array('in_deleted' 	=> '1','fl_doobert_verified'=> '2');
+		$this->db->where('in_verify_id', $verifyId);
+		$this->db->update('tbl_verification', $arrDriver);	
+		//echo $this->db->last_query(); die;	
+		return $this->db->affected_rows();
+				
+	}
+	
+	public function update_document($userId)
+	{
+		$arrDriver = 	array('in_deleted' 	=> '1');
+		$this->db->where('in_user_id', $userId);
+		$this->db->update('tbl_documents', $arrDriver);	
+		//echo $this->db->last_query(); die;	
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_ref_details	
+	#	Purpose		:	Getting verification Referances
+	# *******************************************************************************************	
+	function get_ref_details($verifyId)
+	{
+		$this->db->select("ref.in_verification_ref_id,	
+						   ref.st_ref_name,
+						   ref.st_ref_email,
+						   ref.st_ref_phone,
+						   ref.st_ref_rel", false);						   	
+		$this->db->from('tbl_verification_ref ref');
+		$this->db->join('tbl_verification v', 'ref.in_verify_id = v.in_verify_id','INNER');
+		$this->db->where('ref.in_verify_id',$verifyId);	
+		$this->db->where('ref.in_deleted','0');		
+		$results = $this->db->get()->result_array();
+		//echo $this->db->last_query(); die;	
+		return $results;
+	}
+	
+	public function get_reverified_drivers()
+	{
+		$this->db->select("v.in_verify_id,
+						   v.in_user_id,
+						   v.st_fname,
+						   v.st_lname,
+						   u.st_email", false);						   	
+				$this->db->from('tbl_verification v');
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');		
+				$this->db->where('v.in_reverify_email', '1');
+				$this->db->limit('25');
+				$query = $this->db->get();
+				//echo $this->db->last_query();die;
+				return $query->result_array();
+    }
+	
+	// added by sadique on 16-03-16-03-1
+	#============================================================
+	#	Function	:	get_total_incomplete_driver()
+	#   Parameter	: 	
+	#	Perpose		:	get total incomplete drivers
+	#------------------------------------------------------------
+	public function get_total_incomplete_driver($app_type)
+	{ 					   
+				   
+				$this->db->select("v.in_verify_id", false);						   	
+				$this->db->from('tbl_verification v');	
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');		
+				$this->db->where('v.in_deleted', $app_type);
+				$this->db->where('v.fl_doobert_verified', '0');		
+				$this->db->where('v.in_status', '0');	
+				$query = $this->db->get();	
+				//print_r($this->db->last_query());				
+				return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_incomplete_driver()
+	#   Parameter	: 	sort,order,limit,rec_per_page
+	#	Perpose		:	to get pending drivers details
+	#------------------------------------------------------------
+	public function get_incomplete_driver($sort,$order,$limit,$rec_per_page,$app_type)
+	{						  
+				$this->db->select("v.in_verify_id,
+								   v.in_user_id,
+								   v.st_fname,
+								   v.st_mname,								   
+								   v.st_lname,
+								   v.st_dl_state,								   
+								   v. st_dl_num,
+								   v.dt_dl_exp,
+								   v.fl_have_pets,
+								   v.in_status,
+								   v.fl_animal_volunteer,
+								   u.st_email",false);					   	
+				$this->db->from('tbl_verification v');	
+				$this->db->join('tbl_users u', 'u.in_user_id=v.in_user_id AND u.in_deleted=0','INNER');		
+				$this->db->where('v.fl_doobert_verified', '0');	
+				$this->db->where('v.in_status', '0');	
+				$this->db->where('v.in_deleted', $app_type);						
+								
+				
+						switch($sort)
+						{							
+							case 'id':								
+								$this->db->order_by('v.in_verify_id',$order);
+							break;	
+							
+							case 'name': 								
+								$this->db->order_by('v.st_fname',$order);
+							break;
+							
+							case 'state': 								
+								$this->db->order_by('v.st_dl_state',$order);
+							break;
+							
+							case 'expdate': 								
+								$this->db->order_by('v.dt_dl_exp',$order);
+							break;
+							
+							case 'havepets': 								
+								$this->db->order_by('v.fl_have_pets',$order);
+							break;
+							
+							case 'volunteer': 								
+								$this->db->order_by('v.fl_animal_volunteer',$order);
+							break;	
+							case 'status': 								
+								$this->db->order_by('v.in_status',$order);
+							break;	
+							case 'email': 								
+								$this->db->order_by('u.st_email',$order);
+							break;	
+							
+							default: 								
+								$this->db->order_by('v.st_fname',$order);
+							break;	
+								         
+						}
+					  
+					  
+					 if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+					//echo $this->db->last_query();  die;					
+					$arrPendingDriver = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{		
+									
+							$arrPendingDriver[]  =	array('in_verify_id'	      		  => $Row->in_verify_id,
+																	'st_fname'	          => $Row->st_fname, 
+																	'st_mname'	          => $Row->st_mname, 
+																	'in_status'	          => ($Row->in_status == 0) ? 'Incomplete Form' : 'Verification Pending', 
+																	'st_lname'	          => $Row->st_lname, 
+																	'st_dl_state'		  => $Row->st_dl_state,		
+																	'st_dl_num'		  	  => $Row->st_dl_num,	
+																	'dt_dl_exp'			  => $Row->dt_dl_exp,		
+																	'fl_have_pets'		  => ($Row->fl_have_pets==1) ?  'Yes' : 'No',  
+																	'fl_animal_volunteer' => ($Row->fl_animal_volunteer==1) ? 'Yes' : 'No',
+																	'st_email'	          => $Row->st_email
+											);
+						}
+						return $arrPendingDriver;						
+					}					
+	}
+	
+	
+	function get_full_month($month)
+	{
+		switch ($month) {
+    case "1":
+        	return "January";
+       		break;
+    case "2":
+        return "February";
+       	break;
+    case "3":
+        return "March";
+       	break;
+	case "4":
+        return "April";
+       	break;
+	case "5":
+        return "May";
+       	break;
+	case "6":
+        return "June";
+       	break;
+     case "7":
+        	return "July";
+       		break;
+    case "8":
+        return "August";
+       	break;
+    case "9":
+        return "September";
+       	break;
+	case "10":
+        return "October";
+       	break;
+	case "11":
+        return "November";
+       	break;
+	case "12":
+        return "December";
+       	break;
+	default:
+         return date('M');
+	}
+ }
+ function un_verify_driver($verifyId)
+ {
+		$arrDriver = 	array('dt_doobert_verified' => '','fl_doobert_verified'=> '0','in_deleted'=>1,'dt_modified'=>date("Y-m-d H:i:s"));
+		$this->db->where('in_verify_id', $verifyId);
+		$this->db->update('tbl_verification', $arrDriver);	
+		//echo $this->db->last_query(); die;	
+		return $this->db->affected_rows();
+	 
+ }
+	
+}
+?>

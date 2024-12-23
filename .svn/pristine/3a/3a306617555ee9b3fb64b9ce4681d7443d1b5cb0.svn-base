@@ -1,0 +1,230 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: User(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class feedback extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('feedback_model');
+	
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->set_userdata('searchadmin4','all');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		/*if(!$sort)
+			$sort='trid';
+		
+		if(!$order)
+			$order = 'desc';*/
+		
+		if(!$sort)
+			$sort = 'date';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{						
+			$this->session->set_userdata('searchadmin1',$this->input->post('search_name'));
+			
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin2',$this->input->post('transport_id'));	
+
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin3',$this->input->post('feedback_type'));
+		}		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		//$rec_per_page =	  10;
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		//$totalrecord		= $this->feedback_model->get_count_user_trips($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		// GET PAGE LIST RESULT HERE
+		
+		//$data['user_list']	= $this->user_trips_model->get_user_trips($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		
+		$feedback_listing	= $this->feedback_model->get_feedback_listing($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'));
+		
+		$data['feedback_listing'] = $feedback_listing['feedback_listing'];
+		
+		$totalrecord = $feedback_listing['total_count'];
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'feedback/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Feedback Information Available.';
+		}
+		
+		$this->load->view('feedback-listing',$data);
+	}
+	
+	public function display_tc_feedback()
+	{
+		$id = $_POST['id'];
+		$view_volunteer_data = $this->feedback_model->view_tc_feedback($id);
+		echo json_encode($view_volunteer_data);	
+	}
+	
+	public function display_volunteer_feedback()
+	{
+		
+		$id = $_POST['id'];
+		$view_tc_data = $this->feedback_model->view_volunteer_feedback($id);
+		echo json_encode($view_tc_data);	
+	}
+	
+	public function delete_tc_feedback($id=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		//$id = $_POST['id'];
+		$data = array('in_deleted' =>1,
+					  'dt_modified' => date("Y-m-d H:i:s"),			
+					);
+		$view_volunteer_data = $this->feedback_model->delete_tc_feedback($id,$data);
+		if(!empty($view_volunteer_data))
+		{	
+					$this->session->set_flashdata('success-feedback', 'Transport Coordinator Feedback information has been deleted successfully.');
+		} else {
+					$this->session->set_flashdata('failure-feedback', 'Transport Coordinator Feedback information has not been deleted .');
+		}
+		//$this->page();	
+		redirect($this->config->item('admin_base_url').'feedback/page');
+	}
+	
+	public function delete_volunteer_feedback($id=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		//$id = $_POST['id'];
+		$data = array('in_deleted' => 1,
+					  'dt_modified' => date("Y-m-d H:i:s"),	
+					  );
+		$view_tc_data = $this->feedback_model->delete_volunteer_feedback($id,$data);
+		if(!empty($view_tc_data))
+		{	
+					$this->session->set_flashdata('success-feedback', 'Volunteer Feedback information has been deleted successfully.');
+		} else {
+					$this->session->set_flashdata('failure-feedback', 'Volunteer Feedback information has not been deleted .');
+		}
+		//$this->page();	
+		redirect($this->config->item('admin_base_url').'feedback/page');		
+		
+	}
+}
+
+/* End of file user.php */
+/* Location: ./application/controllers/user.php */

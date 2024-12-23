@@ -1,0 +1,1020 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ======================================================================================
+# Created by		: sadique mohammed
+# Created date		: 30-May-2017
+# File description	: Non Doobert Rescue Map controller
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: NONE 
+# Triggers used		: none 
+# --------------------------------------------------------------------------------------
+
+class non_doobert_rescue_map extends CI_Controller { 
+	
+	public function __construct() { 
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->library('common_function');
+		$this->load->model('non_doobert_rescue_map_model');
+		$this->load->helper('url');
+		$this->load->model('common_model');     
+		$this->load->helper('cookie');
+		$this->load->library('pagination');
+		ini_set('memory_limit', '1073741824');
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	index	
+	#	Purpose		:	User Map View
+	# *******************************************************************************************	
+	 
+	 
+	public function index($state='') 
+	{
+	
+		if($this->session->userdata('storgtype') == 'CT')
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data= array();
+		$state_list = $this->common_function->shortAllState;
+        $data['state_list'] = $state_list;
+		$city_list = array();
+		
+		
+		if(strlen($state)>2)
+		{
+			$this->session->set_userdata('org_city',$state);
+			$this->session->unset_userdata('txt_srch');
+			$this->session->unset_userdata('org_zip_code');
+			$this->session->unset_userdata('org_type');
+		} else if(strlen($state)==2){
+			$this->session->set_userdata('org_state',$state);
+			$this->session->unset_userdata('org_city');
+		} else {
+			$this->session->unset_userdata('org_city');
+		}	
+
+		$org_type = $this->session->userdata('org_type')?$this->session->userdata('org_type'):'0';
+		$zipcode = $this->session->userdata('org_zip_code')?$this->session->userdata('org_zip_code'):''; 		
+		
+		if($this->input->post('submit'))
+		{
+			$this->session->unset_userdata('txt_srch');
+			$this->session->unset_userdata('org_zip_code');
+			$this->session->unset_userdata('org_type');
+			$this->session->unset_userdata('org_state');
+			$state = 'IL';
+			$txt_srch = $this->input->post('txtsearch')?:'';
+			if(!empty($txt_srch))
+			{
+				$text_search = explode(",",$txt_srch);
+				if(!empty($text_search[2]) && is_array($text_search))
+				{
+					$state = trim($text_search[2]);
+				}		
+			}
+			
+			redirect(base_url().'doobert-org-map/'.$state);	
+		}
+		
+		if($this->input->post('frm_action'))
+		{
+			$state = 'IL';
+			if($this->input->post('state'))
+			{
+				$state = $this->input->post('state');
+			}
+			
+			$txt_srch = $this->input->post('txtsearch')?$this->input->post('txtsearch'):'';
+			$org_type = $this->input->post('recent_activity')?$this->input->post('recent_activity'):'0';
+			$this->session->set_userdata('org_type',$org_type);	
+			if(!empty($txt_srch))
+			{
+				$text_search = explode(",",$txt_srch);
+				
+				if(!empty($text_search[2]) && is_array($text_search))
+				{
+					//echo "<pre>"; print_r($text_search); echo "</pre>";
+					
+					$state = trim($text_search[2]);
+					$zipcode = trim($text_search[0]);
+				}
+				$this->session->set_userdata('org_zip_code',$zipcode);
+				$this->session->set_userdata('txt_srch',$txt_srch);	
+			} else {
+				$this->session->unset_userdata('txt_srch');
+				$this->session->unset_userdata('org_zip_code');
+			}
+			redirect(base_url().'doobert-org-map/'.$state);	
+		}
+		
+		$rec_per_page=10;
+		$limit = 0;
+		if($this->input->post('pagination_limit'))
+		{
+			$limit_no = $this->input->post('pagination_limit');
+			if($limit_no!=0 || $limit_no!=1)
+			{
+					$limit = ($limit_no - 1)*$rec_per_page;
+			}
+		}
+		
+		if($this->input->post('pagination_order'))
+		{
+			$limit = $this->input->post('pagination_order');
+		}
+		
+		
+		$order_type = 'asc';
+		if($this->input->post('order_type'))
+		{
+			$order_type = $this->input->post('order_type');
+		}
+		
+		$org_list = $this->non_doobert_rescue_map_model->get_complete_doobert_org($limit,$rec_per_page,$state,$zipcode,$org_type,$order_type);
+		if(!$this->session->userdata('org_city'))
+		{	
+			$city_list = $this->non_doobert_rescue_map_model->get_doobert_org_city($state);
+		}	
+		$data['org_listing'] = $org_list['complete_org']; 
+		$totalrecord = $org_list['total_count'];
+		$config = array();	
+		$config["base_url"] = base_url().'doobert-org-map/'.$state.'/';       
+        $config['total_rows'] =  $totalrecord;
+        $config['per_page'] = $rec_per_page;
+        $config['cur_page'] = $limit;
+        $config['num_links'] = '3';
+        $config['first_link'] = FALSE;
+        $config['last_link'] = FALSE;
+
+		$config['full_tag_open'] = '<ul class="pagination organization_pagination">';
+        $config['full_tag_close'] = '</ul>';
+
+        $config['prev_link'] = 'Prev';
+		$config['prev_tag_open'] = '<li class="prev">';
+        $config['prev_tag_close'] = '</li>';
+
+        $config['next_link'] = 'Next';
+		$config['next_tag_open'] = '<li class="next" class="selected">';
+        $config['next_tag_close'] = '</li>';
+
+		$config['num_tag_open'] = '<li>';
+        $config['num_tag_close'] = '</li>';
+
+		$config['cur_tag_open'] = '<li class="active"><a href="" >';
+        $config['cur_tag_close'] = '</a></li>';
+
+        $config['display_pages'] = TRUE;
+        $this->pagination->initialize($config);
+		$data['total_rows'] = $config['total_rows'];
+        $data['currrent_page'] = floor(($config['cur_page'] / $config['per_page']) + 1);
+        $data['total_no_page'] = ceil($config['total_rows'] / $config['per_page']);
+        $data['per_page'] = $config['per_page'];
+        $from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['pagination'] = $this->pagination->create_links();
+        // ------------------------ PAGINATION ENDS HERE -------------------------------		
+        // SET DATA to MAINTAIN record track on any action			
+              
+    	if($data['total_rows'] == 0){
+			$data['from']	   = "0";
+		}else{
+			$data['from']	   = $from;	
+		}
+    	$data['to'] = $to;	
+			
+		//echo "<pre>"; print_r($this->input->post()); echo "</pre>";
+		//die;
+		
+		$all_user_file_cnt = 0; 
+		$all_user_file_dir = 'upload/usermaps/all_doobert_org_map/';
+		if ($handle = opendir($all_user_file_dir)) {
+			while (($file = readdir($handle)) !== false){
+				if (!in_array($file, array('.', '..')) && !is_dir($all_user_file_dir.$file)) 
+					$all_user_file_cnt++;
+			}
+		}
+		$data['total_all_org_files'] = $all_user_file_cnt;		
+		
+		
+		
+		$non_doobert_org_file_cnt = 0; 
+		$non_doobert_file_dir = 'upload/usermaps/non_doobert_org_map/';
+		if ($handle = opendir($non_doobert_file_dir)) {
+			while (($file = readdir($handle)) !== false){
+				if (!in_array($file, array('.', '..')) && !is_dir($non_doobert_file_dir.$file)) 
+					$non_doobert_org_file_cnt++;
+			}
+		}
+		$data['total_non_doobert_org_files'] = $non_doobert_org_file_cnt;		
+		
+		$org_file_cnt = 0; 
+		$org_file_dir = 'upload/usermaps/doobert_org_map/';
+		if ($handle = opendir($org_file_dir)) {
+			while (($file = readdir($handle)) !== false){
+				if (!in_array($file, array('.', '..')) && !is_dir($org_file_dir.$file)) 
+					$org_file_cnt++;
+			}
+		}
+		
+		$data['total_org_files'] = $org_file_cnt;
+		$data['city_list'] = $city_list;
+		$data['order_type'] = $order_type;	
+		$data['pagination_limit'] = $limit;
+		
+		$this->load->view('rescue_map/non_doobert_rescue_map',$data);
+		return;				
+   }
+		
+	/*public function index() 
+	{
+	
+		$data= array();				
+		$state_list = $this->common_function->shortAllState;
+        $data['state_list'] = $state_list;	
+		
+		$all_user_file_cnt = 0; 
+		$all_user_file_dir = 'upload/usermaps/all_doobert_org_map/';
+		if ($handle = opendir($all_user_file_dir)) {
+			while (($file = readdir($handle)) !== false){
+				if (!in_array($file, array('.', '..')) && !is_dir($all_user_file_dir.$file)) 
+					$all_user_file_cnt++;
+			}
+		}
+		$data['total_all_org_files'] = $all_user_file_cnt;		
+		
+		
+		
+		$non_doobert_org_file_cnt = 0; 
+		$non_doobert_file_dir = 'upload/usermaps/non_doobert_org_map/';
+		if ($handle = opendir($non_doobert_file_dir)) {
+			while (($file = readdir($handle)) !== false){
+				if (!in_array($file, array('.', '..')) && !is_dir($non_doobert_file_dir.$file)) 
+					$non_doobert_org_file_cnt++;
+			}
+		}
+		$data['total_non_doobert_org_files'] = $non_doobert_org_file_cnt;		
+		
+		$org_file_cnt = 0; 
+		$org_file_dir = 'upload/usermaps/doobert_org_map/';
+		if ($handle = opendir($org_file_dir)) {
+			while (($file = readdir($handle)) !== false){
+				if (!in_array($file, array('.', '..')) && !is_dir($org_file_dir.$file)) 
+					$org_file_cnt++;
+			}
+		}
+		$data['total_org_files'] = $org_file_cnt;		 
+		$this->load->view('rescue_map/non_doobert_rescue_map',$data);
+		return;				
+   }*/
+   
+   public function get_user_map_json(){
+   
+		 $user_type = isset($_POST['user_type'])?$_POST['user_type']:'0'; 
+		 $file_name = isset($_POST['file_name'])?$_POST['file_name']:'';	
+		
+		
+		if($user_type == '0' && isset($file_name))
+		{		
+			if(file_exists("upload/usermaps/all_doobert_org_map/".$file_name.".json"))
+			{			
+				$alluser_data = file_get_contents ("upload/usermaps/all_doobert_org_map/".$file_name.".json");			
+				print($alluser_data);			
+			}
+			
+		}	
+		
+		
+		 if($user_type == 'DO' && isset($file_name))
+		{		
+			if(file_exists("upload/usermaps/doobert_org_map/".$file_name.".json"))
+			{	
+				$alluser_data = file_get_contents ("upload/usermaps/doobert_org_map/".$file_name.".json");											
+				print($alluser_data);	
+			}			
+		}		
+		
+		 if($user_type == 'NDO' && isset($file_name))
+		{   	
+				
+			if(file_exists("upload/usermaps/non_doobert_org_map/".$file_name.".json"))
+			{						
+					$alluser_data = file_get_contents ("upload/usermaps/non_doobert_org_map/".$file_name.".json");											
+					print($alluser_data);
+			}
+		}	
+		
+	}
+	
+	
+	
+	public function get_user_map_json2(){
+	
+		$user_type = isset($_POST['user_type'])?$_POST['user_type']:'0';  
+		$txtsearch = isset($_POST['txtsearch'])?$_POST['txtsearch']:'';
+		$citysearch = isset($_POST['citysearch'])?$_POST['citysearch']:'';
+		$statesearch = isset($_POST['statesearch'])?$_POST['statesearch']:'';
+		
+		/**********nearby_doobert_org**********/
+		if($user_type == 'DO' && isset($txtsearch) && $txtsearch!='')
+		{		
+				
+				$near_by_org = $this->non_doobert_rescue_map_model->get_nearby_organization($txtsearch);
+				//echo '<pre>'; print_r($near_by_org); die;	
+				if(isset($near_by_org) && count($near_by_org)>0)
+				{			
+					foreach($near_by_org as $row)
+					{								
+										
+								$st='';						
+								$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);			
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></div>';
+														
+								$data_to_store4['pop_up_desc'][]    = $st;	
+								$data_to_store4['all_zip'][]  	   = $row['zip'];
+								$data_to_store4['lat'][]		   	   = isset($row['lat'])?$row['lat']:'';
+								$data_to_store4['lon'][]		   	   = isset($row['lon'])?$row['lon']:'';					
+								$data_to_store4['img'][]		   	   = $row['img'];	
+								$data_to_store4['count']		   	   = count($near_by_org);				
+								
+								$fp = fopen('upload/usermaps/doobert_org_map_nearby/doobert_org_map_nearby.json', 'w');
+								fwrite($fp, json_encode($data_to_store4));	
+								fclose($fp);											
+					}
+					
+					if(file_exists("upload/usermaps/doobert_org_map_nearby/doobert_org_map_nearby.json"))
+					{
+						$alluser_data = file_get_contents ("upload/usermaps/doobert_org_map_nearby/doobert_org_map_nearby.json");					
+						print($alluser_data);				
+					}
+		
+				}
+				else
+				{  
+					echo '0';
+				}
+					
+						
+		}
+		
+			/**********all_doobert_org_map_nearby_city**********/
+		if($user_type == '0' && $citysearch!='' && $statesearch!=''  )
+		{		
+				
+				$all_doobert_org_map_nearby = $this->non_doobert_rescue_map_model->get_all_doobert_nearby_city($citysearch,$statesearch);
+				
+				if(isset($all_doobert_org_map_nearby) && count($all_doobert_org_map_nearby)>0){
+					foreach($all_doobert_org_map_nearby as $row)
+					{							
+								
+								$st='';	                                  
+									  
+								if(isset($row['status']) && $row['status']=='1'){
+								$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);	
+									
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								else if(isset($row['website']) && !empty($row['website'])){							
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								
+								else
+								{
+								$st .='<div class="flying-dog-rescue-box">
+										<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}	  	
+														
+								$data_to_store11['pop_up_desc'][]    	= $st;	
+								$data_to_store11['all_zip'][]  	   		= $row['zip'];
+								$data_to_store11['lat'][]		   	    = isset($row['lat'])?$row['lat']:'';
+								$data_to_store11['lon'][]		   	    = isset($row['lon'])?$row['lon']:'';					
+								$data_to_store11['img'][]		   	    = $row['img'];	
+								$data_to_store11['count']		   	    = count($all_doobert_org_map_nearby);	
+								
+								$fp = fopen('upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json', 'w');
+								fwrite($fp, json_encode($data_to_store11));	
+								fclose($fp);											
+					}	
+					if(file_exists("upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json"))
+					{			
+						$alluser_data = file_get_contents ("upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json");			
+						print($alluser_data);			
+					}			
+				}
+				else
+				{  
+					echo '0';
+				}	
+			
+			
+		}	
+		
+		
+		
+		
+		/**********all_doobert_org_map_nearby**********/
+		if($user_type == '0' && isset($txtsearch) && $txtsearch!='')
+		{		
+				$all_doobert_org_map_nearby = $this->non_doobert_rescue_map_model->get_all_doobert_nearby_organization($txtsearch);
+				//echo '<pre>'; print_r($all_doobert_org_map_nearby); die;
+				if(isset($all_doobert_org_map_nearby) && count($all_doobert_org_map_nearby)>0){
+					foreach($all_doobert_org_map_nearby as $row)
+					{							
+								
+								$st='';	                                  
+									  
+								if(isset($row['status']) && $row['status']=='1'){
+								$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);	
+									
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								else if(isset($row['website']) && !empty($row['website'])){							
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								
+								else
+								{
+								$st .='<div class="flying-dog-rescue-box">
+										<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}	  	
+														
+								$data_to_store6['pop_up_desc'][]    	= $st;	
+								$data_to_store6['all_zip'][]  	   		= $row['zip'];
+								$data_to_store6['lat'][]		   	    = isset($row['lat'])?$row['lat']:'';
+								$data_to_store6['lon'][]		   	    = isset($row['lon'])?$row['lon']:'';					
+								$data_to_store6['img'][]		   	    = $row['img'];	
+								$data_to_store6['count']		   	    = count($all_doobert_org_map_nearby);	
+								
+								$fp = fopen('upload/usermaps/non_doobert_org_map_nearby/non_doobert_org_map_nearby.json', 'w');
+								fwrite($fp, json_encode($data_to_store6));	
+								fclose($fp);											
+					}	
+					if(file_exists("upload/usermaps/non_doobert_org_map_nearby/non_doobert_org_map_nearby.json"))
+					{			
+						$alluser_data = file_get_contents ("upload/usermaps/non_doobert_org_map_nearby/non_doobert_org_map_nearby.json");			
+						print($alluser_data);			
+					}			
+				}
+				else
+				{  
+					echo '0';
+				}	
+			
+			
+		}		
+		
+		
+		/**********non_doobert_near_by_org**********/
+		if($user_type == 'NDO' && isset($txtsearch) && $txtsearch!='')
+		{   	
+			
+			$non_doobert_near_by_org = $this->non_doobert_rescue_map_model->get_non_doobert_nearby_organization($txtsearch);
+				
+				//echo '<pre>'; print_r($non_doobert_near_by_org); die;
+				if(isset($non_doobert_near_by_org) && count($non_doobert_near_by_org)>0){
+					foreach($non_doobert_near_by_org as $row)
+					{							
+								$st='';		
+										
+								if(isset($row['website']) && !empty($row['website'])){							
+									
+									$st .='<div class="flying-dog-rescue-box">
+											<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+											<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';							
+									
+									}
+									
+									else{
+									
+									$st .='<div class="flying-dog-rescue-box">
+											<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+											<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+									
+									}							
+														
+								$data_to_store5['pop_up_desc'][]    	= $st;	
+								$data_to_store5['all_zip'][]  	   		= $row['zip'];
+								$data_to_store5['lat'][]		   	    = isset($row['lat'])?$row['lat']:'';
+								$data_to_store5['lon'][]		   	    = isset($row['lon'])?$row['lon']:'';					
+								$data_to_store5['img'][]		   	    = $row['img'];	
+								$data_to_store5['count']		   	    = count($non_doobert_near_by_org);				
+								
+								$fp = fopen('upload/usermaps/non_doobert_org_map_nearby/non_doobert_org_map_nearby.json', 'w');
+								fwrite($fp, json_encode($data_to_store5));	
+								fclose($fp);											
+					}	
+					
+					if(file_exists("upload/usermaps/non_doobert_org_map_nearby/non_doobert_org_map_nearby.json"))
+					{			
+						$alluser_data = file_get_contents ("upload/usermaps/non_doobert_org_map_nearby/non_doobert_org_map_nearby.json");			
+						print($alluser_data);			
+					}
+				
+				}	
+				else
+				{  
+					echo '0';
+				}
+			
+			
+					
+			
+		}	
+		
+	}
+	
+	public function get_user_details()
+	{
+		$uid  = $this->input->post('uid');
+		$role = $this->input->post('role'); 
+		if($role =='user')
+		{
+			$data=$this->non_doobert_rescue_map_model->user_details($uid);		
+		}
+		else {
+			$data1=$this->non_doobert_rescue_map_model->org_details($uid);	
+		}
+		
+		if(!empty($data))
+		{
+			$result['name']=$data[0]->st_display_name;
+			$result['email'] = $data[0]->st_email;
+			$result['success'] =1;
+		}
+		if(!empty($data1))
+		{
+			$result['name']=$data1[0]->st_org_name;
+			$result['email'] = $data1[0]->st_email_address;
+			$result['org_id'] = $data1[0]->in_organization_id;
+			$result['success'] =1;
+			
+		}
+		echo json_encode($result);
+	}
+	
+	
+	
+	public function get_non_doobert_user_details()
+	{
+		$uid  = $this->input->post('uid');
+		$role = $this->input->post('role'); 
+		if($role =='user')
+		{
+			$data=$this->non_doobert_rescue_map_model->user_details($uid);		
+		}
+		else {
+			$data1=$this->non_doobert_rescue_map_model->non_doobert_org_details($uid);	
+		}
+		
+		if(!empty($data))
+		{
+			$result['name']=$data[0]->st_display_name;
+			$result['email'] = $data[0]->st_email;
+			$result['success'] =1;
+		}
+		if(!empty($data1))
+		{
+			$result['name']=$data1[0]->stOrgName;
+			$result['email'] = $data1[0]->stOrgEmail;
+			$result['org_id'] = $data1[0]->inNonDoobertOrgId;
+			$result['success'] =1;
+			
+		}
+		echo json_encode($result);
+	}
+	
+	
+	
+	
+	
+	function map_send_mail()
+	{  
+		
+		$user_name = $this->input->post('contact_name');
+        $user_email = $this->input->post('contact_email');
+		
+		$sender_name = $this->input->post('username');
+		$sender_email = $this->input->post('useremail');
+        $msg = nl2br($this->input->post('contactmessage'));		
+		//echo $user_name;	echo $user_email; 	echo $sender_name; echo $sender_email;
+		if(trim($user_email) !='' && trim($sender_email) !=''){
+			// SEND email
+		}else{
+			exit;
+		}
+		
+		$this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("50");	
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			
+        if (isset($email_details[0]['st_email_body'])) {
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##user_name##", $user_name , $templete);
+            $templete = str_replace("##sender_name##", $sender_name , $templete);
+			$templete = str_replace("##message##", $msg , $templete);
+            $templete = str_replace("##sender_email##", $sender_email , $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+            $strMail = $templete;
+            $to = $user_email; 
+			//$to = 'sadique.mohammed@pulsesolutions.net';
+            $subject = $email_details[0]['st_email_subject'];
+			$subject = str_replace('##sender_name##',$sender_name , $subject); 
+			$category = $email_details[0]['st_category'];
+		   // $subject = 'Contact Request From: ' . $this->session->userdata('user_name');
+            $message = $strMail;
+			
+			$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+			
+			$send_email = 1;							
+			$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+			if(isset($sub_data) && isset($sub_data['flg_daily_email']) && $sub_data['flg_daily_email'] == '2' && isset($sub_data['flg_immediate_all']) && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_details[0]['in_email_id'];
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}
+
+			if($send_email == '1')
+			{  
+		 		$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = 'rajashri.mahapure@pulsesolutions.net', $this->config->item('from_org_name'),$this->email,$category);
+			}
+			
+			$data['success'] = 1;
+			echo json_encode($data);
+		
+		}
+	}
+	
+	function map_send_mail_admin()
+	{
+		$user_name = $this->input->post('contact_name');
+        $user_email = $this->input->post('contact_email');		
+		$sender_name = $this->input->post('username');
+		$sender_email = $this->input->post('useremail');
+        $msg = nl2br($this->input->post('contactmessage'));	
+		if(trim($user_email) !='' && trim($sender_email) !=''){
+			// SEND email
+		}else{
+			exit;
+		}
+		
+		$this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("50");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		
+		
+        if (isset($email_details[0]['st_email_body'])) {
+		
+		$admin_list = $this->common_model->get_admin_list();
+		for($a=0;$a<count($admin_list);$a++) { 
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##user_name##", $user_name , $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+            $templete = str_replace("##sender_name##", $sender_name , $templete);
+			$templete = str_replace("##message##", $msg , $templete);
+            $templete = str_replace("##sender_email##", $sender_email , $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+            $strMail = $templete;
+            $to			=	$admin_list[$a]['email_address'];
+			//$to = 'sadique.mohammed@pulsesolutions.net';
+            $subject = $email_details[0]['st_email_subject'];
+			$subject = str_replace('##sender_name##',$sender_name , $subject); 
+			$category = $email_details[0]['st_category'];		  
+            $message = $strMail;			
+		 		$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('from_org_name'),$this->email,$category);				
+			}			
+			
+			$data['success'] = 1;
+			echo json_encode($data);		
+		}
+		
+		
+	}	
+	
+	function search_org()
+	{		
+		if($this->session->userdata('storgtype') == 'CT')
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$txtsearch = isset($_POST['txtsearch'])?$_POST['txtsearch']:'';	
+		
+		if(isset($txtsearch) && $txtsearch!='')
+		{			
+				$all_doobert_org_map_nearby = $this->non_doobert_rescue_map_model->get_all_doobert_nearby_organization($txtsearch);
+				//echo '<pre>'; print_r($all_doobert_org_map_nearby); die;
+				if(isset($all_doobert_org_map_nearby) && count($all_doobert_org_map_nearby)>0){ 
+					foreach($all_doobert_org_map_nearby as $row)
+					{							
+								
+								$st='';	                                  
+								if(isset($row['status']) && $row['status']=='1'){
+								$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);	
+									
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								else if(isset($row['website']) && !empty($row['website'])){							
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								
+								else
+								{
+								$st .='<div class="flying-dog-rescue-box">
+										<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}	  	
+														
+								$data_to_store6['pop_up_desc'][]    	= $st;	
+								$data_to_store6['all_zip'][]  	   		= $row['zip'];
+								$data_to_store6['lat'][]		   	    = isset($row['lat'])?$row['lat']:'';
+								$data_to_store6['lon'][]		   	    = isset($row['lon'])?$row['lon']:'';					
+								$data_to_store6['img'][]		   	    = $row['img'];	
+								$data_to_store6['count']		   	    = count($all_doobert_org_map_nearby);	
+								
+								$fp = fopen('upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json', 'w');
+								fwrite($fp, json_encode($data_to_store6));	
+								fclose($fp);											
+					}	
+					if(file_exists("upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json"))
+					{			
+						$alluser_data = file_get_contents ("upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json");			
+						print($alluser_data); 	
+													
+					}			
+				}
+				else
+				{  
+					echo '0';
+				}			
+			
+			
+		}
+		
+		else
+		{		
+			$this->load->view('rescue_map/search_org');	
+		}
+	}
+	
+	
+	/*function become_partner()
+	{		
+		
+		$txtsearch = isset($_POST['txtsearch'])?$_POST['txtsearch']:'';	
+		
+		if(isset($txtsearch) && $txtsearch!='')
+		{			
+				$all_doobert_org_map_nearby = $this->non_doobert_rescue_map_model->get_all_doobert_nearby_organization($txtsearch);
+				//echo '<pre>'; print_r($all_doobert_org_map_nearby); die;
+				if(isset($all_doobert_org_map_nearby) && count($all_doobert_org_map_nearby)>0){ 
+					foreach($all_doobert_org_map_nearby as $row)
+					{							
+								
+								$st='';	                                  
+								if(isset($row['status']) && $row['status']=='1'){
+								$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);	
+									
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								else if(isset($row['website']) && !empty($row['website'])){							
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}
+								
+								
+								else
+								{
+								$st .='<div class="flying-dog-rescue-box">
+										<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}	  	
+														
+								$data_to_store6['pop_up_desc'][]    	= $st;	
+								$data_to_store6['all_zip'][]  	   		= $row['zip'];
+								$data_to_store6['lat'][]		   	    = isset($row['lat'])?$row['lat']:'';
+								$data_to_store6['lon'][]		   	    = isset($row['lon'])?$row['lon']:'';					
+								$data_to_store6['img'][]		   	    = $row['img'];	
+								$data_to_store6['count']		   	    = count($all_doobert_org_map_nearby);	
+								
+								$fp = fopen('upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json', 'w');
+								fwrite($fp, json_encode($data_to_store6));	
+								fclose($fp);											
+					}	
+					if(file_exists("upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json"))
+					{			
+						$alluser_data = file_get_contents ("upload/usermaps/all_doobert_org_map_nearby/all_doobert_org_map_nearby.json");			
+						print($alluser_data); 	
+													
+					}			
+				}
+				else
+				{  
+					echo '0';
+				}			
+			
+			
+		}
+		
+		else
+		{		
+	
+			$data['featuredpartner']  = $this->non_doobert_rescue_map_model->get_featuredpartners();
+			//echo '<pre>'; print_r($data['featuredpartner']);die;
+			$this->load->view('rescue_map/become_partner',$data);	
+		}
+	}*/
+	
+	function become_partner()
+	{		
+			$data['featuredpartner']  = $this->non_doobert_rescue_map_model->get_featuredpartners();
+			//echo '<pre>'; print_r($data['featuredpartner']);die;
+			$this->load->view('rescue_map/become_partner',$data);	
+		
+	}
+	
+	function doobert_organization()
+	{	
+		$this->session->unset_userdata('txt_srch');
+		$this->session->unset_userdata('org_zip_code');
+		$this->session->unset_userdata('org_type');
+		$this->session->unset_userdata('org_state');
+		$this->session->unset_userdata('org_city');
+		$state_list = $this->common_function->shortAllState;
+        $data['state_list'] = $state_list;
+		$this->load->view('rescue_map/doobert_org',$data);
+	}
+	
+	 public function get_zip_code(){
+
+        /*if (!$this->session->userdata('userid')){
+            echo "1";
+            die;
+           
+        }*/
+		
+		if($this->input->get('flag')){
+			$city = addslashes($this->input->get('city'));
+            $state = addslashes($this->input->get('state'));
+			/*print_r($city);
+			print_r($state);
+			die();*/
+			$result = $this->non_doobert_rescue_map_model->get_fullzipcode_by_state_city(trim($city), trim($state));
+			if(!empty($result)){
+			echo json_encode($result);
+			}else {
+				$result ='NULL';
+				echo json_encode($result);
+			}
+			
+		}
+		
+       else  if ($this->input->get('term')){
+			//echo "in the term.";
+            //echo $this->uri->segment(3);
+            //echo "<pre>";print_r($_GET);print_r($_POST);die;
+            //echo "<pre>";print_r($this->input->get());print_r($this->input->post());die;
+            $zip = addslashes($this->input->get('term'));
+            //$city = addslashes($this->input->get('city'));
+            //$state = addslashes($this->input->get('state'));
+			/*print_r($zip);
+			print_r($city);
+			print_r($state);
+			die();*/
+            //$result = $this->orgtrasnportation_model->get_zipcode($zip, $city, $state);
+			$result = $this->non_doobert_rescue_map_model->get_zipcode2($zip);
+            echo json_encode($result);
+        } else {
+			//echo "<br> in the else";
+            $city = addslashes(trim($this->input->get('city')));
+            $state = addslashes(trim($this->input->get('state')));
+			//echo "city=".$city;
+			$city1=''; $state1='';
+			$expcity = explode(',',$city);
+			if(!empty($expcity)){
+				if(isset($expcity[0])){ $city1 = trim($expcity[0]);}
+				if(isset($expcity[1])){ $state1 = trim($expcity[1]);}
+			}
+			//print_r($expcity);
+			//die(); 
+            //$data['zipcodes'] = $this->orgtrasnportation_model->get_zipcode("",$city,$state,"action");
+          	//$result = $this->orgtrasnportation_model->get_zipcode("", $city, $state, "action");
+		    	//$result = $this->non_doobert_rescue_map_model->get_zipcode("",$city1 ,$state1, "action");
+				$result = $this->non_doobert_rescue_map_model->get_zipcode_data("",$city1 ,$state1, "action");
+             if(isset($result[0]['value']))
+              {
+             // echo $result[0]['value']."#*#".$result[0]['city']."#*#".$result[0]['st_country'];
+              }
+              echo json_encode($result); 
+         //   print_r($result);*/
+			
+           /* if (isset($result[0]['value'])) {
+                echo $result[0]['value'] . "#*#" . $result[0]['city'] . "#*#" . $result[0]['st_country'];
+            }*/
+		 }
+    }
+	
+}
+
+/* End of file non_doobert_rescue_map.php */
+/* Location: ./application/controllers/non_doobert_rescue_map.php */

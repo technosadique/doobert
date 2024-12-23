@@ -1,0 +1,362 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Location_favorite extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		if($_SERVER['REMOTE_ADDR']=='162.158.46.16' || $_SERVER['REMOTE_ADDR']=='172.68.144.175')
+		{
+			//$this->output->enable_profiler(TRUE);
+		}
+		else
+		{
+			$this->output->enable_profiler(FALSE);
+		}
+		$this->load->model('common_model');
+		$this->load->model('location_favorite_model');
+		$this->load->model('orgtrasnportation_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');
+		error_reporting(0);
+		if(!$this->session->userdata('org_id')) {
+			redirect(base_url().'dashboard');
+		}
+	}
+
+
+	public function index(){
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+
+		if($this->session->userdata('storgtype') == 'CT')
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$in_user_id = $this->session->userdata['userid'];
+		$in_org_id = $this->session->userdata['org_id'];
+		$data = array();
+		
+		$location_data 	= $this->location_favorite_model->get_location_by_org_id($in_org_id);
+		$data['location_data'] = $location_data;
+		$data['rides_data']  	= $this->location_favorite_model->get_rides_by_org_id($in_org_id);
+		$test = array();
+		foreach($location_data as $key =>$value){
+			$test[$value['in_loc_id']] = $location_data[$key];
+		}
+		$data['location_arr'] = $test;
+		/// demo video
+		$signup_video		 =	$this->common_model->get_signup_demo_video();
+		
+		//echo '<pre>'; print_r($signup_video);die;
+		foreach($signup_video as $val){				
+				$arr_v	=	explode('v=',$val['st_url']);
+				$data['signup_video'][$val['id_demo_videos']]	=	$arr_v[1];
+		}		
+		$this->load->view('manage_location_favorite',$data);
+	}
+
+	public function add_location(){
+		$org_details = $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		if(isset($org_details['st_zip']) && !empty($org_details['st_zip'])) {
+			$data['sender_zip'] = $org_details['st_zip'];
+		} else {
+			$data['sender_zip'] = '';
+		}
+		$data = array();
+		$data['Err_Msg'] 		= '';
+		$in_user_id = $this->session->userdata['userid'];
+		$in_org_id = $this->session->userdata['org_id'];
+		$form_field	=	array(
+							'st_loc_nickname' 	=>'',
+							'st_loc_name'		=>'',
+							'st_loc_street' 	=>'',
+							'st_loc_add'		=>'',
+							'st_loc_contact'	=>'',
+							'st_loc_email'		=>'',
+							'st_loc_phone'		=>'',
+							'in_user_id' 		=>$in_user_id,
+							'in_org_id' 		=>$in_org_id
+
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['location'][$key] = $value;	
+		}					
+		if($this->input->post('action')=='submit_location')
+		{
+			$location_id = $this->input->post('in_loc_id');
+			foreach ($form_field as $key => $value)
+			{	
+				$data['location'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+			}
+			
+			$st_loc_add_data = explode(',',$data['location']['st_loc_add']);
+			$data['location']['st_loc_add'] = isset($st_loc_add_data[3]) ? $st_loc_add_data[3] : ''; 
+			$data['location']['st_loc_city'] = isset($st_loc_add_data[1]) ? $st_loc_add_data[1] : ''; 
+			$data['location']['st_loc_state'] = isset($st_loc_add_data[2]) ? $st_loc_add_data[2] : ''; 
+			$data['location']['st_loc_zip'] = isset($st_loc_add_data[0]) ? $st_loc_add_data[0] : ''; 
+			
+			
+			
+			$error_message = '';
+			
+			$this->form_validation->set_rules('st_loc_add', 'City,State Or Zip', 'trim');
+			$this->form_validation->set_rules('st_loc_nickname', 'Location Nickname', 'trim|required');
+			$this->form_validation->set_rules('st_loc_name', 'Location Actual Name', 'trim|required');
+			$this->form_validation->set_rules('st_loc_street', 'Street', 'trim|required');
+			$this->form_validation->set_rules('st_loc_contact', 'Contact Name', 'trim|required');
+			$this->form_validation->set_rules('st_loc_phone', 'Contact phone', 'trim|required');
+			$this->form_validation->set_rules('st_loc_email', 'Contact Email', 'trim|required|valid_email');
+			
+			$error = '';
+			if($this->form_validation->run()==FALSE ||$error_message!='')
+			{
+				$data['Err_Msg'] = validation_errors()."<p>".$error_message."</p>";
+				$this->load->view('manage_location_favorite',$data);	
+			}
+			else
+			{
+				
+				$location_details = array(
+					'st_loc_nickname' 	=> 	trim($data['location']['st_loc_nickname']),
+					'st_loc_name'		=> 	trim($data['location']['st_loc_name']),
+					'st_loc_street' 	=> 	trim($data['location']['st_loc_street']),
+					'st_loc_city'		=>	trim($data['location']['st_loc_city']),
+					'st_loc_state'		=>	trim($data['location']['st_loc_state']),
+					'st_loc_zip'		=>	trim($data['location']['st_loc_zip']),
+					'st_loc_contact'	=>	trim($data['location']['st_loc_contact']),
+					'st_loc_email'		=>	trim($data['location']['st_loc_email']),
+					'st_loc_phone'		=>	trim($data['location']['st_loc_phone']),
+					'in_user_id' 		=>	$in_user_id,
+					'in_org_id' 		=>	$in_org_id,
+					"in_deleted"		=> "0"
+					);
+				
+				if($location_id != ''){					
+					$location_details['dt_modified']	= date("Y-m-d H:i:s");
+					$location_id = $this->location_favorite_model->update_location($location_details,$location_id);
+					$this->session->set_flashdata('success', 'Location details updated successfully.');					
+				}
+				else{
+					$location_details['dt_created']	= date("Y-m-d H:i:s");
+					$location_id = $this->location_favorite_model->add_location($location_details);
+					$this->session->set_flashdata('success', 'Location details created successfully.');
+				}
+				
+				redirect(base_url().'manage-location-favorite');
+			}
+		}
+		else{
+				
+			$this->load->view('manage_location_favorite',$data);
+		}
+	}
+
+
+	public function edit_location(){
+		$location_id = $this->input->post('in_loc_id');
+		
+
+		$org_details = $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		if(isset($org_details['st_zip']) && !empty($org_details['st_zip'])) {
+			$data['sender_zip'] = $org_details['st_zip'];
+		} else {
+			$data['sender_zip'] = '';
+		}
+		$data = array();
+		$data['Err_Msg'] 		= '';
+		$in_user_id = $this->session->userdata['userid'];
+		$in_org_id = $this->session->userdata['org_id'];
+
+		$data['location_data'] = $this->location_favorite_model->get_by_location_id($location_id);
+		echo json_encode($data['location_data']);
+		
+	}
+
+	public function delete_location($location_id){
+		$this->location_favorite_model->delete_location($location_id);
+		$this->session->set_flashdata('success', 'Location details deleted successfully.');
+		redirect(base_url().'manage-location-favorite');
+	}
+
+
+	public function add_ride(){
+		
+		$data = array();
+		$data['Err_Msg'] 		= '';
+		$in_user_id = $this->session->userdata['userid'];
+		$in_org_id = $this->session->userdata['org_id'];
+		$data['location_data'] = $this->location_favorite_model->get_location_by_org_id($in_org_id);
+
+		$form_field	=	array(
+							'st_ride_nickname'	=>'',
+							'in_from_id' 		=>'',
+							'in_to_id'			=>'',
+							'st_instruction'	=>'',
+							'in_user_id' 		=>$in_user_id,
+							'in_org_id' 		=>$in_org_id
+
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['ride'][$key] = $value;	
+		}					
+		if($this->input->post('action')=='submit_ride')
+		{
+			$ride_id = $this->input->post('in_ride_id');
+			foreach ($form_field as $key => $value)
+			{	
+				$data['ride'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+			}
+								
+			$error_message = '';
+			
+			$this->form_validation->set_rules('st_ride_nickname', 'Ride Nickname', 'trim|required');
+			$this->form_validation->set_rules('in_from_id', 'From Locataion', 'required');
+			$this->form_validation->set_rules('in_to_id', 'To Location', 'required');
+			$this->form_validation->set_rules('st_instruction', 'Specific Instruction', 'trim|required');
+			
+			
+			$error = '';
+			if($this->form_validation->run()==FALSE ||$error_message!='')
+			{
+				$data['Err_Msg'] = validation_errors()."<p>".$error_message."</p>";
+				$this->load->view('manage_location_favorite',$data);	
+			}
+			else
+			{
+				
+				$ride_details = array(
+					'st_ride_nickname' 	=> 	trim($data['ride']['st_ride_nickname']),
+					'in_from_id' 		=> 	trim($data['ride']['in_from_id']),
+					'in_to_id' 			=> 	trim($data['ride']['in_to_id']),
+					'st_instruction' 	=> 	trim($data['ride']['st_instruction']),
+					'in_user_id' 		=>	$in_user_id,
+					'in_org_id' 		=>	$in_org_id,
+					"in_deleted"		=> "0"
+					);
+				
+				if($ride_id != ''){					
+					$ride_details['dt_modified']	= date("Y-m-d H:i:s");
+					$ride_id = $this->location_favorite_model->update_ride($ride_details,$ride_id);
+					$this->session->set_flashdata('success', 'Ride details updated successfully.');					
+				}
+				else{
+					$ride_details['dt_created']	= date("Y-m-d H:i:s");
+					$ride_id = $this->location_favorite_model->add_ride($ride_details);
+					$this->session->set_flashdata('success', 'Ride details created successfully.');
+				}
+				
+				redirect(base_url().'manage-location-favorite');
+			}
+		}
+		else{
+				
+			$this->load->view('manage_location_favorite',$data);
+		}
+	}
+
+
+	public function edit_ride(){
+		$ride_id = $this->input->post('in_ride_id');
+		
+		$data = array();
+		$data['Err_Msg'] 		= '';
+		$in_user_id = $this->session->userdata['userid'];
+		$in_org_id = $this->session->userdata['org_id'];
+		$location_data 	= $this->location_favorite_model->get_location_by_org_id($in_org_id);
+		$test = array();
+		foreach($location_data as $key =>$value){
+			$test[$value['in_loc_id']] = $location_data[$key];
+		}
+		$data['location_arr'] = $test;
+		$data['ride_data'] = $this->location_favorite_model->get_by_ride_id($ride_id);
+		
+		echo json_encode($data);
+		
+	}
+
+	public function delete_ride($ride_id){
+		$this->location_favorite_model->delete_ride($ride_id);
+		$this->session->set_flashdata('success', 'Ride details deleted successfully.');
+		redirect(base_url().'manage-location-favorite');
+	}
+
+
+
+	public function get_zip_code2(){
+		if ($this->input->get('term')){
+			
+			$term = $this->input->get('term');
+			
+		    $zip = addslashes($this->input->get('term'));
+                     			
+			$result = $this->orgtrasnportation_model->get_zipcode2($zip);
+            echo json_encode($result);
+        } else {
+			$city = addslashes(trim($this->input->post('city')));
+            $state = addslashes(trim($this->input->post('state')));
+			
+            $result = $this->orgtrasnportation_model->get_zipcode("", $city, $state, "action");
+           			
+            if (isset($result[0]['value'])) {
+                echo $result[0]['value'] . "#*#" . $result[0]['city'] . "#*#" . $result[0]['st_country'];
+            }
+		 }
+	}
+
+
+	public function get_zip_code()
+	{
+
+		if($this->input->get('term'))
+		{
+			//echo $this->uri->segment(3);
+			//echo "<pre>";print_r($_GET);print_r($_POST);die;
+			//echo "<pre>";print_r($this->input->get());print_r($this->input->post());die;
+			$zip = addslashes($this->input->get('term'));
+			$city = addslashes($this->input->get('city'));
+			$state = addslashes($this->input->get('state'));
+			$result = $this->orgtrasnportation_model->get_zipcode($zip,$city,$state);
+			echo json_encode($result);	
+		}
+		else
+		{
+			$city = addslashes(trim($this->input->post('city')));
+			$state = addslashes(trim($this->input->post('state')));
+			$result = $this->orgtrasnportation_model->get_zipcode("",$city,$state,"action");
+			if(isset($result[0]['value']))
+			{
+				echo $result[0]['value']."#*#".$result[0]['city']."#*#".$result[0]['st_country'];	
+			}
+			
+			
+		}
+	}
+
+	public function get_zip_code_data()
+	{
+		
+		$city = addslashes(trim($this->input->post('city')));
+		$state = addslashes(trim($this->input->post('state')));
+		$data['zipcodes'] = $this->orgtrasnportation_model->get_zipcode_data("",$city,$state,"action");
+		
+		echo json_encode($data);	
+	}
+
+	public function get_zipcode_by_state_city() 
+	{	
+		$city = trim($this->input->post('city_name'));
+		$state = trim($this->input->post('state_code'));
+		$data = $this->orgtrasnportation_model->get_zipcode_by_state_city($city, $state);
+	
+		echo json_encode($data);
+		exit;
+    }
+
+
+}

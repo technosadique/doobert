@@ -1,0 +1,185 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Rajashri Mahapure
+# Created date: 27-Feb-2018
+# File description: Generate Badege(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+class Generatebadge extends CI_Controller {
+
+	public function __construct() 
+    { 
+		parent::__construct();
+		//$this->load->model('generate_badge_model');
+		//$this->load->library('form_validation');
+		$this->load->helper(array('form', 'url'));	
+		
+	}
+
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$this->load->view('generate-badges');	
+		
+	}
+
+
+
+	public function generate_download()
+	{
+		
+
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		
+
+		$data = array();
+		//echo"<pre>";print_r($this->input->post());exit;
+		$generateby = $this->input->post('generateby');
+		$org_id = 0;
+		if($generateby == "org"){
+			$org = 1;
+			$f_size = 14;
+			$org_name = $this->input->post('org_name');
+			$cert_date = "Exp. Date: ".$this->input->post('orgdate');
+
+			$type = $this->input->post('org_type');
+			if($type == 1){
+				$filename = "platinum-certified-badge.png";
+			}
+			if($type == 2){
+				$filename = "gold-certified-badge.png";
+			}
+			if($type == 3){
+				$filename = "silver-certified-badge.png";
+			}
+		}
+
+		if($generateby == "member"){
+			$org = 0;
+			$f_size = 16;
+			$org_name = $this->input->post('mem_name');
+			$cert_date = "Exp. Date: ".$this->input->post('memdate');
+			$filename = "arpa-member-badge.png";
+		}
+
+		if($generateby == "cert"){
+			$org = 0;
+			$f_size = 16;
+			$org_name = $this->input->post('cert_name');
+			$temp_date = $this->input->post('certdate');
+			$cert_date = "Certified ".date('F Y',strtotime($temp_date));
+			$type = $this->input->post('cert_type');
+			if($type == 1){
+				$filename = "rescue-transporter_exam-badge.png";
+			}
+			if($type == 2){
+				$filename = "foster-home_exam-badge.png";
+			}
+			if($type == 3){
+				$filename = "tnr-professional_exam-badge.png";
+			}
+		}
+
+		if($generateby == "dorg"){
+			$org = 2;
+			$f_size = 15;
+			$org_id = "Organization #".$this->input->post('dorg_id');
+			$org_name = $this->input->post('dorg_name');
+			$cert_date = "exp: ".$this->input->post('dorg_date');
+			$filename = "doobert-approved-org.png";
+		}
+		
+		$this->imagecreation($org_name, $cert_date, $filename,$f_size,$org,$org_id);
+	}
+
+
+	public function imagecreation($org_name,$cert_date, $filename,$f_size ,$org,$org_id)
+	{
+		//create image for certification
+			
+			$font = $this->config->item('asset')."fonts/Roboto/RobotoSlab-Regular.ttf"; // font style
+			$fontb = $this->config->item('asset')."fonts/Roboto/Roboto-Bold.ttf";
+			$fonti = $this->config->item('asset')."fonts/Roboto/Roboto-Italic.ttf";
+			// if(strlen($org_name) > 26)
+			// {
+			// 	$org_name = substr($org_name, 0, 23) . "...";
+			// }
+
+			$originalImage = $this->config->item('upload')."arpa_badges/".$filename;
+
+		    if(file_exists($originalImage)) 
+		    {
+				$im = imagecreatefrompng($originalImage);
+				//header('Content-Type: image/png');
+				
+
+				imagesavealpha($im, true); // important to keep the png's transparency 
+
+				if(!$im) {
+					die("image is null");
+				}
+				
+				$black = imagecolorallocate($im,0,0, 0);
+				$white = imagecolorallocate($im,255,255,255);
+				$gray = imagecolorallocate($im,109,110,111);
+				$font_size = $f_size;	
+				$newfilename = date("YmdHis").".png";
+				$bbox = imagettfbbox($font_size, 0, $font, $org_name);
+				$x_val = $bbox[0] + (imagesx($im) / 2) - ($bbox[4] / 2);
+				
+				if($org == 1){
+					
+					imagettftext($im, $font_size, 0, (int)$x_val, 245, $black, $font, $org_name);
+					imagettftext($im, $font_size, 0, 160, 270, $black, $font, $cert_date);
+				}
+				elseif($org == 0){
+					imagettftext($im, $font_size, 0, (int)$x_val, 350, $black, $fontb, $org_name);
+					imagettftext($im, $font_size, 0, 250, 380, $black, $fonti, $cert_date);
+				}
+				if($org == 2){
+					imagettftext($im, 12, 0, 190, 215, $gray, $font, $org_id);
+					imagettftext($im, $font_size, 0, (int)$x_val, 270, $white, $font, $org_name);
+					imagettftext($im, 10, 0, 210, 330, $white, $font, $cert_date);
+				}
+				//imagepng($im);
+				imagepng($im,$this->config->item('upload')."arpa_badges/".$newfilename);
+				imagedestroy($im);
+
+
+				$file = $this->config->item('upload')."arpa_badges/".$newfilename;
+				
+				header('Content-Type: application/octet-stream');
+			    header('Content-Disposition: attachment; filename='.basename($file));
+			    header('Expires: 0');
+			    header('Cache-Control: must-revalidate');
+			    header('Pragma: public');
+			    header('Content-Length: ' . filesize($file));
+			    readfile($file);
+			    exit;
+				//$this->load->helper('download');				
+				//force_download($newfilename, $file, TRUE);
+
+			}
+	
+			$this->index();
+
+	}
+		
+	
+}
+
+

@@ -1,0 +1,960 @@
+<?php
+ $base_url = $this->config->item('base_url');
+$edit_page_url = '';
+$street = $org_details['st_address1'];
+if(!empty($org_details['st_address2']))
+{
+	$street = $org_details['st_address1'].", ".$org_details['st_address2'];
+}
+
+$city_state = $org_details['st_zip'] . ', ';
+
+if ($org_details['st_city'] != '') {
+    $city_state .= $org_details['st_city'] . ', ';
+}
+if ($org_details['st_state'] != '') {
+    $city_state .= $org_details['st_state'] . ', ';
+}
+if ($org_details['st_country'] != '') {
+    $city_state .= $org_details['st_country'];
+}
+
+$orgname = $org_details['st_org_name'];
+
+$incomplete_transport_request = '0';
+
+if(isset($transportation_list['transportation_list']) && count($transportation_list['transportation_list'])>0) 
+{
+	
+	$transportation_details = $transportation_list['transportation_list']['0'];	
+
+	$transportation_ids = $transportation_details['transportation_id'];
+	if($transportation_details['transport_status']=='Airline') 
+	{ 
+			$edit_page_url = base_url().'edit-airline-transport?id='.$transportation_details['transportation_id'];
+			$incomplete_transport_request= '1';	
+	} else if($transportation_details['transport_status']=='Ride') 
+	{ 
+			$edit_page_url = base_url().'edit-new-ride?id='.$transportation_details['transportation_id'];
+			$incomplete_transport_request= '1';	
+	}else if($transportation_details['transport_status']=='Route') 
+	{ 
+			$edit_page_url = base_url().'edit-route?id='.$transportation_details['transportation_id'];
+			$incomplete_transport_request= '1';	
+	} else
+	{ 
+			$incomplete_transport_request= '1';	
+			$edit_page_url = base_url().'org-edit-transport?id='.$transportation_details['transportation_id'];
+	}
+}
+
+?>
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<title>Publish New Route</title>
+<?php include APPPATH.'views/inc/header-css-js.php';?>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url();  ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/css/datepicker.css" />
+<link rel="stylesheet" type="text/css"  href="<?php echo base_url(); ?>assets/css/tipso.css">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.8.0/css/bootstrap-slider.min.css" rel="stylesheet" type="text/css">
+
+<style>
+.disableddiv {
+    pointer-events: none;
+    opacity: 0.4;
+}
+</style>
+</head>
+<body class="route">
+<div id="loader" style="display: none;"><img src="<?php echo base_url(); ?>assets/img/ajax-modal-loading.gif" width="32" height="32" align="absmiddle">&nbsp;<span id="loadertext">Loading...</span></div>
+<?php include APPPATH.'views/inc/header-myaccount.php';?>
+<section class="breadcrumb inner-breadcrumb">
+  <div class="container">
+    <div class="text-left">
+      <a href="<?php echo base_url().'dashboard';?>">My Dashboard</a><i class="material-icons">chevron_right</i>
+      <a href="<?php echo $base_url;?>org-dashboard/<?php echo $this->session->userdata('org_id'); ?>">Org Dashboard</a><i class="material-icons">chevron_right</i>
+      <a href="<?php echo base_url().'publish-new-route';?>">Publish New Route</a><i class="material-icons">chevron_right</i>Publish New Route
+    </div>
+  </div>
+</section>
+<section class="main-content-wrapper inner-wrapper create-transport">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-12 col-sm-12 col-xs-12">
+        <article>
+	        <div class="entry-content">
+	            <div class="sub-content main-container clearfix newroute">
+		            <div class="col-md-12 col-sm-12 col-xs-12 no-space">
+		                <div class="row">
+		                  	<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+		                   		<h1 class="text-center">Publish New Route</h1>                   
+		                  	</div>
+		                </div>
+		                <div class="row">
+			                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+								<form class="horizontal-form" role="form" id="transport_locations" name="transport_locations" enctype="multipart/form-data" action="" method="post">
+									<div class="panel-group trans_accordian publishroute" id="accordion">
+				                    	<div class="panel panel-default">
+											<div class="panel-heading">			                   
+						                    	<div class="trans_box top_mar42 bortop">
+							                    	<h4 class="panel-title">
+														<a data-toggle="collapse" data-parent="#accordion" href="#transbasic" class="collapsed" aria-expanded="true"><i class="material-icons">remove_circle_outline</i>
+															<span class="txt">Transport Basics</span></a>
+															<a href="#transport_coordinator_information" data-toggle="modal" class="text-float-right" id="infoverify">Information on Doobert Verified</a>
+					                    			</h4>
+					                    		</div>	                    		
+					                    	</div>
+											<div id="transbasic" class="panel-collapse collapse in" aria-expanded="true">
+												<div class="panel-body">
+													<div class="trans_box top_mar42">
+														<div class="trans_iner clearfix">
+															<div class="col-lg-6 col-md-6 col-sm-6 col-xs-12 basic_left form-inline">
+															    <div class="name_box">
+															      <div class="form-group clearfix">
+															        <label class="med" for="name">Name:</label>
+															        <input type="text" class="form-control name" id="trans_unique_name" name="trans_unique_name" value="<?php echo $org_trasport['trans_unique_name']; ?>" maxlength="250"  placeholder="Ex: Bella & puppies to New Jersey">
+															      </div>
+															    </div>
+
+															    <div class="date_box first">	                        
+															      	<div class="form-group clearfix" id="picdt">
+															            <label class="med w104" for="pickupdate">Pick Up Date:</label>							
+															            <input type="text" value="<?php echo $org_trasport['pickupselect']; ?>" class="form-control transpickdrop from_date"  data-date-format="dd-mm-yyyy" data-date-start-date="+0d" data-date-viewmode="years"    maxlength="50" id="pickupselect" name="pickupselect" placeholder="" readonly>
+															            <input type="hidden" name="pickupselect_year" value="" id="pickupselect_year">
+																		<a href="javascript:void(0);" id="from_date_picker" class="date datepicker-icon" ><i class="material-icons from-date-icon">date_range</i></a>
+															  		</div>
+															    </div>
+															    <div class="date_box">
+															      <div class="form-group clearfix" id="dropdt">
+															        <label class="med" for="dropoffdate">Drop Off Date:</label>
+															        <input type="text"  value="<?php echo $org_trasport['dateselect']; ?>" class="form-control transpickdrop to_date" data-date-format="dd-mm-yyyy" data-date-start-date="+0d" data-date-viewmode="years" maxlength="50" id="dateselect" name="dateselect" placeholder="" readonly>
+															        <input type="hidden" name="dateselect_year" value="" id="dateselect_year">
+																	<a href="javascript:void(0);" id="to_date_picker" class="date datepicker-icon"><i class="material-icons to-date-icon">date_range</i></a>
+															      </div>
+															    </div>
+																<div class="transport">
+															  	 	<p>I want this Transport to be <a href="javascript:void(0);" class="title-tipso question" title="Public transports notify organizations along your route so they can contact you for an animal needing a ride. Private transports do NOT notify organizations along your route."></a></p>
+																 	<div class="col-md-12 no-space" id="customize-option">
+																	   <div class="radio-btn radiogroup_with_lbl radio-custom-section">
+																		  <div class="form-group public-mobile-view"><input type="radio" name="transport_type_notify" id="public" value="0" checked><label class="radio-inline first" for="public">Public</label></div>
+																		  <div class="form-group"><input type="radio" name="transport_type_notify" id="private" value="1"><label class="radio-inline" for="private">Private</label></div>
+																	   </div>
+																 	</div>
+															  	</div>
+															</div>
+									                        <div class="col-lg-6 col-md-6 col-sm-6 col-xs-12 form-inline basic_right mh270">
+										                        <div class="switch-container clearfix"><!-- class="custom-checkbox"-->
+										                          <?php /*?><input type="checkbox" id="allow_pics" name="allow_pics" checked/><?php */?>
+										                          <label for="allow_pics" class="allow_pics">Doobert can use story &amp; pictures <a href="javascript:void(0);" class="title-tipso question" title="Checking this box gives us permission to use the pictures and story of this transport so we can continue to promote animal rescue."></a></label><!--<div class="clearfix"></div>-->
+										                          <label class="switch float-r-custom"><input type="checkbox" name="allow_pics" id="allow_pics" checked><span class="slider round margin-tb0"></span></label>
+										                         
+										                          <?php /*?><label><input type="checkbox" name="allow_pics" id="allow_pics" class="checkbox" /><div class="slider sliderOn round clearfix tran-slide" id="switchid"></div></label><?php */?>
+										                        </div>
+
+									                          	<br class="new1">
+															 	<div class="switch-container clearfix"><!-- class="custom-checkbox"-->
+										                          <?php /*?><input type="checkbox" id="allow_pics" name="allow_pics" checked/><?php */?>
+										                          <label for="fb_publish" class="fb_publish">Publish to Facebook groups?  <a href="javascript:void(0);" class="title-tipso question" title="By default, we publish your transport to the Doobert User Facebook group & the relevant Doobert Regional Facebook groups. Marking NO means we will not auto-publish to these groups. For more information visit Doobert.com/FacebookTransportGroups."></a></label><!--<div class="clearfix"></div>-->
+										                          <label class="switch float-r-custom"><input type="checkbox" name="fb_publish" id="fb_publish" checked><span class="slider round margin-tb0"></span> </label>
+																
+										                          <?php /*?><label><input type="checkbox" name="allow_pics" id="allow_pics" class="checkbox" /><div class="slider sliderOn round clearfix tran-slide" id="switchid"></div></label><?php */?>
+									                        	</div>
+																<!--<br><a class="orange-btn" href="#transport_coordinator_information" data-toggle="modal">Tc Information</a>-->
+
+
+									                          	<br class="new1">
+																<div class="switch-container clearfix">
+																  <label></label>																
+																</div>
+															  	<br class="new1">
+															  	<div class="switch-container clearfix fadein mart43">
+										                          <label class="fb_publish" for="approvedpartners">Only notify approved partners</label>
+										                          <label class="switch float-r-custom"><input type="checkbox" name="approvedpartners" id="approvedpartners" disabled="disabled"><span class="slider round margin-tb0"></span></label>
+															  	</div>
+															  	<br class="new1">
+															  	<div class="switch-container clearfix fadein">
+										                          <label class="fb_publish" for="approvedcoalitions">Only notify approved coalitions</label>
+										                          <label class="switch float-r-custom"><input type="checkbox" name="approvedcoalitions" id="approvedcoalitions" disabled="disabled"><span class="slider round margin-tb0"></span></label>
+															  	</div>
+
+									                      	</div>
+														</div>
+					                   				</div>
+													<div class="br"></div>
+												</div>
+											</div>
+										</div>
+
+
+										<div class="panel panel-default">
+											<div class="panel-heading">
+												<h4 class="panel-title"><a data-toggle="collapse" data-parent="#accordion" href="#transdetails1" class="collapsed" aria-expanded="false"><i class="material-icons">add_circle_outline</i><span class="txt">From &amp; To</span></a></h4>
+											</div>												
+											<div id="transdetails1" class="panel-collapse collapse" aria-expanded="false" style="height: 0px;">
+												<div class="panel-body">
+													<div class="trans_box top_mar42 pass_trav fromto">
+															<div class="trans_iner row">
+																<div class="col-lg-6 col-md-6 col-sm-6 col-xs-12 sending party_box form-inline">
+																	<h4>Sending Party</h4>
+																	<div class="form-group clearfix orgname">
+										                          		<label class="med" for="sendOrg">Organization  Name:</label>
+										                          		<input type="text" class="form-control" id="st_sendOrg" name="st_sendOrg" maxlength="250" value="<?php echo $orgname;?>" placeholder="Enter Organization Name">
+										                          		<input type="hidden" name="in_sendOrg" id='in_sendOrg' value='' /> 
+										                        	</div>
+
+										                        	<div class="form-group clearfix">
+										                          		<label class="med" for="st_sendStreet">Street Address:</label>
+										                          		<input type="text" class="form-control" id="st_sendStreet" name="st_sendStreet" maxlength="100" value="<?php echo $street;?>" placeholder="Enter Street">
+										                        	</div>
+
+																	<div class="form-group clearfix">
+										                          		<label class="med citycode" for="pick_zip">City, State Or Postal Code:</label>
+										                          		<input type="text" class="form-control pickdrop" id="pick_zip" name="pick_zip" maxlength="50" value="<?php echo $city_state; ?>" placeholder="City, State OR Postal Code">
+										                        	</div>
+																	
+																</div>						
+																<div class="col-lg-6 col-md-6 col-sm-6 col-xs-12 recieving party_box form-inline">
+																	<h4>Receiving Party</h4>
+																	<div class="form-group clearfix">				                          		
+										                          		<input type="text" class="form-control receiveOrg" id="st_receiveOrg" name="st_receiveOrg" maxlength="250" value="" placeholder="Enter Organization Name">
+										                          		<input type="hidden" name="in_receiveOrg" id='in_receiveOrg' value='' /> 
+										                        	</div>
+
+										                        	<div class="form-group clearfix">				                          		
+										                          		<input type="text" class="form-control receiveStreet" id="st_receiveStreet" name="st_receiveStreet" maxlength="100" value="" placeholder="Enter Street">
+										                        	</div>			                        
+
+																	<div class="form-group clearfix"> 					                        	
+											                          	<input type="text" class="form-control" id="drop_zip" name="drop_zip" maxlength="50" placeholder="City, State OR Postal Code">
+											                        </div>
+																</div>
+																<div class="clearfix"></div>
+															</div>
+					                   				</div>
+													<div class="br"></div>
+												</div>
+											</div>
+										</div>
+										
+										  
+										<div class="panel panel-default">
+											<div class="panel-heading invite">
+												<h4 class="panel-title"><a data-toggle="collapse" data-parent="#accordion" href="#inviteorg" class="collapsed" aria-expanded="false"><i class="material-icons">add_circle_outline</i><span class="txt">Invite Organizations to Participate</span></a>
+												<div class="form-inline switch-container"><div class="form-group w100p clearfix"><label class="switch"><input type="checkbox" name="in_org_invite" value='1' id="in_org_invite" ><span class="slider round"></span></label></div></div></h4>
+											</div>												
+											<div id="inviteorg" class="panel-collapse collapse" aria-expanded="false" style="height: 0px;">
+												<div class="panel-body">
+													<div class="trans_box">
+														<div class="searching" style="display:none;">
+															<div class="col-lg-10 col-md-10 col-sm-10 col-xs-10 pad0"><input type="text" maxlength="50" placeholder="To begin searching, start typing an organization’s name" name="searching_org" id="searching_org">
+																													  <input type="hidden" id='searching_org_id' value='' /> 	
+															</div>
+														<div class="col-lg-2 col-md-2 col-sm-2 col-xs-2 padr0"><button type="button" class="btn orange-small waves-effect waves-light" id="add_org">Add Org</button></div><div class="br"></div></div>
+														<div id="added_org_listing" style="display:none;">
+															<h5 class="orgadd">Organizations You’ve Added</h5>
+														
+															<!--<div class="orglist">
+																<div class="col-lg-8 col-md-8 col-sm-7 col-xs-7 pad0">
+																	<div class="col-lg-2 col-md-2 col-sm-2 col-xs-3 pad0"><img src="http://crystal99/doobertv4/upload/org_doc/thumb/501718620829dog2-Copy.jpg" alt="1 Dogs Rescue Org" title="1 Dogs Rescue Org"></div>
+																	<div class="col-lg-10 col-md-10 col-sm-10 col-xs-9 pad0 orgtitle"><p>1 Dogs Rescue Org</p></div>
+																</div>
+																<div class="col-lg-4 col-md-4 col-sm-5 col-xs-5 padr0 switch-container option">
+																	<div class="choose"><span class="description">Sending</span><label class="switch"><input type="checkbox" name="in_multiple_route" value='1' id="multiple" ><span class="slider round"></span></label><span class="description select">Receiving</span></div>
+																</div><div class="br"></div>
+															</div>
+															<div class="orglist">
+																<div class="col-lg-8 col-md-8 col-sm-7 col-xs-7 pad0">
+																	<div class="col-lg-2 col-md-2 col-sm-2 col-xs-3 pad0"><img src="http://crystal99/doobertv4/upload/org_doc/thumb/501718620829dog2-Copy.jpg" alt="1 Dogs Rescue Org" title="1 Dogs Rescue Org"></div>
+																	<div class="col-lg-10 col-md-10 col-sm-10 col-xs-9 pad0 orgtitle"><p>1 Dogs Rescue Org</p></div>
+																</div>
+																<div class="col-lg-4 col-md-4 col-sm-5 col-xs-5 padr0 switch-container option">
+																	<div class="choose"><span class="description">Sending</span><label class="switch"><input type="checkbox" name="in_multiple_route" value='1' id="multiple" ><span class="slider round"></span></label><span class="description select">Receiving</span></div>
+																</div><div class="br"></div>
+															</div>-->
+														</div>	
+													</div>
+												</div>
+											</div>
+										</div>
+										  
+										<div class="panel panel-default">
+											<div class="panel-heading invite">
+												<h4 class="panel-title"><a data-toggle="collapse" data-parent="#accordion" href="#selectvehicle" class="collapsed" aria-expanded="false"><i class="material-icons">add_circle_outline</i><span class="txt">Select Vehicle &amp; Crate Capacity</span></a></h4>
+											</div>												
+											<div id="selectvehicle" class="panel-collapse collapse" aria-expanded="false" style="height: 0px;">
+												<div class="panel-body">
+													<div class="trans_box top_mar42 pass_trav spacereservation">
+														<div class="select-style" style="display:none;"><select id="manage_vehicle" name="manage_vehicle"></select></div>
+														<div class="switch-container"><label class="switch"><input type="checkbox" name="predefined_vehicle" value='1' id="predefined_vehicle" ><span class="slider round"></span></label>
+															<label class="predefined" for="predefined"><span class="description">Select Pre-Defined Vehicle <a href="<?php echo base_url().'org_dashboard/manage_vehicle/'; ?>">Manage My Vehicles</a></span></label></div>
+														<div class="br"></div>
+					                    	
+														<div class="trans_iner clearfix row vehiclecrate">
+															<div class="form-group w100p clearfix">
+																<label class="med" for="qtyxs">XS - extra-small:</label>
+																<div class="qty">
+																<input type="number" class="form-control create_reservation" maxlength="5" id="qtyxs" name="qtyxs" value="" placeholder="Qty">
+																<input type="hidden" id="qtyxs_cst_public" name="qtyxs_cst_public" value="<?php echo isset($reservation_cost[0]['xs_public_cost']) ? $reservation_cost[0]['xs_public_cost']: $this->config->item('public-cost-xs'); ?>" placeholder="Qty">
+																<input type="hidden" id="qtyxs_cst_private" name="qtyxs_cst_private" value="<?php echo isset($reservation_cost[0]['xs_private_cost'])? $reservation_cost[0]['xs_private_cost'] : $this->config->item('private-cost-xs'); ?>" placeholder="Qty">
+																</div>
+																<div class="costing">
+																	<p>13&quot; tall x 12&quot; wide x 22&quot; deep</p>
+																	<p class="text13">Public Cost: $<span id='public-cost-xs'><?php echo isset($reservation_cost[0]['xs_public_cost']) ? $reservation_cost[0]['xs_public_cost']:$this->config->item('public-cost-xs'); ?></span> per crate,<br> Doobert Org Cost: $<span id='private-cost-xs'><?php echo isset($reservation_cost[0]['xs_private_cost'])? $reservation_cost[0]['xs_private_cost'] :$this->config->item('private-cost-xs'); ?></span> per crate. <a href="javascript:void(0);" id='xs_price' >Change Costs</a></p> <!--onClick="setprice('<?php echo $this->config->item('private-cost-xs'); ?>','<?php echo $this->config->item('public-cost-xs'); ?>','xs');"-->
+																</div>
+																<div class="clearfix"></div>
+															</div>
+															
+															<div class="form-group w100p clearfix">
+																<label class="med" for="qtys">S - small:</label>
+																<div class="qty">
+																<input type="number" class="form-control create_reservation" maxlength="5" id="qtys" name="qtys" value="" placeholder="Qty">
+																	<input type="hidden" id="qtys_cst_public" name="qtys_cst_public" value="<?php echo isset($reservation_cost[1]['s_public_cost']) ? $reservation_cost[1]['s_public_cost']: $this->config->item('public-cost-s'); ?>" placeholder="Qty">
+																	<input type="hidden" id="qtys_cst_private" name="qtys_cst_private" value="<?php echo isset($reservation_cost[1]['s_private_cost']) ? $reservation_cost[1]['s_private_cost']:$this->config->item('private-cost-s'); ?>" placeholder="Qty">
+																</div>
+																<div class="costing">
+																	<p>17&quot; tall x 16&quot; wide x 25&quot; deep</p>
+																	<p class="text13">Public Cost: $<span id='public-cost-s'><?php echo isset($reservation_cost[1]['s_public_cost'])?$reservation_cost[1]['s_public_cost']:$this->config->item('public-cost-s'); ?></span> per crate,<br> Doobert Org Cost: $<span id='private-cost-s'><?php echo isset($reservation_cost[1]['s_private_cost'])?$reservation_cost[1]['s_private_cost']:$this->config->item('private-cost-s'); ?></span> per crate. <a href="javascript:void(0);" id='s_price'>Change Costs</a></p>
+																</div>
+																<div class="clearfix"></div>
+															</div>
+															
+															<div class="form-group w100p clearfix">
+																<label class="med" for="qtym">M - medium:</label>
+																<div class="qty">
+																	<input type="number" class="form-control create_reservation" maxlength="5" id="qtym" name="qtym" value="" placeholder="Qty">
+																	<input type="hidden" id="qtym_cst_public" name="qtym_cst_public" value="<?php echo isset($reservation_cost[2]['m_public_cost'])?$reservation_cost[2]['m_public_cost']:$this->config->item('public-cost-m'); ?>" placeholder="Qty">
+																	<input type="hidden" id="qtym_cst_private" name="qtym_cst_private" value="<?php echo isset($reservation_cost[2]['m_private_cost'])?$reservation_cost[2]['m_private_cost']:$this->config->item('private-cost-m'); ?>" placeholder="Qty">
+																</div>
+																<div class="costing">
+																	<p>23&quot; tall x 20&quot; wide x 30&quot; deep</p>
+																	<p class="text13">Public Cost: $<span id='public-cost-m'><?php echo isset($reservation_cost[2]['m_public_cost'])?$reservation_cost[2]['m_public_cost']:$this->config->item('public-cost-m'); ?></span> per crate,<br> Doobert Org Cost: $<span id='private-cost-m'><?php echo isset($reservation_cost[2]['m_private_cost'])?$reservation_cost[2]['m_private_cost']:$this->config->item('private-cost-m'); ?></span> per crate. <a href="javascript:void(0);" id='m_price'>Change Costs</a></p>
+																</div>
+																<div class="clearfix"></div>
+															</div>
+															
+															
+															<div class="form-group w100p clearfix">
+																<label class="med" for="qtyl">L - large:</label>
+																<div class="qty">
+																	<input type="number" class="form-control create_reservation" maxlength="5" id="qtyl" name="qtyl" value="" placeholder="Qty">
+																	<input type="hidden" id="qtyl_cst_public" name="qtyl_cst_public" value="<?php echo isset($reservation_cost[3]['l_public_cost'])?$reservation_cost[3]['l_public_cost']:$this->config->item('public-cost-l'); ?>" placeholder="Qty">
+																	<input type="hidden" id="qtyl_cst_private" name="qtyl_cst_private" value="<?php echo isset($reservation_cost[3]['l_private_cost'])?$reservation_cost[3]['l_private_cost']:$this->config->item('private-cost-l'); ?>" placeholder="Qty">
+																</div>
+																<div class="costing">
+																	<p>26&quot; tall x 22&quot; wide x 35&quot; deep</p>
+																	<p class="text13">Public Cost: $<span id='public-cost-l'><?php echo isset($reservation_cost[3]['l_public_cost'])?$reservation_cost[3]['l_public_cost']: $this->config->item('public-cost-l'); ?></span> per crate,<br> Doobert Org Cost: $<span id='private-cost-l'><?php echo isset($reservation_cost[3]['l_private_cost'])?$reservation_cost[3]['l_private_cost']: $this->config->item('private-cost-l'); ?></span> per crate. <a href="javascript:void(0);" id='l_price'>Change Costs</a></p>
+																</div>
+																<div class="clearfix"></div>
+															</div>
+															
+															
+															<div class="form-group w100p marb0 clearfix">
+																<label class="med" for="qtyxl">XL - extra-large:</label>
+																<div class="qty">
+																	<input type="number" class="form-control create_reservation" maxlength="5" id="qtyxl" name="qtyxl" value="" placeholder="Qty">
+																	<input type="hidden" id="qtyxl_cst_public" name="qtyxl_cst_public" value="<?php echo isset($reservation_cost[4]['xl_public_cost'])?$reservation_cost[4]['xl_public_cost']: $this->config->item('public-cost-xl'); ?>" placeholder="Qty">
+																	<input type="hidden" id="qtyxl_cst_private" name="qtyxl_cst_private" value="<?php echo isset($reservation_cost[4]['xl_private_cost'])?$reservation_cost[4]['xl_private_cost']: $this->config->item('private-cost-xl'); ?>" placeholder="Qty">
+																</div>
+																<div class="costing">
+																	<p>28&quot; tall x 24&quot; wide x 39&quot; deep</p>
+																	<p class="text13">Public Cost: $<span id='public-cost-xl'><?php echo isset($reservation_cost[4]['xl_public_cost'])?$reservation_cost[4]['xl_public_cost']: $this->config->item('public-cost-xl'); ?></span> per crate,<br> Doobert Org Cost: $<span id='private-cost-xl'><?php echo isset($reservation_cost[4]['xl_private_cost'])?$reservation_cost[4]['xl_private_cost']:  $this->config->item('private-cost-xl'); ?></span> per crate. <a href="javascript:void(0);" id='xl_price'>Change Costs</a></p>
+																</div>
+																<div class="clearfix"></div>
+															</div>
+															<div class="clearfix"></div>
+														</div>
+					                    			</div>
+												</div>
+											</div>
+										</div>
+										<!-- Additional option -->
+										<div class="panel panel-default">
+											<div class="panel-heading">
+												<h4 class="panel-title"><a data-toggle="collapse" data-parent="#accordion" href="#additional" class="collapsed" aria-expanded="false"><i class="material-icons">add_circle_outline</i><span class="txt">Additional Options</span></a></h4>
+											</div>												
+											<div id="additional" class="panel-collapse collapse" aria-expanded="false" style="height: 0px;">
+												<div class="panel-body">
+													<div class="trans_box top_mar42">																									
+														<div class="trans_iner clearfix">
+															<div class="form-group w100p clearfix">
+																<label class="switch switch-container"><input type="checkbox" name="in_multiple_route" value='1' id="multiple" ><span class="slider round"></span></label>
+																<label class="predefined" for="predefined"><span class="predefined">This route will have multiple stops</span></label>
+															</div>
+															<div class="form-group w100p clearfix">
+																<label class="switch switch-container"><input type="checkbox" name="in_public_reservation" value='1' id="public_reservation"><span class="slider round"></span></label>
+																<label class="predefined" for="predefined"><span class="description">Allow Public Reservations</span></label>
+															</div> 
+															<div class="form-group w100p clearfix">
+																<label class="switch switch-container"><input type="checkbox" name="in_approval" value='1' id="approval" disabled="disabled"><span class="slider round"></span></label>
+																<label class="predefined" for="predefined"><span class="description">Reservations on this route require approval</span></label>																
+															</div>
+															
+														</div>
+														<div class="clearfix"></div>
+													</div>
+													<div class="br"></div>
+												</div>
+											</div>
+										</div>
+										  
+									</div>
+				                   
+									<input type="hidden" id="in_status" name="in_status" value="4"/>
+									<input type="hidden" id="cnt_org_participate" name="cnt_org_participate" value="0"/>
+									<input type="hidden" name="action" id="action" value="prespecify" />
+									<input type="hidden" name="transportation_id" id="transportation_id"  value="0" >
+									 
+									<div class="col-md-12 col-sm-12 col-xs-12 text-center trans-bottom-button mar0">
+									  <?php /* ?><a href="<?php echo  base_url().'org-dashboard/'.$this->session->userdata('org_id'); ?>" class="btn black waves-effect waves-light" id='cancel_route'>Cancel</a><?php */ ?>
+									  <a href="<?php echo  base_url().'publish-new-route'; ?>" class="btn black waves-effect waves-light" id='cancel_route'>Cancel</a>
+									  <a class="btn gray-btn draft waves-effect waves-light" id='save-draft' href="javascript:void(0);"><i class="material-icons">save</i>save</a>
+									  <a class="btn orange-small waves-effect waves-light savecontinue" id='submit' href="javascript:void(0);">save &amp; publish<i class="material-icons">arrow_forward</i></a>
+									</div>
+								</form>
+			                    <div class="col-md-12 col-sm-12 col-xs-12 text-center">
+			                      <ul class="progress-dots">
+			                        <li class="current"><i class="material-icons">fiber_manual_record</i></li>
+			                        <li class="current"><i class="material-icons">fiber_manual_record</i></li>
+			                        <li><i class="material-icons">fiber_manual_record</i></li>
+			                      </ul>
+			                    </div>
+			                </div>
+		                </div> 
+		            </div>
+	            </div>
+	            <!-- .entry-content -->
+	        </div>
+		</article>
+        <!-- #post-## -->
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="modal fade transport-created" id="animal_listing_loader" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<?php /*?><div class="modal-header no-border">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+										</div><?php */?>
+										<div class="modal-body">
+                                        
+										<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin-left: 43%;">&nbsp;<span id="tran-loadertext">Doobert is retrieving listing of animal information</span>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div>
+							
+<div class="modal fade all_animals_listing" id="Listing_animals"   tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <form class="horizontal-form" role="form" id="edit_date" name="edit_date" enctype="multipart/form-data" action="" method="post">
+      <div class="modal-content">
+        <div class="modal-header">
+        <div>
+          <button aria-hidden="true" data-dismiss="modal" class="close empty_dates" type="button"  title="Close"></button>
+          <h4 class="modal-title">All Animal listing</h4></div>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+          <div class="col-md-12 auction-details" >
+          <div class="table-scrollable no-margin" style="border:none;">
+          <table id="animal_listing" class="table table-striped table-bordered table-hover last">
+					   <thead>
+                            <tr>
+                              <th class="w20p"></th>
+                              <th class="w20p">Animal Name</th>
+                              <th>Associated With transport</th>                             
+							  <th>Demeanor</th>
+                            </tr>
+                          </thead>
+				 <tbody>
+                  <!--<tr>
+					<td colspan="5" class="show-animals">
+					<ul>
+                    	<li>
+                    	<label class="control-label va-top" for="provid-animals-dog">Show Animals:</label><ul><li><label><input type="checkbox" name="not_on_transport" id="not_on_transport" value="" checked disabled>Not on a Transportation</label>
+                        </li>
+                        <li>
+                    	<label><input type="checkbox" name="on_transport" id="on_transport" value="">Already on a Transport</label>
+                        </li>
+                     </ul>
+					</td>
+				 </tr>-->
+				  
+                    
+                  </tbody>
+                </table>
+                </div>
+          </div>
+            </div>
+          <div class="clearfix"></div>
+        </div>
+		<div class="modal-footer text-center no-margin">
+        <button class="btn orange" data-dismiss="modal" title="Submit" onClick='disSelAni()' type="button">Submit</button>
+      </div>
+             </div>
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>							
+
+<div class="modal fade" id="crop_img_popup4" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <button aria-hidden="true" data-dismiss="modal" class="close cancel_close4" title="Close" type="button"></button>
+            <h4 class="modal-title">Animal Photo</h4>
+          </div>
+          <div class="modal-body">
+          <div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%; overflow:auto;">
+          	<p>Select an area of an image and then click on Save Photo button to save photo.<img id="ajax-loader-bar-rotate1" src="<?php echo base_url(); ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+            <div class="crop-img-here4"><img id="ajax-loader-bar4" src="<?php echo base_url(); ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></div>
+          </div>  
+          </div>
+          <div class="modal-footer text-center no-margin"> 
+          <button class="btn orange save_popup4_animal_photo" style="" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Save Photo">Save Photo</button>
+          <button class="btn black cancel_popup4" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Cancel">Cancel</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+
+<div class="modal fade" id="transport_coordinator_information" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false" style="z-index: 9999999 !important;">
+    <div class="modal-dialog message-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+          <h4 class="modal-title">Transport Coordinator Information – Revised – <br/>
+            NOVEMBER 8,2015</h4>
+        </div>
+        <div class="modal-body">
+          <div class="scroller" data-always-visible="1" data-rail-visible1="1" style="height:300px; overflow:auto">
+            <h4><u>Doobert Verified status explained</u>:</h4>
+            <p>Volunteers that apply for and receive "Doobert Verified" status will display with a Doobert Verified badge next to their name when they sign-up for a leg in your transport.  If this badge is not colored in it means they are not yet Doobert Verified and are a general volunteer.</p>
+            <p>When a volunteer applies for Doobert Verified status:</p>
+            <ul>
+              <li>Doobert conducts limited research of publicly available information to identify concerns with the volunteer's application related to the safe transport and care of animals.</li>
+              <br/>
+              <li><b>We DO NOT conduct full background checks.</b></li>
+              <br/>
+              <li>The volunteer uploads a copy of his or her driver's license, but Doobert does not verify that the volunteer's drivers license is in good standing and Doobert does not request or verify the status of vehicle insurance the volunteer uses to transport the animals.</li>
+              <br/>
+              <li>Doobert reaches out to references provided by the volunteer, but is limited to the information the reference chooses to provide or if they respond to our inquiry. We request and contact three (3) references for the volunteer, and require at least one (1) reference to reply before we will approve the volunteer.</li>
+              <br/>
+            </ul>
+            <p>Doobert provides only limited information about Doobert Verified volunteers.  Doobert does not verify that Doobert Verified volunteers meet specific qualifications set by transport coordinators and organizations.  Transport coordinators and organizations are expected to use common sense and conduct independent research regarding volunteers signing up for transports to ensure the organization or transport coordinator is comfortable with each volunteer working on the transport.</p>
+            <p>If you have questions or concerns regarding a particular Doobert volunteer, or would like further information regarding which information we collected on a particular volunteer, please contact us at support@doobert.com or by clicking on the Help/Feedback tab.</p>
+            <div class="crop-img-here1"> <img id="ajax-loader-bar1" src="<?php echo base_url(); ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/> </div>
+          </div>
+        </div>
+        <div class="modal-footer text-center no-margin">
+          <button class="btn orange save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Save Photo">Save Photo</button>
+          <button class="btn black cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Close">Close</button>
+        </div>
+      </div>
+      <!-- /.modal-content --> 
+    </div>
+    <!-- /.modal-dialog --> 
+  </div>
+	
+	<div class="modal fade bs-modal-lg in" id="change-cost" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+			            <!--<form class="horizontal-form" role="form" name="change-cost-form" id="change-cost-form" action="" method="post">-->
+			                <div class="modal-dialog w360">
+			                    <div class="modal-content">
+			                      	<div class="modal-header">
+			                            <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+			                            <h4 class="modal-title">Change Costs</h4>
+			                        </div>
+		                            <div class="modal-body">
+		                            	<div class="box">
+	                            		<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+	                            			<div class="form-group"><label class="control-label" for="txtpubliccost">Public Cost ($):</label>
+	                            				<input type="text"  onkeypress='return event.charCode >= 46 && event.charCode <= 57 && event.charCode != 47' class="form-control" id="txtpubliccost" name="txtpubliccost" placeholder="" value="120" maxlength="10"><div class="br"></div>
+	                            			</div>		
+	                            		</div>
+	                            		<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+	                            			<div class="form-group"><label class="control-label" for="txtorgcost">Doobert Org Cost ($):</label>
+	                            				<input type="text" onkeypress='return event.charCode >= 46 && event.charCode <= 57 && event.charCode != 47' class="form-control" id="txtorgcost" name="txtorgcost" placeholder="" value="100" maxlength="10"><div class="br"></div>
+	                            			</div>
+	                            		</div><div class="br"></div>
+		                            	</div>
+										<input type='hidden' name='size_type' id='size_type' value>
+			                    	</div>
+									<div class="btn-center"><a href="javascript:void(0);" data-dismiss="modal" id='cancel_link' class="btn black waves-effect waves-light" data-dismiss="modal">Cancel</a><button aria-hidden="true" id="update_price" class="btn orange-small waves-effect waves-light" type="button">Update</button></div>
+			                    </div>
+			                </div>
+			           	<!--</form>-->
+	</div>
+	
+	<div class="modal fade" id="request_transport" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+			<div class="modal-dialog" id="edit-tranp-date">
+				<div class="modal-content">
+					<div class="modal-header">
+						<button aria-hidden="true" data-dismiss="modal" class="close empty_dates" type="button" title="Close"></button>
+						<h4 class="modal-title" id='switch-tc-title'>Transport Request</h4>
+					</div>
+					<div class="modal-body">
+						<p>You have an incomplete transport that we automatically saved to DRAFT. Do you want to continue with that transport?</p>
+						<div class="clearfix"></div>
+					</div>
+					<div class="modal-footer no-margin">
+						<div align="center">
+							<a  class="btn black" href='javascript:void(0);' data-dismiss="modal" onClick="delete_transportation('<?php echo $transportation_ids; ?>')"; > No</a>
+							<a class="btn orange marr5" href='<?php echo $edit_page_url;?>' >Yes</a>
+							
+						</div>
+					</div>
+				</div> 
+			</div>
+	</div>
+
+	
+	
+	<div class="modal fade" id="paypal_email" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header none">
+					<button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+					<h4 class="modal-title marb0">PayPal Email Address</h4>
+				</div>
+				<div class="modal-body">
+					<p>Please enter your PayPal email so we can send you payments for your reservations. If you do NOT want to accept payments please mark all crate options as $0 and PayPal will not be required.</p>
+					 <div class="form-group col-md-12 padl0 padr0">
+                            <input type='email' id="paypal_emailid" name="paypal_emailid"  class="form-control" Placeholder="Enter PayPal email address" />
+                    </div>
+					<div class="modal-footer text-center no-margin lesser">
+						<a class="btn black" data-dismiss="modal" href="javascript:void(0);">CANCEL</a>
+						<a class="btn orange" style='opacity: .65;' id='submit-paypal-email-unchecked' onClick='alert("Please enter PayPal email address");' href="javascript:void(0);">Save</a>
+						<a class="btn orange" style='display:none' id='submit-paypal-email' href="javascript:void(0);">Save</a>  
+					</div>
+		
+				</div> 
+			</div>
+		</div>
+		</div>
+	</div>
+
+	<div class="modal fade bs-modal-lg in" id="number_verification" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+					<div class="modal-dialog information w400">
+						<div class="modal-content">                          
+							<div class="modal-body">
+								<h4>Verify Mobile Number<button type="button" class="close" onclick="close_verified_trans_create()"  aria-hidden="true"></button></h4>           
+								<form class="horizontal-form" role="form" name="number_verify_form" id="number_verify_form" action="" method="post">
+								<div id="SendCode">
+										<label class="control-label" for="phone_number">Mobile Number</label>
+										<input type="tel"  class="form-control phone_number" id="phone_number" name="phone_number" value="<?php echo $profile_details['st_primary_phone']; ?>">
+									<div id="approve_action_modal">
+									<button aria-hidden="true" id="send_code" name="send_code" class="btn orange-small waves-effect waves-light" type="button" onclick="get_verified_code_tc()">Send Code</button>
+								</div>
+								</div>
+								<div id="VerifyCode" style="display: none;">
+									<label class="control-label" for="verification_code">Enter the 6-digit verification code sent to your mobile</label>
+									<input type="number" class="form-control"  name="verification_code" id="verification_code" value="" placeholder="Mobile verification code" onKeyDown="if(this.value.length==6 && event.keyCode!=8) return false;"/>
+								    <div id="approve_action_modal">
+										<button aria-hidden="true" id="verify" value="" name="verify" class="btn orange-small waves-effect waves-light" type="button" onclick="get_verified_trans_create()">Verify</button> 
+										<button aria-hidden="true" id="reject_shelter" value="reject_shelter" name="reject_shelter" class="btn black waves-effect waves-light" type="button" onclick="close_verified_trans_create()">Cancel</button>
+                                    </div>
+								</div>
+								<input type="hidden" name="tc_flag" id="tc_flag" value="1" />	
+								</form>
+						</div>
+					</div>
+	</div>	
+	</div>
+	
+	<div class="modal fade" id="invitation_type_error_msg" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header none">
+					<button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+					<h4 class="modal-title marb0">Alert!</h4>
+				</div>
+				<div class="modal-body">
+					<p>Please make sure you specify at least one SENDING and one RECEIVING organization. Otherwise please turn off the invite function.</p>
+					<div class="modal-footer text-center no-margin lesser">
+						<a class="btn black" data-dismiss="modal" href="javascript:void(0);">OK</a>
+					</div>
+		
+				</div> 
+			</div>
+		</div>
+	</div>
+
+	<div class="modal fade" id="predefined_veh_type_error_msg" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header none">
+					<button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+					<h4 class="modal-title marb0">Alert!</h4>
+				</div>
+				<div class="modal-body">
+					<p>You do not have a vehicle defined.  Please use the Manage My Vehicles to set one up.</p>
+					<div class="modal-footer text-center no-margin lesser">
+						<a class="btn black" data-dismiss="modal" href="javascript:void(0);">OK</a>
+					</div>
+		
+				</div> 
+			</div>
+		</div>
+	</div>
+
+	<div class="modal fade" id="notify_error_msg" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header none">
+					<button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button>
+					<h4 class="modal-title marb0">Alert!</h4>
+				</div>
+				<div class="modal-body">
+					<p>You have not selected any organizations to be notified of your transport.<br>If you continue, no notifications will be sent by Doobert and you will need to invite people to find your transport manually by sending them the transport page URL.</p>
+					<div class="modal-footer text-center no-margin lesser">
+						<a class="btn black" data-dismiss="modal" href="javascript:void(0);">CANCEL</a>
+						<a class="btn orange" data-dismiss="modal" id="cnt_without_notify" href="javascript:void(0);">Continue</a>
+					</div>
+		
+				</div> 
+			</div>
+		</div>
+	</div>	
+<?php include  APPPATH.'views/inc/footer-dashboard.php';?>
+<!--Reset form height end here--> 
+
+<!--demo videos CSS JS-->
+<script type="text/javascript">	
+var animal_type = new Array(); 
+var today_date = '<?php echo date("m/d/Y"); ?>';
+var count = '<?php echo $total_record; ?>';
+var cnt_without_notify = '0';
+var clicked_btn = '';
+var transport_id = '<?php echo ($this->session->userdata('transport_id'))?$this->session->userdata('transport_id'):''; ?>';
+var transport_type = '';
+var cnt_org_particpate = '0';
+var organization_id = '<?php echo ($this->session->userdata('org_id'))?$this->session->userdata('org_id'):''; ?>';
+var veh_id = '';
+<?php foreach($animal_type as $v){?>
+animal_type.push({'in_animal_type_id':'<?php echo $v['in_animal_type_id'];?>','st_animal_type_name':'<?php echo $v['st_animal_type_name'];?>'});
+<?php }?>
+</script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+<script src="<?php echo base_url(); ?>assets/custom_jquery/transport_create_route.js?v=100.8" type="text/javascript" charset="utf-8"></script>
+<script>
+<?php if(isset($animal_transport) && count($animal_transport)>0){
+		for($j=0;$j<count($animal_transport);$j++){ ?>
+		get_breed('<?php echo $j;  ?>',<?php echo $animal_transport[$j]['in_primary_breed_id'] ?>);
+<?php }} ?>
+get_zip_code('<?php echo $sender_zip; ?>','#pick_zip');
+</script>
+
+<script>
+$(document).ready(function(){
+
+	var y1 ='';
+	var y2 = '';  
+
+	$('#pickupselect').on('changeDate', function(e) {
+		$("#pickupselect").closest('.form-group').removeClass('has-error');	
+		$('#picdt').children('.help-block').remove();
+		var d = new Date(e.date);
+		y1 = d.getFullYear();
+	}).on('hide', function(e) {
+		$('#pickupselect_year').val(y1);
+	});
+	
+	$('#dateselect').on('changeDate', function(e) {
+		$("#dateselect").closest('.form-group').removeClass('has-error');	
+		$('#dropdt').children('.help-block').remove();
+		var d = new Date(e.date);
+		y2 = d.getFullYear();
+	}).on('hide', function(e) {
+		$('#dateselect_year').val(y2);
+	});	
+  
+	
+	$('.switch-container input[type="checkbox"]').each(function(){
+		if($(this).attr('id')!='approval' && $(this).attr('id')!='multiple' && $(this).attr('name')!='send_receive[]' &&  $(this).attr('name')!='in_public_reservation' && $(this).attr('name')!='in_org_invite')
+		{
+			if($(this).is(':checked')){
+				$(this).next('.slider').append('<span class="yes">Yes</span>');
+			}else{
+				$(this).next('.slider').append('<span class="no">No</span>');
+			}
+		}
+		
+		if($(this).attr('id')=='multiple')
+		{
+			if ($(this).is(':checked')) {
+				$('#submit').html('save &amp; continue <i class="material-icons">arrow_forward</i>');
+			} else {
+				$('#submit').html('save &amp; publish <i class="material-icons">arrow_forward</i>');	
+			}	
+		}
+		
+	});
+	
+	$('.switch-container input[type="checkbox"]').on('click', function () {
+		$(this).next('.slider').empty();
+		if($(this).attr('id')!='approval' && $(this).attr('id')!='multiple' && $(this).attr('name')!='send_receive[]' &&  $(this).attr('name')!='in_public_reservation' && $(this).attr('name')!='in_org_invite')
+		{	
+		if ($(this).is(':checked')) {
+		    $(this).next('.slider').append('<span class="yes">Yes</span>');
+		}
+		else{
+			$(this).next('.slider').append('<span class="no">No</span>');
+		}
+		}
+		
+		if($(this).attr('id')=='multiple')
+		{
+			if ($(this).is(':checked')) {
+				$('#submit').html('save &amp; continue <i class="material-icons">arrow_forward</i>');
+			} else {
+				$('#submit').html('save &amp; publish <i class="material-icons">arrow_forward</i>');	
+			}	
+		}
+
+		
+	});
+	
+	/*new route*/
+	/*$('.switch-container.multiple input[type="checkbox"]').each(function(){
+		if($(this).is(':checked')){
+			$( "span" ).remove( ".yes" );
+		}else{
+			$( "span" ).remove( ".no" );
+		}
+	});
+	
+	$('.switch-container.multiple input[type="checkbox"]').on('click', function () {
+		$(this).next('.slider').empty();		
+		if ($(this).is(':checked')) {			
+			$('#submit').text('Save & Continue');
+			$( "span" ).remove( ".yes" );
+		}
+		else{			
+			$('#submit').text('Save & publish');
+			$( "span" ).remove( ".no" );
+		}
+	});*/
+	
+	function change_cost_popup ()
+	{		
+		$('#change-cost').modal('show');
+		
+	}
+  
+});
+
+$('#public_reservation').click(function(){
+    if($(this).is(':checked')){
+        $('#approval').prop('checked',true);
+		$('#approval').attr('disabled', false);	
+		var public_reservation = 'Y';	
+		var approval = 'Y';
+    } else {		    	
+      $('#approval').prop('checked',false);
+	  $('#approval').attr('disabled','disabled');
+      	var public_reservation = 'N';
+		var approval = 'N';
+    }    
+    autosave();
+});
+
+
+$('#multiple').click(function(){
+	autosave();
+});
+
+</script>
+<script>
+$(document).ready(function()
+{
+	
+});
+</script>
+<script>
+var incomplete_modal = '<?php echo $incomplete_transport_request ?>';
+if(incomplete_modal == '1')
+{
+	$('#request_transport').modal('show');
+}	
+</script>
+<script>
+function delete_transportation(ids)
+{
+	if(ids!='')
+	{
+		$.ajax({	type: "POST",
+					url: '<?php echo base_url(); ?>org_transportation/delete_old_transport',
+					data: {
+						ids:ids
+					}, 						
+					dataType:"html",
+					success:function(transport_id) 
+					{
+				
+					}
+			});
+	}	
+}
+</script>
+<script>
+$(document).ready(function()
+{
+	$('#cancel_route').on('click',function()
+	{
+		var trans_id = $('#transportation_id').val();
+		if(trans_id!='' && trans_id!='0')
+		{		
+			$.ajax({
+					type: "POST",
+					url: '<?php echo base_url(); ?>org_transportation/delete_old_transport',
+					async:false,
+					data: {
+						ids:trans_id
+					}, 						
+					dataType:"html",
+					success:function(transport_id) 
+					{
+				
+					}
+			});
+		}	
+	});
+	
+	$(document).on('click','.panel-title a',function()
+	{ 
+		//console.log($(this).attr('aria-expanded'));
+		
+		var expanded = $(this).attr('aria-expanded');
+		if(expanded == 'true')
+		{	
+			$('.panel-title a').each(function(e){
+				 $("[href='"+$(this).attr('href')+"'] .material-icons").html('add_circle_outline');	
+			});
+			$("[href='"+$(this).attr('href')+"'] .material-icons").html('remove_circle_outline');
+			
+		} else { 
+			
+			$("[href='"+$(this).attr('href')+"'] .material-icons").html('add_circle_outline');
+		}	
+	});
+	
+});
+</script>
+<?php if($profile_details['in_number_verified']=='0') { ?>
+<script>
+$('#sms_notify').on('click',function(){
+	if ($(this).is(':checked') && $('#mobile_num_verifed').val()=='0') 
+	{
+		$('#number_verification').modal('show');
+	}	
+});
+</script>
+<?php } ?>

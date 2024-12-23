@@ -1,0 +1,361 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: User(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class User extends CI_Controller { 
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('user_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='email';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearch'); die;
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');			
+				
+		 	$searchtxt = trim(addslashes($this->input->post('txtsearch')));
+			$this->session->set_userdata('searchadmin',$searchtxt);						
+		}		
+
+		$rec_per_page =	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->user_model->get_total_user($this->session->userdata('searchadmin'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['user_list']	= $this->user_model->get_user($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'));
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'user/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		 $data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Admin User Information Available.';
+		}
+		
+		$this->load->view('admin-manage',$data);
+	}
+	
+	
+	function admin_delete($adminId=false)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->user_model->delete_admin($adminId);			
+		$this->session->set_flashdata('success', 'Admin information has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'user');
+		
+	}	
+	
+	function delete_multiple_admin()
+	{   
+	    
+		$admin_ids = $this->input->post('adminid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($admin_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->user_model->delete_multiple_admin($admin_ids);
+			
+			$this->session->set_flashdata('success', 'Admin(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'user/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	function admin_edit($adminId=false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';			
+		$form_field	=	array('email'		=> "",	
+							  'name'		=> "",
+							  'password'	=> "",
+							  'permission'  => array(0 => '')
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+		$data['admin_details'] = $this->user_model->get_admin_profile($adminId);	
+		//echo "<pre>";print_r($data['admin_details']['st_email_address']);die;	
+		if($this->input->post('action')=='Edit')
+		{   
+	
+	
+			//print_r($_POST); die;
+			//Validation rules
+						$adminId			   = $this->input->post('adminId');
+						$data['admin_details'] = $this->user_model->get_admin_profile($adminId);
+			
+						foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+						}
+						$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+						$this->form_validation->set_rules('name', 'Name', 'trim|required');
+						$this->form_validation->set_rules('password', 'Password','min_length[6]');
+						$this->form_validation->set_rules('cpassword', 'Confirm Password', '');	
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{     
+						$data['Err_Msg'] = validation_errors();						
+						$data['admin_details'] = $this->user_model->get_admin_profile($adminId);						
+						$this->load->view('admin-edit',$data);	
+				}
+			
+			else
+			{ 		 
+										
+						$profile_info 		= array();
+						$profile_info['st_name'] 				=	$this->input->post('name');
+						$profile_info['st_email_address'] 		=	$this->input->post('email');
+						if($this->input->post('password')!='' && $this->input->post('cpassword')!='')
+						{
+							$profile_info['st_password'] 			=	md5($this->input->post('password'));
+						}
+						$profile_info['dt_modified'] 			= 	date('Y-m-d H:i:s');
+						$profile_info['st_permission'] 			= 	serialize($this->input->post('permission'));
+				
+				
+				if($this->input->post('password') !=$this->input->post('cpassword'))
+				{ 
+					    $data['Err_Msg'] = "Password and Confirm password must be same";											
+						$this->load->view('admin-edit',$data);	
+				}
+				else
+				{
+						$email1	=	$this->input->post('email1'); 		
+						$email	=	$this->input->post('email'); 	
+						 if($email!=$data['admin_details']['st_email_address'])
+						{  							
+							$check	=	$this->user_model->is_email_exists($this->input->post('email'));							
+						}
+						if($check){
+							$data['Err_Msg'] = "Email address already exist.";											
+							$this->load->view('admin-edit',$data);	
+							}
+							else{					
+					
+						//Updating admin data
+						$this->user_model->update_admin_info($profile_info,$adminId,'tbl_admin');					
+						$this->session->set_flashdata('message', 'You have successfully updated admin user!');					
+						redirect(site_url('user/admin_edit/'.$adminId));
+							}
+				}
+			}
+		}
+		
+		else
+		{				
+						$this->load->view('admin-edit',$data);
+		}
+	}
+	
+	
+	
+	
+	
+	function admin_add()
+	{		 
+	    if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();
+		$Err_Msg		 =	'';
+		
+		$form_field	=	array('name'		=> "",	
+							  'email'		=> "",		
+							  'password'	=> "",	
+							  'cpassword'	=> "",
+							  'permission'  => array(0 => '')
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}			
+		
+		if($this->input->post('action')=='Add')
+		{  
+			
+			// validation starts
+			foreach ($form_field as $key => $value) {	
+					$data['add'][$key] = $this->input->post($key);	
+				}
+						$this->form_validation->set_rules('name', 'Name', 'trim|required');
+						$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');				
+						$this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[6]|matches[cpassword]');	
+						$this->form_validation->set_rules('cpassword', 'Confirm Password', 'trim|required');		
+			
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();												
+						$this->load->view('admin-add',$data);	
+				}
+			else
+			{  			
+						$email	=	$this->input->post('email'); 
+						$check	=	$this->user_model->is_email_exists($email);
+						if($check)
+						{  
+						    $data['Err_Msg']	=	'Email address already exist.';
+							$this->load->view('admin-add',$data);	
+						}
+						else
+						{						
+						$this->user_model->insertAdmin($data['add'],serialize($data['add']['permission']));					
+						$this->session->set_flashdata('message', 'You have successfully created admin user!');
+						redirect(site_url('user/admin_add'));
+						}
+			}
+			
+		}
+		else
+		{		     
+			$this->load->view('admin-add',$data);
+			
+		}		
+	}
+	
+}
+
+/* End of file user.php */
+/* Location: ./application/controllers/user.php */

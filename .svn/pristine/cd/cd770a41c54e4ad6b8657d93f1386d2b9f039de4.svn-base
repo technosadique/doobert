@@ -1,0 +1,1099 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Adv_search extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	public function __construct()
+    {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->model('adv_search_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+	}	
+	 
+	public function index() {
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	advance_search	
+	#	Purpose		:	Search all modules with advanced search option
+	# *******************************************************************************************
+	
+	public function advance_search() {
+		$data = array();
+		
+		$this->session->unset_userdata('search_opt');
+		$this->session->unset_userdata('adv_sort_search_animal');
+		$this->session->unset_userdata('adv_sort_search_org');
+		$this->session->unset_userdata('search_opt');
+		$this->session->unset_userdata('adv_search_redirect');
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		
+		$this->load->view('advance-search',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_demeanor	
+	#	Purpose		:	Getting demeanor details
+	# *******************************************************************************************
+	
+	public function get_demeanor() {
+		$data['get_demeanor'] = $this->common_model->get_demeanor($this->input->post('animal_type'));
+		echo json_encode($data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	advance_search_tab	
+	#	Purpose		:	Search all modules with advanced search option
+	# *******************************************************************************************
+	
+	public function advance_search_tab() {
+		$data = array();
+		//$this->session->unset_userdata('search_opt');
+		
+		/*echo "<pre>";
+		print_r($_POST);
+		echo "</pre>";*/
+		
+		/*echo "<pre>";
+		print_r($this->session->userdata('search_opt'));
+		echo "</pre>";
+		die;*/
+		$this->session->set_userdata($_POST);
+		
+		/*echo "<pre>";
+		print_r($this->session->all_userdata());
+		echo "</pre>";
+		die;*/
+		$search_opt = $this->session->userdata('search_opt');
+		//print_r($search_opt);die;
+		if(isset($search_opt[0]) && $search_opt[0] == 'animal') {
+			redirect(base_url().'adv_search/search_results_adv');
+		} else if(isset($search_opt[0]) && $search_opt[0] == 'transport') {
+			redirect(base_url().'adv_search/search_results_transport_adv');
+		} else if(isset($search_opt[0]) && $search_opt[0] == 'organization') {
+			redirect(base_url().'adv_search/search_org_adv');
+		} else if(isset($search_opt[0]) && $search_opt[0] == 'users') {
+			redirect(base_url().'adv_search/user_search_adv');
+		} else if(isset($search_opt[0]) && $search_opt[0] == 'sponsorship') {
+			redirect(base_url().'adv_search/search_fundraiser_adv');
+		} else {
+			//redirect(base_url().'adv_search/search_results_adv');
+			redirect(base_url().'adv_search/search_page_adv');
+		}
+		
+		$this->load->view('advance-search-result_tab',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_results_animal_adv	
+	#	Purpose		:	Advance animal search
+	# *******************************************************************************************
+	
+	public function search_results_adv() {
+		$data = array();
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		
+		$country		=	'';
+		$state			=	'';
+		$city			=	'';
+		$animal_type	=	'';
+		$demeanor		=	'';
+		$dates_from 	=	'';
+		$dates_to 		=	'';
+		$sort_value		=	'';
+	
+		$this->load->library('pagination');
+		
+		$config = array();
+		
+		$config["base_url"] 		= base_url().'adv_search/search_results_adv/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'frm_value') {
+			
+			if($this->session->userdata('country'))
+				$this->session->unset_userdata('country');
+		
+			if($this->session->userdata('state'))
+				$this->session->unset_userdata('state');
+				
+			if($this->session->userdata('city'))
+				$this->session->unset_userdata('city');
+				
+			if($this->session->userdata('animaltype'))
+				$this->session->unset_userdata('animaltype');
+			
+			if($this->session->userdata('demeanor'))
+				$this->session->unset_userdata('demeanor');
+				
+			if($this->session->userdata('module_name'))
+				$this->session->unset_userdata('module_name');
+				
+			if($this->session->userdata('module_phrase'))
+				$this->session->unset_userdata('module_phrase');
+			
+			if($this->session->userdata('module_any_word'))
+				$this->session->unset_userdata('module_any_word');	
+			
+			if($this->session->userdata('from'))
+				$this->session->unset_userdata('from');
+			
+			if($this->session->userdata('to'))
+				$this->session->unset_userdata('to');
+				
+			$country = $this->input->post('country');
+			$this->session->set_userdata('country',$country);
+			
+			$state = $this->input->post('state');
+			$this->session->set_userdata('state',$state);
+			
+			$city = $this->input->post('city');
+			$this->session->set_userdata('city',$city);
+			
+			$animal_type = $this->input->post('animaltype');
+			$this->session->set_userdata('animaltype',$animal_type);
+			
+			$demeanor = $this->input->post('demeanor');
+			$this->session->set_userdata('demeanor',$demeanor);
+			
+			$dates_from = $this->input->post('from');
+			$this->session->set_userdata('from',$dates_from);
+			
+			$dates_to= $this->input->post('to');
+			$this->session->set_userdata('to',$dates_to);
+			
+		} else {
+			
+			if($this->input->post('form_action_value')) {
+				if($this->session->userdata('adv_sort_search_animal'))
+					$this->session->unset_userdata('adv_sort_search_animal');
+				
+				$sort_value = $this->input->post('adv_sort_by');
+				$this->session->set_userdata('adv_sort_search_animal',$sort_value);
+			} else {
+				if($this->session->userdata('adv_sort_search_animal'))
+					$sort_value	= $this->session->userdata('adv_sort_search_animal');
+				else
+					$sort_value	= '';
+			}
+			
+			if($this->session->userdata('country'))
+				$country	= $this->session->userdata('country');
+			else
+				$country	= '' ;
+				
+			if($this->session->userdata('state'))
+				$state	= $this->session->userdata('state');
+			else
+				$state	= '';
+				
+			if($this->session->userdata('city'))
+				$city	= $this->session->userdata('city');
+			else
+				$city	= '';
+			
+			if($this->session->userdata('animaltype'))
+				$animal_type	= $this->session->userdata('animaltype');
+			else
+				$animal_type	= '';
+			
+			if($this->session->userdata('demeanor'))
+				$demeanor	= $this->session->userdata('demeanor');
+			else
+				$demeanor	= '';
+				
+			if($this->session->userdata('animaltype'))
+				$animal_type	= $this->session->userdata('animaltype');
+			else
+				$animal_type	= '';
+				
+			if($this->session->userdata('module_name'))
+				$module_name	= $this->session->userdata('module_name');
+			else
+				$module_name	= '';
+				
+			if($this->session->userdata('module_phrase'))
+				$module_phrase	= $this->session->userdata('module_phrase');
+			else
+				$module_phrase	= '';
+				
+			if($this->session->userdata('module_any_word'))
+				$module_any_word	= $this->session->userdata('module_any_word');
+			else
+				$module_any_word	= '';
+			
+			if($this->session->userdata('from'))
+				$dates_from	= $this->session->userdata('from');
+			else
+				$dates_from	= '';
+			
+			if($this->session->userdata('to'))
+				$dates_to	= $this->session->userdata('to');
+			else
+				$dates_to	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['animal_data'] = $this->adv_search_model->get_all_animals_adv($config["per_page"],trim($page),trim(str_replace("'","",$module_name)),trim(str_replace("'","",$module_phrase)),trim(str_replace("'","",$module_any_word)),$state,trim($city),trim($country),$animal_type,$demeanor,$dates_from,$dates_to,$sort_value); // added  country by sadique on 5-1-15
+		
+		//echo "<pre>";print_r($data['animal_data']);echo "</pre>";die;
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["animal_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('adv-search-results-animal',$data);
+	}
+	
+	//
+	# *******************************************************************************************	
+	#	Function	:	search_results_transport_adv	
+	#	Purpose		:	Advance transport search
+	# *******************************************************************************************
+	
+	public function search_results_transport_adv() {
+		$data = array();
+		
+		$country		=	'';
+		$state			=	'';
+		$city			=	'';
+		$zipcode		=	'';
+		$dates_from 	=	'';
+		$dates_to 		=	'';
+	
+		$this->load->library('pagination');
+		
+		$config = array();
+		
+		$config["base_url"] 		= base_url().'adv_search/search_results_transport_adv/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'frm_value') {
+			
+			if($this->session->userdata('country'))
+				$this->session->unset_userdata('country');
+		
+			if($this->session->userdata('state'))
+				$this->session->unset_userdata('state');
+				
+			if($this->session->userdata('city'))
+				$this->session->unset_userdata('city');
+				
+			if($this->session->userdata('module_name'))
+				$this->session->unset_userdata('module_name');
+				
+			if($this->session->userdata('module_phrase'))
+				$this->session->unset_userdata('module_phrase');
+			
+			if($this->session->userdata('module_any_word'))
+				$this->session->unset_userdata('module_any_word');	
+			
+			if($this->session->userdata('from_date'))
+				$this->session->unset_userdata('from_date');
+			
+			if($this->session->userdata('to_date'))
+				$this->session->unset_userdata('to_date');
+			
+			$module_name = $this->input->post('zipcode');
+			$this->session->set_userdata('module_name',$module_name);
+			
+			$module_phrase = $this->input->post('module_phrase');
+			$this->session->set_userdata('module_phrase',$module_phrase);
+			
+			$module_any_word = $this->input->post('module_any_word');
+			$this->session->set_userdata('module_any_word',$module_any_word);
+				
+			$country = $this->input->post('country');
+			$this->session->set_userdata('country',$country);
+			
+			$state = $this->input->post('state');
+			$this->session->set_userdata('state',$state);
+			
+			$city = $this->input->post('city');
+			$this->session->set_userdata('city',$city);
+			
+			$zipcode = $this->input->post('zipcode');
+			$this->session->set_userdata('zipcode',$zipcode);
+			
+			$dates_from = $this->session->set_userdata('from_date',$dates_from);//$this->input->post('from');
+			//$this->session->set_userdata('from_date',$dates_from);
+			
+			$dates_to= $this->session->set_userdata('to_date',$dates_to);//$this->input->post('to');
+			//$this->session->set_userdata('to_date',$dates_to);
+			
+		} else {
+			if($this->session->userdata('country'))
+				$country	= $this->session->userdata('country');
+			else
+				$country	= '' ;
+				
+			if($this->session->userdata('state'))
+				$state	= $this->session->userdata('state');
+			else
+				$state	= '';
+				
+			if($this->session->userdata('city'))
+				$city	= $this->session->userdata('city');
+			else
+				$city	= '';
+				
+			if($this->session->userdata('zipcode'))
+				$zipcode	= $this->session->userdata('zipcode');
+			else
+				$zipcode	= '';
+				
+			if($this->session->userdata('module_name'))
+				$module_name	= $this->session->userdata('module_name');
+			else
+				$module_name	= '';
+				
+			if($this->session->userdata('module_phrase'))
+				$module_phrase	= $this->session->userdata('module_phrase');
+			else
+				$module_phrase	= '';
+				
+			if($this->session->userdata('module_any_word'))
+				$module_any_word	= $this->session->userdata('module_any_word');
+			else
+				$module_any_word	= '';
+			
+			if($this->session->userdata('from'))
+				$dates_from	= $this->session->userdata('from');
+			else
+				$dates_from	= '';
+			
+			if($this->session->userdata('to'))
+				$dates_to	= $this->session->userdata('to');
+			else
+				$dates_to	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;		
+		
+		//Getting details of organization
+		
+		//$search_val = (trim(strstr(strtoupper($module_name),'DBT')))?str_replace(strtoupper($replace_txt),"",strtoupper($module_name)):str_replace(strtoupper($replace_txt),"",strtoupper($module_name));
+          $search_val = preg_replace('/[^0-9]/', '', $module_name);		
+		
+		//Getting details of organization
+		$data['transport_data'] = $this->adv_search_model->get_all_transport_for_search_adv($config["per_page"],trim($page),trim($search_val),trim($module_phrase),trim($module_any_word),$country,$state,trim($city),trim($zipcode),$dates_from,$dates_to);
+		
+		//echo "<pre>";print_r($data['animal_data']);echo "</pre>";die;
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["transport_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('adv-search-results-transport-id',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_org	
+	#	Purpose		:	Getting all organization
+	# *******************************************************************************************
+	
+	public function search_org_adv() {
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+		
+		$data = array();
+		
+		$country		=	'';
+		$state			=	'';
+		$city			=	'';
+		$dates_from 	=	'';
+		$dates_to 		=	'';
+		$module_name	=	'';
+		$sort_value		=	'';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'adv_search/search_org_adv/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'frm_value') {
+			if($this->session->userdata('country'))
+				$this->session->unset_userdata('country');
+		
+			if($this->session->userdata('state'))
+				$this->session->unset_userdata('state');
+				
+			if($this->session->userdata('city'))
+				$this->session->unset_userdata('city');
+				
+			if($this->session->userdata('module_name'))
+				$this->session->unset_userdata('module_name');
+				
+			if($this->session->userdata('module_phrase'))
+				$this->session->unset_userdata('module_phrase');
+			
+			if($this->session->userdata('module_any_word'))
+				$this->session->unset_userdata('module_any_word');	
+			
+			if($this->session->userdata('from_date'))
+				$this->session->unset_userdata('from_date');
+			
+			if($this->session->userdata('to_date'))
+				$this->session->unset_userdata('to_date');
+			
+			$module_name = $this->input->post('zipcode');
+			$this->session->set_userdata('module_name',$module_name);
+			
+			$module_phrase = $this->input->post('module_phrase');
+			$this->session->set_userdata('module_phrase',$module_phrase);
+			
+			$module_any_word = $this->input->post('module_any_word');
+			$this->session->set_userdata('module_any_word',$module_any_word);
+				
+			$country = $this->input->post('country');
+			$this->session->set_userdata('country',$country);
+			
+			$state = $this->input->post('state');
+			$this->session->set_userdata('state',$state);
+			
+			$city = $this->input->post('city');
+			$this->session->set_userdata('city',$city);
+			
+			$zipcode = $this->input->post('zipcode');
+			$this->session->set_userdata('zipcode',$zipcode);
+			
+			$dates_from = $this->session->set_userdata('from',$dates_from);//$this->input->post('from');
+			//$this->session->set_userdata('from_date',$dates_from);
+			//echo $dates_from;die('test');
+			$dates_to= $this->session->set_userdata('to',$dates_to);//$this->input->post('to');
+			//$this->session->set_userdata('to_date',$dates_to);
+			
+		} else {
+			
+			if($this->input->post('form_action_value')) {
+				if($this->session->userdata('adv_sort_search_org'))
+				$this->session->unset_userdata('adv_sort_search_org');
+				
+				$sort_value = $this->input->post('adv_sort_by');
+				$this->session->set_userdata('adv_sort_search_org',$sort_value);
+			} else {
+				if($this->session->userdata('adv_sort_search_org'))
+					$sort_value	= $this->session->userdata('adv_sort_search_org');
+				else
+					$sort_value	= '';
+			}
+			
+			if($this->session->userdata('country'))
+				$country	= $this->session->userdata('country');
+			else
+				$country	= '' ;
+				
+			if($this->session->userdata('state'))
+				$state	= $this->session->userdata('state');
+			else
+				$state	= '';
+				
+			if($this->session->userdata('city'))
+				$city	= $this->session->userdata('city');
+			else
+				$city	= '';
+				
+			if($this->session->userdata('zipcode'))
+				$zipcode	= $this->session->userdata('zipcode');
+			else
+				$zipcode	= '';
+				
+			if($this->session->userdata('module_name'))
+				$module_name	= $this->session->userdata('module_name');
+			else
+				$module_name	= '';
+				
+			if($this->session->userdata('module_phrase'))
+				$module_phrase	= $this->session->userdata('module_phrase');
+			else
+				$module_phrase	= '';
+				
+			if($this->session->userdata('module_any_word'))
+				$module_any_word	= $this->session->userdata('module_any_word');
+			else
+				$module_any_word	= '';
+			
+			if($this->session->userdata('from'))
+				$dates_from	= $this->session->userdata('from');
+			else
+				$dates_from	= '';
+			
+			if($this->session->userdata('to'))
+				$dates_to	= $this->session->userdata('to');
+			else
+				$dates_to	= '';
+		}
+		//echo $dates_from;die;
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['org_data'] = $this->adv_search_model->get_all_org_for_search_adv($config["per_page"],trim($page),trim(str_replace("'","",$module_name)),trim(str_replace("'","",$module_phrase)),trim(str_replace("'","",$module_any_word)),$country,$state,trim($city),trim($zipcode),$dates_from,$dates_to,$sort_value);
+	
+		$this->load->model('organization_privacy_setting_model');	//added by ghanshyam on 28_Oct_2014
+							
+		//Getting total rows
+		$config["total_rows"] 	= $data["org_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('adv-search-results-organization',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	user_search_adv	
+	#	Purpose		:	Getting all users
+	# *******************************************************************************************
+	
+	public function user_search_adv() {
+		
+		$data = array();
+		
+		$country		=	'';
+		$state			=	'';
+		$city			=	'';
+		$dates_from 	=	'';
+		$dates_to 		=	'';
+		$module_name	=	'';
+		$sort_value		=	'';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'adv_search/user_search_adv/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'frm_value') {
+			if($this->session->userdata('country'))
+				$this->session->unset_userdata('country');
+		
+			if($this->session->userdata('state'))
+				$this->session->unset_userdata('state');
+				
+			if($this->session->userdata('city'))
+				$this->session->unset_userdata('city');
+				
+			if($this->session->userdata('module_name'))
+				$this->session->unset_userdata('module_name');
+				
+			if($this->session->userdata('module_phrase'))
+				$this->session->unset_userdata('module_phrase');
+			
+			if($this->session->userdata('module_any_word'))
+				$this->session->unset_userdata('module_any_word');	
+			
+			if($this->session->userdata('from_date'))
+				$this->session->unset_userdata('from_date');
+			
+			if($this->session->userdata('to_date'))
+				$this->session->unset_userdata('to_date');
+			
+			$module_name = $this->input->post('zipcode');
+			$this->session->set_userdata('module_name',$module_name);
+			
+			$module_phrase = $this->input->post('module_phrase');
+			$this->session->set_userdata('module_phrase',$module_phrase);
+			
+			$module_any_word = $this->input->post('module_any_word');
+			$this->session->set_userdata('module_any_word',$module_any_word);
+				
+			$country = $this->input->post('country');
+			$this->session->set_userdata('country',$country);
+			
+			$state = $this->input->post('state');
+			$this->session->set_userdata('state',$state);
+			
+			$city = $this->input->post('city');
+			$this->session->set_userdata('city',$city);
+			
+			$zipcode = $this->input->post('zipcode');
+			$this->session->set_userdata('zipcode',$zipcode);
+			
+			$dates_from = $this->session->set_userdata('from',$dates_from);//$this->input->post('from');
+			//$this->session->set_userdata('from_date',$dates_from);
+			//echo $dates_from;die('test');
+			$dates_to= $this->session->set_userdata('to',$dates_to);//$this->input->post('to');
+			//$this->session->set_userdata('to_date',$dates_to);
+			
+		} else {
+			
+			if($this->input->post('form_action_value')) {
+				if($this->session->userdata('adv_sort_search_user'))
+				$this->session->unset_userdata('adv_sort_search_user');
+				
+				$sort_value = $this->input->post('adv_sort_by');
+				$this->session->set_userdata('adv_sort_search_user',$sort_value);
+			} else {
+				if($this->session->userdata('adv_sort_search_user'))
+					$sort_value	= $this->session->userdata('adv_sort_search_user');
+				else
+					$sort_value	= '';
+			}
+			
+			if($this->session->userdata('country'))
+				$country	= $this->session->userdata('country');
+			else
+				$country	= '' ;
+				
+			if($this->session->userdata('state'))
+				$state	= $this->session->userdata('state');
+			else
+				$state	= '';
+				
+			if($this->session->userdata('city'))
+				$city	= $this->session->userdata('city');
+			else
+				$city	= '';
+				
+			if($this->session->userdata('zipcode'))
+				$zipcode	= $this->session->userdata('zipcode');
+			else
+				$zipcode	= '';
+				
+			if($this->session->userdata('module_name'))
+				$module_name	= $this->session->userdata('module_name');
+			else
+				$module_name	= '';
+				
+			if($this->session->userdata('module_phrase'))
+				$module_phrase	= $this->session->userdata('module_phrase');
+			else
+				$module_phrase	= '';
+				
+			if($this->session->userdata('module_any_word'))
+				$module_any_word	= $this->session->userdata('module_any_word');
+			else
+				$module_any_word	= '';
+			
+			if($this->session->userdata('from'))
+				$dates_from	= $this->session->userdata('from');
+			else
+				$dates_from	= '';
+			
+			if($this->session->userdata('to'))
+				$dates_to	= $this->session->userdata('to');
+			else
+				$dates_to	= '';
+		}
+		
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		//echo $module_search_user;
+		//Getting details of organization
+		$data['user_data'] = $this->adv_search_model->get_all_users_for_search($config["per_page"],$page,trim(str_replace("'","",$module_name)),trim(str_replace("'","",$module_phrase)),trim(str_replace("'","",$module_any_word)),$country,$state,trim($city),trim($zipcode),$dates_from,$dates_to,$sort_value);
+		
+		//Getting total rows
+		$config["total_rows"] 	= $data["user_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('adv-search-results-doobert-users',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	search_sponsorship_adv	
+	#	Purpose		:	Getting all sponsorship
+	# *******************************************************************************************
+	
+	public function search_fundraiser_adv() 
+	{
+		$data = array();
+		
+		$country		=	'';
+		$state			=	'';
+		$city			=	'';
+		$dates_from 	=	'';
+		$dates_to 		=	'';
+		$module_name	=	'';
+		
+		$this->load->library('pagination');
+		
+		$config = array();
+		$config["base_url"] 		= base_url().'adv_search/search_fundraiser_adv/';
+		
+		$config["per_page"]	 		= 24;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'frm_value') {
+			if($this->session->userdata('country'))
+				$this->session->unset_userdata('country');
+		
+			if($this->session->userdata('state'))
+				$this->session->unset_userdata('state');
+				
+			if($this->session->userdata('city'))
+				$this->session->unset_userdata('city');
+				
+			if($this->session->userdata('module_name'))
+				$this->session->unset_userdata('module_name');
+				
+			if($this->session->userdata('module_phrase'))
+				$this->session->unset_userdata('module_phrase');
+			
+			if($this->session->userdata('module_any_word'))
+				$this->session->unset_userdata('module_any_word');	
+			
+			if($this->session->userdata('from_date'))
+				$this->session->unset_userdata('from_date');
+			
+			if($this->session->userdata('to_date'))
+				$this->session->unset_userdata('to_date');
+			
+			$module_name = $this->input->post('zipcode');
+			$this->session->set_userdata('module_name',$module_name);
+			
+			$module_phrase = $this->input->post('module_phrase');
+			$this->session->set_userdata('module_phrase',$module_phrase);
+			
+			$module_any_word = $this->input->post('module_any_word');
+			$this->session->set_userdata('module_any_word',$module_any_word);
+				
+			$country = $this->input->post('country');
+			$this->session->set_userdata('country',$country);
+			
+			$state = $this->input->post('state');
+			$this->session->set_userdata('state',$state);
+			
+			$city = $this->input->post('city');
+			$this->session->set_userdata('city',$city);
+			
+			$zipcode = $this->input->post('zipcode');
+			$this->session->set_userdata('zipcode',$zipcode);
+			
+			$dates_from = $this->session->set_userdata('from',$dates_from);//$this->input->post('from');
+			//$this->session->set_userdata('from_date',$dates_from);
+			//echo $dates_from;die('test');
+			$dates_to= $this->session->set_userdata('to',$dates_to);//$this->input->post('to');
+			//$this->session->set_userdata('to_date',$dates_to);
+			
+		} else {
+			if($this->session->userdata('country'))
+				$country	= $this->session->userdata('country');
+			else
+				$country	= '' ;
+				
+			if($this->session->userdata('state'))
+				$state	= $this->session->userdata('state');
+			else
+				$state	= '';
+				
+			if($this->session->userdata('city'))
+				$city	= $this->session->userdata('city');
+			else
+				$city	= '';
+				
+			if($this->session->userdata('zipcode'))
+				$zipcode	= $this->session->userdata('zipcode');
+			else
+				$zipcode	= '';
+				
+			if($this->session->userdata('module_name'))
+				$module_name	= $this->session->userdata('module_name');
+			else
+				$module_name	= '';
+				
+			if($this->session->userdata('module_phrase'))
+				$module_phrase	= $this->session->userdata('module_phrase');
+			else
+				$module_phrase	= '';
+				
+			if($this->session->userdata('module_any_word'))
+				$module_any_word	= $this->session->userdata('module_any_word');
+			else
+				$module_any_word	= '';
+			
+			if($this->session->userdata('from'))
+				$dates_from	= $this->session->userdata('from');
+			else
+				$dates_from	= '';
+			
+			if($this->session->userdata('to'))
+				$dates_to	= $this->session->userdata('to');
+			else
+				$dates_to	= '';
+		}
+		//echo $dates_from;die;
+		//Pagination methods.
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		//Getting details of organization
+		$data['sponsorship_data'] = $this->adv_search_model->get_all_sponsorship_adv($config["per_page"],trim($page),trim($module_name),trim($module_phrase),trim($module_any_word),$country,$state,trim($city),trim($zipcode),$dates_from,$dates_to);
+	
+		//Getting total rows
+		$config["total_rows"] 	= $data["sponsorship_data"]['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		
+		$this->load->view('adv-search-results-fundraiser',$data);
+	}
+	
+	public function search_page_adv() 
+	{
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+		$this->load->library('pagination');
+		//$offset = '0';
+		
+		$offset = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+	
+		
+		if($this->session->userdata('module_name'))
+				$module_name	= $this->session->userdata('module_name');
+			else
+				$module_name	= '';
+				
+			if($this->session->userdata('module_phrase'))
+				$module_phrase	= $this->session->userdata('module_phrase');
+			else
+				$module_phrase	= '';
+				
+			if($this->session->userdata('module_any_word'))
+				$module_any_word	= $this->session->userdata('module_any_word');
+			else
+				$module_any_word	= '';
+			
+			if($this->session->userdata('from'))
+				$dates_from	= $this->session->userdata('from');
+			else
+				$dates_from	= '';
+			
+			if($this->session->userdata('to'))
+				$dates_to	= $this->session->userdata('to');
+			else
+				$dates_to	= '';
+		
+			
+		//$search_content = 'Dog';
+		
+		$arr_location = file_get_contents("http://dev.doobert.com/wp/wp-retrieve-post.php?offset=".$offset."&module_name=".$module_name."&module_phrase=".$module_phrase."&module_any_word=".$module_any_word."&dates_from=".$dates_from."&dates_to=".$dates_to);
+		
+		$adv_page_cnt = json_decode($arr_location,true);
+		
+		/*echo "<pre>"; print_r($arr_location); echo "</pre>";
+		die;*/
+		
+		$config = array();
+		
+		$config["base_url"] 		= base_url().'adv_search/search_page_adv/';
+		
+		$config["per_page"]	 		= 10;
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+				
+		//Getting total rows
+		$config["total_rows"] 	= (isset($adv_page_cnt['total_cnt']) && $adv_page_cnt['total_cnt'] >0)?$adv_page_cnt['total_cnt']:'0';
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] 			= $this->pagination->create_links();
+		$data['total_data'] 	= $config["total_rows"];
+		$data['total_pages'] 	= floor($config["total_rows"]/$config["per_page"]);
+		$data['currentPage'] 	= floor(($this->uri->segment(3)/$config['per_page']) + 1);
+		$data['per_page']		= $config["per_page"];
+		$data['post_listing']   = (isset($adv_page_cnt['post_listing']) && count($adv_page_cnt['post_listing']) >0)?$adv_page_cnt['post_listing']:array();
+		
+		$this->load->view('adv-search-results-page',$data);
+	}
+	
+	//
+}
+
+/* End of file organization.php */
+/* Location: ./application/controllers/welcome.php */

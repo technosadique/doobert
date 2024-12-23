@@ -1,0 +1,651 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 25-March-2014
+# File description	: Transportation Model for admin
+# Special - notes	: none
+# Tables used		: tbl_transportation 
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class transportation_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor 
+        parent::__construct();
+    }
+    
+	#=====================================================================
+	#	Function	:	get_total_organization()
+	#  Parameter	: 	name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to check valid user login
+	#---------------------------------------------------------------------
+	
+	public function get_total_transportation($name='',$zip='',$state='',$country='',$fromdate='',$todate='',$status='',$transport_type='')
+	{ 			
+			//echo $country; die;
+					if($fromdate=='1969-12-31'){$fromdate=''; }
+					if($todate=='1969-12-31'){$todate=''; }		
+					  
+					    $this->db->select("tr.in_transportation_id,								
+										   org.st_org_name", false);						   	
+						$this->db->from('tbl_transportation tr');
+						$this->db->join('tbl_organization org', 'org.in_organization_id=tr.in_organization_id  AND org.in_deleted="0" ','INNER');								 
+					 $where = '';
+					 if($status!='')
+					 {
+						// $sql.=" LEFT JOIN tbl_users usr on usr.in_user_id=tr.in_trans_coods_id WHERE tr.in_status='".$status."' AND tr.in_deleted='0'";	
+						$this->db->join('tbl_users usr', 'usr.in_user_id=tr.in_trans_coods_id','INNER');	
+						if($status == '1')
+						{
+							$where .= "((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+						}
+						else if($status == '2')
+						{
+							$where .= "(tr.in_status = '2' && tr.dt_target < current_date())";
+						}
+						else
+						{
+							$where .= "tr.in_status = '".$status."'";
+						}
+						
+						$this->db->where($where);
+						//$this->db->where('tr.in_status',$status);
+						
+						//$this->db->where('tr.in_status',$status);
+						/*$this->db->where('tr.in_deleted','0');
+						$this->db->where('org.in_deleted','0');
+						$this->db->where('usr.in_deleted','0');*/	
+						
+					 }
+					 
+						$this->db->where('tr.in_deleted','0');
+						$this->db->where('org.in_status',1);
+						$this->db->where('usr.in_deleted','0');
+					
+					   if(trim($name)!='' && strtolower($name)!='dbt' ){	
+						//$trId = substr($name,3,10);
+						if(is_numeric($name))
+						{  
+							$this->db->where("tr.in_transportation_id  LIKE '".$name."%'", NULL, FALSE);
+						}	
+						else{								
+							if($name=='%')
+							{
+							$trId = substr($name,3,10);
+							$this->db->where("(tr.in_transportation_id LIKE '".$trId."%'  OR org.st_org_name RLIKE '%". $name."%')", NULL, FALSE);
+							}
+							else
+							{  
+							$trId = substr($name,3,10);
+							$this->db->where("(tr.in_transportation_id LIKE '".$trId."%'  OR org.st_org_name LIKE '%". $name."%' OR concat(usr.st_display_name,' ', usr.st_last_name) LIKE '".addslashes($name)."%')", NULL, FALSE);
+							}
+						}
+						
+					}
+						
+						if($zip!=''){	
+						
+						
+						$this->db->where("(tr.st_from_zip = '".$zip."' OR tr.st_to_zip = '".$zip."')", NULL, FALSE);
+						}	
+						
+						if($state!='' ){	
+							
+						
+						$this->db->where("(tr.st_from_state = '".$state."' OR tr.st_to_state = '".$state."')", NULL, FALSE);
+						}
+						
+						if($country!='' ){							
+						
+						$this->db->where("(tr.st_from_country = '".$country."' OR tr.st_to_country = '".$country."')", NULL, FALSE);
+						}
+						
+						
+						if($fromdate!='' && $todate!=''){								
+						
+						$this->db->where("(tr.dt_target >= '".$fromdate."' AND   tr.dt_target <='".$todate."')", NULL, FALSE); 
+						}
+
+						if($transport_type=='P')
+							{
+									$this->db->where('tr.st_trans_type','P');
+							}
+							
+							if($transport_type=='R')
+							{
+									$this->db->where('tr.st_trans_type','R');
+							}
+							
+							if($transport_type=='RO')
+							{
+									$this->db->where('tr.st_trans_type','RO');
+							}
+							
+							if($transport_type=='D')
+							{		
+								$this->db->where('tr.st_trans_type','D');
+								$this->db->where('tr.in_airline_transport','0');
+							}
+							
+							if($transport_type=='A')
+							{
+								$this->db->where('tr.st_trans_type','D');
+								$this->db->where('tr.in_airline_transport','1');
+							}	
+		
+						$query = $this->db->get(); 	
+						//echo $this->db->last_query(); die;					
+						return $query->num_rows();
+	}
+	
+	#====================================================================================================
+	#	Function	:	get_organization()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name,zip,certified,contract,fromdate,todate,state
+	#	Perpose		:	to get organization details
+	#----------------------------------------------------------------------------------------------------
+	public function get_transportation($status,$sort,$order,$limit,$rec_per_page,$name,$zip,$state,$country,$fromdate,$todate,$transport_type='')
+	{			
+		
+					if($fromdate=='1969-12-31'){$fromdate='';}
+					if($todate=='1969-12-31'){$todate='';  }		
+					  
+					  $this->db->select("tr.in_transportation_id,
+											tr.in_organization_id,
+											tr.dt_pickup_date,
+											tr.dt_target,
+											tr.in_trans_coods_id,
+											tr.st_trans_type,
+											tr.in_tot_distance,
+											tr.st_from_country,	
+											tr.st_from_state,							
+											tr.st_from_city,						
+											tr.st_from_zip,
+											tr.st_from_street,
+											tr.st_to_country,
+											tr.st_to_state,
+											tr.st_to_city,
+											tr.st_to_zip,
+											tr.st_to_street,
+											tr.in_allow_pics,
+											tr.in_airline_transport,	
+											tr.in_status,
+											tr.accTcid,
+											org.st_org_name,
+											org.st_org_code,
+											usr.in_user_id,
+											usr.st_last_name,
+											usr.st_display_name", false);						   	
+						$this->db->from('tbl_transportation tr');
+						$this->db->join('tbl_organization org', 'org.in_organization_id=tr.in_organization_id AND org.in_deleted="0"','INNER');	
+						
+						$where = '';
+						if($status!='')
+						 {							
+							$this->db->join('tbl_users usr', 'usr.in_user_id=tr.in_trans_coods_id','INNER');	
+							
+							if($status == '1')
+							{ 
+								$where .= "((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+								
+							}
+							else if($status == '2')
+							{
+								$where .= "(tr.in_status = '2' && tr.dt_target < current_date())";								
+							}
+							else
+							{
+								$where .= "tr.in_status = '".$status."'";								
+							}
+							
+							$this->db->where($where);
+							//$this->db->where('tr.in_status',$status);
+							/*$this->db->where('tr.in_deleted','0');
+							$this->db->where('org.in_deleted','0');
+							$this->db->where('usr.in_deleted','0');*/								
+						 }
+
+						$this->db->where('tr.in_deleted','0');
+						$this->db->where('org.in_status','1');
+						$this->db->where('usr.in_deleted','0');	
+					 	
+						
+					    if(trim($name)!='' && strtolower($name)!='dbt' ){	
+						//$trId = substr($name,3,10);
+						if(is_numeric($name))
+						{
+						$this->db->where("tr.in_transportation_id LIKE '".$name."%'", NULL, FALSE);
+						}	
+						else{
+							
+							if($name=='%')
+							{ 
+								$trId = substr($name,3,10);
+							$this->db->where("(tr.in_transportation_id LIKE '".$trId."%' OR org.st_org_name RLIKE '%". $name."%')", NULL, FALSE);
+							}
+							else
+							{
+							$trId = substr($name,3,10);
+							$this->db->where("(tr.in_transportation_id LIKE '".$trId."%'  OR org.st_org_name LIKE '%". $name."%' OR concat(usr.st_display_name,' ', usr.st_last_name) LIKE '".addslashes($name)."%')", NULL, FALSE);
+							}
+						}
+						
+					}
+						
+						if($zip!=''){					
+					
+						$this->db->where("(tr.st_from_zip = '".$zip."' OR tr.st_to_zip = '".$zip."')", NULL, FALSE);
+						}	
+						
+						if($state!='' ){						
+						
+						$this->db->where("(tr.st_from_state = '".$state."' OR tr.st_to_state = '".$state."')", NULL, FALSE);
+						}
+						
+						if($country!='' ){					
+							$this->db->where("(tr.st_from_country = '".$country."' OR tr.st_to_country = '".$country."')", NULL, FALSE);
+						}
+												
+						if($fromdate!='' && $todate!=''){					
+							$this->db->where("(tr.dt_target >= '".$fromdate."' AND   tr.dt_target <='".$todate."')", NULL, FALSE); 
+						}		
+						
+							if($transport_type=='P')
+							{
+									$this->db->where('tr.st_trans_type','P');
+							}
+							
+							if($transport_type=='R')
+							{
+									$this->db->where('tr.st_trans_type','R');
+							}
+							
+							if($transport_type=='RO')
+							{
+									$this->db->where('tr.st_trans_type','RO');
+							}
+							
+							if($transport_type=='D')
+							{		
+								$this->db->where('tr.st_trans_type','D');
+								$this->db->where('tr.in_airline_transport','0');
+							}
+							
+							if($transport_type=='A')
+							{
+								$this->db->where('tr.st_trans_type','D');
+								$this->db->where('tr.in_airline_transport','1');
+							}
+							
+							
+		
+					switch($sort)
+						{
+							
+							case 'id': 								
+								$this->db->order_by('tr.in_transportation_id',$order);
+							break;	
+								
+							case 'name':								
+								$this->db->order_by('org.st_org_name',$order);
+							break;
+							
+							case 'trdate': 								
+								$this->db->order_by('tr.dt_target',$order);
+							break;
+							
+							case 'frdate': 								
+								$this->db->order_by('tr.dt_pickup_date',$order);
+							break;
+							
+							
+							
+							case 'coordinator': 							
+								$this->db->order_by('usr.st_display_name',$order);
+							break;
+							
+							case 'trtype': 								
+								$this->db->order_by('tr.st_trans_type',$order);
+								$this->db->order_by('tr.in_airline_transport',$order);
+							break;
+							
+							case 'distance':								
+								$this->db->order_by('tr.in_tot_distance',$order);
+							break;
+							
+							case 'fromloc': 								
+								$this->db->order_by('tr.st_from_state',$order);
+							break;
+							
+							case 'toloc': 							
+								$this->db->order_by('tr.st_to_state',$order);
+							break;
+							
+							case 'allowpics': 							
+								$this->db->order_by('tr.in_allow_pics',$order);
+							break;
+							
+							case 'trstatus': 							
+								$this->db->order_by('tr.in_status',$order);
+							break;
+							
+							default:
+								$this->db->order_by('tr.in_transportation_id',$order);
+							break;	
+								         
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 				
+					//echo $this->db->last_query(); 			
+					$arrTransportation = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+							
+							if($Row->dt_target == '0000-00-00'|| $Row->dt_target == '1969-12-31' || empty($Row->dt_target)  )
+							{
+									$transport_date = date('Y-m-d', strtotime("+7 day"));
+							} else {	
+									$transport_date = date('Y-m-d', strtotime($Row->dt_target."+7 day"));
+							}	
+							
+							$today_date	=	date('Y-m-d');
+							//$transport_date = date('Y-m-d', strtotime($Row->dt_target."+7 day"));
+							$today_dt = new DateTime($today_date);
+							$expire_dt = new DateTime($transport_date);
+							
+							$first_name ='';
+							$last_name='';
+							$transpotationtype = '';
+							if($Row->st_trans_type=='P')
+							{
+									$transpotationtype='Pre Defined';
+									$first_name = $Row->st_display_name;
+									$last_name = $Row->st_last_name;
+							}
+							
+							if($Row->st_trans_type=='R')
+							{
+									$transpotationtype='Ride';
+									$first_name = $Row->st_display_name;
+									$last_name = $Row->st_last_name;
+							}
+							
+							if($Row->st_trans_type=='RO')
+							{
+									$transpotationtype='Route';
+									$first_name = $Row->st_display_name;
+									$last_name = $Row->st_last_name;
+							}
+							
+							if($Row->st_trans_type=='D')
+							{
+								if($Row->in_airline_transport=='1')
+								{
+									$transpotationtype='Airline';
+								} else {			
+									$transpotationtype='Assisted';
+								}
+
+								if (isset($Row->st_trans_type) && $Row->st_trans_type == 'D' && $expire_dt >= $today_dt)
+								{
+									$user_info = array();
+									if(isset($Row->accTcid) && trim($Row->accTcid)!='' && $Row->accTcid!='0')
+									{
+										/*$test_content = $Row->in_transportation_id.',,'.$Row->accTcid;
+										$this->db->insert('test_content',array('acctid'=>$test_content));*/
+										$user_info = $this->common_model->get_user_profile(trim($Row->accTcid));
+									}	
+									if(count($user_info)>0)
+									{
+											
+										$first_name = $user_info[0]['st_display_name'];
+										$last_name = $user_info[0]['st_last_name'];
+									}		
+									else
+									{	
+										$first_name = $Row->st_display_name;
+										$last_name = $Row->st_last_name;
+									}	
+								} else {
+									$first_name = $Row->st_display_name;
+									$last_name = $Row->st_last_name;
+								}
+								
+							}
+							
+							if($Row->in_status == '2')
+							{
+									$trstatus='Confirmed';
+							}
+							else
+							{
+									$trstatus='Not Confirmed';
+							}
+									
+							$arrTransportation[]	= array('in_transportation_id'	=> $Row->in_transportation_id,	
+											'st_org_name' 							=> $Row->st_org_name,	
+											'org_code' 							    => $Row->st_org_code,
+											'dt_target'								=> $Row->dt_target,
+											'dt_pickup_date'						=> $Row->dt_pickup_date,
+											'st_display_name'						=> $first_name,
+											'st_last_name'							=> $last_name,
+											'in_user_id'							=> $Row->in_user_id,
+											'st_trans_type'							=> $transpotationtype,											
+											'in_tot_distance' 						=> $Row->in_tot_distance,
+											'st_from_country' 						=> $Row->st_from_country,
+											'st_from_state' 						=> $Row->st_from_state,
+											'st_from_city' 							=> $Row->st_from_city,	
+											'st_from_zip' 							=> $Row->st_from_zip,	
+											'st_to_country' 						=> $Row->st_to_country,											
+											'st_to_state' 							=> $Row->st_to_state,
+											'st_to_city' 							=> $Row->st_to_city,
+											'st_to_zip' 							=> $Row->st_to_zip,
+											'st_from_street'						=> $Row->st_from_street,
+											'st_to_street'							=> $Row->st_to_street,
+											'trstatus'							    => $trstatus,
+											'in_allow_pics' 						=> $Row->in_allow_pics											
+											);
+						}
+						return $arrTransportation;
+						
+					}
+					
+	}
+	
+	
+	#============================================================
+	#	Function	:	delete_transportation()
+	#   Parameter	: 	transId
+	#	Perpose		:	to delete single transportation details
+	#------------------------------------------------------------
+	function delete_transportation($transId)
+	{
+		$arrTrans = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_transportation_id', $transId);
+		$this->db->update('tbl_transportation', $arrTrans);	
+	}
+	
+	
+	
+	
+	#============================================================
+	#	Function	:	delete_multiple_transportation()
+	#   Parameter	: 	transIds
+	#	Perpose		:	to delete multiple transportation details
+	#------------------------------------------------------------
+	function delete_multiple_transportation($transIds)
+	{
+		//echo '<pre>'; print_r($transIds); die;
+		
+		$arrTrans = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_transportation_id', $transIds);
+		$this->db->update('tbl_transportation', $arrTrans);		
+		return $this->db->affected_rows();
+	}
+	
+	
+	#=============================================
+	#	Function	:	get_transportation_info()
+	#   Parameter	: 	transId
+	#	Perpose		:	to get transportation info
+	#---------------------------------------------
+	function get_transportation_info($transId)
+	{  
+		$this->db->select(" tr.in_transportation_id,									
+									tr.dt_target,
+									tr.dt_pickup_date,
+									tr.in_trans_coods_id,
+									tr.st_trans_type,
+									tr.in_tot_distance,
+									tr.st_from_street,
+									tr.st_from_country,
+									tr.st_from_state,							
+									tr.st_from_city,						
+									tr.st_from_zip,
+									tr.st_to_street,
+									tr.st_to_country,
+									tr.in_status,
+									tr.st_to_state,
+									tr.st_to_city,
+									tr.st_to_zip,
+									tr.in_allow_pics,
+									tr.accTcid,
+									org.st_org_name,
+									org.st_org_code,
+									usr.st_last_name,
+									usr.st_display_name,
+									tr.in_airline_transport", false);
+						   	
+		$this->db->from('tbl_transportation tr');
+		$this->db->join('tbl_organization org', 'tr.in_organization_id = org.in_organization_id','LEFT');
+		$this->db->join('tbl_users usr', 'tr.in_trans_coods_id = usr.in_user_id','LEFT');
+		$this->db->where('tr.in_transportation_id',$transId);
+		//$this->db->where('tr.in_status','1');
+		$this->db->where('tr.in_deleted','0');
+		//$results = $this->db->get()->result_array();
+		
+		//Added By Nirav 25-May-2016
+		$data['results'] = $this->db->get()->result_array();
+		if($data['results'][0]['in_allow_pics']== 1)	
+				$data['story_and_picture'] = $this->get_story_and_picture($transId);		
+		
+		//echo $this->db->last_query(); die;	
+		//return $results;
+		
+		return $data;		
+	}
+	
+	//Added By Nirav 25-May-2016
+	function get_story_and_picture($transId)
+	{
+		$animal_id = array();
+		$story_and_image = array();
+		$this->db->select("an.in_animal_id,an.st_animal_name,an.st_profile_story");
+		$this->db->from('tbl_animal_transportation an_tr');
+		$this->db->join('tbl_animal an','an_tr.in_animal_id = an.in_animal_id ','INNER');
+		$this->db->where('an_tr.in_transportation_id',$transId);
+		$this->db->where('an_tr.in_deleted','0');
+		$data['story'] = $this->db->get()->result_array();
+		
+		/*foreach($data['story'] as $key => $value)
+		{
+			array_push($animal_id,$value['in_animal_id']);
+		}*/
+		
+		foreach($data['story'] as $key => $value)
+		{
+			$pic_data	=	array();
+			$this->db->select("st_file_name");
+			$this->db->from('tbl_animal_file');
+			$this->db->where_in('in_animal_id',$value['in_animal_id']);
+			$this->db->where('st_file_type','P');
+			$this->db->where('in_deleted','0');
+			$data['picture'] = $this->db->get()->result_array();
+			foreach($data['picture'] as $value1)
+			{
+				$pic_file	=	base_url().'upload/animal_images/cropped_images/'.$value1['st_file_name'];
+				array_push($pic_data,$pic_file);	
+			}
+			
+			$story_and_image[$value['in_animal_id']] = array('TITLE' => $value['st_animal_name'],'STORY' => $value['st_profile_story'],'PIC' => $pic_data);
+			//array_push($animal_id,$value['in_animal_id']);
+		}
+		/*print_r($story_and_image);
+		if(count($animal_id)>0)
+		{	
+			$this->db->select("in_animal_id,st_file_name");
+			$this->db->from('tbl_animal_file');
+			$this->db->where_in('in_animal_id',$animal_id);
+			$this->db->where('st_file_type','P');
+			$this->db->where('in_deleted','0');
+			$data['picture'] = $this->db->get()->result_array();
+		}
+		
+		if(count($data['picture'] > 0 ) && is_array($data['picture']))
+		{
+			foreach ($data['picture'] as $key=>$value)
+			{
+				//print_r($value);	
+				if(array_key_exists($value['in_animal_id'],$story_and_image))
+					if(count($story_and_image[$value['in_animal_id']])== 2)
+						$story_and_image[$value['in_animal_id']][2] = base_url().'upload/animal_images/cropped_images/'.$value['st_file_name'];
+			}
+		}	
+		echo "<pre>";
+		print_r($story_and_image);
+		exit;*/
+			/*echo "<pre>"; print_r(ABCD); echo "</pre>";
+			exit(0);*/
+		return $story_and_image;
+	}
+	
+	function update_transportation_info($data,$transportationId,$table)
+	{
+		$this->db->where('in_transportation_id',$transportationId);
+		$this->db->update($table,$data);
+		//echo $this->db->last_query(); die;
+	}
+	
+	function get_transportation_profile($transportationId)
+	{
+		$this->db->select("tr.in_transportation_id,									
+									tr.dt_target,
+									tr.dt_pickup_date,
+									tr.in_organization_id,
+									tr.in_trans_coods_id,
+									tr.st_trans_type,
+									tr.in_tot_distance,
+									tr.st_from_country,	
+									tr.st_from_state,							
+									tr.st_from_city,						
+									tr.st_from_zip,
+									tr.st_to_country,	
+									tr.st_to_state,
+									tr.st_to_city,
+									tr.st_to_zip,
+									usr.st_last_name,
+									usr.st_display_name
+									", false);
+						   	
+		$this->db->from('tbl_transportation tr');	
+		$this->db->join('tbl_users usr', 'tr.in_trans_coods_id = usr.in_user_id','LEFT');	
+		$this->db->where('tr.in_transportation_id',$transportationId);		
+		$this->db->where('tr.in_deleted','0');
+		$results = $this->db->get()->result_array();		
+		//echo $this->db->last_query(); die;	
+		return $results;	
+	}
+	
+}
+?>

@@ -1,0 +1,1349 @@
+<?php
+
+class pushnotification_model_android_new extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+		//error_reporting(E_ALL);
+		//ini_set("display_errors",1);
+    }
+
+    #*********************************************************************************************
+    #	Function	:	get_transport_feed
+    #	Purpouse	:	Get Trasporttaion feeds
+    #*********************************************************************************************		
+
+    public function get_transport_feed() 
+	{ 
+        $data = array();		
+		$currdate=date('Y-m-d');
+		$raw_message='';
+		$msg='';
+		
+		/******************transport animal update notification*********************************/	
+		
+        $this->db->select('al.in_id,al.in_transport_id,t.in_organization_id,t.in_trans_coods_id,t.dt_target,t.dt_pickup_date,o.st_org_code,o.st_org_image');
+        $this->db->from('tbl_transport_animal_log al');       
+        $this->db->join('tbl_transportation t', 't.in_transportation_id=al.in_transport_id', 'INNER');       
+		$this->db->join("tbl_organization o","o.in_organization_id = t.in_organization_id AND o.in_deleted='0'","LEFT");
+		$this->db->where('al.dt_created >=', $currdate);	
+		$this->db->where('al.is_sent', 0);
+		$this->db->where('t.in_status', 1);		  
+        //$this->db->order_by('al.in_id', 'DESC');
+		$this->db->limit('1');
+        $query = $this->db->get();  		  
+		//echo $this->db->last_query(); die;
+        foreach ($query->result_array() as $row) {	
+		
+		    $orgcode = ($row['st_org_code'] != '')? $row['st_org_code'] : 'DBT';
+			
+			if(isset($row['st_org_image']) && $row['st_org_image'] !='')
+			{
+				$orglogopath=base_url().'upload/org_doc/'.$row['st_org_image'];
+		    }
+			else
+			{
+				$orglogopath=base_url().'upload/org_doc/doobertlogo.png'; 
+			}
+			
+			$this->send_animal_update_notification($row['in_transport_id'],$row['in_trans_coods_id'],$row['in_organization_id'],$row['in_id'],$row['dt_target'],$row['dt_pickup_date'],$orgcode,$orglogopath);			
+        }
+		
+		
+		
+		
+		/***transport date modified notification****/		
+		
+		$this->db->select('dl.in_id,dl.in_transport_id,t.in_trans_coods_id,t.in_organization_id,t.dt_target,t.dt_pickup_date,o.st_org_code,o.st_org_image');
+        $this->db->from('tbl_transport_date_log dl');
+        $this->db->join('tbl_transportation t', 't.in_transportation_id=dl.in_transport_id', 'INNER');       
+		$this->db->join("tbl_organization o","o.in_organization_id = t.in_organization_id AND o.in_deleted='0'","LEFT");
+		$this->db->where('dl.dt_created >=', $currdate);		
+		$this->db->where('dl.is_sent', 0);	
+		$this->db->where('t.in_status', 1);		  
+        $this->db->order_by('dl.in_id', 'DESC');
+		$this->db->limit('1');
+        $query = $this->db->get();
+
+       
+       foreach ($query->result_array() as $row) {	
+			$orgcode = ($row['st_org_code'] != '')? $row['st_org_code'] : 'DBT';
+			
+			if(isset($row['st_org_image']) && $row['st_org_image'] !='')
+			{
+				$orglogopath=base_url().'upload/org_doc/'.$row['st_org_image'];
+		    }
+			else
+			{
+				$orglogopath=base_url().'upload/org_doc/doobertlogo.png'; 
+			}
+		    $this->send_transport_date_modified_notification($row['in_transport_id'], $row['in_trans_coods_id'], $row['in_organization_id'], $row['dt_target'],$row['in_id'],$row['dt_pickup_date'],$orgcode,$orglogopath);			
+        }
+        
+		
+		
+		
+		
+		/***transport joined/cancelled notification****/		
+		
+		$this->db->select('n.in_notification_id,in_type,n.in_transportation_id,t.in_trans_coods_id,t.in_organization_id,t.dt_target,t.dt_pickup_date,n.st_notification_msg,u.st_display_name as full_name,o.st_org_code,o.st_org_image');
+        $this->db->from('tbl_notification n');
+		$this->db->join('tbl_users u', "u.in_user_id=n.in_modified_by", 'INNER');
+        $this->db->join('tbl_transportation t', 't.in_transportation_id=n.in_transportation_id', 'INNER'); 
+		$this->db->join("tbl_organization o","o.in_organization_id = t.in_organization_id AND o.in_deleted='0'","LEFT");
+		$where='';  
+		$where .= "n.dt_created >= '".$currdate."'";
+		$where .= "AND (n.is_sent = '0')";			
+		$where .= " AND (n.in_type = '12' || n.in_type = '13')";
+        $this->db->where($where);  		  
+        $this->db->order_by('n.in_notification_id', 'DESC');	
+		$this->db->limit('1');	
+        $query = $this->db->get();
+		$res=$query->row_array();
+		
+		
+		
+		
+      	
+       // foreach ($query->result_array() as $row) {		 		   		
+			
+			 if ($res['in_type'] == 12) {
+                if ($res['st_notification_msg'] != '') {
+                    $msg = substr($res['st_notification_msg'],0,256);
+                } else {
+					
+					$orgcode = ($res['st_org_code'] != '')? $res['st_org_code'] : 'DBT';
+                    $msg = $res['full_name'] . ' joined the' .' Transport #' . $orgcode.$res['in_transportation_id']. ' leg';
+                }
+            } else if ($res['in_type'] == 13) {
+
+                if ($res['st_notification_msg'] != '') {
+                    $msg = substr($res['st_notification_msg'],0,256);
+                } else {
+					$orgcode = ($res['st_org_code'] != '')? $res['st_org_code'] : 'DBT';
+                    $msg = $res['full_name'] . ' left leg from'.' Transport #' . $orgcode.$res['in_transportation_id'];
+                }
+            }	
+			
+			if(isset($res['st_org_image']) && $res['st_org_image'] !='')
+			{
+				$orglogopath=base_url().'upload/org_doc/'.$res['st_org_image'];
+		    }
+			else
+			{
+				$orglogopath=base_url().'upload/org_doc/doobertlogo.png'; 
+			}
+			
+			 $this->send_transport_joined_cancelled_notification($res['in_transportation_id'], $res['in_trans_coods_id'], $res['in_organization_id'], $res['dt_target'],$res['in_notification_id'],$msg,$res['dt_pickup_date'],$orgcode,$orglogopath);		
+			
+       // }
+		
+		
+		
+		
+		
+		
+		/*************custom message posted to the feed*************/
+		
+		$this->db->select('n.in_notification_id,in_type,n.in_transportation_id,t.in_trans_coods_id,t.in_organization_id,t.dt_target,t.dt_pickup_date,n.st_notification_msg,u.st_display_name as full_name,o.st_org_code,o.st_org_image');
+        $this->db->from('tbl_notification n');
+		$this->db->join('tbl_users u', "u.in_user_id=n.in_modified_by", 'INNER');
+        $this->db->join('tbl_transportation t', 't.in_transportation_id=n.in_transportation_id', 'INNER'); 
+		$this->db->join("tbl_organization o","o.in_organization_id = t.in_organization_id AND o.in_deleted='0'","LEFT");
+		$where='';  
+		$where .= "n.dt_created >= '".$currdate."'";
+		$where .= "AND (n.is_sent = '0')";			
+		$where .= " AND (n.in_type = '14')";
+        $this->db->where($where);  		  
+        $this->db->order_by('n.in_notification_id', 'DESC');	
+		$this->db->limit('1');	
+        $query = $this->db->get();
+      	
+        foreach ($query->result_array() as $row) { 	    
+			
+			$orgcode = ($row['st_org_code'] != '')? $row['st_org_code'] : 'DBT';
+			if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+                    $msg = $row['full_name'] . ':' . $row['st_notification_msg'];
+                }
+				
+				
+				if(isset($row['st_org_image']) && $row['st_org_image'] !='')
+				{
+					$orglogopath=base_url().'upload/org_doc/'.$row['st_org_image'];
+				}
+				else
+				{
+					$orglogopath=base_url().'upload/org_doc/doobertlogo.png'; 
+				}
+				 $this->send_transport_custom_feed_notification($row['in_transportation_id'],$row['in_trans_coods_id'],$row['in_organization_id'],$row['dt_target'],$row['in_notification_id'],$msg,$row['dt_pickup_date'],$orgcode,$orglogopath);		
+        }		
+		
+		
+		
+		
+		$this->db->select('n.in_notification_id,in_type,n.in_transportation_id,t.in_trans_coods_id,t.in_organization_id,t.dt_target,t.dt_pickup_date,n.st_notification_msg,u.st_display_name as full_name,o.st_org_code,o.st_org_image');
+        $this->db->from('tbl_notification n');
+		$this->db->join('tbl_users u', "u.in_user_id=n.in_modified_by", 'INNER');
+        $this->db->join('tbl_transportation t', 't.in_transportation_id=n.in_transportation_id', 'INNER'); 
+		$this->db->join("tbl_organization o","o.in_organization_id = t.in_organization_id AND o.in_deleted='0'","LEFT");	
+		$where='';  
+		$where .= "n.dt_created >= '".$currdate."'";
+		$where .= "AND (n.is_sent = '0')";			
+		$where .= " AND (n.in_type = '10')";
+        $this->db->where($where);  		  
+        $this->db->order_by('n.in_notification_id', 'DESC');	
+		$this->db->limit('1');	
+        $query = $this->db->get();
+		
+		
+      	
+        foreach ($query->result_array() as $row) { 	    
+			
+			
+			 if ($row['st_notification_msg'] != '') {
+                    $msg = substr($row['st_notification_msg'],0,256);
+                } else {
+					
+					$orgcode = ($row['st_org_code'] != '')? $row['st_org_code'] : 'DBT';
+					
+                    $msg = 'Transport #' .$orgcode.$row['in_transportation_id'] . ' has been confirmed';
+                }
+				
+				if(isset($row['st_org_image']) && $row['st_org_image'] !='')
+				{
+					$orglogopath=base_url().'upload/org_doc/'.$row['st_org_image'];
+				}
+				else
+				{
+					$orglogopath=base_url().'upload/org_doc/doobertlogo.png'; 
+				}
+				
+				$this->send_transport_confirm_notification($row['in_transportation_id'], $row['in_trans_coods_id'], $row['in_organization_id'], $row['dt_target'], $row['in_notification_id'],$msg,$row['dt_pickup_date'],$orgcode,$orglogopath);		
+        }					
+		
+        return $data;
+    }
+	
+	public function send_animal_update_notification($transport_id='',$cood_id='',$org_id='',$tid='',$target_dt='',$pickupdate='',$code='',$orglogopath='') 
+	{ 
+		$this->db->select('tp.in_user_id,u.strDeviceId,u.strDeviceToken');
+		$this->db->from('tbl_transportation_participants tp');
+		$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_pushnotification='0' and u.in_device_type=2",'INNER');
+		$this->db->join('tbl_push_notification pn',"pn.in_user_id = u.in_user_id",'LEFT');		
+		$where='';
+		$where .= "(tp.in_transportation_id='".$transport_id."')";
+		$where .= "AND (pn.in_flg_trans_ani IS NULL OR pn.in_flg_trans_ani = 1)";	
+		$this->db->where($where);			
+		//$this->db->where('tp.in_transportation_id',$transport_id);
+		//$this->db->where('pn.in_flg_trans_ani','1');
+		$this->db->group_by('tp.in_user_id');		
+		$query = $this->db->get();			
+		//echo $this->db->last_query();die;
+		$user_details = $query->result_array();	
+		
+		//echo '<pre>'; print_r($user_details);
+		
+		
+		if(isset($user_details) && !empty($user_details))
+		{
+			foreach ($user_details as $val) 
+			{	
+				
+				$raw_message = 'Transport #'.$code.$transport_id. 'animal list updated';  // pass message
+				
+				if(isset($raw_message) && $raw_message != '')
+				{	
+				//$raw_message= 'You have new jobs to bid.';
+				// Put your device token here (without spaces):
+				$deviceToken = $val['strDeviceToken']; 	// Device token 				
+				
+				
+				$google_api_key = 'AIzaSyD9byisvA38Xd8HkQdBZvDsiNRMVjEadsM';
+				$google_fcm_url = 'https://fcm.googleapis.com/fcm/send';
+		
+				// prep the bundle
+				$msg_array = array
+				(
+					'message' 					=> $raw_message,
+					'title'						=> 'Doobert Notification',
+					'vibrate'					=> 1,
+					'sound'						=> 1,
+					'msg_type' 					=> 'feed',
+					'in_transportation_id' 		=> $transport_id,
+					'participant_id'			=> array($val['in_user_id']),
+					'cood_user_id'				=> $cood_id,
+					'organization_id'			=> $org_id,
+					'dt_pickup'                 => $pickupdate,
+					'dt_target' 				=> $target_dt,
+					'org_code'                  => $code,
+					'orglogo'			        => $orglogopath
+				);
+				
+				$fields = array
+				(
+					'registration_ids' 	=> array($deviceToken),
+					'data'			=> $msg_array					
+				);		
+				//echo '<br/>';
+				//print_r($fields);
+				
+				$headers = array(
+					'Authorization: key=' . $google_api_key,
+					'Content-Type: application/json'
+				);
+				
+				print_r(json_encode($fields)); //exit;
+				// Open connection
+				$ch = curl_init();
+				
+				// Set the url, number of POST vars, POST data
+				curl_setopt($ch, CURLOPT_URL, $google_fcm_url);
+				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+				
+				// Execute post
+				$result = curl_exec($ch);
+				//print_r($result);exit;
+				if ($result === FALSE) {
+					die('Problem occurred: ' . curl_error($ch));
+				}
+				 $result1=json_decode( $result);
+				 //print_r( $result1->success);
+				// Close connection
+				curl_close($ch);
+				//echo '<br/>';
+				//echo $result;
+				$sent = $result1->success;	
+				
+				if($sent=='1')
+				{
+					echo 'Message successfully delivered' . PHP_EOL;
+						
+						//WRITE UPDATE QUERY
+						$data=array('is_sent'=>'1');
+						$this->db->where('in_id', $tid);
+						$this->db->update('tbl_transport_animal_log', $data);
+				}
+				else
+				{
+				
+				
+				       
+					    echo 'Message not delivered' . PHP_EOL;	
+				}
+				
+				
+					
+				
+			// push notification end
+		 }		
+			}
+		}
+		
+		else
+		{
+			 			$data=array('is_sent'=>'1');
+						$this->db->where('in_id', $tid);
+						$this->db->update('tbl_transport_animal_log', $data);
+		}
+	}	
+	
+	public function send_transport_date_modified_notification($transport_id='', $cood_id='', $org_id='', $target_dt='', $tid='',$pickupdate='',$code='',$orglogopath='') 
+	{ 
+		$this->db->select('tp.in_user_id,u.strDeviceId,u.strDeviceToken');
+		$this->db->from('tbl_transportation_participants tp');
+		$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_pushnotification='0' and u.in_device_type=2",'INNER');
+		$this->db->join('tbl_push_notification pn',"pn.in_user_id = u.in_user_id",'LEFT');	
+		$where='';
+		$where .= "(tp.in_transportation_id='".$transport_id."')";
+		$where .= "AND (pn.in_flg_trans_dt IS NULL OR pn.in_flg_trans_dt = 1)";	
+		$this->db->where($where);
+		//$this->db->where('tp.in_transportation_id',$transport_id);
+		//$this->db->where('pn.in_flg_trans_dt','1');
+		$this->db->group_by('tp.in_user_id');			
+		$query = $this->db->get();		
+		//echo $this->db->last_query(); die;		
+		$user_details = $query->result_array();	
+		
+		if(isset($user_details) && !empty($user_details))
+		{
+			foreach ($user_details as $val) 
+			{	
+				
+				$raw_message = 'Transport #'.$code.$transport_id. ' date modified';  // pass message
+				
+				
+				if(isset($raw_message) && $raw_message != '')
+				{	
+				//$raw_message= 'You have new jobs to bid.';
+				// Put your device token here (without spaces):
+				$deviceToken = $val['strDeviceToken']; 	// Device token 		
+						
+				
+				$google_api_key = 'AIzaSyD9byisvA38Xd8HkQdBZvDsiNRMVjEadsM';				
+				$google_fcm_url = 'https://fcm.googleapis.com/fcm/send';
+		
+				// prep the bundle
+				$msg_array = array
+				(
+					'message' 				=> $raw_message,
+					'title'					=> 'Doobert Notification',
+					'vibrate'				=> 1,
+					'sound'					=> 1,
+					'msg_type' 				=> 'feed',
+					'in_transportation_id'  => $transport_id,
+					'participant_id'		=> array($val['in_user_id']),
+					'cood_user_id'			=> $cood_id,
+					'organization_id'		=> $org_id,
+					'dt_pickup'             => $pickupdate,
+					'org_code'              => $code,
+					'dt_target' 			=> $target_dt,
+					'orglogo'			    => $orglogopath
+				);
+				
+				$fields = array
+				(
+					'registration_ids' 	=> array($deviceToken),
+					'data'			=> $msg_array					
+				);		
+				//echo '<br/>';
+				//print_r($fields);
+				
+				$headers = array(
+					'Authorization: key=' . $google_api_key,
+					'Content-Type: application/json'
+				);
+				
+				print_r(json_encode($fields)); //exit;
+				// Open connection
+				$ch = curl_init();
+				
+				// Set the url, number of POST vars, POST data
+				curl_setopt($ch, CURLOPT_URL, $google_fcm_url);
+				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+				
+				// Execute post
+				$result = curl_exec($ch);
+				//print_r($result);exit;
+				if ($result === FALSE) {
+					die('Problem occurred: ' . curl_error($ch));
+				}
+				 $result1=json_decode( $result);
+				 //print_r( $result1->success);
+				// Close connection
+				curl_close($ch);
+				//echo '<br/>';
+				//echo $result;
+				$sent = $result1->success;	
+				
+				if($sent=='1')
+				{
+					echo 'Message successfully delivered' . PHP_EOL;
+						
+						//WRITE UPDATE QUERY
+						$data=array('is_sent'=>'1');
+						$this->db->where('in_id', $tid);
+						$this->db->update('tbl_transport_date_log', $data);
+				}
+				else
+				{
+					
+					echo 'Message not delivered' . PHP_EOL;	
+				}
+			// push notification end
+		 }		
+			}
+		}
+		else{
+			$data=array('is_sent'=>'1');
+			$this->db->where('in_id', $tid);
+			$this->db->update('tbl_transport_date_log', $data);
+		}
+	}
+	
+	public function send_transport_joined_cancelled_notification($transport_id='', $cood_id='', $org_id='', $target_dt='', $tid='',$msg='',$pickupdate='',$code='',$orglogopath='') 
+	{ 
+		$this->db->select('tp.in_user_id,u.strDeviceId,u.strDeviceToken');
+		$this->db->from('tbl_transportation_participants tp');
+		$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_pushnotification='0' and u.in_device_type=2",'INNER');
+		$this->db->join('tbl_push_notification pn',"pn.in_user_id = u.in_user_id",'LEFT');			
+		//$this->db->where('tp.in_transportation_id',$transport_id);
+		//$this->db->where('pn.in_flglegupdated','1');		
+		$where='';
+		$where .= "(tp.in_transportation_id='".$transport_id."')";
+		$where .= "AND (pn.in_flglegupdated IS NULL OR pn.in_flglegupdated = 1)";	
+		$this->db->where($where);		
+		$this->db->group_by('tp.in_user_id');		
+		$query = $this->db->get();	
+		//echo $this->db->last_query(); die;		
+		$user_details = $query->result_array();	
+		
+		if(isset($user_details) && !empty($user_details))
+		{
+			foreach ($user_details as $val) 
+			{	
+				//$raw_message='';
+					$raw_message = $msg; // pass message
+				
+					if(isset($raw_message) && $raw_message != '')
+					{	
+				
+					$deviceToken = $val['strDeviceToken']; 	// Device token 
+					
+					$google_api_key = 'AIzaSyD9byisvA38Xd8HkQdBZvDsiNRMVjEadsM';
+					$google_fcm_url = 'https://fcm.googleapis.com/fcm/send';
+			
+					// prep the bundle
+					$msg_array = array
+					(
+						'message' 				=> $raw_message,
+						'title'					=> 'Doobert Notification',
+						'vibrate'				=> 1,
+						'sound'					=> 1,
+						'msg_type' 				=> 'feed',
+						'in_transportation_id'  => $transport_id,
+						'participant_id'		=> array($val['in_user_id']),
+						'cood_user_id'			=> $cood_id,
+						'organization_id'	    => $org_id,						
+						'org_code'              => $code,
+						'dt_pickup'             => $pickupdate,
+						'dt_target' 			=> $target_dt,
+						'orglogo'			   => $orglogopath
+					);
+					
+					$fields = array
+					(
+						'registration_ids' 	=> array($deviceToken),
+						'data'			=> $msg_array					
+					);		
+					//echo '<br/>';
+					//print_r($fields);
+					
+					$headers = array(
+						'Authorization: key=' . $google_api_key,
+						'Content-Type: application/json'
+					);
+					
+					print_r(json_encode($fields)); //exit;
+					// Open connection
+					$ch = curl_init();
+					
+					// Set the url, number of POST vars, POST data
+					curl_setopt($ch, CURLOPT_URL, $google_fcm_url);
+					curl_setopt($ch, CURLOPT_POST, true);
+					curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+					curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+					
+					// Execute post
+					$result = curl_exec($ch);
+					//print_r($result);exit;
+					if ($result === FALSE) {
+						die('Problem occurred: ' . curl_error($ch));
+					}
+					 $result1=json_decode( $result);
+					 //print_r( $result1->success);
+					// Close connection
+					curl_close($ch);
+					//echo '<br/>';
+					//echo $result;
+					$sent = $result1->success;	
+					
+					if($sent=='1')
+					{
+						echo 'Message successfully delivered' . PHP_EOL;
+							
+							//WRITE UPDATE QUERY
+							$data=array('is_sent'=>'1');
+							$this->db->where('in_notification_id', $tid);
+							$this->db->update('tbl_notification', $data);
+					}
+					else
+					{
+						echo 'Message not delivered' . PHP_EOL;	
+					}
+				
+			// push notification end
+		 }			
+			}
+		}
+	}
+	
+	public function send_transport_custom_feed_notification($transport_id='', $cood_id='', $org_id='', $target_dt='', $tid, $msg, $pickupdate='', $code='', $orglogopath='') 
+	{ 
+		$this->db->select('tp.in_user_id,u.strDeviceId,u.strDeviceToken');
+		$this->db->from('tbl_transportation_participants tp');
+		$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_pushnotification='0' and u.in_device_type=2",'INNER');
+		$this->db->join('tbl_push_notification pn',"pn.in_user_id = u.in_user_id",'LEFT');			
+		//$this->db->where('tp.in_transportation_id',$transport_id);
+		//$this->db->where('pn.in_flgmsgtofeed','1');		
+		$where='';
+		$where .= "(tp.in_transportation_id='".$transport_id."')";
+		$where .= "AND (pn.in_flgmsgtofeed IS NULL OR pn.in_flgmsgtofeed = 1)";	
+		$this->db->where($where);
+		$this->db->group_by('tp.in_user_id');		
+		$query = $this->db->get();			
+		$user_details = $query->result_array();		
+		
+		if(isset($user_details) && !empty($user_details))
+		{
+			foreach ($user_details as $val) 
+			{	
+				
+				$raw_message = $msg; // pass message
+				
+				
+				if(isset($raw_message) && $raw_message != '')
+				{	
+				
+					$deviceToken = $val['strDeviceToken']; 	// Device token 					
+					
+					$google_api_key = 'AIzaSyD9byisvA38Xd8HkQdBZvDsiNRMVjEadsM';
+					$google_fcm_url = 'https://fcm.googleapis.com/fcm/send';
+			
+					// prep the bundle
+					$msg_array = array
+					(
+						'message' 				=> $raw_message,
+						'title'					=> 'Doobert Notification',
+						'vibrate'				=> 1,
+						'sound'					=> 1,
+						'msg_type' 				=> 'feed',
+						'in_transportation_id'  => $transport_id,
+						'participant_id'	    => array($val['in_user_id']),
+						'cood_user_id'	        => $cood_id,
+						'organization_id'		=> $org_id,
+						'org_code'              => $code,
+						'dt_pickup'             => $pickupdate,
+						'dt_target' 			=> $target_dt,
+						'orglogo'			   => $orglogopath
+					);
+					
+					$fields = array
+					(
+						'registration_ids' 	=> array($deviceToken),
+						'data'			=> $msg_array					
+					);		
+					//echo '<br/>';
+					//print_r($fields);
+					
+					$headers = array(
+						'Authorization: key=' . $google_api_key,
+						'Content-Type: application/json'
+					);
+					
+					print_r(json_encode($fields)); //exit;
+					// Open connection
+					$ch = curl_init();
+					
+					// Set the url, number of POST vars, POST data
+					curl_setopt($ch, CURLOPT_URL, $google_fcm_url);
+					curl_setopt($ch, CURLOPT_POST, true);
+					curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+					curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+					
+					// Execute post
+					$result = curl_exec($ch);
+					//print_r($result);exit;
+					if ($result === FALSE) {
+						die('Problem occurred: ' . curl_error($ch));
+					}
+					 $result1=json_decode( $result);
+					 //print_r( $result1->success);
+					// Close connection
+					curl_close($ch);
+					//echo '<br/>';
+					//echo $result;
+					$sent = $result1->success;	
+					
+					if($sent=='1')
+					{
+						echo 'Message successfully delivered' . PHP_EOL;
+							
+							//WRITE UPDATE QUERY
+							$data=array('is_sent'=>'1');
+							$this->db->where('in_notification_id', $tid);
+							$this->db->update('tbl_notification', $data);
+					}
+					else
+					{
+						echo 'Message not delivered' . PHP_EOL;	
+					}					
+				
+			// push notification end
+		 }		
+			}
+		}
+	}
+	
+	public function send_transport_confirm_notification($transport_id='', $cood_id='', $org_id='', $target_dt='',$tid='',$msg='',$pickupdate='', $code='', $orglogopath='') 
+	{ 
+		$this->db->select('tp.in_user_id,u.strDeviceId,u.strDeviceToken');
+		$this->db->from('tbl_transportation_participants tp');
+		$this->db->join('tbl_users u',"u.in_user_id = tp.in_user_id and u.in_deleted='0' and u.strDeviceId!='' and u.strDeviceToken!='' and u.in_pushnotification='0' and u.in_device_type=2",'INNER');
+		$this->db->join('tbl_push_notification pn',"pn.in_user_id = u.in_user_id",'LEFT');			
+		//$this->db->where('tp.in_transportation_id',$transport_id);
+		//$this->db->where('pn.in_flg_trans_update','1');		
+		$where='';
+		$where .= "(tp.in_transportation_id='".$transport_id."')";
+		$where .= "AND (pn.in_flg_trans_update IS NULL OR pn.in_flg_trans_update = 1)";	
+		$this->db->where($where);	
+		$this->db->group_by('tp.in_user_id');		
+		$query = $this->db->get();			
+		$user_details = $query->result_array();
+		
+		
+		if(isset($user_details) && !empty($user_details))
+		{
+			foreach ($user_details as $val) 
+			{	
+				
+				$raw_message = $msg; // pass message
+				if(isset($raw_message) && $raw_message != '')
+				{	
+				//$raw_message= 'You have new jobs to bid.';
+				// Put your device token here (without spaces):
+				$deviceToken = $val['strDeviceToken']; 	// Device token 		
+					
+					$google_api_key = 'AIzaSyD9byisvA38Xd8HkQdBZvDsiNRMVjEadsM';
+					$google_fcm_url = 'https://fcm.googleapis.com/fcm/send';
+			
+					// prep the bundle
+					$msg_array = array
+					(
+						'message' 				=> $raw_message,
+						'title'					=> 'Doobert Notification',
+						'vibrate'				=> 1,
+						'sound'					=> 1,
+						'msg_type' 				=> 'feed',
+						'in_transportation_id' 	=> $transport_id,
+						'participant_id'		=> array($val['in_user_id']),
+						'cood_user_id'			=> $cood_id,
+						'organization_id'		=> $org_id,
+						'dt_target' 			=> $target_dt,
+						'dt_pickup'             => $pickupdate,
+						'org_code'             => $code,
+						'orglogo'			   => $orglogopath
+					);
+					
+					$fields = array
+					(
+						'registration_ids' 	=> array($deviceToken),
+						'data'			=> $msg_array					
+					);		
+					//echo '<br/>';
+					//print_r($fields);
+					
+					$headers = array(
+						'Authorization: key=' . $google_api_key,
+						'Content-Type: application/json'
+					);
+					
+					print_r(json_encode($fields)); //exit;
+					// Open connection
+					$ch = curl_init();
+					
+					// Set the url, number of POST vars, POST data
+					curl_setopt($ch, CURLOPT_URL, $google_fcm_url);
+					curl_setopt($ch, CURLOPT_POST, true);
+					curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+					curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+					
+					// Execute post
+					$result = curl_exec($ch);
+					//print_r($result);exit;
+					if ($result === FALSE) {
+						die('Problem occurred: ' . curl_error($ch));
+					}
+					 $result1=json_decode( $result);
+					 //print_r( $result1->success);
+					// Close connection
+					curl_close($ch);
+					//echo '<br/>';
+					//echo $result;
+					$sent = $result1->success;	
+					
+					if($sent=='1')
+					{
+						echo 'Message successfully delivered' . PHP_EOL;
+							
+							//WRITE UPDATE QUERY
+							$data=array('is_sent'=>'1');
+							$this->db->where('in_notification_id', $tid);
+							$this->db->update('tbl_notification', $data);
+					}
+					else
+					{
+						echo 'Message not delivered' . PHP_EOL;	
+					}		
+				
+			// push notification end			
+			
+		 }	
+			}
+		}
+	}
+	
+	
+	public function get_new_transport_feed()
+	{
+	
+		$users_data = array();		
+		$currdate=date('Y-m-d');
+		$raw_message='';
+		$msg='';
+		
+		$this->db->select('n.in_notification_id,n.in_type,n.in_transportation_id,t.st_trans_type,t.dt_target,t.dt_pickup_date,t.st_from_city,t.st_from_state,t.st_to_city,t.st_to_state,t.in_trans_coods_id,t.in_organization_id,u.st_display_name as full_name,o.st_org_code,o.st_org_image');
+        $this->db->from('tbl_notification n');
+		$this->db->join('tbl_users u', "u.in_user_id=n.in_modified_by", 'INNER');		
+        $this->db->join('tbl_transportation t', 't.in_transportation_id=n.in_transportation_id', 'INNER'); 
+		$this->db->join("tbl_organization o","o.in_organization_id = t.in_organization_id AND o.in_deleted='0'","LEFT");
+		$where='';  
+		$where .= "n.dt_created >= '".$currdate."'";
+		$where .= "AND (t.in_status = '1')";	
+		$where .= "AND (n.is_sent = '0')";			
+		$where .= " AND (n.in_type = '5')";
+        $this->db->where($where);  	
+		$this->db->limit('1');	      
+        $query = $this->db->get(); 
+		//echo $this->db->last_query();
+		//exit;
+      	
+        foreach ($query->result_array() as $row) { 	
+					
+			$orgcode = ($row['st_org_code'] != '')? $row['st_org_code'] : 'DBT';
+            $msg = 'New Transport: #' . $orgcode.$row['in_transportation_id'];
+			//$msg .= "\n";
+			$msg .= $row['st_from_city'].', '.$row['st_from_state'].' - '.$row['st_to_city'].', '.$row['st_to_state']; 
+			
+			
+			
+			if(isset($row['st_org_image']) && $row['st_org_image'] !='')
+			{
+				$orglogopath=base_url().'upload/org_doc/'.$row['st_org_image'];
+		    }
+			else
+			{
+				$orglogopath=base_url().'upload/org_doc/doobertlogo.png'; 
+			}
+		   
+		   if($row['st_trans_type']=='P')
+		   {
+			 $transport_legs_details=array();
+		     $transport_legs_details=$this->get_rel_legs_data($row['in_transportation_id']);			
+			if(isset($transport_legs_details) && !empty($transport_legs_details))
+			{  
+				
+				if(isset($transport_legs_details[0]['st_transport_legs']) && !empty($transport_legs_details[0]['st_transport_legs']))
+				{
+					$transport_legs_data = unserialize($transport_legs_details[0]['st_transport_legs']);
+					$org_id	=	$transport_legs_details[0]['in_org_id'];
+					
+					
+					foreach($transport_legs_data as $trans_val)
+					{
+							
+						$leg_id = $trans_val['leg_id'];
+						
+						if($trans_val['route_type_id'] == 0)
+						{	
+						
+							if(isset($trans_val['pick_lat']) && isset($trans_val['pick_lon']) && isset($trans_val['drop_lat']) && $trans_val['drop_lon'])
+							{
+								
+								$transport_leg_user_details[$leg_id] = $this->get_driver_users_for_leg($org_id,$leg_id,$trans_val['pick_lat'],$trans_val['pick_lon'],$trans_val['drop_lat'],$trans_val['drop_lon'],$trans_val['pick_day'],$trans_val['drop_day']);
+								
+							}
+						}
+						
+						if($trans_val['route_type_id'] == 1)
+						{
+							$transport_leg_user_details[$leg_id] = $this->get_pilot_users_for_leg($org_id,$leg_id,$trans_val['pick_lat'],$trans_val['pick_lon'],$trans_val['drop_lat'],$trans_val['drop_lon'],$trans_val['pick_day'],$trans_val['drop_day']);
+						}
+						
+						if($trans_val['route_type_id'] == 2)
+						{
+							if(isset($trans_val['o_lat']) && isset($trans_val['o_lon']))
+							{							
+								$transport_leg_user_details[$leg_id] = $this->get_driver_users_for_overnight_leg($org_id,$leg_id,$trans_val['o_lat'],$trans_val['o_lon'],$trans_val['o_day']);
+							}
+						}
+						
+						
+						$leg_users_data = array();
+						if(isset($transport_leg_user_details[$leg_id]) && !empty($transport_leg_user_details[$leg_id]))
+						{
+							foreach($transport_leg_user_details[$leg_id] as $leg_user)
+							{
+								$leg_users_data[$leg_id][$leg_user['in_user_id']] = $leg_user;
+														
+							}
+						}
+						
+						
+						
+						if(isset($leg_users_data[$leg_id]) && !empty($leg_users_data[$leg_id]))
+						{
+							
+							foreach($leg_users_data[$leg_id] as $leg_user)
+							{
+								
+								$users_data[$leg_user['in_user_id']] = $leg_user;						
+								
+							
+								$devid				= $users_data[$leg_user['in_user_id']]['strDeviceId'];
+								$devtoken			= $users_data[$leg_user['in_user_id']]['strDeviceToken'];	
+								$participant_id		= $users_data[$leg_user['in_user_id']]['in_user_id'];													
+															
+								$this->send_new_transport_notification($devid,$devtoken,$row['in_transportation_id'],$participant_id,$row['in_trans_coods_id'],$row['dt_target'],$row['in_organization_id'],$row['in_notification_id'],$msg,$row['dt_pickup_date'],$orgcode,$orglogopath);
+								
+							}						
+														
+						}
+					}				
+					
+				}
+			
+			}	
+			
+			}
+			else
+			{
+				
+				$emails_list	=	array();
+				$this->db->select('u.in_user_id,CONCAT(u.st_display_name," ",st_last_name) as st_display_name,u.st_email,u.strDeviceToken,u.strDeviceId,pn.in_flg_trans_update',FALSE); 
+				$this->db->from("tbl_users u");
+				$this->db->join('tbl_push_notification pn','pn.in_user_id=u.in_user_id','LEFT');
+				$where = array("u.in_status"=>"1","u.in_deleted"=>"0","u.strDeviceToken <>"=>"","u.strDeviceId <>"=>"","u.in_pushnotification"=>"0","u.in_device_type"=>"2"); 
+				$this->db->where($where);	
+				$wh='';
+				$wh .= "(pn.in_flg_trans_update IS NULL OR pn.in_flg_trans_update = 1)";	
+				$this->db->where($wh);	
+				
+				$this->db->where("u.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$row['in_organization_id']." AND in_status = 3)");
+				$query =	$this->db->get();
+				$users_list = $query->result_array();
+	
+	
+				foreach($users_list as $u_key=>$u_val)
+				{					
+					$details 		= $this->get_driver_detail_by_user_id($u_val['in_user_id']);
+					
+					$pilot_details  = $this->get_pilot_detail_by_user_id($u_val['in_user_id']);
+						
+					$trns_ids_list 	= $this->get_user_transportations_by_id($u_val['in_user_id']);					
+					
+					$trns_ids	= '';
+					$driver		= '';
+					$pilot		= '';
+					if(!empty($trns_ids_list))
+					{
+						$trns_ids 		= implode(",",$trns_ids_list);
+					}
+					if(!empty($details) || !empty($pilot_details))
+					{
+						if(!empty($details))
+						{
+							$days 		= "'".implode("','",unserialize($details['st_driver_availability']))."'";
+							$lat 		= $details['lat'];
+							$lon 		= $details['lon'];
+							$distance 	= $details['in_distance_to_drive'];
+						}
+						if(!empty($pilot_details))
+						{
+							$a_days 	= "'".implode("','",unserialize($pilot_details['st_pilot_availability']))."'";
+							$a_lat 		= $pilot_details['st_latitude'];
+							$a_lon 		= $pilot_details['st_longitude'];
+							$a_distance = $pilot_details['in_distance_to_pilot'];
+						}
+						$this->db->select(" tr.dt_target,
+											DATE_FORMAT(tr.dt_pickup_date, '%a') as pdays,
+											DATE_FORMAT(tr.dt_target, '%a') as days,
+											tr.in_transportation_id,
+											tr.in_status, 
+											tr.st_from_zip, 
+											tr.st_to_zip, 
+											tr.in_tot_distance, 
+											tr.in_distance_covered,
+											tr.st_trans_type,
+											round(( tr.in_distance_covered/tr.in_tot_distance * 100 ), 2) perc,
+											z.lat,
+											z.lon",FALSE);
+						$this->db->from("tbl_transportation tr");
+						$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+						$this->db->join("tbl_zip_code tz","tr.st_to_zip = tz.zip_code","INNER");
+						
+						$where = array("tr.in_transportation_id"=>$row['in_transportation_id'],"tr.in_deleted"=>'0',"tr.in_status"=>"1");
+						$this->db->where($where);
+						
+						if($trns_ids!='')
+						{
+							$this->db->where("tr.in_transportation_id NOT IN (".$trns_ids.") ", NULL, FALSE);
+						}
+						$pilot_h = '';
+						$driver_h = '';
+						if(!empty($details))
+						{
+							$driver = '(3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat))))<="'.$distance.'" 
+							OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat)))) is NULL 
+						OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat))))<="'.$distance.'" 
+						OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat)))) is NULL  ';
+							$driver_h = '(days in('.$days .') OR pdays in('.$days .'))';
+						}
+						if(!empty($pilot_details))
+						{
+							$pilot  = '(3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(z.lat))))<="'.$a_distance.'" 
+						OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(z.lat)))) is NULL	
+						OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(tz.lat))))<="'.$a_distance.'" 
+						OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(tz.lat)))) is NULL ';
+							$pilot_h = '(days in('.$a_days .') OR pdays in('.$a_days .'))';
+						}
+						$cnd = ($driver)?$driver:"";
+						$cnd_h = ($driver_h)?$driver_h:"";
+						if($cnd!='' && $pilot!='' )
+						{
+							$cnd .= " OR ".$pilot;
+						}
+						elseif($pilot)
+						{
+							$cnd = $pilot;
+						}
+						if($cnd)
+						{
+							$cnd = "( ".$cnd." ) ";
+						}
+						if($cnd_h!='' && $pilot_h!='' )
+						{
+							$cnd_h .= " OR ".$pilot_h;
+						}
+						elseif($pilot_h)
+						{
+							$cnd_h = $pilot_h;
+						}
+						if($cnd_h)
+						{
+							$cnd_h = "( ".$cnd_h." ) AND ";
+						}						
+						
+						$this->db->where($cnd.'GROUP BY tr.in_transportation_id HAVING '.$cnd_h.' perc < "100" ', NULL, FALSE);						
+						$query =	$this->db->get();						
+						if($query->num_rows() > 0)
+						{
+							$emails_list[] = array("user_id"=>$u_val['in_user_id'],"name"=>$u_val['st_display_name'],"email_address"=>$u_val['st_email'],"DeviceToken"=>$u_val['strDeviceToken'],"DeviceId"=>$u_val['strDeviceId']);											
+						}
+						
+					}				
+				}
+	
+				$tmp_email = array ();
+							foreach ($emails_list as $row_val) 
+							{
+								if (!in_array($row_val,$tmp_email)){
+									 array_push($tmp_email,$row_val);
+								}
+							}
+				
+				if(isset($tmp_email) && !empty($tmp_email))
+							{
+								//send new transport notification
+								
+								foreach($tmp_email as $dat){
+								
+								$this->send_new_transport_notification($dat['DeviceId'],$dat['DeviceToken'],$row['in_transportation_id'],$dat['in_user_id'],$row['in_trans_coods_id'],$row['dt_target'],$row['in_organization_id'],$row['in_notification_id'],$msg,$row['dt_pickup_date'],$orgcode,$orglogopath);		
+								
+								}
+								
+														
+								
+							}
+        }
+		
+		}
+		
+		//print_r($users_data);die;
+	
+	}
+	
+	
+	public function get_rel_legs_data($transport_id)
+	{
+		$this->db->select("trtc.*,t.st_trans_type as trans_type");
+		$this->db->from("tbl_rel_transport_cron trtc");
+		$this->db->join("tbl_transportation t","t.in_transportation_id = trtc.in_transport_id","INNER");		
+		$this->db->where("trtc.in_deleted",'0');
+		$this->db->where("trtc.in_transport_id",$transport_id);		
+		$query =	$this->db->get();		
+		$transport_user_leg_details = $query->result_array();		
+		return $transport_user_leg_details;
+	}
+	
+	
+	public function get_driver_users_for_leg($org_id,$leg_id,$start_lat,$start_lon,$end_lat,$end_lon,$trans_pick_day,$trans_drop_day)
+	{
+		$this->db->select("tuv.in_distance_to_drive,tuv.st_driver_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email,tu.strDeviceToken,tu.strDeviceId,pn.in_flg_trans_update");
+		$this->db->from("tbl_user_vehicle tuv");
+		$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id AND tu.strDeviceToken!='' AND tu.strDeviceId!='' and tu.in_pushnotification='0' and tu.in_device_type=2","INNER");
+		$this->db->join("tbl_push_notification pn","pn.in_user_id = tu.in_user_id","LEFT");	
+		//$this->db->where("pn.in_flg_trans_update",1);	
+		//$this->db->where("tuv.in_deleted",'0');
+		//$this->db->where("tu.in_deleted",'0');		
+		//$this->db->where("tu.in_status <>",'3');
+		
+		$where='';
+		$where .= "(tuv.in_deleted='0')";
+		$where .= " AND (tu.in_deleted='0')";
+		$where .= " AND (tu.in_status !='3')";			
+		$where .= " AND (pn.in_flg_trans_dt IS NULL OR pn.in_flg_trans_dt = 1)";	
+		$this->db->where($where);
+		
+		$driver = '((3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$start_lat.'")))) <= tuv.in_distance_to_drive 
+					OR (3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$start_lat.'")))) is NULL 
+					OR (3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$end_lat.'"))))<= tuv.in_distance_to_drive 
+					OR (3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$end_lat.'")))) is NULL) ';
+		$driver_h = '(tuv.st_driver_availability Like "%'.$trans_pick_day.'%" OR tuv.st_driver_availability Like "%'.$trans_drop_day.'%")';
+		
+		$this->db->where($driver);
+		$this->db->where($driver_h);
+		
+		$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$org_id." AND in_status = 3 AND in_deleted = 0)");
+		
+		$query =	$this->db->get();
+		//echo $this->db->last_query(); die;
+		
+		$transport_leg_user_details = $query->result_array();
+		
+		return $transport_leg_user_details;
+	}
+	
+	
+	public function get_pilot_users_for_leg($org_id,$leg_id,$start_lat,$start_lon,$end_lat,$end_lon,$trans_pick_day,$trans_drop_day)
+	{
+		$this->db->select("tuv.in_distance_to_pilot,tuv.st_pilot_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email,tu.strDeviceToken,tu.strDeviceId,pn.in_flg_trans_update");
+		$this->db->from("tbl_user_pilot tuv");
+		$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id AND tu.strDeviceToken!='' AND tu.strDeviceId!='' and tu.in_pushnotification='0' and tu.in_device_type=2","INNER");
+		$this->db->join("tbl_push_notification pn","pn.in_user_id = tu.in_user_id","LEFT");
+		//$this->db->where("tuv.in_deleted",'0');
+		//$this->db->where("tu.in_deleted",'0');
+		//$this->db->where("pn.in_flg_trans_update",1);
+		//$this->db->where("tu.in_status <>",'3');	
+		
+		$where='';
+		$where .= "(tuv.in_deleted='0')";
+		$where .= " AND (tu.in_deleted='0')";
+		$where .= " AND (tu.in_status !='3')";			
+		$where .= " AND (pn.in_flg_trans_update IS NULL OR pn.in_flg_trans_update = 1)";	
+		$this->db->where($where);
+		
+		
+			
+		
+		$pilot = '((3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$start_lat.'")))) <= tuv.in_distance_to_pilot 
+					OR (3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$start_lat.'")))) is NULL 
+					OR (3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$end_lat.'"))))<= tuv.in_distance_to_pilot 
+					OR (3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$end_lat.'")))) is NULL)  ';
+		$pilot_h = '(tuv.st_pilot_availability Like "%'.$trans_pick_day.'%" OR tuv.st_pilot_availability Like "%'.$trans_drop_day.'%")';
+		
+		$this->db->where($pilot);
+		$this->db->where($pilot_h);
+		
+		$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$org_id." AND in_status = 3 AND in_deleted = 0)");
+			
+		$query =	$this->db->get();
+		
+		$transport_leg_user_details = $query->result_array();
+		
+		return $transport_leg_user_details;
+	}	
+	
+	
+	 public function get_driver_users_for_overnight_leg($org_id,$leg_id,$o_lat,$o_lon,$o_day)
+	{
+	$this->db->select("tuv.in_distance_to_drive,tuv.st_driver_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email,tu.strDeviceToken,tu.strDeviceId,pn.in_flg_trans_update");
+	$this->db->from("tbl_user_vehicle tuv");
+	$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id AND tu.strDeviceToken!='' AND tu.strDeviceId!='' and tu.in_pushnotification='0' and tu.in_device_type=2","INNER");
+	$this->db->join("tbl_push_notification pn","pn.in_user_id = tu.in_user_id","LEFT");
+	//$this->db->where("tuv.in_deleted",'0');
+	//$this->db->where("tu.in_deleted",'0');
+	//$this->db->where("pn.in_flg_trans_update",1);
+	//$this->db->where("tu.in_status <>",'3');
+	
+		$where='';
+		$where .= "(tuv.in_deleted='0')";
+		$where .= " AND (tu.in_deleted='0')";
+		$where .= " AND (tu.in_status !='3')";			
+		$where .= " AND (pn.in_flg_trans_update IS NULL OR pn.in_flg_trans_update = 1)";	
+		$this->db->where($where);
+	
+	$driver = '((3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$o_lat.'"))*cos(radians("'.$o_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$o_lat.'")))) <= tuv.in_distance_to_drive 
+				OR (3959*acos(cos(radians(tuv.zip_lat))*cos(radians("'.$o_lat.'"))*cos(radians("'.$o_lon.'")-radians(tuv.zip_lon))+sin(radians(tuv.zip_lat))*sin(radians("'.$o_lat.'")))) is NULL ) ';
+	$driver_h = '(tuv.st_driver_availability Like "%'.$o_day.'%")';
+	
+	$this->db->where($driver);
+	$this->db->where($driver_h);
+	
+	$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$org_id." AND in_status = 3 AND in_deleted = 0)");
+	
+	$query =	$this->db->get();
+
+	$transport_leg_user_details = $query->result_array();
+	
+	return $transport_leg_user_details;}
+	
+	
+	public function send_new_transport_notification($devid,$devtoken,$id,$participant_id='',$cood_id='',$target_dt='',$org_id='',$notid='',$msg='',$pickupdate='',$code='',$orglogopath='')
+	{		
+				
+				$raw_message = $msg;   // pass message
+				
+			
+				if(isset($raw_message) && $raw_message != '')
+				{	
+				//echo 'test device'.$devtoken;
+				$deviceToken = $devtoken; 	// Device token 					
+				
+				$google_api_key = 'AIzaSyD9byisvA38Xd8HkQdBZvDsiNRMVjEadsM';
+				$google_fcm_url = 'https://fcm.googleapis.com/fcm/send';
+		
+				// prep the bundle
+				$msg_array = array
+				(
+					'message' 				=> $msg,
+					'title'					=> 'Doobert Notification',
+					'vibrate'				=> 1,
+					'sound'					=> 1,
+					'msg_type' 				=> 'new_transport',
+					'in_transportation_id' 	=> $id,
+					'participant_id'		=> array($participant_id),
+					'cood_user_id'			=> $cood_id,
+					'organization_id'		=> $org_id,
+					'org_code'              => $code,
+					'dt_pickup'             => $pickupdate,
+					'dt_target' 			=> $target_dt,
+					'orglogo'               => $orglogopath
+				);
+				
+				$fields = array
+				(
+					'registration_ids' 	=> array($deviceToken),
+					'data'			=> $msg_array					
+				);		
+				//echo '<br/>';
+				//print_r($fields);
+				
+				$headers = array(
+					'Authorization: key=' . $google_api_key,
+					'Content-Type: application/json'
+				);
+				
+				print_r(json_encode($fields)); exit;
+				// Open connection
+				$ch = curl_init();
+				
+				// Set the url, number of POST vars, POST data
+				curl_setopt($ch, CURLOPT_URL, $google_fcm_url);
+				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+				
+				// Execute post
+				$result = curl_exec($ch);
+				
+				//print_r($result);die;
+				if ($result === FALSE) {
+					die('Problem occurred: ' . curl_error($ch));
+				}
+				 $result1=json_decode( $result);
+				 //print_r( $result1->success);
+				// Close connection
+				curl_close($ch);
+				//echo '<br/>';
+				//echo $result;
+				$sent = $result1->success;	
+				
+				if($sent=='1')
+				{
+					echo 'Message successfully delivered' . PHP_EOL;
+						
+						//WRITE UPDATE QUERY
+						
+						$data=array('is_sent'=>'1');
+						$this->db->where('in_notification_id', $notid);
+						$this->db->update('tbl_notification', $data);
+				}
+				else
+				{
+					echo 'Message not delivered' . PHP_EOL;	
+				}		
+				
+				// push notification end			
+			
+		 		}
+	
+	}
+	
+	
+	public function get_driver_detail_by_user_id($user_id)
+	{
+		
+		$this->db->select("pr.in_user_id,pr.st_driver,v.st_driver_availability,v.st_zip_vehicle,v.in_distance_to_drive,zip_lat,zip_lon,z.lat,z.lon");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_user_vehicle v","v.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_zip_code z","v.st_zip_vehicle = z.zip_code",'INNER');
+		$where = array("pr.in_deleted"=>'0',"pr.st_driver"=>"Y","v.in_deleted"=>"0","pr.in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->order_by("v.in_distance_to_drive","DESC");
+		$query =	$this->db->get();		
+		return $query->row_array();
+	}
+	
+	public function get_pilot_detail_by_user_id($user_id)
+	{
+		
+		$this->db->select("pr.in_user_id,pr.st_driver,vp.st_pilot_availability,vp.st_pilot_zip,vp.in_distance_to_pilot,a.st_longitude,a.st_latitude");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_user_pilot vp","vp.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_airport a","a.st_loc_id = vp.st_identifier",'INNER');
+		$where = array("pr.in_deleted"=>'0',"pr.st_pilot"=>"Y","vp.in_deleted"=>"0","a.in_deleted"=>"0","pr.in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->order_by("vp.in_distance_to_pilot","DESC");
+		$query =	$this->db->get();		
+		return $query->row_array();
+	}
+	
+	 public  function get_user_transportations_by_id($user_id)
+	{
+		$this->db->select("in_transportation_id");
+		$this->db->from("tbl_transportation_participants");
+		$where = array("in_deleted"=>'0',"in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->group_by("in_transportation_id");
+		$query =	$this->db->get();		
+		if($query->num_rows()>0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData[]	= $Row->in_transportation_id;
+			}
+			return $arrData;
+		}		
+	}	
+
+}
+?>

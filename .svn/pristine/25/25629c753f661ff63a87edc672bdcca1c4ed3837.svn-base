@@ -1,0 +1,451 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Supply_demand extends CI_Controller {
+
+	public function __construct() 
+	{
+		parent::__construct();
+		if($_SERVER['REMOTE_ADDR']=='172.68.144.175' || $_SERVER['REMOTE_ADDR']=='162.158.154.19')
+		{
+			//$this->output->enable_profiler(TRUE);
+		}
+		// else
+		// {
+		// 	//$this->output->enable_profiler(FALSE);
+		// }
+
+		// if(!$this->session->userdata('org_id'))
+		// {
+		// 	redirect($this->config->item('base_url'));
+		// }
+
+		$this->load->library('common_function');
+		$this->common_function->check_front_logged_in($this); 
+		$this->load->model('common_model');		
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->helper('cookie');		
+		$this->load->model('partner_model');
+		$this->load->model('partner_map_model');
+		$this->load->model('supply_demand_model');
+		$this->load->model('non_doobert_rescue_map_model');
+		ini_set('memory_limit', '1073741824');
+	}	
+	
+	#=========================================================
+	#	Function : index
+	#	Purpose  : organization dashboard
+	#---------------------------------------------------------
+	
+	
+
+	public function index()
+	{
+		
+		$data= array();				
+		$state_list = $this->common_function->shortAllState;
+        $indian_state_list = $this->common_function->indian_state_list;
+        $data['state_list'] = array_merge($state_list,$indian_state_list);
+	
+		$org_file_cnt = 0; 
+	
+		$data['total_org_files'] = $org_file_cnt;		 		
+		
+		$this->load->view('rescue_map/supply_demand_map',$data);
+		return;	
+	}
+
+
+	public function get_user_map_json2()
+	{
+		$txtsearch = isset($_POST['txtsearch'])?$_POST['txtsearch']:'';
+		$doobert_arr = array();
+		if(!empty($txtsearch))
+		{
+			$doobert_arr = $this->doobert_org('',$txtsearch);
+		}else
+		{
+			$doobert_arr = $this->doobert_org('','');
+		}
+		echo json_encode($doobert_arr);					
+	}
+
+	/*public function get_user_map_json2()
+	{
+		$doobert_arr = $this->doobert_org('','');
+		echo json_encode($doobert_arr);						
+						
+	}*/			
+		
+
+
+	/*public function get_user_map_json()
+	{
+   
+		$file_name = isset($_POST['file_name'])?$_POST['file_name']:'';	
+		$doobert_arr = array();
+		if(!empty($file_name)){
+			$doobert_arr = $this->doobert_org($file_name,'');
+		}else{
+			$doobert_arr = $this->doobert_org('','');
+		}
+		echo json_encode($doobert_arr);		
+		
+	}*/
+	
+	public function get_user_map_json()
+	{
+		if($this->session->userdata('userid'))
+		{
+			$file_name = 'login_supply_demand';
+			$alluser_data = file_get_contents ("upload/supply_demand_map/".$file_name.".json");													
+		} else {
+			$file_name = 'nonlogin_supply_demand';
+			$alluser_data = file_get_contents ("upload/supply_demand_map/".$file_name.".json");
+		}	
+		print($alluser_data);
+	}
+
+
+
+	public function get_user_details()
+	{
+		$uid  = $this->input->post('uid');
+		$role = $this->input->post('role'); 
+		if($role =='user')
+		{
+			$data=$this->non_doobert_rescue_map_model->user_details($uid);		
+		}
+		else {
+			$data1=$this->non_doobert_rescue_map_model->org_details($uid);	
+		}
+		
+		if(!empty($data))
+		{
+			$result['name']=$data[0]->st_display_name;
+			$result['email'] = $data[0]->st_email;
+			$result['success'] =1;
+			//$result['fromname'] = $this->session->userdata('user_name')." ".$this->session->userdata('last_name');
+			$result['fromname'] = $this->session->userdata('user_name');
+			// if($result['fromname']==' '){
+			// 	$result['fromname'] = '';
+			// }
+			$result['fromemail'] = $this->session->userdata('email');
+		}
+		if(!empty($data1))
+		{
+			$result['name']=$data1[0]->st_org_name;
+			$result['email'] = $data1[0]->st_email_address;
+			$result['org_id'] = $data1[0]->in_organization_id;
+			$result['success'] =1;
+			$result['fromname'] = $this->session->userdata('user_name');
+			// if($result['fromname']==' '){
+			// 	$result['fromname'] = '';
+			// }
+			$result['fromemail'] = $this->session->userdata('email');
+			
+		}
+		echo json_encode($result);
+	}
+
+	function map_send_mail()
+	{
+		$pickup_zip = $this->input->post('pickup_zip');
+        $dropoff_zip = $this->input->post('dropoff_zip');
+		$org_id		 = $this->input->post('org_id');	
+		$sender_name = $this->input->post('username');
+		$sender_email = $this->input->post('useremail');
+		$phone_no = $this->input->post('phone_no');
+        $msg = nl2br($this->input->post('contactmessage'));	
+		//echo $user_name;	echo $user_email; 	echo $sender_name; echo $sender_email;
+		
+		$require_ride= array('st_from_location' 	=> $pickup_zip,
+							 'st_to_location'   	=> $dropoff_zip,
+							 'st_user_name'	   	 	=> $sender_name,
+							 'st_email'	   	    	=> $sender_email,
+							 'st_message'	    	=> $msg,
+							 'st_phone_no'			=> $phone_no,
+							 );
+							 	
+		$this->db->insert('tbl_ride_transport_help',$require_ride);
+		
+		$ride_id = $this->db->insert_id();
+		
+		$org_details = $this->common_model->get_single_org_details($org_id); 
+		$user_profile = $this->common_model->get_user_profile($org_details['in_user_id']);
+		$contact_details = $sender_name.' ('.$sender_email.')';
+		$this->load->library('email');
+						
+		$cont_details = array('user_details'=>$contact_details,'user_name'=>$sender_name);
+			
+		$admin_list = $this->common_model->get_admin_list();
+			
+		$email_notification = $this->common_model->get_email_containt("155");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');	
+
+			if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							
+							$imgpath	=	'http://crystal99/doobert-v3/upload/affiliate_images/orig/'.$qr['st_image'];
+							//$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		if(isset($email_notification[0]['st_email_body']))
+		{
+				$message  = $email_notification[0]['st_email_body'];
+				$message  = str_replace("##user_name##",$cont_details['user_details'],$message);
+				$message  = str_replace("##ride_id##",'#'.$ride_id,$message);
+				$message  = str_replace("##DONATION##",$donation,$message);
+				$message  = str_replace("##admin_url##",$this->config->item('base_url').'administration.php/transport_ride_help/',$message);
+				//$message  = str_replace("##organization_name##",$cont_details['org_name'],$message);
+				$subject  = $email_notification[0]['st_email_subject'];
+				$subject  = str_replace("##contact_name##",$cont_details['user_name'],$subject);
+				$category = $email_notification[0]['st_category'];
+				//for($a=0;$a<count($admin_list);$a++)
+				//{	
+					//$this->common_function->send_mail($this->email,$admin_list[$a]['email_address'], $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+					$this->common_function->send_mail($this->email,'nirav.motta@pulsesolutions.net', $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+				//}
+				//$this->common_function->send_mail($this->email,'support@doobert.zendesk.com', $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+				$data['success'] = 1;
+				echo json_encode($data);
+		}  else {
+				$data['success'] = 0;
+				echo json_encode($data);
+		}
+
+	}
+
+	public function get_user_info()
+	{
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		if(!empty($user_details) && count($user_details)>0)
+		{
+			$result['success'] = '1';
+			$result['name'] = $user_details[0]['st_display_name'].' '.$user_details[0]['st_last_name'];
+			if(!empty($user_details[0]['st_primary_phone']))
+			{	
+				$phone_details = preg_replace('/\D/', '',$user_details[0]['st_primary_phone']);	
+				$result['phone'] = $phone_details;
+			} else {
+				$result['phone'] = '';
+			}	
+			$result['email'] = $user_details[0]['st_email'];
+		} else {
+			$result['success'] = '0';
+		}
+		echo json_encode($result);
+	}
+	
+	public function doobert_org_cache_login()
+	{
+		$doobert_orgs= array();	
+   		
+   		$doobert_map = $this->supply_demand_model->get_doobert_org_bystateziplogin();		
+		//echo '<pre>'; print_r($doobert_map); die;		
+
+		if(!empty($doobert_map) && count($doobert_map)>0)
+		{
+			foreach($doobert_map as $row)
+			{		
+				if($row['out_transfer']=='1' && $row['in_transfer']=='1')
+				{
+							$img_url = 'sending_receiving_organizations_big.png';
+				} else if($row['out_transfer']=='0' && $row['in_transfer']=='1')
+				{
+							$img_url = 'receiving_organizations_big.png';
+				} else if($row['out_transfer']=='1' && $row['in_transfer']=='0')
+				{
+							$img_url = 'sending_organizations_big.png';
+				} else {
+							$img_url = 'map-marker.png';
+				}	
+							
+				$doobert_orgs['pop_up_desc'][]   = $row['pop_up_desc'];	
+				$doobert_orgs['lat'][]		   = $row['lat'];
+				$doobert_orgs['lon'][]		   = $row['lon'];
+				$doobert_orgs['img'][]		   = $img_url;	
+				$doobert_orgs['count']		   = count($doobert_map);		
+				
+			}
+
+		}
+		$file_name = 'login_supply_demand';
+		$fp = fopen('upload/supply_demand_map/'.$file_name.'.json', 'w');
+		fwrite($fp, json_encode($doobert_orgs));	
+		fclose($fp);
+	}
+	
+	public function doobert_org_cache_nonlogin()
+	{
+		$doobert_orgs= array();	
+   		
+   		$doobert_map = $this->supply_demand_model->get_doobert_org_bystatezip_nonlogin();			
+		//echo '<pre>'; print_r($doobert_map); die;	
+		if(!empty($doobert_map) && count($doobert_map)>0)
+		{
+			foreach($doobert_map as $row)
+			{		
+				if($row['out_transfer']=='1' && $row['in_transfer']=='1')
+				{
+							$img_url = 'sending_receiving_organizations_big.png';
+				} else if($row['out_transfer']=='0' && $row['in_transfer']=='1')
+				{
+							$img_url = 'receiving_organizations_big.png';
+				} else if($row['out_transfer']=='1' && $row['in_transfer']=='0')
+				{
+							$img_url = 'sending_organizations_big.png';
+				} else {
+							$img_url = 'map-marker.png';
+				}	
+							
+				$doobert_orgs['pop_up_desc'][]   = $row['pop_up_desc'];	
+				$doobert_orgs['lat'][]		   = $row['lat'];
+				$doobert_orgs['lon'][]		   = $row['lon'];
+				$doobert_orgs['img'][]		   = $img_url;	
+				$doobert_orgs['count']		   = count($doobert_map);		
+				
+			}
+
+		}
+		$file_name = 'nonlogin_supply_demand';
+		$fp = fopen('upload/supply_demand_map/'.$file_name.'.json', 'w');
+		fwrite($fp, json_encode($doobert_orgs));	
+		fclose($fp);
+	}
+	
+	public function doobert_org($state='', $zipcode='')
+	{
+		$doobert_orgs= array();	
+   		
+   		$doobert_map = $this->supply_demand_model->get_doobert_org_bystatezip($state , $zipcode);			
+
+		if(!empty($doobert_map) && count($doobert_map)>0){
+			foreach($doobert_map as $row)
+			{		
+				if($row['out_transfer']=='1' && $row['in_transfer']=='1')
+				{
+							$img_url = 'sending_receiving_organizations_big.png';
+				} else if($row['out_transfer']=='0' && $row['in_transfer']=='1')
+				{
+							$img_url = 'receiving_organizations_big.png';
+				} else if($row['out_transfer']=='1' && $row['in_transfer']=='0')
+				{
+							$img_url = 'sending_organizations_big.png';
+				} else {
+							$img_url = 'map-marker.png';
+				}	
+								
+				/*if ($row['st_org_image'] == '') {
+					$path = $this->config->item('upload_url') . "org_doc/63x63/no_photo.png";
+				} else {
+					$path = $this->config->item('upload_url') . "org_doc/63x63/" . $row['st_org_image'];
+				}
+
+				$username = $row['orgname'];						
+				
+				
+				$st='';	
+				
+				$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);			
+				//$link2	=	"$('#map-user-contact').modal('show');$('#org_id').val('".$row['org_id']."')";
+				$st .='<div class="flying-dog-rescue-box">
+						<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+						<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="'.$link.'" class="btn white-btn">CONTACT ME</a></div>';*/
+										
+				$doobert_orgs['pop_up_desc'][]   = $row['pop_up_desc'];	
+				//$doobert_orgs['all_zip'][]     = $row['zip'];
+				$doobert_orgs['lat'][]		   = $row['lat'];
+				$doobert_orgs['lon'][]		   = $row['lon'];
+				$doobert_orgs['img'][]		   = $img_url;	
+				$doobert_orgs['count']		   = count($doobert_map);		
+				
+			}
+
+		}
+		return $doobert_orgs;
+	}
+	
+	public function get_zip_code()
+	{
+		  if ($this->input->get('term'))
+		  {
+			$zip = addslashes($this->input->get('term'));
+        	$result = $this->animal_shelter_model->get_zipcode2($zip);
+            echo json_encode($result);
+		  }
+    }
+	
+	function notify_mailto_zendesk($cont_details)
+	{
+		$email_notification = $this->common_model->get_email_containt("155");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');	
+
+			if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							
+							$imgpath	=	'http://crystal99/doobert-v3/upload/affiliate_images/orig/'.$qr['st_image'];
+							//$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		if(isset($email_notification[0]['st_email_body']))
+		{
+			$message  = $email_notification[0]['st_email_body'];
+			$this->load->library('email');
+			$message  = str_replace("##user_name##",$cont_details['user_details'],$message);
+			$message  = str_replace("##organization_name##",$cont_details['org_name'],$message);
+			$subject  = $email_notification[0]['st_email_subject'];
+			$message  = str_replace("##contact_name##",$cont_details['user_name'],$message);
+			$message  = str_replace("##DONATION##",$donation,$message);
+			$category = $email_notification[0]['st_category'];
+			$this->common_function->send_mail($this->email,'support@doobert.zendesk.com', $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+		}
+	}
+
+
+}
+
+/* End of file animal_shelter.php */
+/* Location: ./application/controllers/animal_shelter.php */

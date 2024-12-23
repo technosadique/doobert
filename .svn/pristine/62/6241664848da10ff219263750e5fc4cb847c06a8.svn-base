@@ -1,0 +1,248 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 09-April-2014
+# File description	: Vehicle Model for admin
+# Special - notes	: none
+# Tables used		: tbl_transport_course,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class transport_course_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_vehicle_types()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of vehicle types from tbl_transport_course
+	#------------------------------------------------------------
+	public function get_total_transport_course($name='')
+	{ 				
+					$this->db->select("tbl_transport_course.in_id", false);						   	
+					$this->db->from('tbl_transport_course');					
+					$this->db->where('tbl_transport_course.in_deleted','0');
+					
+		if($name!='')
+		{	 
+		  $this->db->where("tbl_transport_course.st_course_title LIKE '%".$name."%'", NULL, FALSE);
+		}
+		
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_vehicle_types()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to get vehicle types details
+	#------------------------------------------------------------
+	public function get_transport_course($sort,$order,$limit,$rec_per_page,$name)
+	{	  
+				   $this->db->select("c.in_id,c.st_course_title,c.in_organization_id,c.st_course_detail,c.dt_created,o.st_org_name", false);						   	
+					$this->db->from('tbl_transport_course c');	
+					$this->db->join('tbl_organization o','o.in_organization_id = c.in_organization_id','left');
+					$this->db->where('c.in_deleted','0');
+					$this->db->where('o.in_deleted','0');
+					  
+		if($name!='')
+		{	 
+		   $this->db->where("c.st_course_title LIKE '%".$name."%'", NULL, FALSE);
+		}
+		
+					
+					switch($sort)
+					{
+						case 'title': 						
+							$this->db->order_by('c.st_course_title',$order);
+						break;		
+
+						case 'detail': 						
+							$this->db->order_by('c.st_course_title',$order);
+						break;
+
+						case 'title': 						
+							$this->db->order_by('c.dt_created',$order);
+						break;
+						
+						case 'orgname': 						
+							$this->db->order_by('o.st_org_name',$order);
+						break;				
+						
+							 
+						default:
+						   $this->db->order_by('c.st_course_title',$order);
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					//echo $this->db->last_query();  die;					
+					$arrExam = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrExam[]	=	array('in_id'	=> $Row->in_id,
+													'st_course_title'								        => $Row->st_course_title,
+													'st_course_detail'								        => $Row->st_course_detail,
+													'in_organization_id'								    => $Row->in_organization_id,													
+													'dt_created'									        => $Row->dt_created	,
+													'st_org_name'   										=> $Row->st_org_name
+											);
+						}
+						return $arrExam;
+						
+					}
+					
+	}
+	
+	
+	#====================================================================================
+	#	Function	:	delete_vehicle_types()
+	#   Parameter	: 	vehicletypeId
+	#	Perpose		:	to delete single vehicle type details from tbl_transport_course table
+	#------------------------------------------------------------------------------------
+	public function delete_exam($id)
+	{
+				$arrExam = 	array('in_deleted' 	=> '1' );		
+				$this->db->where('in_exam_id', $id);
+				$this->db->update('tbl_transport_course', $arrExam);		
+	}
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	delete_multiple_vehicle_types()
+	#   Parameter	: 	vehicletypeIds
+	#	Perpose		:	to delete multiple vehicle types details from tbl_transport_course table
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_exam($id)
+	{			
+				$arrExam = 	array('in_deleted' 	=> '1' );
+				$this->db->where_in('in_exam_id', $id);
+				$this->db->update('tbl_transport_course', $arrExam);		
+				return $this->db->affected_rows();
+	}
+	
+	
+	
+	#============================================================================
+	#	Function	:	get_vehicle_types_profile()
+	#   Parameter	: 	vehicletypeIds
+	#	Perpose		:	to get vehicle types details from tbl_transport_course table
+	#----------------------------------------------------------------------------
+	public function get_course_profile($id)
+	{
+				$this->db->select('*');
+				$this->db->from('tbl_transport_course');		
+				$this->db->where('in_id',$id);
+				$query = $this->db->get();
+				return $query->row_array();	
+	}
+	
+	#============================================================================
+	#	Function	:	update_vehicle_type_info()
+	#   Parameter	: 	data,vehicletypeId,table
+	#	Perpose		:	to update vehicle types details tbl_transport_course table
+	#----------------------------------------------------------------------------
+	public function update_course_info($data,$id,$table) {
+				$this->db->where('in_id',$id);
+				$this->db->update($table,$data);
+				return $this->db->affected_rows();	
+	}
+	
+
+	
+	
+    #============================================================================
+	#	Function	:	insertVehicleTypes()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert vehicle types details in tbl_transport_course table
+	#----------------------------------------------------------------------------
+	public function insertCourse($post)
+	{
+				 $arrExam = 	  array(
+										'st_course_title'			=>	$post['title'],								
+										'st_course_detail'			=>	$post['examdesc'],								
+										'in_organization_id'		=>	$post['orgname'],																							
+										'dt_created'			=>  date("Y-m-d H:i:s")																											
+										);	
+										$this->db->insert('tbl_transport_course', $arrExam);	
+
+	}
+	
+	
+	function is_title_exists($title)
+	{ 
+				$this->db->select('in_exam_id');
+				$this->db->from('tbl_transport_course');							
+				$this->db->where("st_exam_title",$title);
+				$this->db->where("in_deleted",0);
+				$query = $this->db->get();		
+				//echo $this->db->last_query(); die;	
+				
+				if($query->num_rows()>0)
+					return true;
+				else
+					return false;				
+	}
+			
+	function add_exam_question($examid,$questid)
+	{   
+		$arrExam = 	  array(
+							'in_exam_id'			=>	$examid,	
+							'st_question'			=>	$questid,	
+							'dt_created'			=>  date("Y-m-d H:i:s")																											
+							);	
+		$this->db->insert('tbl_transport_course_question', $arrExam);	
+	}
+	
+	public function get_question()
+	{
+		$this->db->select('q.in_ques_id,q.st_question');
+		$this->db->from('tbl_survey_questions q');
+		$this->db->where('q.in_deleted',0);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	public function is_record_exist($examid)
+	{
+		$this->db->select('in_id');
+		$this->db->from('tbl_transport_course_question');
+		$this->db->where('in_exam_id',$examid);
+		$this->db->where('in_deleted',0);	
+		$query = $this->db->get();		
+		if($query->num_rows()>0)
+					return true;
+				else
+					return false;				
+	}
+	
+	public function selected_question_list($id)
+	{
+		$this->db->select('st_question');
+		$this->db->from('tbl_transport_course_question');		
+		$this->db->where('in_exam_id',$id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->row_array();
+	}
+	
+}
+?>

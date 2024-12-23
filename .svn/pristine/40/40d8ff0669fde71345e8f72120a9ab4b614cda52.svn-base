@@ -1,0 +1,118 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Paypal extends CI_Controller {
+
+	public function __construct() {
+		//error_reporting(E_ALL);
+		//ini_set('display_errors', 1);
+		parent::__construct();
+		//$this->output->enable_profiler(true);
+		$this->load->model('shop_model');
+		$this->load->model('common_model');
+		$this->load->model('quote_model');
+		$this->load->library('common_function');	
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->helper('cookie');
+		$this->load->library('pagination');
+		
+
+	}
+	
+	public function ipn_notification($count)
+	{
+		$postData = file_get_contents('php://input');
+		$postData = urldecode($postData);
+		$rawPostArray = explode('&', $postData);
+		
+		//@mail('ghanshyam.maurya@pulsesolutions.net',"Paypal Notification",serialize($rawPostArray));		
+		//@mail('rupesh.kumar@pulsesolutions.net',"Paypal Notification",serialize($rawPostArray));	
+		
+		if(isset($rawPostArray) && $rawPostArray != '')
+		{
+			$message  	= 	serialize($rawPostArray);	
+			$to			=	'jobin.elenjical@pulsesolutions.net';
+			$subject	=	'Paypal Notification';
+			$this->load->library('email');
+			$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='ghanshyam.maurya@pulsesolutions.net', $this->config->item('admin_from_name'));
+		}
+		
+		$data_arr= array();
+		$checkcount = 0;
+		foreach($rawPostArray as $key=>$value)
+		{
+			
+			$data_val = explode("=",$value);		
+			$st_transactions = '';
+			if(isset($data_val[0]) && $data_val[0] == "transaction[".$checkcount."].status" && $data_val[1]=="Completed")
+			{
+				$data_arr['transaction_'.$checkcount] = "1";
+				if($st_transactions == '')
+				{
+					$st_transactions .= $data_val[1];
+				}else
+				{
+					$st_transactions .= ", " . $data_val[1];
+				}
+				$checkcount++;
+
+			}elseif(isset($data_val[0]) && $data_val[0] == "tracking_id")
+			{
+				$track = explode("doobertcart",$data_val[1]);
+				$data_arr['order_id'] = str_replace("doobertcart","",$track[1]);
+			}
+				
+			//echo "<pre>";print_r($data_val);
+		}
+		//echo "<pre>";print_r($data_arr);die;
+		if(isset($data_arr) && !empty($data_arr))
+		{
+			$id = $data_arr['order_id'];
+			$status = 0;
+			$checkcount1 = 0;
+			while($checkcount1 < $count)
+			{
+				if($data_arr['transaction_'.$checkcount1] == '1')
+				{
+					$status = 1;
+				}else
+				{
+					$status = 0;
+					break;
+				}
+				$checkcount1++;
+			}
+			
+			$update_details = array("dt_payment_added"			=> date("Y-m-d H:i:s"),
+									"st_transactions"		=> $st_transactions,
+									"st_pp_response"		=>	serialize($rawPostArray),
+									"in_payment_status"				=> $status);
+			
+			$order_details = $this->quote_model->get_order_details($id);
+			
+			$this->quote_model->update_payment_details($id,$update_details);
+			
+			$email_details = $this->common_model->get_email_containt("94");
+			if(isset($email_details[0]['st_email_body']) )
+			{
+				$category  	=   $email_details[0]['st_category'];
+				$templete	= 	$email_details[0]['st_email_body'];
+				$templete  	= 	str_replace("##url##",$this->config->item('base_url'),$templete);
+				$templete  	= 	str_replace("##user_display_name##",$order_details['st_first_name']." ".$order_details['st_last_name'],$templete);
+				$templete  	= 	str_replace("##transction_id##",$data_arr['st_transaction_id'],$templete);
+				$message  	= 	$templete;	
+				$to			=	$order_details['st_email'];
+				$subject	=	$email_details[0]['st_email_subject'];
+				$this->load->library('email');
+				$this->common_function->send_mail($this->email, 'jobin.elenjical@pulsesolutions.net', $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'), $this->email, $category);
+				//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'), $this->email, $category);
+			}			
+		}
+	}
+	
+  	
+
+
+		
+}	
+?>	

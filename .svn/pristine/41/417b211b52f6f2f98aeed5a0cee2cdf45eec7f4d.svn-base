@@ -1,0 +1,2695 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Sysmanage extends CI_Controller {
+
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->model('sysmanage_model');			
+		$this->load->library('pagination');
+		$this->load->library('form_validation');  
+		$this->load->helper(array('form', 'url'));	
+		$this->load->library('nativesession');	
+		//$this->load->library('Ckeditor');
+		//$this->load->library('ckFinder');
+	}
+	
+	function manage_cms_pages()
+	{ 
+	     
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+	
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';
+		$data['action_msg'] =	'';
+		
+		//$this->load->library('ckeditor');
+        //$this->load->library('ckfinder');
+
+        //configure base path of ckeditor folder 
+        $this->ckeditor->basePath = $this->config->item('base_url').'assets/ckeditor/';
+		
+        
+        $this->ckeditor->config['toolbar'] 	= 'Full';
+		
+		//$this->ckeditor->config['contentsCss']=$this->config->item('base_url').'assets/css/style.css' ;		
+		
+		$this->ckeditor->config['toolbar'] = array(
+													array( 'Source','-',
+														  'NewPage','Templates','-',
+														  'Cut','Copy','-',
+														  'Undo','Redo','-',
+														  'Find','Replace','-',
+														  'SelectAll','RemoveFormat','-',
+														   'ShowBlocks','Image'),													
+													array('Bold','Italic','Underline','Strike','-',														 
+														  'NumberedList','BulletedList','-',
+														  'Outdent','Indent','Blockquote','-',
+														  'JustifyLeft','JustifyCenter','JustifyRight','JustifyBlock','-',
+														  'Link','Unlink','Anchor','-'
+														  ),													
+													array('Format','Font','FontSize','-',
+														  'TextColor','BGColor','Table','SpecialChar')
+												);
+
+		$this->ckeditor->config['width'] 	= '620px';
+		$this->ckeditor->config['height'] 	= '300px';
+		$this->ckeditor->config['language'] = 'en';
+					
+		$this->ckeditor->config['filebrowserBrowseUrl'] 		= $this->config->item('base_url').'assets/ckfinder/ckfinder.html';
+		$this->ckeditor->config['filebrowserImageBrowseUrl'] 	= $this->config->item('base_url').'assets/ckfinder/ckfinder.html?type=Images';
+		$this->ckeditor->config['filebrowserUploadUrl'] 		= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files';
+		$this->ckeditor->config['filebrowserImageUploadUrl'] 	= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Images';
+		
+		$data['page_list']     = $this->sysmanage_model->get_all_pages();
+		
+		$data['selected_page']  = '';
+		$data['page_title'] 	= '';
+		$data['meta_keywords']  = '';
+		$data['meta_desc'] 		= '';
+		$data['page_content'] 	= '';
+		
+		if($this->input->post('change_page')=='YES')
+		{
+			$data['selected_page'] = $this->input->post('page_id');
+			
+			$page_info = $this->sysmanage_model->get_page_detail($data['selected_page']);
+			
+			$data['page_title'] 	= $page_info['page_title'];
+			$data['meta_keywords']  = $page_info['page_keywords'];
+			$data['meta_desc'] 		= $page_info['page_desc'];
+			$data['page_content'] 	= $page_info['page_content'];
+		}
+		
+		if($this->input->post('update_page')=='Submit')
+		{  
+                    $rules = array(
+									array('field' => 'page_id',  'label' => 'Page name',    'rules' => 'required'),
+                                    array('field' => 'page_title',  'label' => 'Page title',    'rules' => 'required'),
+                                    array('field' => 'edit_body',   'label' => 'Page content',  'rules' => 'required')
+                                    );
+                   
+			/*$rules['page_title']	= "required";
+			$rules['meta_keywords']	= "required";
+			$rules['meta_desc']		= "required";
+			$rules['edit_body']		= "required";*/
+		
+			$this->form_validation->set_rules($rules);	
+			
+			if ($this->form_validation->run() == FALSE)
+			{   
+                $data['Err_Msg']        = validation_errors(); 
+				//$data['action_msg']		= 'Requested CMS Page is not updated.';
+                $data['page_title'] 	= $this->input->post('page_title');
+				$data['meta_keywords']  = $this->input->post('page_keywords');
+				$data['meta_desc']      = $this->input->post('page_desc');
+				$data['page_content'] 	= $this->input->post('page_content');
+			}
+			else
+			{   
+				$this->sysmanage_model->update_cms_page($_POST);			
+				
+				$data['selected_page'] = $this->input->post('edit_page_id');
+				
+				$page_info = $this->sysmanage_model->get_page_detail($data['selected_page']);
+				
+				$data['page_title'] 	= $page_info['page_title'];
+				$data['meta_keywords']  = $page_info['page_keywords'];
+				$data['meta_desc']      = $page_info['page_desc'];
+				$data['page_content'] 	= $page_info['page_content'];
+				$this->session->set_flashdata('message', 'You have successfully updated cms page details!');					
+			    redirect(site_url('sysmanage/manage_cms_pages/'));				
+			}
+		}
+		
+		$this->load->view('manage_cms_pages', $data);
+	}	
+	
+	
+	
+	
+	function manage_email()
+	{ 
+	 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+	
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';
+		$data['action_msg'] =	'';
+		
+		//$this->load->library('ckeditor');
+        //$this->load->library('ckfinder');
+		
+        //configure base path of ckeditor folder 
+		
+       $this->ckeditor->basePath = $this->config->item('base_url').'assets/ckeditor/';
+		
+        
+        //$this->ckeditor->config['toolbar'] 	= 'Basic';
+		$this->ckeditor->config['toolbar'] = array(
+													array( 'Source','-',
+														  'NewPage','Preview','Templates','-',
+														  'Cut','Copy','Paste','PasteText','PasteFromWord','-',
+														  'Undo','Redo','-',
+														  'Find','Replace','-',
+														  'SelectAll','RemoveFormat','-',
+														  'ShowBlocks','Image'),													
+													array('Bold','Italic','Underline','Strike','-',
+														  'Subscript','Superscript','-',
+														  'NumberedList','BulletedList','-',
+														  'Outdent','Indent','Blockquote','-',
+														  'JustifyLeft','JustifyCenter','JustifyRight','JustifyBlock','-',
+														  'Link','Unlink','Anchor','-'
+														  ),													
+													array('Format','Font','FontSize','-',
+														  'TextColor','BGColor')
+												);
+
+		$this->ckeditor->config['width'] 	= '620px';
+		$this->ckeditor->config['height'] 	= '300px';
+		$this->ckeditor->config['language'] = 'en';
+					
+		$this->ckeditor->config['filebrowserBrowseUrl'] 		= $this->config->item('base_url').'assets/ckfinder/ckfinder.html';
+		$this->ckeditor->config['filebrowserImageBrowseUrl'] 	= $this->config->item('base_url').'assets/ckfinder/ckfinder.html?type=Images';
+		$this->ckeditor->config['filebrowserUploadUrl'] 		= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files';
+		$this->ckeditor->config['filebrowserImageUploadUrl'] 	= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Images';
+		
+		
+		$data['page_list']     = $this->sysmanage_model->get_all_email_pages();
+		
+		$data['selected_page']  = '';		
+		$data['page_content'] 	= '';
+		
+		if($this->input->post('change_page')=='YES')
+		{
+			$data['selected_page'] = $this->input->post('page_id');
+			
+			$page_info = $this->sysmanage_model->get_email_page_detail($data['selected_page']);			
+			
+			$data['page_content'] 		= $page_info['page_content'];
+			$data['potential_field'] 	= $page_info['potential_field'];
+			$data['category']			= $page_info['category'];
+			$data['page_name']			= $page_info['page_name'];
+			$data['page_subject']		= $page_info['page_subject'];
+			$data['template_id']		= $page_info['page_id'];
+			$data['email_desc']		    = $page_info['email_desc'];
+			$data['block_status'] 		= $page_info['block_status'];
+			
+		}
+		
+		if($this->uri->segment(3) !='' && $this->input->post('change_page') !='YES')
+		{
+			$data['selected_page'] = $this->uri->segment(3);
+			
+			$page_info = $this->sysmanage_model->get_email_page_detail($data['selected_page']);	
+			//echo '<pre>'; print_r($page_info); die;		
+			
+			$data['page_content'] 		= $page_info['page_content'];
+			$data['potential_field'] 	= $page_info['potential_field'];
+			$data['category']			= $page_info['category'];
+			$data['page_name']			= $page_info['page_name'];
+			$data['page_subject']		= $page_info['page_subject'];
+			$data['template_id']		= $page_info['page_id'];
+			$data['email_desc']		    = $page_info['email_desc'];
+			$data['block_status'] 		= $page_info['block_status'];			
+		}
+		
+		if($this->input->post('update_page')=='Submit')
+		{  
+                    $rules = array(
+                                    array('field' => 'page_id',  'label' => 'Subject',    'rules' => 'required'),
+                                    array('field' => 'edit_body',   'label' => 'Body',    'rules' => 'required')
+                                    );
+		
+			$this->form_validation->set_rules($rules);	
+			
+			if ($this->form_validation->run() == FALSE)
+			{   
+                $data['Err_Msg']        = validation_errors(); 
+				//$data['action_msg']	    = 'Requested Email Page is not updated.';
+                $data['page_title'] 	= $this->input->post('page_title');
+				$data['meta_keywords']  = $this->input->post('page_keywords');
+				$data['meta_desc']      = $this->input->post('page_desc');
+				$data['page_content'] 	= $this->input->post('page_content');
+				$data['page_subject'] 	= $this->input->post('page_subject');
+				$data['page_name'] 	    = $this->input->post('page_name');
+				$data['template_id'] 	= $this->input->post('template_id');
+				$data['email_desc'] 	= $this->input->post('email_desc');
+				$data['block_status'] 	= $this->input->post('block_status');
+			}
+			else
+			{ 
+				$this->sysmanage_model->update_email($_POST);				
+			
+				
+				$data['selected_page'] = $this->input->post('edit_page_id');
+				
+				$page_info = $this->sysmanage_model->get_email_page_detail($data['selected_page']);								
+				
+				$data['block_status'] 	= $page_info['block_status'];
+				
+				$data['page_content'] 	= $page_info['page_content'];				
+				
+				$this->session->set_flashdata('message', 'You have successfully updated email template!');			
+			    redirect(site_url('sysmanage/manage_email/'));
+				
+			}
+		}
+		
+		$this->load->view('manage_email', $data);
+	}
+	
+	/* function manage_email_subscription()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		if($this->uri->segment(3))
+		{
+			if($this->session->userdata('interested_in'))
+			{
+				$interested_in = $this->session->userdata('interested_in');
+			}
+			
+			if($this->session->userdata('more_info'))
+			{
+				$more_info = $this->session->userdata('more_info');
+			}
+			
+			if($this->session->userdata('newsletter'))
+			{
+				$newsletter = $this->session->userdata('newsletter');
+			}
+		}else{
+				if($this->session->userdata('interested_in'))
+				{
+					$this->session->unset_userdata('interested_in');
+				}
+				
+				if($this->session->userdata('more_info'))
+				{
+					$this->session->unset_userdata('more_info');
+				}
+				
+				if($this->session->userdata('newsletter'))
+				{
+					$this->session->unset_userdata('newsletter');
+				}
+				
+			}
+		
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);			
+		else	
+			$sort = 'in_notification_setting_id';			
+		
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'desc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+			
+		$rec_per_page =	 $this->config->item('per_page');	
+		
+		
+		
+		if($this->input->post('frm_action') == 'frm_value') {
+			
+			
+			$interested_in		=	isset($_POST['interested_in']) ? serialize($_POST['interested_in']) : '';
+			$more_info			=	isset($_POST['more_info']) ? serialize($_POST['more_info']) : '';
+			$newsletter			=	isset($_POST['newsletter']) ? serialize($_POST['newsletter']):'';	
+			
+			$this->session->set_userdata('interested_in',$interested_in);
+			$this->session->set_userdata('more_info',$more_info);
+			$this->session->set_userdata('newsletter',$newsletter);
+			
+			
+			
+			$totalrecord = $this->sysmanage_model->get_email_subscription_records($interested_in,$more_info,$newsletter);
+			
+			$user_list = array();
+			$user_list = $this->sysmanage_model->get_email_subscription_detail($interested_in,$more_info,$newsletter,$sort,$order,$limit,$rec_per_page);		
+			
+			
+			
+			
+			$data['user_list'] = $user_list;
+			
+			$data['interested_in'] = unserialize($interested_in);
+			$data['more_info'] = unserialize($more_info);
+			$data['newsletter'] = unserialize($newsletter);
+																	
+		}else{
+		
+		
+		$totalrecord = $this->sysmanage_model->get_email_subscription_records($interested_in,$more_info,$newsletter);
+		
+		$user_list = array();
+		
+		
+			$user_list = $this->sysmanage_model->get_email_subscription_detail($interested_in,$more_info,$newsletter,$sort,$order,$limit,$rec_per_page);		
+		
+		
+		
+		$data['user_list'] = $user_list;
+		
+		$data['interested_in'] = unserialize($interested_in);
+		$data['more_info'] = unserialize($more_info);
+		$data['newsletter'] = unserialize($newsletter);
+		
+		}
+		
+		
+		$config['base_url'] 	= $this->config->item('admin_base_url').'sysmanage/manage_email_subscription/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		
+		$this->load->view('manage_email_subscription', $data);
+	} */
+	
+	
+	
+	function manage_email_subscription()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+				
+		$this->page3();	
+	}
+	function page3($sort=false,$order=false,$limit=false)
+	{	
+		
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		//echo $this->uri->segment(3);die;
+		
+		
+		if($this->uri->segment(3))
+		{ 
+			if($this->session->userdata('interested_in'))
+			{
+				$interested_in = $this->session->userdata('interested_in');
+			}
+			
+			if($this->session->userdata('more_info'))
+			{
+				$more_info = $this->session->userdata('more_info');
+			}
+			
+			if($this->session->userdata('newsletter'))
+			{
+				 $newsletter = $this->session->userdata('newsletter');
+			}
+		}
+		else{
+				if($this->session->userdata('interested_in'))
+				{
+					$this->session->unset_userdata('interested_in');
+				}
+				
+				if($this->session->userdata('more_info'))
+				{
+					$this->session->unset_userdata('more_info');
+				}
+				
+				if($this->session->userdata('newsletter'))
+				{
+					$this->session->unset_userdata('newsletter');
+				}
+				
+			}
+		
+		
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);			
+		else	
+			$sort = 'in_user_id';			
+		
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'desc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+	
+	
+		if($this->input->post('newsletter'))
+		{	
+			$newsletter			=	isset($_POST['newsletter']) ? serialize($_POST['newsletter']):'';			
+			if($this->session->userdata('newsletter'))
+				$this->session->unset_userdata('newsletter');
+			$this->session->set_userdata('newsletter',$newsletter);									
+		}
+		
+		if($this->input->post('more_info'))
+		{	
+			$more_info			=	isset($_POST['more_info']) ? serialize($_POST['more_info']):'';			
+			if($this->session->userdata('more_info'))
+				$this->session->unset_userdata('more_info');
+			$this->session->set_userdata('more_info',$more_info);									
+		}
+		
+		if($this->input->post('interested_in'))
+		{	
+			$interested_in			=	isset($_POST['interested_in']) ? serialize($_POST['interested_in']):'';			
+			if($this->session->userdata('interested_in'))
+				$this->session->unset_userdata('interested_in');
+			$this->session->set_userdata('interested_in',$interested_in);									
+		}
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION		
+
+		$rec_per_page =	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$data['newsletter'] = unserialize($newsletter);
+		$data['more_info'] = unserialize($more_info);
+		$data['interested_in'] = unserialize($interested_in);
+		$totalrecord		= $this->sysmanage_model->get_email_subscription_records($interested_in,$more_info,$newsletter);
+		// GET PAGE LIST RESULT HERE
+		
+		$data['user_list']	= $this->sysmanage_model->get_email_subscription_detail($sort,$order,$limit,$rec_per_page,$interested_in,$more_info,$newsletter);
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'sysmanage/page3/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Record(s) Available.';
+		}
+		
+		$this->load->view('manage-email-subscription',$data);		
+	}
+	
+	function exportusers()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);			
+		else	
+			$sort = 'in_user_id';			
+		
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'desc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		$interested_in = $this->session->userdata('interested_in');
+
+		$more_info = $this->session->userdata('more_info');
+		
+		$newsletter = $this->session->userdata('newsletter');
+		
+		//print_r($interested_in);exit;
+		
+		$rec_per_page =	 $this->config->item('per_page');	
+		//$rec_per_page =	 2;	
+		
+		// GET COUNT of TOTAL RECORDS
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord = $this->sysmanage_model->get_email_subscription_records($interested_in,$more_info,$newsletter);
+		// GET PAGE LIST RESULT HERE
+		
+		$user_lists = $this->sysmanage_model->get_email_subscription_detail($sort,$order,$limit,$rec_per_page,$interested_in,$more_info,$newsletter);
+			
+		//echo '<pre>'; 
+		//print_r($user_lists);
+		//echo count($user_lists);
+		//die;
+			
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		$tmparray =array("Name","Email");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($user_lists as $user_list)
+		{
+		$tmparray =array();
+		
+		$user_name = $user_list['st_display_name'];
+		array_push($tmparray,$user_name);
+		$email = $user_list['st_email'];
+		array_push($tmparray,$email);
+		
+		array_push($sheet,$tmparray);
+		}
+		//print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="User Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('User Details');
+		$worksheet->SetCellValue('A1', 'User Details');
+		$worksheet->getStyle('A1:M1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:M1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:M2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+	}
+	
+	function exportallusers()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);			
+		else	
+			$sort = 'in_user_id';			
+		
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'desc';
+		
+		//if($this->uri->segment(5))
+			//$limit = $this->uri->segment(5);
+		//else	
+			$limit = '0';
+		
+		$interested_in = $this->session->userdata('interested_in');
+
+		$more_info = $this->session->userdata('more_info');
+		
+		$newsletter = $this->session->userdata('newsletter');
+		
+		//print_r($interested_in);exit;
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord = $this->sysmanage_model->get_email_subscription_records($interested_in,$more_info,$newsletter);
+		// GET PAGE LIST RESULT HERE
+		
+		$rec_per_page =	 $totalrecord;	
+		
+		$user_lists = $this->sysmanage_model->get_email_subscription_detail($sort,$order,$limit,$rec_per_page,$interested_in,$more_info,$newsletter);
+			
+		//echo '<pre>'; 
+		//print_r($user_lists);
+		//echo count($user_lists);
+		//die;
+			
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		$tmparray =array("Name","Email");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($user_lists as $user_list)
+		{
+		$tmparray =array();
+		
+		$user_name = $user_list['st_display_name'];
+		array_push($tmparray,$user_name);
+		$email = $user_list['st_email'];
+		array_push($tmparray,$email);
+		
+		array_push($sheet,$tmparray);
+		}
+		//print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="All User Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('All User Details');
+		$worksheet->SetCellValue('A1', 'All User Details');
+		$worksheet->getStyle('A1:M1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:M1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:M2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');	
+	}
+	
+	function send_subscription_email()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		//print_r($_POST);//exit;
+		
+		//$this->load->library('ckeditor');
+        //$this->load->library('ckFinder');
+
+        //configure base path of ckeditor folder 
+        //$this->ckeditor->basePath = $this->config->item('base_url').'assets/ckeditor/';
+        
+        //$this->ckeditor->config['toolbar'] 	= 'Basic';
+		/* $this->ckeditor->config['toolbar'] = array(
+													array( 'Source','-',
+														  'NewPage','Preview','Templates','-',
+														  'Cut','Copy','Paste','PasteText','PasteFromWord','-',
+														  'Undo','Redo','-',
+														  'Find','Replace','-',
+														  'SelectAll','RemoveFormat','-',
+														  'ShowBlocks','Image'),													
+													array('Bold','Italic','Underline','Strike','-',
+														  'Subscript','Superscript','-',
+														  'NumberedList','BulletedList','-',
+														  'Outdent','Indent','Blockquote','-',
+														  'JustifyLeft','JustifyCenter','JustifyRight','JustifyBlock','-',
+														  'Link','Unlink','Anchor','-'
+														  ),													
+													array('Format','Font','FontSize','-',
+														  'TextColor','BGColor')
+												);
+
+		$this->ckeditor->config['width'] 	= '620px';
+		$this->ckeditor->config['height'] 	= '300px';
+		$this->ckeditor->config['language'] = 'en';
+					
+		$this->ckeditor->config['filebrowserBrowseUrl'] 		= $this->config->item('base_url').'assets/ckfinder/ckfinder.html';
+		$this->ckeditor->config['filebrowserImageBrowseUrl'] 	= $this->config->item('base_url').'assets/ckfinder/ckfinder.html?type=Images';
+		$this->ckeditor->config['filebrowserUploadUrl'] 		= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files';
+		$this->ckeditor->config['filebrowserImageUploadUrl'] 	= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Images'; */
+		
+		if($this->input->post('B1') == 'Send Email To All')
+		{	
+			$user_ids = $this->input->post('userid');
+			//print_r($user_ids);exit;
+			//echo 'send emails to all users';
+			
+			if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);			
+			else	
+				$sort = 'in_notification_setting_id';			
+			
+			if($this->uri->segment(4))
+				$order = $this->uri->segment(4);
+			else	
+				$order = 'desc';
+			
+			//if($this->uri->segment(5))
+				//$limit = $this->uri->segment(5);
+			//else	
+				$limit = '0';
+			
+			$interested_in = $this->session->userdata('interested_in');
+	
+			$more_info = $this->session->userdata('more_info');
+			
+			$newsletter = $this->session->userdata('newsletter');
+			
+			//print_r($interested_in);exit;
+			
+			// GET COUNT of TOTAL RECORDS
+			$totalrecord = $this->sysmanage_model->get_email_subscription_records($interested_in,$more_info,$newsletter);
+			// GET PAGE LIST RESULT HERE
+			
+			$rec_per_page =	 $totalrecord;	
+			
+			$user_lists = $this->sysmanage_model->get_email_subscription_detail($interested_in,$more_info,$newsletter,$sort,$order,$limit,$rec_per_page);
+			//print_r($user_lists);exit;
+			$user_ids = array();
+			foreach($user_lists as $users)
+			{
+				$user_ids[] = $users['st_email'];
+			}
+			//print_r($user_ids);exit;
+			//$data['user_ids'] = serialize($user_ids);
+			
+			$this->session->set_userdata('user_ids',$user_ids);
+			//print_r($data['user_ids']);exit;
+			$this->load->view('send_email_subscription', $data);
+			//exit;
+		}
+		
+		if($this->input->post('B2') == 'Send Email To Selected')
+		{	
+			$user_ids = $this->input->post('userid');
+			//print_r($user_ids);exit;
+			//echo 'send emails to selected users';
+			//$data['user_ids'] = serialize($user_ids);
+			$this->session->set_userdata('user_ids',$user_ids);
+			$this->load->view('send_email_subscription', $data);
+			//exit;
+		}
+		//exit;	
+	}
+	
+	function send_email_to_users()
+	{
+		$user_ids = unserialize($this->input->post('user_ids'));
+		$subject = $this->input->post('txtsubject');
+		$templete = $this->input->post('txtMessage');
+		
+		//echo $subject;
+		//echo $templete ;
+		//print_r(gettype($user_ids));
+		//print_r(($user_ids));
+		//exit;
+		
+		$subject_new = 'Doobert.com - '.$subject; 
+		
+		$templete_new = '<table bgcolor="#fcfcfc" border="0" cellpadding="0" cellspacing="0" id="backgroundTable" st-sortable="header" width="100%">
+	<tbody>
+		<tr>
+			<td align="center" height="15" style="font-size:1px; line-height:1px;">&nbsp;</td>
+		</tr>
+		<tr>
+			<td>
+			<table align="center" border="0" cellpadding="0" cellspacing="0" class="devicewidth" width="650">
+				<tbody>
+					<tr>
+						<td width="100%">
+						<table align="center" border="0" cellpadding="0" cellspacing="0" class="devicewidth" width="650">
+							<tbody>
+								<tr>
+									<td><!-- logo -->
+									<table align="left" border="0" cellpadding="0" cellspacing="0" class="devicewidth" width="140">
+										<tbody>
+											<tr>
+												<td align="center" height="60" width="140">
+												<div class="imgpop" style="padding-bottom:10px;"><a href="http://app.doobert.com/" target="_blank"><img alt="" border="0" height="57" src="http://app.doobert.com/assets/img/email_img/doobert-logo.gif" style="display:block; border:none; outline:none; text-decoration:none;" width="136" /> </a></div>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+									<!-- end of logo --><!-- start of menu -->
+
+									<table align="right" border="0" cellpadding="0" cellspacing="0" class="devicewidth" height="50" valign="middle" width="370">
+										<tbody>
+											<tr>
+												<td align="center" height="17" st-content="menu" style="font-family: Arial, sans-serif; font-size: 13px;color: #ee2c4a;line-height:33px" valign="middle"><a href="https://www.doobert.com/home/how-can-you-help/" style="color: #ee2c4a;text-decoration: none;">How can YOU help?</a> &nbsp;|&nbsp; <a href="https://www.doobert.com/support-doobert/donate-to-doobert/" style="color: #ee2c4a;text-decoration: none;">Support Doobert</a> &nbsp;|&nbsp; <a href="https://www.doobert.com/home/faq/" style="color: #ee2c4a;text-decoration: none;margin-right:8px">FAQ</a> <a href="http://app.doobert.com/" style="background:#ec314e;color:#fff;font-family:Arial, Helvetica, sans-serif;font-size:14px;text-decoration:none;padding:5px 7px;border-radius:5px;display:inline-block;line-height:16px;" title="Sign In"><img src="http://app.doobert.com/assets/img/email_img/sign_in.gif" style="vertical-align: top;padding-top: 3px;border: none;display: inline-block;margin: 0;padding: 2px 0 0;" /> Sign In</a></td>
+											</tr>
+										</tbody>
+									</table>
+									<!-- end of menu --></td>
+								</tr>
+							</tbody>
+						</table>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			</td>
+		</tr>
+	</tbody>
+</table>';
+
+$templete_new .='<table bgcolor="#fcfcfc" border="0" cellpadding="0" cellspacing="0" id="backgroundTable" st-sortable="left-image" width="100%">
+	<tbody>
+		<tr>
+			<td>
+			<table align="center" border="0" cellpadding="0" cellspacing="0" class="devicewidth" width="650">
+				<tbody>
+					<tr>
+						<td class="flexibleContainerCell" valign="top" width="650">
+						<p style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;">'.$templete.'</p><p style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:20px 0 20px;border-bottom:1px solid #ed304e;text-align:left;">Best Regards,<br />
+						<strong>Doobert Team</strong></p><table bgcolor="#fcfcfc" border="0" cellpadding="0" cellspacing="0" id="backgroundTable" st-sortable="header" width="100%">
+	<tbody>
+		<tr>
+			<td align="center" height="15" style="font-size:1px; line-height:1px;">&nbsp;</td>
+		</tr>
+		<tr>
+			<td>
+			<table align="center" border="0" cellpadding="0" cellspacing="0" class="devicewidth" width="650">
+				<tbody>
+					<tr>
+						<td width="100%">
+						<table align="center" border="0" cellpadding="0" cellspacing="0" class="devicewidth" width="650">
+							<tbody>
+								<tr>
+									<td><!-- Copyright -->
+									<table align="left" border="0" cellpadding="0" cellspacing="0" class="devicewidth" width="155">
+										<tbody>
+											<tr>
+												<td align="center" height="60" width="155">
+												<div class="imgpop" style="font:13px/20px Arial, Helvetica, sans-serif;color:#868686;">Copyright Doobert &copy; ##current_year##</div>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+									<!-- end of Copyright --><!-- start of social menu -->
+
+									<table align="right" border="0" cellpadding="0" cellspacing="0" class="devicewidth" height="50" valign="middle" width="133">
+										<tbody>
+											<tr>
+												<td align="center" height="17" st-content="menu" style="font-family: Arial, sans-serif; font-size: 13px;color: #ee2c4a" valign="middle"><a href="https://www.facebook.com/DoobertRescue" style="color: #ee2c4a;text-decoration: none;"><img alt="facebook" src="http://app.doobert.com/assets/img/email_img/fb.gif" title="Facebook" /></a> <a href="https://twitter.com/Doobert" style="color: #ee2c4a;text-decoration: none;"><img alt="Twitter" src="http://app.doobert.com/assets/img/email_img/tw.gif" title="Twitter" /></a> <a href="https://plus.google.com/+Doobert/posts" style="color: #ee2c4a;text-decoration: none;"><img alt="google plus" src="http://app.doobert.com/assets/img/email_img/google_plus.gif" title="Google Plus" /></a> <a href="https://www.linkedin.com/company/doobert?trk=vsrp_companies_res_pri_act&amp;trkInfo=VSRPsearchId%3A9660811390756468948%2CVSRPtargetId%3A3499903%2CVSRPcmpt%3Aprimary" style="color: #ee2c4a;text-decoration: none;"><img alt="linkedin" src="http://app.doobert.com/assets/img/email_img/linked_in.gif" title="Linked-In" /></a> <a href="http://www.youtube.com/channel/UCfpOqAvRShcHKqkJQIDkwGg" style="color: #ee2c4a;text-decoration: none;"><img alt="youtube" src="http://app.doobert.com/assets/img/email_img/yt.jpg" title="You Tube" /></a></td>
+											</tr>
+										</tbody>
+									</table>
+									<!-- end of social menu --></td>
+								</tr>
+							</tbody>
+						</table>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			</td>
+		</tr>
+	</tbody>
+</table>';
+
+		$this->load->library('email');
+		
+		foreach($user_ids as $user_id)
+		{
+			//print_r($user_id);exit;
+			$to = $user_id;
+			//echo $to; exit;
+			$category  	=  'Doobert.com - '.$subject;
+			$this->common_function->send_mail($this->email, $to, $subject_new, $templete_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'), $this->email, $category);
+		}
+		$this->session->set_flashdata('message', 'Email sent successfully.');	
+		redirect($this->config->item('admin_base_url').'sysmanage/manage_email_subscription/');		
+	}
+	
+	function manage_demo_videos()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		$video_details = $this->sysmanage_model->get_all_demo_video_details();
+		$data['video_details'] = $video_details;
+		
+		$this->load->view('manage_demo_videos', $data);
+	}
+	
+	function add_demo_videos()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		$video_title = $this->input->post('video_title');
+		$video_description = $this->input->post('video_description');		
+		
+		$data['video'] = array();
+		$form_field	=   	array('video_title'	=> "",
+							 	  'video_description'=> ""
+					  	 	);
+							
+		
+		foreach ($form_field as $key => $value) {	
+					$data['video'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+			}				
+		
+		if(isset($video_title) && $video_title != '' && isset($video_description) && $video_description != '' && isset($_FILES['video_upload']['name']) && $_FILES['video_upload']['name'] != '')
+		{
+			
+			
+			$rules = array(
+									array('field' => 'video_title',  'label' => 'Page name',    'rules' => 'required'),
+                                    array('field' => 'video_description',  'label' => 'Page title',    'rules' => 'required')
+                                    );
+			
+			$this->form_validation->set_rules($rules);	
+			
+			
+			$counts = $this->sysmanage_model->check_exists_demo_video($video_title);
+			//print_r($counts);
+			//exit;
+			
+			$err_Msg  ='';
+			if(isset($counts) && !empty($counts))
+			{
+				$err_Msg = "Video title already exists.";
+			}
+				
+			if ($this->form_validation->run() == FALSE || $err_Msg != '')
+			{   
+                $data['Err_Msg']      = validation_errors().$err_Msg; 
+				return $this->load->view('add_demo_videos',$data);	
+			}
+			
+			$config['upload_path']  	= 'upload/demovideos';
+			$config['max_size']			= '10000';
+			$config['allowed_types'] 	= 'mp4|mpeg|3gp|avi|mov|wmv';
+			$config['remove_spaces']  	= TRUE;
+			$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('sess_admin_id').'_'.mt_rand().'_'.$_FILES['video_upload']['name']));
+			
+			//Upload image image library
+			$this->load->library('upload', $config);
+			
+			//Upload image by calling do_upload method.
+			$this->upload->do_upload('video_upload');
+			
+			$file_errors = array('errors' => $this->upload->display_errors());
+			
+			if(!empty($file_errors['errors']))
+			{
+				$data['Err_Msg'] = "<p>".$file_errors['errors']."</p>";
+			}
+			else{
+				//echo 'else';exit;
+				$insert_data = array('st_title' => $video_title,
+									 'st_description' => $video_description,
+									 'st_file_name' => $config['file_name'],
+									 'dt_added' => date('Y-m-d H:i:s'),
+									 'dt_modified' => date('Y-m-d H:i:s'),
+									 'in_deleted' => '0');
+				
+				$insert_id = $this->sysmanage_model->insert_demo_video($insert_data);
+				if($insert_id > 0)
+				{
+					$this->session->set_flashdata('success', 'Video has been added sucessfully.');	
+					redirect($this->config->item('admin_base_url').'sysmanage/manage_demo_videos/');		
+				}
+				
+				}
+			
+		}
+		//print_r($data);exit;
+		$this->load->view('add_demo_videos', $data);
+	}
+	
+	
+	function demo_video_edit($videoId=false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array('video_title'		=> ""								 								  
+								);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['edit'][$key] = $value;	
+		}	
+		
+		$video_details = $this->sysmanage_model->get_demo_video_details_by_id($videoId);
+		$data['video_details'] = $video_details;	
+		
+		if($this->input->post('action')=='Edit')
+		{  
+			//print_r('update details');exit;
+			//Validation rules
+			$videoId   = $this->input->post('videoId');									
+			//echo $videoId;exit;
+			$video_title = $this->input->post('video_title');
+			$video_description = $this->input->post('video_description');
+			$video_url = $this->input->post('video_url');
+			
+			$video_info 							=   array();
+			
+			$video_info['video_id'] 				=	$videoId;
+			$video_info['video_title'] 				=	$video_title;
+			$video_info['video_description'] 				=   $video_description;
+			$video_info['video_url'] 				=   $video_url;
+			
+						
+			if((isset($video_title) && $video_title != ''))
+			{
+				//echo $video_title;
+				//echo ($_FILES['video_upload']['name']);
+				//exit;
+				
+				//print_r($video_info);exit;
+				//Updating admin data
+				$this->sysmanage_model->update_demo_video_details($video_info);					
+				$this->session->set_flashdata('success', 'Video has been updated sucessfully.');	
+				redirect($this->config->item('admin_base_url').'sysmanage/manage_demo_videos/');
+				
+					
+				
+			}
+		}
+		
+		else
+		{			
+			$this->load->view('demo_video_edit',$data);
+		}
+	}
+	
+	function demo_video_delete($videoId=false)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->sysmanage_model->delete_demo_video($videoId);			
+		$this->session->set_flashdata('success', 'Video has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'sysmanage/manage_demo_videos/');
+		
+	}
+	
+	
+	
+	
+	function manage_auto_email()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+		$this->page();	
+	}
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='fromemail';
+		
+		if(!$order)
+			$order = 'asc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+			
+			
+		if($this->input->post('txtfrom'))
+		{			
+			$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 			
+			$this->nativesession->set('searchadmin1',$fromdate);			
+		}
+		
+		if($this->input->post('txtto'))
+		{
+			$todate = date('Y-m-d',strtotime($this->input->post('txtto'))); 			
+			$this->nativesession->set('searchadmin2',$todate);				
+		}
+		
+		if($this->input->post('txtsearch'))
+		{			
+			$txtsearch = $this->input->post('txtsearch'); 			
+			$this->nativesession->set('searchadmin3',$txtsearch);			
+		}
+		
+		
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION		
+		
+		$rec_per_page =	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		 $totalrecord		= $this->sysmanage_model->get_total_autoemail($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['autoemail_list']	= $this->sysmanage_model->get_autoemail($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'));
+		
+		//echo '<pre>'; print_r($data['autoemail_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'sysmanage/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+					
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Email Information Available.';
+		}
+		
+		$this->load->view('manage-auto-email',$data);
+	}
+	
+	public function resend()
+	{    
+	      
+		 $email = $this->input->post('email'); 
+		 $to_name = $this->input->post('name'); 
+		 $f_title = $this->input->post('f_title');
+		 //echo $email;exit;
+		 $this->load->library('email');
+		 $this->load->model('common_model');	
+		 
+		$email_details = $this->common_model->get_email_containt("42");
+		 
+		if(isset($f_title) && $f_title == 'Drive')
+		{
+			$email_details = $this->common_model->get_email_containt("42");
+		}
+		if(isset($f_title) && $f_title == 'I')
+		{
+			$email_details = $this->common_model->get_email_containt("51");					
+		}
+		if(isset($f_title) && $f_title == 'Let')
+		{
+			$email_details = $this->common_model->get_email_containt("52");				
+		}
+		
+		
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		 //print_r($email_details);exit;
+			if (isset($email_details[0]['st_email_body'])) {
+				$templete = $email_details[0]['st_email_body'];
+				$templete  = str_replace("##user_name##",trim($to_name),$templete);
+				$templete  = str_replace("##DONATION##",$donation,$templete);
+				$strMail = $templete;
+				//$to = 'rajesh.ramakrishnan@pulsesolutions.net'; //$email;
+				//$to = 'chris@doobert.com'; 
+				$to = $email;
+				$subject = $email_details[0]['st_email_subject'];
+				$message = $strMail; 
+	
+				$category  	=  $email_details[0]['st_category'];
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+				//echo 'mail sent';exit;
+			}
+	}
+	
+	function delete_multiple_email()
+	{ 	    
+		$in_ids = $this->input->post('in_id');	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($in_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->sysmanage_model->delete_multiple_email($in_ids);
+			
+			$this->session->set_flashdata('success', 'Email(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'sysmanage/manage_auto_email/');
+			
+	}
+	
+	function manage_facebook_token()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$data = array();
+		$facebook_data = $this->sysmanage_model->get_facebook_token();
+		//print_r($facebook_data); exit;
+		$data['facebook_data']	= $facebook_data;
+		$this->load->view('manage_facebook_token',$data);
+	}
+	
+	function update_facebook_token()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}	
+		if($this->input->post('action')=='update')
+		{  
+			$access_token   = trim($this->input->post('access_token'));							
+			$access_id 	= $this->input->post('access_id');
+			$expiry_date 	= $this->input->post('expiry_date');
+			
+			if((isset($access_id) && $access_id != '' && isset($access_token) && $access_token != '' && isset($expiry_date) && $expiry_date != ''))
+			{
+				$this->sysmanage_model->update_facebook_token($access_id,$access_token,$expiry_date);					
+				$this->session->set_flashdata('success', 'facebook Aceess Token has been updated sucessfully.');	
+				redirect($this->config->item('admin_base_url').'sysmanage/manage_facebook_token/');
+			}
+		}else
+		{
+			$data['facebook_data']	= $facebook_data;
+			$this->load->view('manage_facebook_token',$data);		
+		}
+	}
+	
+	function manage_transport_email_template($sort=false,$order=false,$limit=false)
+	{
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+		
+		$email				=	'';
+		$fromdate			=	'';
+		$todate				=	'';
+		
+		$data = array();
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		//echo 'txtemail'.$this->input->post('txtemail');exit;
+		if($this->input->post('txtemail'))
+		{
+			$email = trim($this->input->post('txtemail'));				
+			$this->nativesession->set('searchadmin1',$email);	
+		
+		}
+
+		if($this->input->post('txtfrom'))
+		{
+			$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 			
+			$this->nativesession->set('searchadmin2',$fromdate);
+		}
+		
+		if($this->input->post('txtto'))
+		{			
+			$todate = date('Y-m-d',strtotime($this->input->post('txtto'))); 			
+			$this->nativesession->set('searchadmin3',$todate);	
+				
+		}
+		
+		
+		$data['Err_Msg']	=	'';	
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='fromemail';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION		
+		
+		$rec_per_page =	  $this->config->item('per_page');
+		// GET COUNT of TOTAL RECORDS
+		//$totalrecord		= $this->sysmanage_model->get_total_autoemail();
+		$totalrecord		= $this->sysmanage_model->get_total_transportemails($email,$fromdate,$todate);
+		// GET PAGE LIST RESULT HERE
+		//$data['autoemail_list']	= $this->sysmanage_model->get_autoemail($sort,$order,$limit,$rec_per_page);
+		$data['autoemail_list']	= $this->sysmanage_model->get_transportemail($sort,$order,$limit,$rec_per_page,$email,$fromdate,$todate);
+		//echo '<pre>'; print_r($data['autoemail_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'sysmanage/manage_transport_email_template/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+					
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Email Information Available.';
+		}
+		$this->load->view('manage_transport_email_template',$data);
+	}
+	
+	function delete_multiple_transport_email()
+	{ 	    
+		$in_ids = $this->input->post('in_id');	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($in_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->sysmanage_model->delete_multiple_transport_email($in_ids);
+			
+			$this->session->set_flashdata('success', 'Email(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'sysmanage/manage_transport_email_template/');
+			
+	}
+	
+	function view_transport_email()
+	{ 	    
+		$id = $this->uri->segment('3');	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data = array();
+		if(!$id)
+		{
+			redirect($this->config->item('admin_base_url').'sysmanage/manage_transport_email_template/');
+		}		
+		else	
+		{	
+			$email_full_content	= $this->sysmanage_model->get_transportemail_by_id($id);
+			$email_data = '';
+			$email_content = $this->sysmanage_model->get_string_between(htmlspecialchars($email_full_content['st_text']),'quoted-printable','END OF TRANSPORT');
+			if(isset($email_content) && $email_content != '')
+			{
+				$get_last_char = substr($email_content,-1);
+				$get_last_nine_char = substr($email_content,-9);
+				if(isset($get_last_char) && $get_last_char == "*");
+				{
+					$email_data = $email_content.'END OF TRANSPORT*';
+				}
+				if(isset($get_last_nine_char) && $get_last_nine_char == "=E2=99=A5")
+				{
+					$email_data = $email_content;
+					$email_data = str_replace("=E2=99=A5","*",$email_data);
+					$email_data = $email_data.'END OF TRANSPORT*';
+				}
+			}
+			$data['email_data'] = $email_data;
+			
+			$this->load->view('view_transport_email_template',$data);
+		}
+	}
+	
+	function list_transport_story()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');	
+		$this->get_transport_story_listing();
+	}
+	
+	public function get_transport_story_listing($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		if(!$sort)
+			$sort='crdate';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{						
+			$this->session->set_userdata('searchadmin1',$this->input->post('story_title'));
+			
+						
+			$this->session->set_userdata('searchadmin2',$this->input->post('transport_id'));	
+			
+			$this->session->set_userdata('searchadmin3',$this->input->post('story_status'));
+		}	
+		
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		$data['story_listing'] = $this->sysmanage_model->get_transportstory_data($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'));
+		$totalrecord = $this->sysmanage_model->get_transportstory_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'));
+		
+		//$totalrecord = $feedback_listing['total_count'];
+		
+		$config['base_url'] 	= $this->config->item('admin_base_url').'sysmanage/get_transport_story_listing/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		
+		
+		$this->load->view('view-transport-story-listing',$data);
+	}
+	
+	function detail_transport_story($id)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data['transport_story_detail'] = $this->sysmanage_model->get_detail_transportstory_data($id);
+		if(isset($data['transport_story_detail']) && !empty($data['transport_story_detail']))
+		{
+			$this->load->view('transport-story-view',$data);
+		}else{
+			redirect($this->config->item('admin_base_url').'sysmanage/list_transport_story/');
+		}
+	}
+	
+	function  approve_transport_story()
+	{
+		$Id = $this->input->post('transport_story_page_id');
+		
+		$status = $this->sysmanage_model->approved_transport_story($Id);
+		
+		
+		 
+		 $this->session->set_flashdata('success', 'Rescue Story approved successfully.');	
+		 redirect($this->config->item('admin_base_url').'sysmanage/list_transport_story/');
+	}
+	
+	function  reject_transport_story()
+	{
+		 $Id = $this->input->post('reject_story_page_id');
+			 
+		 $status = $this->sysmanage_model->rejected_transport_story($Id);
+		/* if(!empty($status))
+		 {
+			$status = 'y';	
+		 } else {
+			 $status = 'n';
+		 }	
+		 echo $status;*/
+		 //exit(0);
+		$this->session->set_flashdata('success', 'Rescue Story rejected successfully.');	
+		redirect($this->config->item('admin_base_url').'sysmanage/list_transport_story/');
+	}
+	
+	
+	
+	function exportautoemail($sort=false,$order=false,$limit=false)
+	{   
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		 
+			
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+			
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='fromemail';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(3))
+			$limit = $this->uri->segment(3);
+		else	
+			$limit = '0';
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		 $totalrecord		= $this->sysmanage_model->get_total_autoemail($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'));
+		// GET PAGE LIST RESULT HERE
+		
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		$autoemail_list	= $this->sysmanage_model->get_exportautoemail($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'));
+			
+		//echo '<pre>'; print_r($autoemail_list);die;
+			
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		$tmparray =array("Name","Email","Subject","Comments","Transaction Date");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($autoemail_list as $email_list)
+		{
+		$tmparray =array();
+		
+		$user_name = $email_list['name'];
+		array_push($tmparray,$user_name);
+		$email = $email_list['fromemail'];
+		array_push($tmparray,$email);
+		$subject = $email_list['subject'];
+		array_push($tmparray,$subject);		
+		$comment = $email_list['comment'];
+		array_push($tmparray,$comment);
+		$created_date  = $email_list['dt_date'];	
+		if($created_date!='' && $created_date!='0000-00-00 00:00:00' && $created_date!='1969-12-31'){ 
+		$created_date = date("m-d-Y H:i:s",strtotime($created_date));} else{ $created_date=''; }	
+		array_push($tmparray,$created_date);
+		
+		array_push($sheet,$tmparray);
+		}
+		//print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="Auto Email Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('Auto Email');
+		$worksheet->SetCellValue('A1', 'Auto Email Details');
+		$worksheet->getStyle('A1:M1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:M1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:M2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+	}
+	
+	
+		public function exportallautoemail($sort=false,$order=false,$limit=false)
+		{
+			if(!$this->session->userdata('sess_admin_id'))
+			 {
+				$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				$this->session->set_userdata('redirect_url',$url);
+				redirect($this->config->item('admin_base_url'));	
+			 }		 
+			
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+			
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		
+			$sort='fromemail';		
+			$order = 'asc';			
+			$limit = '0';
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		 $totalrecord		= $this->sysmanage_model->get_total_autoemail($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'));
+		 
+		 $rec_per_page =	  $totalrecord;
+		// GET PAGE LIST RESULT HERE	
+		
+		$autoemail_list	= $this->sysmanage_model->get_exportautoemail($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'));
+			
+		//echo '<pre>'; print_r($autoemail_list);die;
+			
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		$tmparray =array("Name","Email","Subject","Comments","Transaction Date");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($autoemail_list as $email_list)
+		{
+		$tmparray =array();
+		
+		$user_name = $email_list['name'];
+		array_push($tmparray,$user_name);
+		$email = $email_list['fromemail'];
+		array_push($tmparray,$email);
+		$subject = $email_list['subject'];
+		array_push($tmparray,$subject);		
+		$comment = $email_list['comment'];
+		array_push($tmparray,$comment);
+		$created_date  = $email_list['dt_date'];	
+		if($created_date!='' && $created_date!='0000-00-00 00:00:00' && $created_date!='1969-12-31'){ 
+		$created_date = date("m-d-Y H:i:s",strtotime($created_date));} else{ $created_date=''; }	
+		array_push($tmparray,$created_date);
+		
+		
+		array_push($sheet,$tmparray);
+		}
+		//print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="Auto Email Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('Auto Email');
+		$worksheet->SetCellValue('A1', 'Auto Email Details');
+		$worksheet->getStyle('A1:M1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:M1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:M2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+	}
+	
+	
+	public function manage_send_newsletter()
+	{  
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);			
+		else	
+			$sort = 'in_newsletter_id';			
+		
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'desc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->sysmanage_model->get_total_newsletter();
+		// GET PAGE LIST RESULT HERE
+		
+		$data['newsletter_list']	= $this->sysmanage_model->get_newsletter($sort,$order,$limit,$rec_per_page);
+		
+		//echo '<pre>'; print_r($data['newsletter_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'sysmanage/manage_send_newsletter/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Newsletter Information Available.';
+		}
+		
+		$this->load->view('manage-send-newsletter',$data);	
+		
+	}
+
+
+
+
+function newsletter_delete($newsletterId = false)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		
+		$this->sysmanage_model->delete_newsletter($newsletterId);			
+		$this->session->set_flashdata('success', 'Newsletter information has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'sysmanage/manage_send_newsletter');
+		
+	}	
+	
+	function delete_multiple_newsletter()
+	{   
+	    
+		 $newsletter_ids = $this->input->post('newsletterid');
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($newsletter_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->sysmanage_model->delete_multiple_newsletter($newsletter_ids);
+			
+			$this->session->set_flashdata('success', 'Newsletter(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'sysmanage/manage_send_newsletter');
+			
+	}
+	
+	
+	
+	function newsletter_add()
+	{		
+	     if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();
+		$Err_Msg		 =	'';
+		
+		$form_field	=	array('st_template_id'		=> "",	
+							  'st_subject'		    => "",		
+							  'dt_sendtime'	        => "",
+							  'sendnow'             => ""
+							  );
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}			
+		
+		if($this->input->post('action')=='Add')
+		{  
+			
+			// validation starts
+			foreach ($form_field as $key => $value) {	
+					$data['add'][$key] = $this->input->post($key);	
+				}
+						$this->form_validation->set_rules('st_template_id', 'Template Id', 'trim|required');
+						$this->form_validation->set_rules('st_subject', 'Subject', 'trim');	
+						//$this->form_validation->set_rules('dt_sendtime', 'Sendtime', 'trim|required');
+
+					    
+							
+			
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();											
+						$this->load->view('newsletter-add',$data);
+				}
+			else
+			{  		
+
+						if($_POST['sendnow'] != '1' && $_POST['dt_sendtime'] == '')
+						{	
+							$data['Err_Msg'] = "Please check send now or enter date time";											
+						    $this->load->view('newsletter-add',$data);
+						}
+						else{	
+						$this->sysmanage_model->insertNewsletter($data['add']);							
+						$this->session->set_flashdata('message', 'You have successfully added newsletter.');							
+						redirect(site_url('sysmanage/newsletter_add'));
+						}
+			}
+			
+		}
+		else
+		{		     
+			$this->load->view('newsletter-add',$data);
+			
+		}		
+	}
+	
+	
+	function newsletter_edit($newsletterId =false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';			
+		$form_field	=	array('st_template_id'		=> "",	
+							  'st_subject'		    => "",		
+							  'dt_sendtime'	        => "",
+							  'sendnow'             => ""
+							  );
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}	
+		$data['newsletter_details'] = $this->sysmanage_model->get_newsletter_profile($newsletterId);	
+		//echo "<pre>";print_r($data['newsletter_details']);die;	
+		if($this->input->post('action')=='Edit')
+		{   
+			//Validation rules
+						$newsletterId			   = $this->input->post('newsletterId');
+						$data['newsletter_details'] = $this->sysmanage_model->get_newsletter_profile($newsletterId);	
+			
+						foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+						}
+						$this->form_validation->set_rules('st_template_id', 'Template Id', 'trim|required');
+						$this->form_validation->set_rules('st_subject', 'Subject', 'trim');	
+						//$this->form_validation->set_rules('dt_sendtime', 'Sendtime', 'trim|required');
+
+					    if($this->input->post('sendnow') != '1' && $this->input->post('dt_sendtime') == '')
+						{	
+							$data['Err_Msg'] = "Please check send now or enter date time";											
+						    //redirect(site_url('sysmanage/newsletter_edit/'.$newsletterId));	
+							$this->load->view('newsletter-edit',$data);	
+							return;
+						}				
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$data['newsletter_details'] = $this->sysmanage_model->get_newsletter_profile($newsletterId);					
+						$this->load->view('newsletter-edit',$data);	
+						return;
+				}
+			
+			else
+			{ 								
+						$profile_info 		= array();
+						
+						if($this->input->post('sendnow') == 1 and $this->input->post('dt_sendtime') == '')
+						{  
+							$dtsendtime = date('Y-m-d H:i:s');
+							
+						}
+						elseif($this->input->post('sendnow') == '' and $this->input->post('dt_sendtime') != ''){
+							
+							 //$dtsendtime =  date('Y-m-d H:i:s', strtotime(str_replace(" - ", " ", $this->input->post('dt_sendtime'))));
+							 $dtsendtime =  date('Y-m-d H:i:s', strtotime($this->input->post('dt_sendtime')));
+						}
+						elseif($this->input->post('sendnow') == 1 and $this->input->post('dt_sendtime') != ''){
+							
+							 //$dtsendtime =  date('Y-m-d H:i:s', strtotime(str_replace(" - ", " ", $this->input->post('dt_sendtime'))));
+							 $dtsendtime =  date('Y-m-d H:i:s', strtotime($this->input->post('dt_sendtime')));
+						}
+						
+						
+						$profile_info['st_template_id'] 	=	$this->input->post('st_template_id');
+						$profile_info['st_subject'] 		=	$this->input->post('st_subject');	
+						$profile_info['dt_sendtime'] 		=	$dtsendtime;
+						$profile_info['dt_added'] 			= 	date('Y-m-d H:i:s');
+						//Updating admin data
+						$this->sysmanage_model->update_newsletter_info($profile_info,$newsletterId,'tbl_newsletter');					
+						$this->session->set_flashdata('message', 'You have successfully updated newsletter');					
+						redirect(site_url('sysmanage/newsletter_edit/'.$newsletterId));						
+				
+			}
+		}		
+		else
+		{				
+						$this->load->view('newsletter-edit',$data);
+		}
+	}
+	
+	function manage_email_template()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$this->session->unset_userdata('searchadmin');	
+		$this->page2();	
+	}
+	function page2($sort=false,$order=false,$limit=false)
+	{	
+		
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';			
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='in_email_id';
+		
+		if(!$order)
+			$order = 'asc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+	
+	
+		if($this->input->post('txtsearch'))
+		{			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');						
+				
+			$searchtxt = trim($this->input->post('txtsearch'));				
+			$this->session->set_userdata('searchadmin',$searchtxt);	
+								
+		}
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->sysmanage_model->get_total_email($this->session->userdata('searchadmin'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['email_list']	= $this->sysmanage_model->get_email($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'));
+		
+		//echo '<pre>'; print_r($data['email_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'sysmanage/page2/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Email Template Information Available.';
+		}
+		
+		$this->load->view('manage-email-template',$data);		
+	}
+	function manage_volunteer_email()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$this->session->unset_userdata('zipcode');
+		$this->session->unset_userdata('radius');	
+		$this->manage_volunteer_listing();
+	}
+	
+	function manage_volunteer_listing($sort=false,$order=false,$limit=false)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data = array();
+		$data['Err_Msg']	=	'';	
+		$data['user_list'] = array();
+		$data['currrent_page'] = '';
+		$data['from'] = '';
+		$data['to'] = '';
+		$totalrecord = 0;
+		if($this->uri->segment(3))
+		{	
+			$sort = $this->uri->segment(3);			
+		}	
+		
+		if($this->uri->segment(4))
+		{
+			$order = $this->uri->segment(4);	
+		}
+		
+		//echo $sort;
+		//echo $order; exit;
+		
+		if(($this->input->post('action') == 'search'))
+		{
+			if($this->input->post('zipcode'))
+			{	
+				$zip_code = $this->input->post('zipcode');
+				$zip_code = str_replace(" ","",$zip_code);
+				$_POST['zipcode'] = strtoupper($zip_code);
+			}	
+			
+			$this->session->set_userdata('zipcode',$this->input->post('zipcode'));	
+			
+			$this->session->set_userdata('radius',$this->input->post('radius'));
+			
+			$data['user_list']	= $this->sysmanage_model->get_user_volunteer($sort,$order,$this->session->userdata('zipcode'),$this->session->userdata('radius'));
+			
+		}
+		
+		if(isset($sort) && isset($order) && $sort != '' && $order != '')
+		{
+			$data['user_list']	= $this->sysmanage_model->get_user_volunteer($sort,$order,$this->session->userdata('zipcode'),$this->session->userdata('radius'));
+		}
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Record(s) Available.';
+		}
+		
+		//print_r($data);exit;
+		
+		$this->load->view('manage_volunteer_email',$data);
+	}
+	
+	function send_volunteer_email()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data = array();
+        //configure base path of ckeditor folder 
+        $this->ckeditor->basePath = $this->config->item('base_url').'assets/ckeditor/';
+        
+        if($this->input->post('B1') == 'Send Email To All')
+		{	
+			$user_ids = $this->input->post('userid');
+			//print_r($user_ids);exit;
+			//echo 'send emails to all users';
+			
+			if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);			
+			else	
+				$sort = 'name';			
+			
+			if($this->uri->segment(4))
+				$order = $this->uri->segment(4);
+			else	
+				$order = 'asc';
+			
+			//if($this->uri->segment(5))
+				//$limit = $this->uri->segment(5);
+			//else	
+				$limit = '0';
+			
+			
+			$user_lists		= $this->sysmanage_model->get_user_volunteer($sort,$order,$this->session->userdata('zipcode'),$this->session->userdata('radius'));
+			
+			//print_r($user_lists);exit;
+			$user_ids = array();
+			foreach($user_lists as $users)
+			{
+				$user_ids[] = $users['in_user_id'];
+			}
+			//print_r($user_ids);exit;
+			//$data['user_ids'] = serialize($user_ids);
+			
+			$this->session->set_userdata('user_ids',$user_ids);
+			//print_r($data['user_ids']);exit;
+			
+			$data['page_content'] = $this->sysmanage_model->get_default_emails();
+			//print_r($data['page_content']);exit;
+			
+			$this->load->view('send_volunteer_email', $data);
+			//exit;
+		}
+		
+		if($this->input->post('B2') == 'Send Email To Selected')
+		{	
+			$user_ids = $this->input->post('userid');
+			//print_r($user_ids);exit;
+			//echo 'send emails to selected users';
+			//$data['user_ids'] = serialize($user_ids);
+			$this->session->set_userdata('user_ids',$user_ids);
+			
+			$data['page_content'] = $this->sysmanage_model->get_default_emails();
+			//print_r($data['page_content']);exit;
+			
+			$this->load->view('send_volunteer_email', $data);
+			//exit;
+		}
+		//exit;	
+	}
+	
+	function send_email_to_volunteers()
+	{
+		$user_ids = unserialize($this->input->post('user_ids'));
+		$subject = $this->input->post('txtsubject');
+		$msg = $this->input->post('txtMessage');
+		
+		//print_r($user_ids);exit;
+		
+		foreach($user_ids as $user_id)
+		{
+			$this->load->model('common_model');
+			$user_details	= $this->common_model->get_user_profile($user_id);
+			
+			if(isset($user_details) && count($user_details)>0 )
+			{	
+				$user_details = $user_details[0];
+				//print_r($user_details);exit;
+				$save_data = array('in_user_id'=>$user_details['in_user_id'],
+									'st_name'=>trim($user_details['st_display_name'].' '.$user_details['st_last_name']),
+									'st_email'=>$user_details['st_email'],
+									'st_subject'=> $subject,
+									'st_message'=>$msg,
+									'in_sent'=>0,
+									'dt_added'=>date('Y-m-d H:i:s'));
+				$this->sysmanage_model->insert_volunteer_emails($save_data);	
+			
+			}
+		}
+		
+		$this->session->set_userdata('message', 'Email scheduled successfully and will be sent out in next 30 minutes.');	
+		redirect($this->config->item('admin_base_url').'sysmanage/manage_volunteer_email/');		
+	}
+	
+	function manage_affiliate_content()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+		if($this->input->post('action')=='update')
+		{  
+			$in_id   = trim($this->input->post('in_id'));							
+			$affiliate_cnt 	= trim($this->input->post('affiliate_cnt'));
+			$affiliate_array = array('st_affiliate_content'=>$affiliate_cnt,
+									 'in_modified_by' => $this->session->userdata('sess_admin_id'),
+									  'dt_modified'	  => date('Y-m-d H:i:s')	
+									);
+			
+			if($in_id !='')
+			{
+				$this->sysmanage_model->update_affiliate_info($affiliate_array,$in_id);
+			} else {
+				$this->sysmanage_model->create_affiliate_info($affiliate_array);
+			}	
+			
+			$this->session->set_flashdata('success', 'Affiliate content has been updated sucessfully.');	
+			redirect($this->config->item('admin_base_url').'sysmanage/manage_affiliate_content/');
+		}else
+		{
+			$data['affiliate_info']	= $this->sysmanage_model->get_affiliate_info();
+			$this->load->view('manage_affiliate_content',$data);		
+		}
+	}
+}

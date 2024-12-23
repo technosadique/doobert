@@ -1,0 +1,159 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 27-Dec-2016
+# File description	: Email Notification Model for admin
+# Special - notes	: none
+# Tables used		: tbl_user_notification_setting, tbl_users
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class email_notification_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+	    
+		#============================================================
+	#	Function	:	get_total_email_notification()
+	#   Parameter	: 	name,email
+	#	Perpose		:	to check valid user notification setting details
+	#------------------------------------------------------------
+	public function get_total_email_notification()
+	{ 	
+				if($this->nativesession->get('searchadmin1')!="")
+					$name = $this->nativesession->get('searchadmin1');
+				else
+					$name = "";
+					
+					if($this->nativesession->get('searchadmin2')!="")
+					$email = $this->nativesession->get('searchadmin2');
+				else
+					$email = "";			
+				  
+				$this->db->select("u.in_user_id", false);						   	
+				$this->db->from('tbl_users u');
+				$this->db->where('u.in_deleted','0');
+				$this->db->where('u.in_status <>','3');	
+				if($name!= '') {	
+							$name = str_replace("%","\%",$name);				
+							$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".$name."%'", NULL, FALSE);
+					}
+				
+				if($email!=''){				
+				
+				$this->db->where("u.st_email LIKE '%".$email."%'", NULL, FALSE);
+				}					
+				$query = $this->db->get();	
+				//echo $this->db->last_query(); die;				
+				return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_email_notification()
+	#   Parameter	: 	sort,order,limit,rec_per_page,name,email
+	#	Perpose		:	to get user email notification setting details
+	#------------------------------------------------------------
+	public function get_email_notification($sort,$order,$limit,$rec_per_page)
+	{		
+				if($this->nativesession->get('searchadmin1')!="")
+					$name = $this->nativesession->get('searchadmin1');
+				else
+					$name = "";
+					
+					if($this->nativesession->get('searchadmin2')!="")
+					$email = $this->nativesession->get('searchadmin2');
+				else
+					$email = "";
+				
+					
+				$this->db->select("u.flg_daily_email,u.st_daily_reason,u.flg_immediate_all,u.flg_immediate_transport,u.flg_immediate_animal,u.flg_immediate_fund,u.st_display_name,u.st_last_name,u.st_email", false);						   	
+				$this->db->from('tbl_users u');
+				$this->db->where('u.in_deleted','0');	
+				$this->db->where('u.in_status <>','3');	
+				
+				if($name!= '') {	
+							$name = str_replace("%","\%",$name);				
+							$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".$name."%'", NULL, FALSE);
+					}
+				
+				if($email!=''){				
+				
+				$this->db->where("u.st_email LIKE '%".$email."%'", NULL, FALSE);
+				}			
+				
+						switch($sort)
+						{							
+							case 'name':								
+								$this->db->order_by('u.st_display_name',$order);
+							break;							
+							
+							case 'email': 								
+								$this->db->order_by('u.st_email',$order);
+							break;	
+							
+							case 'daily_notification': 								
+								$this->db->order_by('u.flg_daily_email',$order);
+							break;	
+							
+							case 'reason_notification': 								
+								$this->db->order_by('u.st_daily_reason',$order);
+							break;
+							
+							case 'transport_notification': 								
+								$this->db->order_by('u.flg_immediate_transport',$order);
+							break;	
+							
+							case 'animal_notification': 								
+								$this->db->order_by('u.flg_immediate_animal',$order);
+							break;	
+							
+							case 'fund_notification': 								
+								$this->db->order_by('u.flg_immediate_fund',$order);
+							break;															
+							
+							default: 								
+								$this->db->order_by('u.st_display_name',$order);
+							break;	
+								         
+						}
+					  
+					  
+					 if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 
+					//echo $this->db->last_query();die;	
+					$arrUser = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{		
+									
+							$arrUser[]	=	array('notification_id'  		=> $Row->in_notification_setting_id,
+												   'name'				    => $Row->st_display_name. ' '.$Row->st_last_name,
+											       'email'				    => $Row->st_email,
+												   'daily_notify'			=> $Row->flg_daily_email,
+												   'daily_reason'			=> $Row->st_daily_reason,
+												   'trans_notify'			=> $Row->flg_immediate_transport,
+												   'animal_notify'			=> $Row->flg_immediate_animal,
+												   'fund_notify'			=> $Row->flg_immediate_fund,										
+											);
+						}						
+						return $arrUser;
+					}
+					
+	}
+	
+}
+?>

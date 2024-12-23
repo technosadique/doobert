@@ -1,0 +1,940 @@
+<?php
+
+class Transport_create_email extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		//$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->library('common_function');	
+		$this->load->model('transport_create_email_model');
+		$this->load->helper('url');
+		$this->load->helper('cookie');
+		$this->load->model('orgtrasnportation_model');
+		error_reporting(0);		
+	}
+	
+	public function index()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'transport_create_email',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+		
+		$last_cron_inserted_id = $this->db->insert_id();
+		
+		$transport_id = '';
+		$same_date_status_flag = 0;
+		$data_processing_error =0;		
+		$transport_leg_details = array();
+		$passengers_individual_info = array();
+		$passengers_detail_info = array();
+		$passengers_individual_info_no = array();
+		$email_html = $this->transport_create_email_model->get_email_html();
+		
+		if(isset($email_html) && !empty($email_html))
+		{
+		
+		$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+		$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+		$email_html_id = $email_html[0]['in_id'];
+		$user_email  = trim($email_html[0]['st_from']);
+		$email_html[0]['st_text'] = trim($email_html[0]['st_text']);
+		
+		$get_email_address = $this->get_string_between($email_html[0]['st_from'],'<','>');
+		
+		if($get_email_address == '')
+		{
+			$get_email_address = $email_html[0]['st_from'];
+		}
+		
+		$verify_user_id = $this->transport_create_email_model->get_user_details($get_email_address);
+		
+		$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+		$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+		
+		preg_match('/Content-Transfer-Encoding:[\s]*[\w]*/i',$email_html[0]['st_text'],$matches);		
+			 	
+			 if(stristr($matches[0],"base64") == true)
+			 {
+				$cron_email_array = array("cron_step"=>'4',
+								"cron_step_detail"=>'step4',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+				  $html_data  = $this->get_string_between($email_html[0]['st_text'],'base64','=');
+				  $html_data =  base64_decode($html_data);		
+				  $html_data = urlencode($html_data);  
+				  $html_data = str_replace("%A1V","-", $html_data);
+				  $html_data = str_replace("%A1%B4"," ● ", $html_data);
+				  //$html_data = str_replace(".++%0A%0A%A1%B4+"," ● ", $html_data);
+				  //$html_data = str_replace("%3A%0A%0A%A1%B4"," ● ", $html_data);
+				   //$html_data = preg_replace('/%5Bg[0-9]*%5D/mi',"<br>",$html_data);
+				  $html_data = str_replace("%0A","+",$html_data);
+				  $html_data = preg_replace('/%5Bg[0-9]*%5D/mi',"",$html_data);
+				  $html_data = urldecode($html_data);
+				  if(stristr($html_data, '*END OF TRANSPORT*') === FALSE)
+				  {
+					  $data_processing_error =1;
+				  }	
+				   		
+			 } else
+			 {
+				$cron_email_array = array("cron_step"=>'4',
+								"cron_step_detail"=>'step4',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+				
+				$html_data  = $this->get_string_between($email_html[0]['st_text'],'quoted-printable','*END OF TRANSPORT*');	
+				$html_data	= urlencode($html_data);
+				$html_data = str_replace("%3D%0D%2F","",$html_data);
+				$html_data = str_replace("%3D%0D%0A","%3D%0A",$html_data);
+				$html_data = str_replace("%3D%0A","",$html_data);
+				$html_data = str_replace("%2A","",$html_data);
+				$html_data = str_replace("%3E","",$html_data);
+				$html_data = urldecode($html_data);
+				$html_data = str_replace("*","",$html_data);
+				$html_data = str_replace("=96","-",$html_data);
+				$html_data = str_replace("=20","",$html_data);
+				$html_data = str_replace("=E2=80= =93","=E2=80=93",$html_data);
+				$html_data = str_replace("==E2=80=93","=E2=80=93",$html_data);
+				$html_data = str_replace("=E2=80=93","-",$html_data);
+				$html_data = str_replace("=E2=97=8F","●",$html_data);
+				$html_data = str_replace("=C2=A0"," ",$html_data);
+				if(stristr($email_html[0]['st_text'], '*END OF TRANSPORT*') === FALSE)
+				{
+					 $data_processing_error =1;
+				} else
+				{	
+					$html_data = $html_data."*END OF TRANSPORT*" ;
+				}		  
+			 }
+				
+				$organization_id   = $this->get_string_between($html_data,'Organization Code:','Destination:');
+				$from_to       = $this->get_string_between($html_data,'Destination:','Date(s):');
+				$get_date          = $this->get_string_between($html_data,'Date(s):','Title:');
+				$get_title         = $this->get_string_between($html_data,'Title:','Transport Monitor:');
+				$transport_monitor = $this->get_string_between($html_data,'Transport Monitor:','Type');
+				$type 	       = $this->get_string_between($html_data,'Type:','Leg(s):');
+				$get_legs          = $this->get_string_between($html_data,'Leg(s):','PASSENGERS:');
+				$passengers_info   = $this->get_string_between($html_data,'PASSENGERS:','ADDITIONAL INFORMATION:');
+				//$additional_info   = $this->get_string_between($email_html[0]['st_text'],'ADDITIONAL INFORMATION:','!!');
+				$additional_info   = $this->get_string_between($html_data,'ADDITIONAL INFORMATION:','*END OF TRANSPORT*');
+				
+		if(count($verify_user_id) > 0 &&  $data_processing_error == 0 && $organization_id != '')
+		{
+			
+			$cron_email_array = array("cron_step"=>'5',
+								"cron_step_detail"=>'step5',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+				
+
+			$user_id = $verify_user_id[0]['in_user_id'];		
+			
+			if (preg_match('/Type:  [\w+-]*/i',$email_html[0]['st_text'],$matches))		
+			{
+				$type = $matches[0];
+				$type = str_replace("Type:"," ",$type);
+			} 
+			
+			$permission = $this->transport_create_email_model->verify_user_permission($user_id,$organization_id);
+			if($permission == "true")
+			{	
+				//$get_arr_legs      = preg_split('/Leg [0-9+\s+-]*/mi',$get_legs);
+				$get_arr_legs      = preg_split('/Leg [0-9+\s+-]*|Overnight [0-9+\s+-]*/mi',trim($get_legs));
+				
+				$source_des      = explode(" to ",$from_to);
+				$source          = trim($source_des[0]);
+				$start_journey   = trim($source_des[0]);
+				$destination     = trim($source_des[1]);
+				$end_journey     = trim($source_des[1]);
+				
+				if(stristr($source, ',') === FALSE)
+					$start_detail = explode(" ",$source);
+				else
+					$start_detail = explode(",",$source);		
+				
+				$start_city      = $start_detail[0];
+				$start_state     = $start_detail[1];
+				
+				if(stristr($destination, ',') === FALSE)
+					$end_detail  = explode(" ",$destination);
+				else
+					$end_detail  = explode(",",$destination);	
+				
+				$end_city        = $end_detail[0];
+				$end_state       = $end_detail[1];
+				$start_point     = trim($start_city).",".trim($start_state);
+				$end_point       = trim($end_city).",".trim($end_state);
+			
+				$source_des_date      = explode("&",$get_date);
+				if(isset($source_des_date) && trim($source_des_date[1])=='')
+				{
+					$source_des_date[1] = $source_des_date[0];
+					$same_date_status_flag = 1;
+				}
+				$start_date           = explode(' ',trim($source_des_date[0]));
+				$end_date             = explode(' ',trim($source_des_date[1]));
+			
+				
+				$starting_date         =  date("D d M Y", strtotime(trim($start_date[1])));
+				
+				if(count($start_date) > 1 )
+				{	
+					$start_date_transportation = date("Y-m-d", strtotime(trim($start_date[1])));
+					$starting_date         =  date("D d M Y", strtotime(trim($start_date[1])));
+				}	
+				else
+				{		
+					$start_date_transportation = date("Y-m-d", strtotime(trim($start_date[0])));
+					$starting_date         =  date("D d M Y", strtotime(trim($start_date[0])));
+				}	
+				
+				if(count($end_date) > 1 )
+					$end_date_transportation = date("Y-m-d", strtotime(trim($end_date[1])));
+				else 
+					$end_date_transportation = date("Y-m-d", strtotime(trim($end_date[0])));
+								
+				$start_point_zip_code = $this->transport_create_email_model->get_zip_code(trim($start_city),trim($start_state));
+				$end_point_zip_code = $this->transport_create_email_model->get_zip_code(trim($end_city),trim($end_state));
+				
+				if(stristr(trim($type), 'Pre-Specify') === FALSE)
+					$transport_type = "D";
+				else
+					$transport_type = "P";	
+				
+				$routes_miles = $this->orgtrasnportation_model->get_route_miles(urlencode($start_point), urlencode($end_point));
+			
+				$transport_details = array("in_trans_coods_id" => $user_id,
+										   "in_organization_id" => $organization_id,
+					                       "st_trans_name" => trim($get_title),
+                                           "st_from_city" => trim($start_city),
+                                           "st_from_state" => trim($start_state),
+										   "st_from_zip" => trim($start_point_zip_code[0]['zip_code']),
+                                           "st_from_country" => trim($start_point_zip_code[0]['st_country']),
+                                           "st_to_city" =>  trim($end_city),
+                                           "st_to_state"   =>  trim($end_state),
+                                           "st_to_zip"  => trim($end_point_zip_code[0]['zip_code']),
+                                           "st_to_country"  => trim($end_point_zip_code[0]['st_country']),
+										   "dt_pickup_date" => $start_date_transportation,
+                                           "dt_target" => $end_date_transportation,
+                                           "st_trans_type" =>  $transport_type,
+                                           "in_tot_distance" => $routes_miles['distance'],
+                                           "in_created_by" => $user_id,
+                                           "dt_created" => date("Y-m-d H:i;s"),
+                                           "in_status" => "4", 
+                                           "in_deleted" => "0",
+					                       "st_add_comments" => $additional_info,
+                                       	   "in_need_trans_monitor" => isset($transport_monitor) && trim($transport_monitor) != 'No' ? 1 : 0,
+					                       "in_allow_pics" => 0,
+                                        );
+                $transport_id = $this->transport_create_email_model->add_transport($transport_details);
+				
+				
+				$sort_order = 0;
+				if($transport_type == "P")
+				{	
+					foreach($get_arr_legs as $key=>$value)
+					{
+						$value = trim($value);
+						
+							if(!empty($value))
+							{
+								$value  = str_replace("EST","EST ",$value);
+								$value  = str_replace("PST","PST ",$value);
+								$value  = str_replace("AST","AST ",$value);
+								$value  = str_replace("CST","AST ",$value);
+								$value  = str_replace("MST","MST ",$value);
+								$value  = str_replace("IST","IST ",$value);
+				  
+								$value      = str_replace("ET","EST ",$value);
+								$value      = str_replace("PT","PST ",$value);
+								$value      = str_replace("AT","AST ",$value);
+								$value      = str_replace("CT","AST ",$value);
+								$value      = str_replace("MT","MST ",$value);
+								$value      = str_replace("IT","IST ",$value);
+								$value      = str_replace("Needed","Needed ",$value);
+								$get_state_list = $this->transport_create_email_model->get_state();
+								foreach($get_state_list as $key=>$state_list)
+								{
+									$state_list = trim($state_list);
+									$value      = str_replace($state_list['state_prefix'],$state_list['state_prefix']." ",$value);
+								}
+								$sort_order++;
+								if((stristr($value,'Overnight(s)') === FALSE))
+								{
+									$array_value = explode("-",$value); 
+									$leg_journey = explode(" to ",trim($array_value[0]));
+						
+									$leg_details = array('source'=>$leg_journey[0],'destination'=>$leg_journey[1]);
+									$array_value[1] = str_replace("Location :","Location:",$array_value[1]);
+									//$date_value= preg_replace('/\s+/','',$array_value[1]);
+									$matches = preg_split('/[\s,]+/m',trim($array_value[1]));
+									$date_key = array_search('to', $matches);
+									$leg_details['matches'] =  $matches;
+									//$leg_details['data_split'] = preg_split('/[0-9]?[0-9]+[0-9]?[0-9]:[0-9][0-9]+am|pm+[A-Z]+[A-Z]+\sto+\s+[0-9]?[0-9]+[0-9]?[0-9]:[0-9][0-9]+am|pm+[A-Z]+[A-Z]/mi',$array_value[1]);
+									//$leg_details['data_split'] = explode(" to ",$array_value[1]);
+									if($same_date_status_flag ==1)
+									{	
+										$leg_details['from_date'] = trim($start_date[1]);
+										$leg_details['from_time'] = $matches[$date_key-2];
+										$leg_details['from_zone'] = $matches[$date_key-1];	
+										$leg_details['to_date']   = trim($start_date[1]);
+										$leg_details['to_time']   = $matches[$date_key+1];
+										$leg_details['to_zone']   = $matches[$date_key+2];
+									} else {
+										$leg_details['from_date'] = $matches[$date_key-3];
+										$leg_details['from_time'] = $matches[$date_key-2];
+										$leg_details['from_zone'] = $matches[$date_key-1];	
+										$leg_details['to_date']   = $matches[$date_key+1];
+										$leg_details['to_time']   = $matches[$date_key+2];
+										$leg_details['to_zone']   = $matches[$date_key+3];
+									}	
+									$no_of_driver_key = array_search('Driver(s)',$matches);	
+									$leg_details['no_of_driver'] =  $matches[$no_of_driver_key-1];
+									$_total_count = count($matches);
+									$comments_key = array_search('Location:', $matches);	
+									$total_comments_line = ($_total_count - $comments_key)-1;
+									$location ="";
+									if($total_comments_line > 0)
+									{
+										for($i =0;$i<$total_comments_line;$i++)
+										{
+											$key = $comments_key+$i+1;
+											$location .= $matches[$key];
+											$location .= " ";
+										}
+									} 
+								
+									$leg_details['location'] = 	$location;
+									$leg_details['over_night']   = 0;
+									$leg_details['route_type']  = 0;
+									$leg_details['sort_order']  = $sort_order;
+									$leg_details['pick_up_date'] = date('Y-m-d H:i:s', strtotime(str_replace(" - ", " ",trim($leg_details['from_date']).trim($leg_details['from_time']))));
+									$leg_details['drop_off_date'] = date('Y-m-d H:i:s', strtotime(str_replace(" - ", " ",trim($leg_details['to_date']).trim($leg_details['to_time']))));
+									//$leg_details['pick_up_date'] = date('Y-m-d H:i:s', strtotime(str_replace(" - ", " ",trim($leg_details['from_date']).trim($leg_details['from_time']))));
+									array_push($transport_leg_details,$leg_details);
+								} else 
+								{
+										if(stristr($value, ',') === true)
+										{		
+											$array_value = explode(",",$value);
+											$leg_details = array('city'=>$array_value[0]);
+											//$leg_details['matches'] = preg_split('/[\s,]+/m',$array_value[1]);
+											$matches = preg_split('/[\s,]+/m',trim($array_value[1]));
+											//$leg_details['matches'] =  $matches;
+											$_total_count = count($matches);
+											$date_key = array_search('Overnight(s)', $matches);
+											$leg_details['state'] = $matches[$date_key-2];
+											$comments_key = array_search('Comments:', $matches);	
+											$total_comments_line = ($_total_count - $comments_key)-1;
+											$comments ="";
+											if($total_comments_line > 0)
+											{
+												for($i =0;$i<$total_comments_line;$i++)
+												{
+													$key = $comments_key+$i+1;
+													$comments .= $matches[$key];
+													$comments .= " ";
+												}
+											}
+										$leg_details['location'] = 	$comments;			
+										} else 
+										{
+											$leg_details = array();
+											//$leg_details['matches'] = preg_split('/[\s,]+/m',trim($value));
+											$matches = preg_split('/[\s,]+/m',trim($value));
+											//$leg_details['matches'] =  $matches;
+											$_total_count = count($matches);
+											$date_key = array_search('Overnight(s)', $matches);
+											
+											if(strlen($matches[$date_key-1]) > 2)
+											{
+												
+												$no_of_vol = substr($matches[$date_key-1],-1);
+												$state_name = substr($matches[$date_key-1],0,2);
+												
+												$value = str_replace($matches[$date_key-1],$state_name.' '.$no_of_vol,$value);
+												$matches = preg_split('/[\s,]+/m',trim($value));												
+												$_total_count = count($matches);											
+												$date_key = array_search('Overnight(s)', $matches);
+												
+											}
+											
+											//$leg_details['city'] = $matches[$date_key-3];
+											$output = array_slice($matches, 0, $date_key-2); 
+											$on_leg_address =  implode(' ',$output);											
+											$leg_details['city'] = trim($on_leg_address);											
+											$leg_details['state'] = $matches[$date_key-2];
+											$comments_key = array_search('Comments:', $matches);	
+											$total_comments_line = ($_total_count - $comments_key)-1;
+											$comments ="";
+											if($total_comments_line > 0)
+											{
+												for($i =0;$i<$total_comments_line;$i++)
+												{
+													$key = $comments_key+$i+1;
+													$comments .= $matches[$key];
+													$comments .= " ";
+												}
+											}
+											$leg_details['location'] = 	$comments;	
+										}
+										$leg_details['sort_order']  = $sort_order;
+										$leg_details['over_night']   = 1;
+										$leg_details['route_type']  = 2;
+										$leg_details['no_of_driver'] = 0;	
+										array_push($transport_leg_details,$leg_details);		
+								}
+							}		
+					}
+				}	
+				
+				
+				if($transport_type == "P")
+				{	
+					foreach($transport_leg_details as $key=>$value)
+					{
+						if($value['no_of_driver'] > 1)
+						{
+							$multi_user = 1;
+							$user_num  = $value['no_of_driver'];
+						} else {
+							$multi_user = 0;
+							$user_num  = 0;
+						}	
+						$legs_array    =    array("in_transportation_id"   =>  $transport_id,
+									   "in_route_type"          => $value['route_type'],
+                                       "in_multi_user"          => $multi_user,
+                                       //"in_user_num"            => $value['no_of_driver'],
+									   "in_user_num"            => $user_num,
+                                       "st_meeting_location"    => $value['location'], 
+                                       "in_created_by"          => $user_id,
+                                       "in_sort_order"          => $value['sort_order'],
+                                       "dt_created"             => date("Y-m-d H:i:s"),
+                                       "in_deleted"             => "0"
+                        );
+
+						$leg_id  =  $this->transport_create_email_model->create_legs($legs_array);
+			
+						if($value['over_night'] == 0)
+						{
+					
+							$value['source'] =  trim($value['source']);			
+				
+							if(stristr($value['source'], ',') === FALSE)
+							{
+								$start_city ='';
+								$start_leg_address =  explode(' ',trim($value['source']));
+								$total_address_start_count = count($start_leg_address);
+								if($total_address_start_count > 2)
+								{
+									for($i=0;$i< $total_address_start_count-1;$i++)
+									{	
+										$start_city .= trim($start_leg_address[$i]).' ';  
+								    }
+										$start_state = trim($start_leg_address[$total_address_start_count-1]);
+								} else {
+									$start_city  = trim($start_leg_address[0]); 
+									$start_state = trim($start_leg_address[1]);
+								}
+						    } else {
+								  $start_city ='';
+							      $start_leg_address =  explode(',',trim($value['source']));
+								  $start_city  = trim($start_leg_address[0]); 
+								  $start_state = trim($start_leg_address[1]); 
+							}		
+							//$start_point_zip_code = $this->transport_create_email_model->get_zip_code(trim($start_leg_address[0]),trim($start_leg_address[1]));
+							  $start_point_zip_code = $this->transport_create_email_model->get_zip_code($start_city,$start_state);	
+							$pickup_array = array("in_transportation_leg_id" => $leg_id,
+											  "st_leg_type" => "P",
+											  "st_street" =>   '',
+											  "st_city " =>    $start_city,
+											  "st_state " =>   $start_state,
+											  "st_zip " =>     trim($start_point_zip_code[0]['zip_code']),
+                                              "st_country " => trim($start_point_zip_code[0]['st_country']),
+                                              "dt_start_time" => trim($value['pick_up_date']),
+                                              "st_timezone" =>   trim($value['from_zone']),
+                                              "in_deleted" => "0"
+								);
+							$this->transport_create_email_model->add_legs_details($pickup_array);
+				
+							if(stristr($value['destination'], ',') === FALSE)
+							{
+								$end_city = '';
+								$end_leg_address =  explode(' ',trim($value['destination']));
+								
+								$total_address_end_count = count($end_leg_address);
+								if($total_address_end_count > 2)
+								{
+									for($i=0;$i< $total_address_end_count-1;$i++)
+									{	
+										$end_city .= trim($end_leg_address[$i]).' ';  
+								    }
+										$end_state = trim($end_leg_address[$total_address_end_count-1]);
+								} else {
+									$end_city  = trim($end_leg_address[0]); 
+									$end_state = trim($end_leg_address[1]);
+								}
+								
+							} else {
+								$end_city = '';
+								$end_leg_address =  explode(',',trim($value['destination']));
+								$end_city  = trim($end_leg_address[0]); 
+								$end_state = trim($end_leg_address[1]);
+							}		
+				
+							//$end_point_zip_code = $this->transport_create_email_model->get_zip_code(trim($end_leg_address[0]),trim($end_leg_address[1]));
+							  $end_point_zip_code = $this->transport_create_email_model->get_zip_code($end_city,$end_state);	
+							
+							$dropoff_array = array("in_transportation_leg_id" => $leg_id,
+									                "st_leg_type" => "D",
+									                  "st_street" => '',
+													    "st_city" => $end_city,
+													   "st_state" => $end_state,
+													     "st_zip" => trim($end_point_zip_code[0]['zip_code']),
+													 "st_country" => trim($end_point_zip_code[0]['st_country']),
+												  "dt_start_time" => $value['drop_off_date'],
+													"st_timezone" => $value['to_zone'],
+                                                     "in_deleted" => "0"
+                            );
+							$this->transport_create_email_model->add_legs_details($dropoff_array);
+
+
+                            #================== Add overview path for legs start===============#	
+                            $origin_loc =  trim($start_leg_address[0]). ",". trim($start_leg_address[1]) .",". trim($start_point_zip_code[0]['zip_code']).",".trim($start_point_zip_code[0]['st_country']) ;
+                            $dest_loc =    trim($end_leg_address[0]). ",". trim($end_leg_address[1]) .",". trim($end_point_zip_code[0]['zip_code']).",".trim($end_point_zip_code[0]['st_country']) ;
+							 $routes_miles = $this->orgtrasnportation_model->get_route_miles(urlencode($origin_loc), urlencode($dest_loc),"",0);
+                            if (isset($routes_miles['route_path']) && $routes_miles['route_path'] != '') {
+                                $route_details = array("in_transportation_leg_id" => $leg_id,
+													    "in_transportation_id" => $transport_id,
+                                    "in_route_type" => 0,
+                                    "st_legs_details" => $routes_miles['route_path'],
+                                    "fl_distance" => $routes_miles['distance'],
+                                    "in_deleted" => "0"
+                                );
+                                $this->common_model->insert_data("tbl_routes", $route_details);
+                            }
+						} else {
+							$overnight_point_zip_code = $this->transport_create_email_model->get_zip_code(trim($value['city']),trim($value['state']));
+							$over_night_array = array("in_transportation_leg_id" => $leg_id,
+																"st_leg_type" => "O",
+																  "st_street" => '',
+																	"st_city" => trim($value['city']),
+																   "st_state" => trim($value['state']),
+																	 "st_zip" =>  trim($overnight_point_zip_code[0]['zip_code']),
+																	"st_country" => trim($overnight_point_zip_code[0]['st_country']),
+																 "dt_start_time" => date('Y-m-d H:i:s'),
+																	"in_deleted" => "0"
+                            );
+								$this->transport_create_email_model->add_legs_details($over_night_array);
+						}			
+					} 
+				}
+				/*$passengers_info        =  str_replace(array("\r", "\n"),' ',$passengers_info);
+				$passengers_info        =  str_replace("E2 80    93",'-',$passengers_info);
+				$passengers_info        =  trim($passengers_info);
+				$passengers_individual_info =	explode("CVI", $passengers_info);*/
+				//$passengers_individual_info = explode("\r\n",$passengers_info);
+				//$passengers_individual_info = explode('CVI',trim($passengers_info));
+				
+				$passengers_individual_info_yes = explode('YES',trim($passengers_info));
+				
+				foreach($passengers_individual_info_yes as $key=>$value)
+				{
+					$value = trim($value);
+					
+					if(!empty($value))
+					{
+						if(stristr($value,'NO') == TRUE)
+						{
+							$passengers_detail_info_no = explode('NO',trim($value));
+							$count = count($passengers_detail_info_no);
+							for($i=0;$i<$count-1;$i++)
+							{
+								$passengers_detail_info_no[$i] = trim($passengers_detail_info_no[$i]). "NO";
+								array_push($passengers_individual_info,$passengers_detail_info_no[$i]);
+							}
+							if(!empty($passengers_detail_info_no[$count-1]))
+							{	
+								$passengers_detail_info_no[$count-1] = trim($passengers_detail_info_no[$count-1]). "YES";
+								array_push($passengers_individual_info,$passengers_detail_info_no[$count-1]);
+							}	
+						} else {
+							$value = trim($value). "YES";
+							array_push($passengers_individual_info,$value);
+						}		
+					}	
+				}
+		    
+				foreach($passengers_individual_info as $key=>$value){
+				
+					$travel_with_value = array(1=>"Collar",2=>"Leash",3=>"Crate",4=>"Medicine");
+				
+					$value = trim($value);
+					if(!empty($value))
+					{
+						$info = explode("-",$value);
+						$detail_info['animal_name'] = $info[0];
+						$detail_info['animal_type'] = $info[1];
+						$animal_type_id = $this->transport_create_email_model->get_animal_all_type(trim($info[1]));
+						if(count($animal_type_id) >0 )
+						{	
+							$detail_info['animal_type_id'] = $animal_type_id[0]['in_animal_type_id'];
+							$detail_info['animal_breed'] = $info[2];
+							$detail_info['error'] = 0;
+						} else 
+							$detail_info['error'] = 1;	
+						if($detail_info['error']==0)
+						{	
+							$breed_type_id = $this->transport_create_email_model->get_animal_breed(trim($info[2]),$detail_info['animal_type_id']);
+							if(count($breed_type_id) > 0 )
+								$detail_info['animal_breed_id'] =  $breed_type_id[0]['in_animal_breed_id'];
+							else
+								$detail_info['error'] = 1;
+						}
+						$detail_info['animal_gender'] = $info[3];
+					
+						if(trim($info[3])=='Male')
+							$detail_info['agender'] = 'M';
+						else if(trim($info[3])=='Female')
+							$detail_info['agender'] = 'F';
+	
+						$info[4] =  str_replace(" ","",$info[4]);	
+						$detail_info['travelling_with'] = $info[4];
+					
+						if(stristr(trim($info[4]), ',') === FALSE)
+						{
+						$detail_info['travel_with_id'] = array_Search(trim($info[4]),$travel_with_value);
+						} else{
+							$travel_with_id = array(); 
+							$travel_with_array = explode(",",trim($info[4]));
+							foreach($travel_with_array as $key => $value){
+								$travel_with_id[]  = array_Search(trim($value),$travel_with_value);
+							}
+							$detail_info['travel_with_id'] = implode(",",$travel_with_id);
+						}
+						
+						if(stristr(trim($info[5]),'NO') == TRUE)
+						{
+							$detail_info['CVI'] = 'N';
+						} else {
+							$detail_info['CVI'] = 'Y';
+						}	
+						
+						array_push($passengers_detail_info,$detail_info);		
+					}	
+				} 
+				
+				foreach($passengers_detail_info as $key=>$value)	
+				{
+					
+					$data['org_details']	= $this->transport_create_email_model->get_org_details($organization_id); 
+					
+					if(isset($value['error']) && $value['error'] == 0)
+					{
+						$demid	= $this->transport_create_email_model->chk_demeanor('Unknown',$value['animal_type_id']);
+						
+						$data['animal_info'] = array('in_organization_id'	=>	$organization_id,
+														'st_animal_name'		=>	$value['animal_name'],
+														'st_gender'				=>	$value['agender'],
+														'in_primary_breed_id'	=>	$value['animal_breed_id'],	
+														'in_animal_type_id'     =>	$value['animal_type_id'],
+														'st_travel_with'		=>	$value['travel_with_id'],
+														'st_cvi'				=>	$value['CVI'],
+														'in_neutered_id'		=>	3,
+														'in_demeanor_id'		=>  $demid[0]['in_demeanor_id'],
+														'in_created_by'			=>	$user_id,
+														'dt_created'			=>	date('Y-m-d H:i:s'),
+														'st_city'				=>  $data['org_details']['st_city'],
+														'st_state'				=>	$data['org_details']['st_state'],
+														'in_status'				=>	0,
+												);
+						if(!empty($data['animal_info']))
+						{
+							$animal_id	= $this->transport_create_email_model->add_animal_profile($data['animal_info']);
+							$this->transport_create_email_model->add_animal_trasport($animal_id,$transport_id,$user_id);	
+						}
+					}
+				}
+				 
+				//echo "completed";
+				
+				 $baseurl = base_url().'transport_create_email/direct_login/'.$this->common_function->encode_base64($user_id).'/'.$this->common_function->encode_base64($transport_id).'/'.$this->common_function->encode_base64($organization_id);	
+				
+				//$mail_statement = array ("XXX" => $transport_id,"PICKUP"=> $starting_date,"ORIGIN" => $start_journey,'DESTINATION' => $end_journey,'url' =>base_url().'transport-create-legs?id='.$transport_id) ;
+				 $mail_statement = array ("XXX" => $transport_id,"PICKUP"=> $starting_date,"ORIGIN" => $start_journey,'DESTINATION' => $end_journey,'url' => $baseurl );	
+				 $this->send_email(1,$get_email_address,$mail_statement);
+				 		
+			}
+			else {
+				
+				$html_content .= "Organization Code: ".$organization_id."<br>";
+				$html_content .= "Destination: ".$from_to."<br>";
+				$html_content .= "Date(s): ".$get_date."<br>";
+				$html_content .= "Title: ".$get_title."<br>";
+				$html_content .= "Transport Monitor: ".$transport_monitor."<br>";
+				$html_content .= " Type: ".$type."<br>";
+				$html_content .= "  Leg(s):<br>";
+		
+				$get_legs = str_replace("Leg","<br> Leg ",$get_legs);
+				$get_legs = str_replace("LEG","<br> Leg ",$get_legs);
+				$get_legs = str_replace("Overnight ","<br> Overnight ",$get_legs);
+				$get_legs = str_replace(" Leg ","<br> Leg ",$get_legs);
+				$get_legs = str_replace(" LEG ","<br> Leg ",$get_legs);
+				$get_legs = str_replace(" Overnight ","<br> Overnight ",$get_legs);
+				
+				
+				$get_legs  = str_replace("EST","EST ",$get_legs);
+				$get_legs  = str_replace("PST","PST ",$get_legs);
+				$get_legs  = str_replace("AST","AST ",$get_legs);
+				$get_legs  = str_replace("CST","AST ",$get_legs);
+				$get_legs  = str_replace("MST","MST ",$get_legs);
+				$get_legs  = str_replace("IST","IST ",$get_legs);
+				  
+				$get_legs      = str_replace("ET","EST ",$get_legs);
+				$get_legs      = str_replace("PT","PST ",$get_legs);
+				$get_legs      = str_replace("AT","AST ",$get_legs);
+				$get_legs      = str_replace("CT","AST ",$get_legs);
+				$get_legs      = str_replace("MT","MST ",$get_legs);
+				$get_legs      = str_replace("IT","IST ",$get_legs);
+				$get_legs      = str_replace("Needed","Needed ",$get_legs);
+				$get_state_list = $this->transport_create_email_model->get_state();
+				foreach($get_state_list as $key=>$state_list)
+				{
+					$value      = str_replace($state_list['state_prefix'],$state_list['state_prefix']." ",$get_legs);
+				}
+			
+				$html_content .= ($get_legs)."<br><br>";
+				
+				$passengers_info = str_replace("CVI"," CVI <br>  ",$passengers_info);
+				$passengers_info = str_replace(" CVI "," CVI <br>  ",$passengers_info);
+				
+				
+				$html_content .= "PASSENGERS:<br>" .($passengers_info)."<br>";
+				
+			
+				$html_content .= " ADDITIONAL INFORMATION:<br>" .($additional_info)."<br>";
+			
+				$send_transport_content = "TRANSPORTATION DATA <br/> <br/>".$html_content; 	
+				$send_transport_content = str_replace("●","",$send_transport_content);
+				$failure_statment = array(1=>"You do not have the Permission to create transport");
+					 $this->send_email(0,$get_email_address,$failure_statment,$send_transport_content);
+			}	
+		} else {
+		
+				$cron_email_array = array("cron_step"=>'5',
+								"cron_step_detail"=>'step5',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+				$html_content .= "Organization Code: ".$organization_id."<br>";
+				$html_content .= "Destination: ".$from_to."<br>";
+				$html_content .= "Date(s): ".$get_date."<br>";
+				$html_content .= "Title: ".$get_title."<br>";
+				$html_content .= "Transport Monitor: ".$transport_monitor."<br>";
+				$html_content .= " Type: ".$type."<br>";
+				$html_content .= "  Leg(s):<br>";
+				
+				$get_legs = str_replace("Leg","<br> Leg ",$get_legs);
+				$get_legs = str_replace("LEG","<br> Leg ",$get_legs);
+				$get_legs = str_replace("Overnight ","<br> Overnight ",$get_legs);
+				$get_legs = str_replace(" Leg ","<br> Leg ",$get_legs);
+				$get_legs = str_replace(" LEG ","<br> Leg ",$get_legs);
+				$get_legs = str_replace(" Overnight ","<br> Overnight ",$get_legs);
+				
+				$get_legs  = str_replace("EST","EST ",$get_legs);
+				$get_legs  = str_replace("PST","PST ",$get_legs);
+				$get_legs  = str_replace("AST","AST ",$get_legs);
+				$get_legs  = str_replace("CST","AST ",$get_legs);
+				$get_legs  = str_replace("MST","MST ",$get_legs);
+				$get_legs  = str_replace("IST","IST ",$get_legs);
+				  
+				$get_legs      = str_replace("ET","EST ",$get_legs);
+				$get_legs      = str_replace("PT","PST ",$get_legs);
+				$get_legs      = str_replace("AT","AST ",$get_legs);
+				$get_legs      = str_replace("CT","AST ",$get_legs);
+				$get_legs      = str_replace("MT","MST ",$get_legs);
+				$get_legs      = str_replace("IT","IST ",$get_legs);
+				$get_legs      = str_replace("Needed","Needed ",$get_legs);
+				
+				$html_content .= ($get_legs)."<br><br>";
+				
+				$passengers_info = str_replace("CVI"," CVI <br>  ",$passengers_info);
+				$passengers_info = str_replace(" CVI "," CVI <br>  ",$passengers_info);
+				
+				
+				$html_content .= "PASSENGERS:<br>" .($passengers_info)."<br>";
+				
+			
+				$html_content .= " ADDITIONAL INFORMATION:<br>" .($additional_info)."<br>";
+				$send_transport_content = "TRANSPORTATION DATA <br/> <br/>".$html_content; 		
+				$send_transport_content = str_replace("●","",$send_transport_content);
+				if($data_processing_error == 1 && count($verify_user_id) > 0)
+				{
+					$failure_statement = array(1=>"Data is not send according to standard format");
+				} else
+				{		
+					if($organization_id == "")
+					{
+						$failure_statement = array(1=>"Data is not send according to standard format");
+					}
+					else	
+					{
+						$failure_statement = array(1=>"You are not the member of the doobert site");
+					}
+				}	
+				$this->send_email(0,$get_email_address,$failure_statement,$send_transport_content);	
+		}
+			 
+			$cron_email_array = array("cron_step"=>'6',
+								"cron_step_detail"=>'step6',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+				
+			$this->transport_create_email_model->update_process_status($email_html_id);
+
+			$cron_email_array = array("cron_step"=>'7',
+								"cron_step_detail"=>'step7',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			echo "Process completed";
+		}else{
+		
+		$cron_email_array = array("cron_step"=>'7',
+								"cron_step_detail"=>'step7',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+		$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+		echo 'No records Found.';
+		}
+	}
+	
+	function get_string_between($string, $start, $end){
+		$string = ' ' . $string;
+		$ini = strpos($string, $start);
+		if ($ini == 0) return '';
+		$ini += strlen($start);
+		$len = strpos($string, $end, $ini) - $ini;
+		return substr($string, $ini, $len);
+	}
+	
+	function send_email($status,$get_email_address,$email_content,$get_content='')
+	{
+			$this->load->library('email');
+			if($status == 0)
+			{	
+				$email_details = $this->common_model->get_email_containt("68");
+			} else {
+				$email_details = $this->common_model->get_email_containt("67");
+			}	
+		
+			if (isset($email_details[0]['st_email_body'])) 
+			{
+				if($status == 0)
+				{	
+					
+					end($email_content);
+					$lastkey =	key($email_content);				 
+					foreach ($email_content as $key=>$value)
+					{
+						 if ($lastkey == $key)
+						 {
+							 $error_message .='<p style="margin:0 0 0 0; padding:0px; color:#333;">'. $key.'.'.$value.'</p>'; 
+						 } else {
+							 $error_message .='<p style="margin:0 0 17px 0; padding:0px; color:#333;">'. $key.'.'.$value.'</p>';
+						
+						 }							
+					}
+					$templete = $email_details[0]['st_email_body'];
+					$templete = str_replace("##error_message_display##",$error_message, $templete);
+					$strMail = $templete;
+					$to = $get_email_address;
+					//$to = 'nirav.motta@pulsesolutions.net';
+					$subject = $email_details[0]['st_email_subject'];					
+					$category = $email_details[0]['st_category'];	
+					//$message = $strMail;
+					$message .= $strMail."<br/>";
+					$message .= $get_content;
+					
+				} else {
+					$unique_url = '<a href="'.$email_content['url'].'">'.$email_content['url'].'</a>';
+					$templete = $email_details[0]['st_email_body'];
+					$templete = str_replace("##draft_transport_link##",$email_content['url'],$templete);
+					$templete = str_replace("##XXX##", "DBT".$email_content['XXX'],$templete);
+					$templete = str_replace("##PICKUP-DATE##",$email_content['PICKUP'],$templete);
+					$templete =	str_replace("##ORIGIN##",$email_content['ORIGIN'],$templete); 
+					$templete = str_replace("##DESTINATION##",  $email_content['DESTINATION'],$templete);
+					$templete = str_replace("##UNIQUE_URL:##",$unique_url , $templete);
+					$strMail = $templete;
+					$to = $get_email_address;
+					//$to = 'nirav.motta@pulsesolutions.net';
+					$subject = $email_details[0]['st_email_subject'];
+					$category = $email_details[0]['st_category'];
+					$message = $strMail;
+					
+				}
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', "Doobert.com", $this->email, $category);	
+			}	
+	}
+	
+	function direct_login($uid = false,$transport_id,$org_id) {
+
+        $userId = $this->common_function->decode_base64($uid);
+        $transportId = $this->common_function->decode_base64($transport_id);
+		$orgId = $this->common_function->decode_base64($org_id);
+
+        if ((!$userId) || (!$transportId) || (!$orgId))  {
+            redirect($this->config->item('base_url'));
+        }
+
+        $user_details = $this->common_function->get_user_profile($userId);
+        if (empty($user_details)) {
+            redirect($this->config->item('base_url'));
+        }
+
+        $this->session->set_userdata('userid', $user_details['in_user_id']);
+        $this->session->set_userdata('user_name', $user_details['st_display_name']);
+        $this->session->set_userdata('last_name', $user_details['st_last_name']);
+        $this->session->set_userdata('email', $user_details['st_email']);
+		$this->session->set_userdata('zip', $user_details['st_zip']);  //Added By Nirav 14-June-2016
+		$this->session->set_userdata('org_id',$orgId);
+	    $this->session->set_userdata('transport_id',$transportId);
+        //$this->session->set_userdata('adminId', $adminId);
+        //$this->session->set_userdata('login_as_admin', 'yes');
+		
+		$base_url = base_url().'transport-create-legs?id='.$transportId;
+		redirect($base_url);
+		 
+    }
+	
+}	
+?>	

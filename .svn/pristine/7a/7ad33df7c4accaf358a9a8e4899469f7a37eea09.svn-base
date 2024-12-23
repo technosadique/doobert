@@ -1,0 +1,301 @@
+<?php
+class rescue_stories_model extends CI_Model {
+
+    function __construct()
+    {
+        parent::__construct();
+    }
+	
+	function get_rescue_story_count($story_title,$transport_id,$story_status,$author_name,$email_address)
+	{	
+		$this->db->select("trs.in_id,trs.st_rescue_title,trs.in_transportation_id,trs.in_status,trs.dt_created,
+							trs.dt_modified,
+							concat(u.st_display_name,' ',u.st_last_name)as display_name,u.st_email",FALSE);						   	
+		$this->db->from('tbl_transport_rescue_story trs');
+		$this->db->join("tbl_users u","trs.in_created_by = u.in_user_id","LEFT");
+		$this->db->where('trs.in_deleted',0);
+		$this->db->where_not_in('trs.st_rescue_title','');
+		$this->db->where_not_in('trs.st_rescue_story','');
+		//$this->db->where('trs.in_status',0);
+		
+		if($story_status!='' || $story_status!='all' )
+		{
+			switch($story_status)
+			{
+			case 'pen': 
+				$this->db->where('trs.in_status',0);						
+			break;
+			case 'app':
+					$this->db->where('trs.in_status',1);					
+			break;
+			case 'rej': 
+					$this->db->where('trs.in_status',2);
+			break;
+			}
+		}
+		
+		if(!empty($transport_id))
+		{
+			$this->db->where('trs.in_transportation_id',$transport_id);	
+		}
+		
+		if(!empty($story_title))
+		{
+			$sql = "st_rescue_title LIKE '%".addslashes($story_title)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		if(!empty($transport_id))
+		{
+			$this->db->where('trs.in_transportation_id',$transport_id);	
+		}
+		
+		if(!empty($author_name))
+		{
+			$sql = "concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($author_name)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		if(!empty($email_address))
+		{
+			$sql = "u.st_email LIKE '%".addslashes($email_address)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		$query = $this->db->get(); 
+		
+		//print_r($transport_story);
+		//exit(0);
+			return $query->num_rows();
+	}
+	
+	function get_rescue_story_data($sort,$order,$limit,$rec_per_page,$story_title,$transport_id,$story_status,$author_name,$email_address)
+	{
+		$this->db->select("trs.in_id,trs.st_rescue_title,trs.in_transportation_id,trs.in_status,trs.dt_created,
+							trs.dt_modified,
+							concat(u.st_display_name,' ',u.st_last_name)as display_name,u.st_email",FALSE);						   	
+		$this->db->from('tbl_transport_rescue_story trs');
+		$this->db->join("tbl_users u","trs.in_created_by = u.in_user_id","LEFT");
+		$this->db->where('trs.in_deleted',0);
+		$this->db->where_not_in('trs.st_rescue_title','');
+		$this->db->where_not_in('trs.st_rescue_story','');
+		//$this->db->where('trs.in_status',0);
+		if($story_status!='' || $story_status!='all' )
+		{
+			switch($story_status)
+			{
+			case 'pen': 
+				$this->db->where('trs.in_status',0);						
+			break;
+			case 'app':
+					$this->db->where('trs.in_status',1);					
+			break;
+			case 'rej': 
+					$this->db->where('trs.in_status',2);
+			break;
+			}	
+				
+		}
+		
+		if(!empty($transport_id))
+		{
+			$this->db->where('trs.in_transportation_id',$transport_id);	
+		}
+		
+		if(!empty($story_title))
+		{
+			$sql = "st_rescue_title LIKE '%".addslashes($story_title)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		if(!empty($author_name))
+		{
+			$sql = "concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($author_name)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		if(!empty($email_address))
+		{
+			$sql = "u.st_email LIKE '%".addslashes($email_address)."%'";
+			$this->db->where($sql,NULL, FALSE);	
+		}
+		
+		switch($sort)
+		{		
+						case 'trid': 
+							$this->db->order_by('trs.in_transportation_id',$order);							
+						break;
+
+						case 'title':
+							$this->db->order_by('trs.st_rescue_title',$order);						
+						break;
+						
+						case 'author': 
+							  $this->db->order_by('u.st_display_name',$order);
+							  $this->db->order_by('u.st_last_name',$order);
+							//$this->db->order_by('trs.in_transportation_id',$order);
+						break;	 
+						
+						case 'email': 							
+							$this->db->order_by('u.st_email',$order);
+						break;	
+						
+						case 'crdate':							
+							$this->db->order_by('trs.dt_created',$order);						
+						break;
+						
+						case 'modate':
+							$this->db->order_by('trs.dt_modified',$order);							
+						break;
+						
+						default:						
+							$this->db->order_by('trs.dt_created','desc');	
+						break; 
+						
+						/*default:						
+							$sql .= ' order by in_transport_id desc';	
+						break;*/        
+		 }
+		$this->db->limit($rec_per_page,$limit);
+		$query = $this->db->get(); 
+		/*print_r($this->db->last_query());
+		exit(0);*/
+		$transport_story = array();
+		if($query->num_rows()>0)
+		{  		
+			foreach($query->result() as $Row)
+		    {
+				if($Row->in_status == 1) {
+					$status = 'Approved';
+				} else if($Row->in_status == 2) {
+					$status = 'Rejected';
+				} else {
+					$status = 'Pending';
+				}	
+					
+				$transport_story[] = array('in_id' => $Row->in_id,
+										   'in_transportation_id' => $Row->in_transportation_id,
+											'title_story' => $Row->st_rescue_title,
+											'status'=> $status,
+											'dt_created' => date("m-d-Y H:i:s",strtotime($Row->dt_created)),
+											'dt_modified' => ($Row->dt_modified=='')?'':date("m-d-Y H:i:s",strtotime($Row->dt_modified)),
+											'created_by'  =>  $Row->display_name,
+											'email_address' => 	$Row->st_email,
+											//'dt_created' => date()
+										);
+			}	
+		}
+		//print_r($transport_story);
+		//exit(0);
+			return $transport_story;
+	}
+	
+	function get_detail_transportstory_data($id)
+	{
+		$this->db->select("trs.st_rescue_title,trs.in_id,trs.st_rescue_title,trs.st_rescue_story,trs.in_status,trs.in_transportation_id,
+						  concat(u.st_display_name,' ',u.st_last_name)as display_name,trs.dt_created,trs.in_flag",FALSE);						   	
+		$this->db->from('tbl_transport_rescue_story trs');
+		$this->db->join("tbl_users u","trs.in_created_by = u.in_user_id","LEFT");
+		$this->db->where('trs.in_id',$id);
+		$this->db->where('trs.in_deleted',0);
+		$query = $this->db->get(); 
+		$transport_story = array();
+		if($query->num_rows()>0)
+		{  		
+			$Row = $query->row();
+			//foreach($query->row() as $Row)
+		    //{
+				if($Row->in_status == 1) {
+					$status = 'Approved';
+				} else if($Row->in_status == 2) {
+					$status = 'Rejected';
+				} else {
+					$status = 'Pending';
+				}	
+					
+				$transport_story['story'] = array('in_id' => $Row->in_id,
+											'in_transportation_id' => $Row->in_transportation_id,
+											'title_story' => $Row->st_rescue_title,
+											'transport_story' => $Row->st_rescue_story,
+											'status'=> $status,
+											'author_name' => $Row->display_name,
+											'dt_created' => ($Row->dt_created ==''||$Row->dt_created =='0000-00-00'  || $Row->dt_created =='1969-12-31')?'':date("m-d-Y H:i:s",strtotime($Row->dt_created)),
+											'flag'=> $Row->in_flag,										
+										);
+			/*}*/	
+		}
+		
+		$this->db->select('st_file_name,st_file_type,st_video_provider,st_video_id,in_transport_photo_id',FALSE);
+		$this->db->from('tbl_transportation_photo');
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_transport_story_id',$id);
+		$query = $this->db->get();
+		if($query->num_rows()>0)
+		{  		
+			foreach($query->result() as $Row)
+		    {	
+				
+				if($Row->st_file_type == "P") {	
+				$transport_story['photo'][] = array('st_file_name' => $Row->st_file_name,
+													'in_transportation_story_id' => $Row->in_transport_photo_id,
+													'file_type' => $Row->st_file_type,
+													'in_transport_photo_id' => $Row->in_transport_photo_id															
+													);
+			}	
+			
+				if($Row->st_file_type == "V") {	
+				$transport_story['video'][] = array('st_file_name' => $Row->st_file_name,
+													'in_transportation_story_id' => $Row->in_transport_photo_id,
+													'file_type' => $Row->st_file_type,
+													'video_provider' => $Row->st_video_provider,
+													'video_id'=> $Row->st_video_id,	
+													'in_transport_photo_id' => $Row->in_transport_photo_id	
+													);
+			}	
+			
+			}	
+		}
+		//print_r($transport_story);
+		//exit(0);
+			return $transport_story;
+	}
+	
+	
+	function approved_transport_story($Id)
+	{
+		$arrApprovedsts = 	array('in_status' => '1','dt_modified'=>date("Y-m-d H:i:s"));
+		$this->db->where('in_id', $Id);
+		$this->db->update('tbl_transport_rescue_story', $arrApprovedsts);	
+		//echo $this->db->last_query(); die;	
+		return $this->db->affected_rows();
+	 
+	}
+	
+	function rejected_transport_story($Id)
+	{
+		$arrApprovedsts = 	array('in_status' => '2','dt_modified'=>date("Y-m-d H:i:s"));
+		$this->db->where('in_id', $Id);
+		$this->db->update('tbl_transport_rescue_story', $arrApprovedsts);	
+		//echo $this->db->last_query(); die;	
+		return $this->db->affected_rows();
+	 
+	}
+	
+	function update_rescue_stories($data,$Id,$table)
+	{
+		$this->db->WHERE('in_id', $Id);
+        $this->db->update($table, $data);
+        return $this->db->affected_rows();
+	}
+	
+	function delete_rescue_photo($Id,$table)
+	{
+		$arrPhoto = 	array('in_deleted' => '1');
+		$this->db->where('in_transport_photo_id', $Id);
+		$this->db->update($table, $arrPhoto);	
+		//echo $this->db->last_query(); die;	
+		return $this->db->affected_rows();
+	}
+	
+}
+?>

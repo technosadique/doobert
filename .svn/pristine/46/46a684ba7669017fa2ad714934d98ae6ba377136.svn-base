@@ -1,0 +1,476 @@
+//rajashri mahapure
+//high volume ruote transport
+//transport summary
+
+
+$(document).ready(function() { 
+    if($( window ).width() <= 1069) //767
+    {
+        $('.large-only').html(" ");
+    } else {
+        $('.small-only').html(" ");
+    }
+});
+
+
+function delete_adopt_animal(ele)
+{  
+
+	var transport_id = $("#transport_id").val();
+	var org_id	= $("#org_id").val();
+	var type 	= $("#type").val();	
+	var url = base_url +'transport_summary/delete_animal/'+ele;    
+	if(ele)
+	{
+        if (!confirm('Are you sure you want to delete this reservation?'))
+        {
+            return false;
+        }else{
+    		$.ajax({
+
+                url: url,
+                beforeSend: function() {               
+                },            
+                dataType:"json",
+                complete: function() {               
+                },
+                success:function(data) { 
+                    if(data == "success")
+                    {
+                        alert("Selected reservation is deleted successfully.");
+                        //window.location.href =  base_url +'transport_summary/send_receive/'+transport_id+'/'+org_id+'/'+type;
+                       window.location.href = window.location;
+                    }else
+                    {
+                        alert(data);
+                        return false;
+                    }
+                }
+
+            });
+        }
+		
+	}
+	else{
+		return false;
+	}
+}
+
+//searching feature
+$("#transport_number").keyup(function () {
+
+    var value = $(this).val().toLowerCase();
+    $(".myTable tr").filter(function() {
+        $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+    });
+});
+
+
+function reservation_action(ele)
+{   
+   
+    var temp = ele.split("/");
+
+    var in_status = temp[0];
+    var type = temp[1];    
+    var in_adoption_order = temp[2];    
+    var crate_id = $("#crate_"+in_adoption_order).val();     
+    var crate_qty = 1;     
+    var transport_id = $("#transport_id").val();
+    var in_adoption_id = $("#in_adoption_id").val();
+    var animal_sharedwithcrate ='';    
+    if(crate_id.includes('share')) {         
+        var animal_sharedwithcrate = $("#animal_sharedwithcrate").val();
+        var url = base_url+'transport_summary/insert_shared_details';
+    }else{        
+        var url =  base_url +'transport_summary/reservation_action';
+    }
+   // alert(in_adoption_id+'||'+in_adoption_order+'||'+animal_sharedwithcrate);
+    if(in_status == 1){
+        if(crate_id)
+        {
+            action_ajax(transport_id,in_status,type,in_adoption_order,crate_id,crate_qty,animal_sharedwithcrate,url);
+        }
+        else{
+            alert("Please select a crate size first.");
+            return false;
+        }
+    }else if(in_status == 2){
+        if (!confirm('Are you sure you want to decline this reservation?'))
+        {
+            return false;
+        }
+        else{
+            action_ajax(transport_id,in_status,type,in_adoption_order,crate_id,crate_qty,animal_sharedwithcrate,url);
+        }      
+    }else{
+        return false;
+    }
+}
+
+function action_ajax(transport_id,in_status,type,in_adoption_order,crate_id,crate_qty,animal_sharedwithcrate,url)
+{   
+    $.ajax({
+        type: "POST",            
+        data: {
+              transport_id:transport_id,
+              in_status : in_status,
+              type : type,
+              in_adoption_order:in_adoption_order,
+              crate_id:crate_id,
+              crate_qty:crate_qty,
+              animal_sharedwithcrate:animal_sharedwithcrate
+        },         
+
+        url: url,
+        beforeSend: function() {            
+        },
+        
+        dataType:"json",
+        complete: function() {               
+        },
+        success:function(data) {                  
+            if(data == "success")
+            {
+                
+                if(in_status =='1')
+                {
+                    alert("Selected reservation is approved successfully.");    
+                }
+                else
+                {
+                    alert("Selected reservation is declined successfully.");
+                }
+                
+                //window.location.href =  base_url +'transport_summary/animal_details/'+type+'/'+in_adoption_id;
+                window.location.href = window.location;
+            }
+            else
+            {
+                alert(data);
+                return false;
+            }
+        }
+
+    });
+}
+
+//function used to open the comment box popup
+function openComment(ele)
+{    
+    
+    var tempdata = $(ele).data('value');       
+    $("#in_id").val(tempdata);
+    $("#commentspop").modal('show');
+    //get the comment details and disply on modal popup the previoulsy added comments for the current order 
+    //get_commentBy_adoptionId($animaldata[$i]['in_adoption_order']);\
+    var temp = tempdata.split("_");
+    var in_adoption_order   = temp[0];
+    var in_adoption_id      = temp[2];
+    var type                = temp[1];
+ 
+    $.ajax({
+        type: "POST",            
+        data:{           
+            in_id:in_adoption_order,
+            in_adoption_id:in_adoption_id,
+            type:type
+        },
+
+        url: base_url+'transport_summary/get_comments',
+        beforeSend: function() {            
+        },
+        
+        dataType:"json",
+        complete: function() {               
+        },
+        success:function(data) {                
+            if(data.length > 0){                
+                var comment = '';
+                $.each(data, function (key, value) {                    
+                    comment += '<ul> <li>'+value.st_commment+'</li></ul>';
+                });
+                $('.list').html(comment);
+            }
+        }
+
+    });
+
+}
+
+//function used to open the popup for share the crates
+$(document).on('change', '.crate', function(){    
+ //$('.crate').change(function(){
+
+    if($(this).val().includes('share')) {
+
+        var adoption_id = $("#in_adoption_id").val();  
+        console.log(adoption_id);
+        var temp = $(this).val();
+        var tempdate = temp.split("_");
+        var crateid = tempdate[1];
+        //alert(tempdate+"||"+temp+"||"+crateid);
+        var transport_id = $("#transport_id").val();
+        var org_id  = $("#org_id").val();
+        $("#animal_crate").val(crateid);
+        $.ajax({
+            type: "POST",            
+            data:{           
+                transport_id:transport_id,
+                org_id:org_id,
+                adoption_id:adoption_id,
+                type:"send"
+            },
+
+            url: base_url+'transport_summary/get_animal_for_share',
+            beforeSend: function() {            
+            },
+            
+            dataType:"json",
+            complete: function() {               
+            },
+            success:function(data) {   
+            console.log(data);           
+                if(data.length > 0){
+                    console.log(data.length);
+                    var select = '';
+
+                    select += '<select name="share" id="share"><option>Select</option>';
+                    $.each(data, function (key, value) {                    
+                        select += '<option value='+value.in_adoption_order+'>'+value.st_animal_name+'</option>';                    
+                    });
+                    select +='</select>';                   
+                }
+                else{
+                    alert("There is no any crate available to share this animal");
+                    return false;
+                }
+                $("#cratepop").modal('show'); 
+                $("#shared_animal").html(select);
+            }
+
+        });
+    }else{
+        return false;
+    }
+});
+
+
+//function used to save the comments.
+function saveComment()
+{   
+    var tempdata = $("#in_id").val();
+    var temp = tempdata.split("_");
+    var in_adoption_order   = temp[0];
+    var in_adoption_id      = temp[2];
+    var type                = temp[1];
+    var comment = $("#comment").val();       
+    if(comment)
+    {
+        $.ajax({
+            type: "POST",            
+            data:{
+                comment:comment,
+                in_id:in_adoption_order,
+                in_adoption_id:in_adoption_id,
+                type:type
+            },
+
+            url: base_url+'transport_summary/comments',
+            beforeSend: function() {            
+            },
+            
+            dataType:"json",
+            complete: function() {               
+            },
+            success:function(data) {                  
+                if(data == "success")
+                {
+                    
+                    // if(in_status =='1')
+                    // {
+                    //     alert("Selected reservation is approved successfully.");    
+                    // }
+                    // else
+                    // {
+                    //     alert("Selected reservation is declined successfully.");
+                    // }
+                    
+                    window.location.href =  base_url +'transport_summary/animal_details/'+type+'/'+in_adoption_id;
+                }
+                else
+                {                    
+                    $(".comment-error").css("display", 'block');                                  
+                }
+            }
+
+        });
+    }else{
+        
+        alert("Please add your comment"); 
+         return false;      
+    }
+}
+
+function show_animal(ele)
+{
+    var temp = $(ele).data('val');        
+    var org_id = $("#o_id").val();
+    var trans_id = $("#t_id").val();
+    var type = $("#type").val();
+    //alert(temp+"||"+org_id+"||"+trans_id+"||"+type);
+
+    $.ajax({
+        type: "POST",
+        url: base_url +'transport_summary/get_animal_details',
+        data:{
+            org_id:org_id,
+            trans_id:trans_id,          
+            type:type,
+            temp:temp
+         },
+
+        beforeSend: function() {               
+        },  
+
+        dataType:"json",
+        complete: function() {               
+        },
+        success:function(data) { 
+           
+            var tbody = '';
+            var heading ='';
+            $.each(data.animal, function (akey, aval) {                
+                var weight = '--';
+                if(aval.in_weight)
+                {
+                    weight = aval.in_weight;
+                }
+                else{
+                    weight = weight;
+                }               
+                var crate_size ='No crate'; 
+                var crate_id;               
+                crate_id = aval.in_crate_id;
+                            
+                $.each(data.trans_crate, function (ckey, cval) {  
+                    if(crate_id == ckey)
+                    {
+                        crate_size = cval.st_crate_type;                                    
+                    }
+                });                                         
+                   
+                    /*
+                     if(tval.in_adoption_order.in_id == aval.in_adoption_order)
+                    {
+                        crate_id = tval.in_adoption_order.in_crate_id;    
+                        alert(crate_id);
+                        // $crate_size = $trans_crate[$crate_id]['st_crate_type'];
+                        // echo $crate_size;
+                    }
+                    */
+                    
+                //}
+                                
+
+                tbody += 
+                    '<tr>'+
+                    '<td><a href="'+base_url+"transport_summary/animal_details/"+type+"/"+aval.in_adoption_id+'">RS'+aval.in_adoption_id+'</a></td>'+
+                    '<td><a href="'+base_url+"animal-"+aval.in_animal_id+" - "+aval.st_animal_name+'">'+aval.st_animal_name+'</a></td>'+
+                    '<td>--</td>'+
+                    '<td>'+crate_size+'</td>'+  
+                    '<td>'+weight+'</td>'+ 
+                    '<td class="'+aval.className+'">'+aval.st_status+'</td>'+                 
+                    '<td><a href="javascript:void(0)" onclick="delete_adopt_animal('+aval.in_adoption_order+')" > X</a></td>'+
+                    '</tr>';
+                    if(crate_size == 'No crate')
+                    {
+                        heading = "No Crates";        
+                    }                    
+                    else{
+                        heading = crate_size+" Crates Only";
+                    }
+                    if(aval.share)
+                    {
+                        tbody += 
+                        '<tr>'+
+                        '<td></td>'+
+                        '<td><i class="material-icons arrow">subdirectory_arrow_right</i><a href="'+base_url+"animal-"+aval.share.in_animal_id+" - "+aval.share.st_animal_name+'">'+aval.share.st_animal_name+'</a></td>'+
+                        '<td>--</td>'+
+                        '<td><a href="#">Shared Crate</a></td>'+  
+                        '<td>'+weight+'</td>'+ 
+                        '<td class="'+aval.share.className+'">'+aval.share.st_status+'</td>'+                 
+                        '<td><a href="javascript:void(0)" onclick="delete_adopt_animal('+aval.share.in_adoption_order+')" > X</a></td>'+
+                        '</tr>';
+                    }
+                
+            });            
+            $(".animal-dtl-modal").html(heading);
+            $("#crate_animal").html(tbody);
+            $("#animal-details").modal('show');
+        }
+
+    });
+}
+	
+
+function save_share_crate()
+{
+    var transport_id = $("#transport_id").val();
+    var org_id  = $("#org_id").val();
+    var crate_id = $("#animal_crate").val();
+   
+    var in_adoption_order = $("#share").val();
+    $("#animal_sharedwithcrate").val(in_adoption_order);
+    //alert(transport_id+"||"+org_id+"||"+crate_id+"||"+in_adoption_order);
+    return false;
+    // if(in_adoption_order =="Select")
+    // {
+    //     alert("asd");
+    //     $("#crate_"+crate_id).val("");
+    // }
+}
+
+
+
+function edit_creates(id)
+{
+    var temp = id.split("/");
+    var type = temp[0];
+    var adoption_id = temp[1];
+    var selected_crate = $(".tdsize_"+adoption_id).text().trim();      
+    $(".tdsize_"+adoption_id).html('');
+    $(".tdaction_"+adoption_id).html('');
+    var crate_div = '';
+    var action_div = '';
+    var accept = 1;
+    var decline = 2
+    crate_div += 
+        '<div class="select-style">'+
+            '<select name="crate[]" class="form-control crate" id="crate_'+adoption_id+'">'+
+                '<option value="">--</option>';
+                //if(selected_crate === crate_list)
+                crate_div +=crate_list+
+                '<option value="share_'+adoption_id+'">Share Crate</option>'+
+            '</select>'+
+        '</div>';
+
+    action_div +=
+        '<a href="javascript:void(0)" onclick="reservation_cancel()" class="btn black waves-effect waves-light">Cancel</a>'+
+        '<a href="javascript:void(0)" onclick="reservation_action('+"'"+accept+'/'+type+'/'+adoption_id+"'"+')" class="btn orange-small waves-effect waves-light savecontinue">Accept</a>';
+
+    $(".tdsize_"+adoption_id).append(crate_div);
+    $(".tdaction_"+adoption_id).append(action_div);
+    return false;
+}
+
+function reservation_cancel()
+{
+     window.location.href = window.location;
+}
+
+function close_cratepopup()
+{
+    $('#cratepop').modal('toggle'); 
+    $('.crate').val('');
+}

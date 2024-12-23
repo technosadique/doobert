@@ -1,0 +1,741 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Verification extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model(array('verification_model','common_model','user_model'));
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');	
+		$this->load->model('common_model');		             
+	}	
+	 
+	public function index()
+	{
+		
+	}
+	
+	public function verify(){
+            if(!$this->session->userdata('userid'))
+                redirect($this->config->item('base_url'));
+			
+			$last_id = '';
+            
+            $driver_profie  =   $this->verification_model->check_driver_profie($this->session->userdata('userid')); 
+			$data['profile_details'] 	= $this->user_model->get_user_profile($this->session->userdata('userid'));
+			if(trim($data['profile_details']['st_zip']) == '' || trim($data['profile_details']['st_last_name']) == '' ) {
+			$this->session->set_flashdata('profile_err', 'Please complete general details to proceed.');
+			redirect(base_url().'my-profile');
+		}
+            
+           /* if(!empty($driver_profie))
+		redirect(base_url().'verification/verify_thank_you');*/
+			$data = array();
+	        $data['verification_details'] = $this->verification_model->get_verification_details();
+			if(isset($data['verification_details']['in_verify_id']) && $data['verification_details']['in_verify_id']!=''){
+			$this->session->set_userdata('verifyId',$data['verification_details']['in_verify_id']);
+			$data['verification_ref'] = $this->verification_model->get_verification_ref($data['verification_details']['in_verify_id']);
+			//$data['upload_doc']	= $this->verification_model->get_verification_doc($data['verification_details']['in_verify_id']);
+			$data['upload_doc']	= $this->verification_model->get_verification_doc($this->session->userdata('userid'));
+			}	
+			
+					if(isset($data['verification_details']['in_status']) &&  $data['verification_details']['in_status'] == 1){
+					$this->session->unset_userdata('verifyId');			
+                    redirect(base_url().'verification/verify_thank_you');
+					}
+            
+            
+            $data['error_msg'] = '';
+            
+            if($this->input->post('frm_action') == 'frm_post'){
+                $valid_array    = array(
+                                        array('field' => 'first_name',              'label' => 'First Name',                'rules' => 'trim|required'),
+                                        array('field' => 'middle_name',             'label' => 'Middle Name',               'rules' => 'trim'),
+                                        array('field' => 'lastname',                'label' => 'Last Name',                 'rules' => 'trim|required'),
+                                        array('field' => 'age',                     'label' => 'Age',                       'rules' => 'trim|required|callback_isdate_dob'),
+                                        array('field' => 'drivers_license_state',   'label' => "Driver's License State",    'rules' => 'trim|required'),
+                                        array('field' => 'drivers_license_no',      'label' => "Driver's License Number",   'rules' => 'trim|required'),
+										array('field' => 'drivers_license_exp',     'label' => "Driver's License Expiration Date",   'rules' => 'trim|required|callback_isdate_lic'),											
+                                       // array('field' => 'pets_currently',          'label' => 'Pets Currently',            'rules' => 'trim|required'),
+									   array('field' => 'many_pets',          'label' => 'How many pets',            'rules' => 'trim|required'),
+                                        array('field' => 'volunteered',             'label' => 'Have you volunteered for an animal rescue or animal shelter previously',  
+																					'rules' => 'trim|required'),
+																					array('field' => 'i_agree',             	'label' => 'Type YES into this field to indicate you agree',  		 'rules' => 'trim|required|max_length[3]'),
+										array('field' => 'aboutme',             	'label' => 'Additional information',  	 'rules' => 'trim'),
+										array('field' => 'by_typing',               'label' => 'Type your first and last name into this field to indicate you agree',  				 'rules' => 'trim|required'),
+										array('field' => 'driver_lic_photo',             	'label' => 'Driver License Photo',  	 'rules' => 'trim')										
+                                      
+                                        );
+                
+                $this->form_validation->set_rules($valid_array);
+				if($this->input->post('volunteered') == '1') {
+				$this->form_validation->set_rules('org_name', 'Organization Name', 'trim|required');
+				$this->form_validation->set_rules('from_volunteered', 'Dates Volunteered From', 'trim|required');
+				$this->form_validation->set_rules('to_volunteered', 'Dates Volunteered To', 'trim|required');
+				$this->form_validation->set_rules('org_name_no', 'Organization Phone Number', 'trim|required');
+				$this->form_validation->set_rules('org_email', 'Organization E-mail', 'trim|valid_email');
+				
+			}
+				if($this->input->post('many_pets') > '0') {
+				//$this->form_validation->set_rules('many_pets', 'How many pets', 'trim|required');
+				$this->form_validation->set_rules('veterinarianname', 'Veterinarian Name', 'trim|required');
+				$this->form_validation->set_rules('veterinarian_off_name', 'Veterinarian Office Name', 'trim|required');
+				$this->form_validation->set_rules('veterinarian_off_no', 'Veterinarian Office Phone Number', 'trim|required');
+				$this->form_validation->set_rules('veterinarian_email', 'Veterinarian E-mail', 'trim|required|valid_email');
+				
+				$this->form_validation->set_rules('pet_name', "Pet's Name", 'trim|required');
+				//$this->form_validation->set_rules('pet_type', 'Pet Type', 'trim|required');
+				
+			}
+			
+			for($a=1;$a<=3;$a++)
+			{
+				$this->form_validation->set_rules('ref_'.$a.'_name', 'Reference '.$a.' Name', 'trim|required');
+				$this->form_validation->set_rules('ref_'.$a.'_email', 'Reference '.$a.' Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('ref_'.$a.'_rel', 'Reference '.$a.' Relationship', 'trim|required');
+				$this->form_validation->set_rules('ref_'.$a.'_phone', 'Reference '.$a.' Phone', 'trim|required');
+			}
+				
+                
+                if($this->form_validation->run() == false) {
+                    $data['error_msg'] = validation_errors();                    
+                    $this->load->view('verification-form',$data);
+                }
+				
+				else{ 
+				
+				   
+					 $yes=strtolower($this->input->post('i_agree'));
+					 $fullname=$this->input->post('first_name').' '.$this->input->post('lastname');
+					 
+					 //echo strtolower($this->input->post('by_typing'));
+					 //echo strtolower($fullname); die;
+					 if($yes!="yes" && strtolower($this->input->post('by_typing'))!=strtolower($fullname))
+					{   
+						$data['error_msg'] = "Type YES into this field to indicate you agree.<br>Type your first and last name into this field to indicate you agree.";
+						$this->load->view('verification-form',$data);	
+					}
+					
+					elseif($yes!="yes")
+					{ 
+						$data['error_msg'] = "Type YES into this field to indicate you agree.";
+						$this->load->view('verification-form',$data);						
+					}
+					
+					
+					elseif(strtolower($this->input->post('by_typing'))!=strtolower($fullname))
+					{  
+						$data['error_msg'] = "Type your first and last name into this field to indicate you agree.";
+						$this->load->view('verification-form',$data);
+					}
+					
+					
+					 else{ 
+                    $post_data                              =   $this->input->post();  
+                    $post_data['userid']                    =   $this->session->userdata('userid');
+                    $post_data['from_volunteered_date']     =   (isset($post_data['from_volunteered']) && $post_data['from_volunteered'] != '')?$this->get_formated_date($post_data['from_volunteered']):'';
+                    $post_data['to_volunteered_date']       =   (isset($post_data['to_volunteered']) && $post_data['to_volunteered'] != '')?$this->get_formated_date($post_data['to_volunteered']):'';
+                    
+                    if(!empty($post_data['drivers_license_exp']))
+                        $post_data['drivers_license_exp_date']  =   (isset($post_data['drivers_license_exp']) && $post_data['drivers_license_exp'] != '')?$this->get_formated_date($post_data['drivers_license_exp']):'';
+                    else
+                        $post_data['drivers_license_exp_date']  =   '';
+						// added by sadique on 09-09-15 start
+						$post_data['ref_1_name']     =   (isset($post_data['ref_1_name']) && $post_data['ref_1_name'] != '')?$post_data['ref_1_name']: '';
+						$post_data['ref_1_email']     =   (isset($post_data['ref_1_email']) && $post_data['ref_1_email'] != '')?$post_data['ref_1_email']: '';
+						$post_data['ref_1_rel']     =   (isset($post_data['ref_1_rel']) && $post_data['ref_1_rel'] != '')?$post_data['ref_1_rel']: '';
+						$post_data['ref_1_phone']     =   (isset($post_data['ref_1_phone']) && $post_data['ref_1_phone'] != '')?$post_data['ref_1_phone']: '';
+						
+						
+						$post_data['ref_2_name']     =   (isset($post_data['ref_2_name']) && $post_data['ref_2_name'] != '')?$post_data['ref_2_name']: '';
+						$post_data['ref_2_email']     =   (isset($post_data['ref_2_email']) && $post_data['ref_2_email'] != '')?$post_data['ref_2_email']: '';
+						$post_data['ref_2_rel']     =   (isset($post_data['ref_2_rel']) && $post_data['ref_2_rel'] != '')?$post_data['ref_2_rel']: '';
+						$post_data['ref_2_phone']     =   (isset($post_data['ref_2_phone']) && $post_data['ref_2_phone'] != '')?$post_data['ref_2_phone']: '';
+						
+						
+						$post_data['ref_3_name']     =   (isset($post_data['ref_3_name']) && $post_data['ref_3_name'] != '')?$post_data['ref_3_name']: '';
+						$post_data['ref_3_email']     =   (isset($post_data['ref_3_email']) && $post_data['ref_3_email'] != '')?$post_data['ref_3_email']: '';
+						$post_data['ref_3_rel']     =   (isset($post_data['ref_3_rel']) && $post_data['ref_3_rel'] != '')?$post_data['ref_3_rel']: '';
+						$post_data['ref_3_phone']     =   (isset($post_data['ref_3_phone']) && $post_data['ref_3_phone'] != '')?$post_data['ref_3_phone']: '';
+						
+						// added by sadique on 09-09-15 end
+						
+						if(isset($_FILES['driver_lic_photo']) && $_FILES['driver_lic_photo']['name']!='')
+						{
+							//Uploading Driver License Photo
+							$this->load->library('upload');
+			
+							$config['upload_path']  	= $this->config->item('upload').'verification/';
+							$config['max_size']			= '5120';
+							$config['allowed_types']	= 'pdf|jpg|png|gif|jpeg|jpe';
+							$config['remove_spaces']  	= TRUE;
+							$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_lic_photo']['name']));
+							
+							$img_name_array = explode('.', $config['file_name']);
+							$img_extension = end($img_name_array);
+							$image_name = current(explode('.', $config['file_name'])); 
+							 
+							if($img_extension == "JPE" || $img_extension == "jpe")
+							{
+								$new_image_name = $image_name.'.jpg';
+								$image = imagecreatefromjpeg($this->config->item('upload') . 'profile/' . $config['file_name']);
+								imagejpeg($image, $this->config->item('upload') . 'profile/' . $new_image_name);
+								$config['file_name'] =  $new_image_name;
+							}
+							
+							
+							$this->upload->initialize($config);
+							
+							//Display errors of file upload.
+							//Upload image by calling do_upload method.
+							$this->upload->do_upload('driver_lic_photo');
+							$file_errors = array('errors' => $this->upload->display_errors());
+							if(!empty($file_errors['errors'])) {
+								$data['upload_error_msg'] = array('upload_error' => strip_tags($file_errors['errors']));
+								$this->load->view('verification-form',$data);
+								return false;
+							}
+							
+							
+							if($_FILES['driver_lic_photo']['type'] != 'application/pdf' && $_FILES['driver_lic_photo']['type'] != '"application/pdf"')
+							{
+								$this->load->library('image_lib');
+									
+								//Resizing Image
+								$config['image_library'] 	= 'gd2';
+								$config['source_image']		= $this->config->item('upload').'verification/'.$config['file_name'];
+								$config['new_image']		= $this->config->item('upload').'verification/300x200/'.$config['file_name'];
+								$config['maintain_ratio'] 	= TRUE;
+								$config['width']	 		= 300;
+								$config['height']			= 200;
+								
+								$this->image_lib->initialize($config);
+								$this->image_lib->resize();
+								$this->image_lib->clear();
+							
+								$file_errors = array('errors' => $this->image_lib->display_errors());
+								//echo "<pre>";print_r($file_errors);die;
+								//Display errors of file upload.
+								if(!empty($file_errors['errors'])) {
+									$data['upload_error_msg'] =  array('upload_error' => strip_tags($file_errors['errors']));
+									$this->load->view('verification-form',$data);
+									return false;
+								}								
+							}
+						
+						}
+						if(isset($config['file_name'])&& !empty($config['file_name']))
+						{
+							$license_photo = $config['file_name'];		
+						} else if(isset($post_data['inserted_driver_lic_photo'])&& !empty($post_data['inserted_driver_lic_photo']))
+						{	
+							$license_photo = $post_data['inserted_driver_lic_photo'];
+						} else {
+							$license_photo = '';
+						}	
+					 	$post_data['st_driver_license_photo'] = $license_photo;
+						       
+					 //End Uploading Driver License Photo
+                   
+				   		
+					$vid = $this->verification_model->check_verifyid();
+					if($vid > 0){
+				    //$postData                              =   $this->input->post();
+					$postData = array();
+					
+					$postData['in_status'] = 1;
+					//$postData['st_driver_license_photo'] = $license_photo;
+					//echo '<pre>'; print_r($post_data); die;
+                    $this->verification_model->update_varification($postData);
+					$last_id = $this->verification_model->get_verifyid();
+					$last_id=$last_id['in_verify_id'];					
+					}
+					if($vid==0){ 
+						 $this->verification_model->save_varification($post_data);
+						 $last_id = $this->db->insert_id();
+					}
+					
+					// added by sadique on 09-09-15 start
+					
+					$data['user_name']	=	ucfirst($this->input->post('first_name')).' '.ucfirst($this->input->post('lastname'));
+					
+					for($a=1;$a<=3;$a++)
+					{
+						$ref_details = array();
+						if($post_data['ref_'.$a.'_name']!='' || $post_data['ref_'.$a.'_rel']!='' || $post_data['ref_'.$a.'_phone']!='')
+						{
+							$ref_details = array(	"in_verify_id"			=> $last_id, 
+													"in_user_id"            => $this->session->userdata('userid'),												
+													"st_ref_name"			=> $post_data['ref_'.$a.'_name'],
+													"st_ref_email"			=> $post_data['ref_'.$a.'_email'],
+													"st_ref_rel"			=> $post_data['ref_'.$a.'_rel'],
+													"st_ref_phone"			=> $post_data['ref_'.$a.'_phone'],													
+													"dt_created"			=> date("Y-m-d H:i:s"),  
+													"dt_modified"			=> date("Y-m-d H:i:s"),  
+													"in_deleted"			=> "0"
+													);
+							//$this->verification_model->verification_references($ref_details);
+							
+							$email_details = $this->common_model->get_email_containt("38");
+							$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+							if(isset($email_details[0]['st_email_body']))
+							{   
+								$strMail='';
+								$templete = $email_details[0]['st_email_body'];							
+								$templete  = str_replace("##REFERENCE_NAME##",$post_data['ref_'.$a.'_name'],$templete);
+								$templete  = str_replace("##APPLICANT_NAME##",$data['user_name'],$templete);
+								$templete  = str_replace("##DONATION##",$donation,$templete);
+								
+								$this->load->library('email');
+								
+								$strMail 	= 	$templete;
+								$to			=	$post_data['ref_'.$a.'_email'];
+								$subject	=	$email_details[0]['st_email_subject'];
+								$message	=	$strMail;
+								$category  =    $email_details[0]['st_category'];
+								$reply_to	=	"applications@doobert.zendesk.com";
+								$this->common_function->send_mail($this->email, $to, $subject, $message, 'references@doobert.com' ,$cc ='', $this->config->item('admin_from_name'),$this->email,$category,$reply_to);									
+							}
+							
+						}
+					}
+                    // added by sadique on 09-09-15 end
+                    $image_file   =   $this->input->post('image_file');
+                   
+                    if(!empty($image_file)){
+                        $image       =  explode(',',$image_file);
+                        
+                        foreach ($image as $val) { 
+                            $this->verification_model->save_images($post_data['userid'],$val);
+                        }
+                    }
+					
+					
+					// Mail functionality start	 added by sadique on 10-12-14				
+						
+						$data['email']		=	$this->config->item('test_admin_email');						
+					    $allmail 			=  $data['email'];
+						$email_details = $this->common_model->get_email_containt("31");
+						$date_submitted			= date('m-d-Y');
+						$q			=	$this->common_model->get_affiliate_donation_detail('3');
+							if(isset($q) && !empty($q)){					   		
+									foreach($q as $qr)
+									{		 
+										  
+										if(!empty($qr['st_image']))
+										{
+												$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+												$imgtitle   =   $qr['st_banner_name']; 				
+												$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+												alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+											  
+											  
+										}
+										else
+										{
+											   $donation='';								 
+										}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+						if(isset($email_details[0]['st_email_body']))
+						{   
+						    $strMail='';
+							$templete = $email_details[0]['st_email_body'];							
+							$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+							$templete  = str_replace("##USER_NAME##",$data['user_name'],$templete);	
+							//$templete  = str_replace("##date_submitted##",$date_submitted,$templete);
+							$templete  = str_replace("##application_id##",$last_id,$templete);
+							$templete  = str_replace("##DONATION##",$donation,$templete);	
+							
+							$templete  = str_replace("##review_url##",base_url().'administration.php/drivers/pending_driver_verification_view/'.$last_id,$templete);					
+							
+							/*$strMail = $templete;							
+							$to		 = $allmail;*/
+							//$message = $strMail;
+							//$subject = $email_details[0]['st_email_subject'];
+							$this->load->library('email');
+							
+							$admin_list = $this->common_model->get_admin_list();
+							
+							for($a=0;$a<count($admin_list);$a++) {
+								
+								$permission = unserialize($admin_list[$a]['st_permission']);
+								
+								//if($a>1){ break;}
+								if(isset($permission) && !empty($permission) && in_array('Verify_User',$permission)){
+								$strMail 	= 	$templete;
+								$to			=	$admin_list[$a]['email_address'];
+								//$to			=	'ghanshyam.maurya@pulsesolutions.net';
+								$subject	=	$email_details[0]['st_email_subject'];
+								$message	=	$strMail;
+								//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+								$category  =    $email_details[0]['st_category'];
+								$this->common_function->send_mail($this->email, $to, $subject, $message, $this->session->userdata('email') ,$cc ='', $data['user_name'],$this->email,$category);
+								}
+								
+							}
+							
+							//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+						}
+						
+								
+						//send doobert verification application email to user start
+						$user_email_details = $this->common_model->get_email_containt("34");
+						$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+						$data['profile_details'] 			= $this->user_model->get_user_profile($this->session->userdata('userid'));	
+						//print_r($user_email_details);
+						if(isset($user_email_details[0]['st_email_body']))
+						{   
+						    $strMail='';
+							$templete = $user_email_details[0]['st_email_body'];							
+							$templete  = str_replace("##USER_FIRST_NAME##",ucfirst($this->input->post('first_name')),$templete);	
+							$templete  = str_replace("##DONATION##",$donation,$templete);	
+							
+							$this->load->library('email');
+							
+							$strMail 	= 	$templete;
+							$to			=	$data['profile_details']['st_email'];
+							$subject	=	$user_email_details[0]['st_email_subject'];
+							$message	=	$strMail;
+							$category  =    $email_details[0]['st_category'];
+							$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+							$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+							$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+
+							$send_email = 1;							
+							$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+							if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+							{
+								$send_email = 0;										
+							}
+							
+							$email_template_id = $user_email_details[0]['in_email_id'];
+							$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+							if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+							{
+								$send_email = 1;
+							}
+							
+							if($send_email == '1')
+							{
+								$this->common_function->send_mail($this->email, $to	, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);						
+							}						
+							
+						}
+						
+						//send doobert verification application email to user end	
+						
+						// Mail functionality end	
+					
+					redirect(base_url().'verification/verify_thank_you');
+					
+                    redirect(base_url().'verification/verify_thank_you');
+                }
+				}
+            }
+			else{
+                $this->load->view('verification-form',$data);
+            }
+            
+            
+	}
+        
+        public function get_formated_date($date){
+			$date_arr   =   explode('/',$date);
+			$formated_date  =   $date_arr[2].'-'.$date_arr[0].'-'.$date_arr[1];            
+			return $formated_date;
+        }
+        
+        public function add_images() {
+	    if(!isset($_FILES['driver_lic_photo1']['name'])) {
+			$data = array('error' => "You did not select a file to upload",'status'=>'fail');
+                //echo json_encode(array('files' => array($data) ));
+				echo json_encode($data);
+                return false;
+            }
+            
+            $config['upload_path'] = $this->config->item('upload')."verification/";
+            $config['allowed_types'] = 'jpg|jpeg|doc|docx|xls|xlsx|pdf|gif|jpe';
+            $config['max_size']	= '5120';
+            $config['remove_spaces']  	= TRUE;
+            //$config['file_name'] 		= str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['files']['name']);
+			$lastDot = strrpos($_FILES['driver_lic_photo1']['name'], ".");
+			$_FILES['driver_lic_photo1']['name'] = str_replace(".", "", substr($_FILES['driver_lic_photo1']['name'], 0, $lastDot)) . substr($_FILES['driver_lic_photo1']['name'], $lastDot);
+			$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_lic_photo1']['name']));
+		
+			
+
+            $this->load->library('upload', $config);
+            $this->upload->initialize($config);
+            $this->upload->do_upload('driver_lic_photo1');
+
+         /*   $config['image_library'] 	= 'gd2';
+            $config['source_image']		= $this->config->item('upload').'vehicle/'.$config['file_name'];
+            $config['new_image']		= $this->config->item('upload').'vehicle/180x180/'.$config['file_name'];
+            $config['maintain_ratio'] 	= TRUE;
+            $config['width']	 		= 180;
+            $config['height']			= 180;
+            $this->load->library('image_lib', $config); 
+            $this->image_lib->initialize($config);
+            $this->image_lib->resize();*/
+            $file_errors = array('errors' => $this->upload->display_errors());
+	    
+            //Display errors of file upload.
+            if(!empty($file_errors['errors'])){
+                    $data = array('error' => strip_tags($file_errors['errors']),'status'=>'fail');
+                    //echo json_encode(array('files' => array($data) ));
+					echo json_encode($data);
+                    return false;
+            }
+			
+			if($this->input->post('verifyid')!='')
+			{	
+				//$verifyid = $this->input->post('verifyid');
+				$verifyid  = $this->session->userdata('userid');	
+				$this->verification_model->save_images($verifyid,$config['file_name']);
+			} else if($this->session->userdata('verifyId')) {
+				$verifyid  = $this->session->userdata('userid');	
+				//$verifyid = $this->session->userdata('verifyId');
+				$this->verification_model->save_images($verifyid,$config['file_name']);
+			} 
+			
+				
+            $data = array(	'name' => $config['file_name'],
+                                            'size' => $_FILES['driver_lic_photo1']['size'],
+                                            'type' => $_FILES['driver_lic_photo1']['type'],
+                                            "url"  => $this->config->item('upload_url')."verification/".urlencode($config['file_name']),
+                                            "deleteUrl"  => $this->config->item('base_url')."verification/delete_files/profile/?files=".urlencode($config['file_name']),
+                                            "deleteType"=>"DELETE",
+											'status'=>'success',
+                                    );
+            //echo json_encode(array('files' => array($data)));
+			echo json_encode($data);
+		//return $data;
+	}
+        
+        function delete_files(){ 
+            if($this->input->get('files')!=''){
+                    $files = $this->input->get('files');
+					$this->verification_model->delete_doc_images($files);
+                    @unlink($this->config->item('upload')."/verification/".$files);
+	    }
+	}
+        
+        public function verify_thank_you(){
+            $data = array();
+            $this->load->view('verification_thank_you',$data);
+        }
+	
+	public function verify_user_profile()
+	{
+		$data = array();
+		$this->load->view('verified-user-profile-bk',$data);
+	}
+	
+	public function isdate_dob() {
+		$explode_date =  explode("/",$this->input->post('age'));
+		
+		if(count($explode_date) != 3) {
+			$this->form_validation->set_message('isdate_dob', 'Please Enter DOB in Proper Format.');
+			return false;
+		}
+		if(is_array($explode_date)) {
+			$checkdate = checkdate($explode_date[0],$explode_date[1],$explode_date[2]);
+			
+			if ($checkdate == true) {
+				return TRUE;
+			} else {
+				$this->form_validation->set_message('isdate_dob', 'Please Enter DOB in Proper Format.');
+				return FALSE;
+			}
+		}
+	}
+	
+	public function isdate_lic() {
+		$explode_date =  explode("/",$this->input->post('drivers_license_exp'));
+		
+		if(count($explode_date) != 3) {
+			$this->form_validation->set_message('isdate_lic', "Please Enter Driver's License Expiration Date in Proper Format.");
+			return false;
+		}
+		if(is_array($explode_date)) {
+			$checkdate = checkdate($explode_date[0],$explode_date[1],$explode_date[2]);
+			
+			if ($checkdate == true) {
+				return TRUE;
+			} else {
+				$this->form_validation->set_message('isdate_lic', "Please Enter Driver's License Expiration Date in Proper Format.");
+				return FALSE;
+			}
+		}
+	}
+	
+	public function saveverify()
+	{
+		//print_r($_POST); die;
+		$norec=$this->verification_model->verifyexist();
+		if($norec == true)
+		{     
+			//echo 'record already exist';die;
+	//echo '1'; die;
+	// update
+			$this->verification_model->updateverify($_POST);
+			$this->verification_model->updatereferences($_POST);
+			
+			
+		}
+		else{  //echo '2'; die;
+			// insert
+			
+			$verifyid=$this->verification_model->addverify($_POST);
+			//echo $verifyid; die;
+			//print_r($_POST); die;
+			$this->session->set_userdata('verifyId',$verifyid);
+			//$this->verification_model->addreferences($_POST,$verifyid);
+			
+		}
+	}
+	
+	function upload_driver_license()
+	{
+		if(isset($_FILES['driver_lic_photo']) && $_FILES['driver_lic_photo']['name']!='')
+		{
+			$this->load->library('upload');
+			$config['upload_path']  	= $this->config->item('upload').'verification/';
+			$config['max_size']			= '5120';
+			$config['allowed_types']	= 'pdf|jpg|png|gif|jpeg|jpe';
+			$config['remove_spaces']  	= TRUE;
+			$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(array(" "),"_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['driver_lic_photo']['name']));
+							
+			$img_name_array = explode('.', $config['file_name']);
+			$img_extension = end($img_name_array);
+			$image_name = current(explode('.', $config['file_name'])); 
+			if($img_extension == "JPE" || $img_extension == "jpe")
+			{
+				$new_image_name = $image_name.'.jpg';
+				$image = imagecreatefromjpeg($this->config->item('upload') . 'profile/' . $config['file_name']);
+				imagejpeg($image, $this->config->item('upload') . 'profile/' . $new_image_name);
+				$config['file_name'] =  $new_image_name;
+			}
+							
+			$this->upload->initialize($config);
+							
+			//Display errors of file upload.
+			//Upload image by calling do_upload method.
+			$this->upload->do_upload('driver_lic_photo');
+			$file_errors = array('status'=>'error','errors' => $this->upload->display_errors());
+							
+			if($_FILES['driver_lic_photo']['type'] != 'application/pdf')
+			{    
+				$this->load->library('image_lib');
+				$config['image_library'] 	= 'gd2';
+				$config['source_image']		= $this->config->item('upload').'verification/'.$config['file_name'];
+				$config['new_image']		= $this->config->item('upload').'verification/300x200/'.$config['file_name'];
+			    $config['maintain_ratio'] 	= TRUE;
+				$config['width']	 		= 300;
+				$config['height']			= 200;
+				
+				$this->image_lib->initialize($config);
+				$this->image_lib->resize();
+				$this->image_lib->clear();
+							
+				$file_errors = array('status'=>'error','errors' => $this->image_lib->display_errors());
+			}
+		}
+		if(empty($file_errors['errors']))
+		{	
+			$postData = array();
+			$postData['st_driver_license_photo'] = $config['file_name'];
+			if($this->input->post('verifyid')!='')
+			{	
+				$verifyid = $this->input->post('verifyid');
+				$this->verification_model->add_driver_license_varification($postData,$verifyid);
+			} else if($this->session->userdata('verifyId')) {
+				$verifyid = $this->session->userdata('verifyId');
+				$this->verification_model->add_driver_license_varification($postData,$verifyid);
+			} else{
+				$verifyid=$this->verification_model->addverify($postData);
+				
+				$this->session->set_userdata('verifyId',$verifyid);
+			}
+			//$file_success = array('status'=>'success','success-msg'=>'file uploaded successfully');
+		}
+		 $error_msg = $this->upload->display_errors();
+		 
+		 if(!empty($error_msg))
+		 {
+			 if($this->upload)
+			 $status_msg = array('doc_added'=>'error','errors'=>strip_tags($this->upload->display_errors()));
+		 }	else {
+			  $status_msg = array('doc_added'=>'success','success-msg'=>'file uploaded successfully','file_name'=>$config['file_name']);
+		 }
+		 echo json_encode($status_msg);	
+	}
+	
+}
+
+/* End of file Verification.php */
+/* Location: ./application/controllers/Verification.php */

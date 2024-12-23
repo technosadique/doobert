@@ -1,0 +1,243 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class foster_home_mobile extends CI_Controller {
+
+    /**
+     * Index Page for this controller.
+     *
+     * Maps to the following URL
+     * 		http://example.com/index.php/welcome
+     * 	- or -  
+     * 		http://example.com/index.php/welcome/index
+     * 	- or -
+     * Since this controller is set as the default controller in 
+     * config/routes.php, it's displayed at http://example.com/
+     *
+     * So any other public methods not prefixed with an underscore will
+     * map to /index.php/welcome/<method_name>
+     * @see http://codeigniter.com/user_guide/general/urls.html
+     */
+    public function __construct() {
+        parent::__construct();
+        $this->output->enable_profiler(FALSE);
+        $this->load->library('common_function');       
+        $this->load->model('user_model');      
+        $this->load->model('common_model');
+        $this->load->model('foster_model');
+        $this->load->library('form_validation');
+        $this->load->helper('url');
+        $this->load->helper('cookie'); 
+    }
+
+    public function index() {
+		
+		
+    }
+	
+	#=========================================================
+    #	Function : foster_home
+    #	Purpose  : fister home details
+    #=========================================================			
+
+    public function foster_home() { 
+	    /*
+        if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		*/
+		
+        $data = array();
+        $data['Err_Msg'] = '';
+        $form_field = array('animaltype' => array(0 => ''),
+            'duration' => array(0 => ''),
+            'maximum_foster_days' => array(0 => ''),
+            'maximum_foster_size' => array(0 => ''),
+            'household_animals' => array(0 => ''),
+            'household_other_animals' => array(0 => ''),
+            'residence_type' => "",
+            'allow_animals' => "",
+            'live_animals' => "",
+            'nobodyhome' => "",
+            'yard' => "",
+            'air_conditioning' => "",
+            'animals_care' => "",
+            'adoption_events' => "",
+            'animal_alone' => "",
+            'animal_behavioral' => "",
+            'org_worked_with' => "",
+            'feeding_experience' => "",
+            'foster_willing' => "",
+            'animal_reason_back' => array(0 => ''),
+            'animal_reason_back_other' => "",
+            'adults_live' => "",
+            'children_live' => "",
+            'children_age' => "",
+            'children_age_visit' => "",
+            'guidance_children' => "",
+            'noise_level' => "",
+            'describe_animal' => "",
+            'often_travel' => "",
+            'responsible_care' => "",
+            'help_emergency' => "",
+            'interested_animals' => "",
+            'ref_1_name' => "",
+            'ref_1_relationship' => "",
+            'ref_1_contactnumber' => "",
+            'ref_2_name' => "",
+            'ref_2_relationship' => "",
+            'ref_2_contactnumber' => "",
+            'ref_3_name' => "",
+            'ref_3_relationship' => "",
+            'ref_3_contactnumber' => "",
+            'additional_info' => "",
+            'foster_id' => "",
+        );
+
+        $data['profile_details'] = $this->user_model->get_user_profile($this->session->userdata('userid'));
+
+        if (trim($data['profile_details']['st_zip']) == '' || trim($data['profile_details']['st_last_name']) == '') {
+            $this->session->set_flashdata('profile_err', 'Please complete general details to proceed.');
+
+            if (get_cookie('tooltip')) {
+                $data['tooltip'] = get_cookie('tooltip');
+            } else {
+                set_cookie('tooltip', "N", 864000);
+                $data['tooltip'] = "N";
+            }
+
+            //echo get_cookie('get_started');exit;
+            if (get_cookie('get_started')) {
+                $data['get_started'] = get_cookie('get_started');
+            } else {
+                set_cookie('get_started', "N", 864000);
+                $data['get_started'] = "N";
+            }
+
+            redirect(base_url() . 'my-profile');
+        }
+
+        $data['animal_type'] = $this->common_model->get_animal_types();
+        $data['tooltip'] = get_cookie('tooltip');
+        $data['user_verified'] = $this->common_model->get_user_verified($this->session->userdata('userid'));
+
+
+        $data['arr_foster_home'] = $this->user_model->get_foster_home_detail($this->session->userdata('userid'));
+
+        // echo '<pre>';print_r($data['arr_foster_home']);exit;
+
+        $data['arr_foster_home_ref'] = array();
+        $data['arr_foster_animal_type'] = array();
+        if (isset($data['arr_foster_home']) && !empty($data['arr_foster_home'])) {
+            $data['arr_foster_home_ref'] = $this->user_model->get_foster_home_ref_detail($data['arr_foster_home']['in_foster_id']);
+
+            $data['arr_foster_animal_type'] = $this->user_model->get_foster_animal_type_detail($data['arr_foster_home']['in_foster_id']);
+        }
+
+        //echo "<pre>";print_r($data['arr_foster_animal_type']);die;	
+
+        if ($this->input->post('frm_action') == 'frm_post') {
+            //echo "<pre>";print_r($_POST);die;	
+            foreach ($form_field as $key => $value) {
+                if (is_array($value)) {
+                    $data['post_details'][$key] = $this->input->post($key);
+                } else {
+                    $data['post_details'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));
+                }
+            }
+
+            print_r($data['post_details']);//exit;
+
+            $validate_fields = array(array('field' => 'ref_1_name', 'label' => 'Reference 1 Name', 'rules' => 'trim'),
+                array('field' => 'ref_2_name', 'label' => 'Reference 2 Name', 'rules' => 'trim'),
+                array('field' => 'ref_3_name', 'label' => 'Reference 3 Name', 'rules' => 'trim'),
+                array('field' => 'ref_1_relationship', 'label' => 'Reference 1 Email', 'rules' => 'trim'),
+                array('field' => 'ref_2_relationship', 'label' => 'Reference 2 Email', 'rules' => 'trim'),
+                array('field' => 'ref_3_relationship', 'label' => 'Reference 3 Email', 'rules' => 'trim'),
+                array('field' => 'ref_1_contactnumber', 'label' => 'Reference 1 Contact Number', 'rules' => 'trim'),
+                array('field' => 'ref_2_contactnumber', 'label' => 'Reference 2 Phone', 'rules' => 'trim'),
+                array('field' => 'ref_3_contactnumber', 'label' => 'Reference 3 Phone', 'rules' => 'trim'),
+            );
+
+            //Validation rules
+            $this->form_validation->set_rules($validate_fields);
+
+            if ($this->form_validation->run() == FALSE) {
+                $data['Err_Msg'] = validation_errors();
+                $this->load->view('foster-home-profile', $data);
+            } else {
+                $insert_id = $this->user_model->update_foster_home_details($data['post_details'], $this->session->userdata('userid'), 'tbl_foster_user_detail');
+                if (isset($insert_id) && $insert_id != '') {
+
+                    $this->user_model->delete_foster_references($insert_id, 'tbl_fosters_reference');
+
+                    for ($a = 1; $a <= 3; $a++) {
+                        $ref_details = array();
+                        if ($data['post_details']['ref_' . $a . '_name'] != '' || $data['post_details']['ref_' . $a . '_relationship'] != '' || $data['post_details']['ref_' . $a . '_contactnumber'] != '') {
+                            $ref_details = array("in_foster_id" => $insert_id,
+                                "st_ref_name" => $data['post_details']['ref_' . $a . '_name'],
+                                "st_ref_relation" => $data['post_details']['ref_' . $a . '_relationship'],
+                                "st_ref_contact" => $data['post_details']['ref_' . $a . '_contactnumber'],
+                                "dt_created" => date("Y-m-d H:i:s"),
+                                "in_deleted" => "0"
+                            );
+
+                            $this->user_model->insert_foster_references($ref_details);
+                        }
+                    }
+
+                    $profile_info['st_foster_home'] = "Y";
+                    $data['user_profile'] = $this->user_model->update_user_info($profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+					
+					
+					$data['user_profile_setting_details'] 		= $this->user_model->get_user_profile_setting($this->session->userdata('userid'));
+					//print_r($data['user_profile_setting_details']);
+					
+					if(empty($data['user_profile_setting_details']))
+					{
+					$fost_arr	 = 	  array('in_user_id'		=> $this->session->userdata('userid'),
+										'in_public'				=> '0',
+										'st_foster'				=> 'a:5:{i:0;s:18:"st_animal_type_ids";i:1;s:16:"in_duration_type";i:2;s:18:"st_max_foster_days";i:3;s:18:"st_max_animal_size";i:4;s:23:"st_household_animal_ids";}',
+										'dt_created'			=> date('Y-m-d H:i:s'),
+										'in_deleted'			=> '0'											
+										);
+					
+					$this->user_model->add_user_foster_profile_setting($fost_arr);
+					}
+					else{			
+						$fost_arr	 = 	array('st_foster'		=> 'a:5:{i:0;s:18:"st_animal_type_ids";i:1;s:16:"in_duration_type";i:2;s:18:"st_max_foster_days";i:3;s:18:"st_max_animal_size";i:4;s:23:"st_household_animal_ids";}',
+										'dt_created'			=> date('Y-m-d H:i:s'),
+										'in_deleted'			=> '0'											
+										);
+						$this->user_model->update_user_profile_setting($fost_arr,$this->session->userdata('userid'),'tbl_user_profile_setting');	
+					}
+                }
+                $this->session->set_flashdata('success', 'Foster home details updated successfully.');
+                redirect(base_url().'foster_home_mobile/foster_home');
+            }
+        } else {
+			//echo "<pre>";print_r($data['profile_details']);die;
+            //$this->load->view('foster-home-profile', $data);
+			$this->load->view('foster-home-profile-mobile', $data);
+        }
+    }
+
+    function delete_foster() {
+        if (!$this->session->userdata('userid')) {
+            die;
+        }
+        if ($this->input->post()) { 
+            $this->user_model->delete_foster($this->session->userdata('userid'), 'tbl_foster_user_detail');
+            $profile_info['st_foster_home'] = "N";
+            $this->user_model->update_user_info($profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+            echo "<div class=\"alert alert-success\"><strong>Foster Home information removed successfully.</strong></div>";
+        }
+    }
+
+    
+}
+
+/* End of file foster_home_mobile.php */
+/* Location: ./application/controllers/foster_home_mobile.php */

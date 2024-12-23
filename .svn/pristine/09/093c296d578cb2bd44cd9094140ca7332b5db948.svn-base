@@ -1,0 +1,336 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Kiran Balap
+# Created date: 16-Mar-2018
+# File description: Category(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class questions extends CI_Controller 
+{
+
+	 public function __construct(){
+		parent::__construct();
+		error_reporting(0);
+		//ini_set("display_errors", 1);
+		if (!$this->session->userdata('sess_admin_id')) {
+            $url = "http://" . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+            $this->session->set_userdata('redirect_url', $url);
+            redirect($this->config->item('admin_base_url'));
+        }
+		
+		$this->load->library('upload');
+		$this->load->library('image_lib');	
+		$this->load->model('questions_model');		
+		$this->load->library('common_function');
+		$this->load->library('form_validation');	
+		$this->load->library('pagination');
+		$this->today = date("Y-m-d H:i:s"); 	
+		/* 		
+		$admin_location_details = $this->location_model->get_location($this->session->userdata('sess_admin_location_id'));
+		
+		$user_info = ($this->session->userdata('sess_admin_level')) ? (int)$this->session->userdata('sess_admin_level') : '';
+		$is_sup_admin = ($user_info === 1 ) ? TRUE : FALSE; */
+		
+	}	
+	
+	public function index(){
+
+		if(!$this->session->userdata('sess_admin_id')){
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}	
+		 
+		if(isset($_COOKIE['cat_filter'])){
+            setcookie('cat_filter', '', time() - 3600, '/'); // empty value and old timestamp
+			$this->session->unset_userdata('sel_per_page');
+			$this->session->unset_userdata('sel_limit');
+			$this->session->unset_userdata('sel_search_text');
+			$this->session->unset_userdata('sel_status');
+			$this->session->unset_userdata('sel_sort');
+			$this->session->unset_userdata('sel_order'); 
+        }
+
+		$this->page();	
+	}
+
+	public function page($sort=false,$order=false,$limit=false){	
+		
+		$data				= array();
+		$data['Err_Msg']    =   '';
+		$data['search_text_val'] = $this->session->userdata('sel_search_text');
+		$data['status_val'] = $this->session->userdata('sel_status');
+		
+		// $logged_in_user_data = $this->people_model->get_user_detail($this->session->userdata('sess_admin_id'));
+		$this->load->view('questions_list_view',$data);	
+	}
+	
+	/**
+     * @param POST DATA
+     * @param 
+     * @return redirect with respective
+    */
+	public function add(){
+
+		$data				= array();
+		$data['Err_Msg']    =   '';
+		$post_status = $this->input->post('active');
+		$ans_array=array();
+		if(!empty($_POST)!=0 && isset($_POST['question_title'])){
+			extract($_POST);
+			if($_POST['question_type']==1 || $_POST['question_type']==5 || $_POST['question_type']==6){
+						$question_data = array(
+							"st_question"	=>	$question_title,
+							"st_type"		=>	$st_type,
+							"in_ques_type"	=>	$question_type,
+							"in_required"	=>  !empty($is_required) ? $is_required : 0,
+							"in_status"		=> 	$in_status,
+							"dt_created"	=>	$this->today
+						);
+				
+			}else{
+				// if(
+				$i=0;
+				foreach($ans as $val){
+					if($val!=""){
+						$ans_array[$i]['answer'] = $val;
+						$ans_array[$i]['in_allow_flg'] = $in_allow_flg[$i];
+					}
+					$i++;
+				}
+				$ans_data = serialize($ans_array);
+				$question_data = array(
+									"st_question"	=>	$question_title,
+									"st_type"		=>	$st_type,
+									"in_ques_type"	=>	$question_type,
+									"st_answers"	=>	$ans_data,
+									"in_required"	=>  !empty($is_required) ? $is_required : 0,
+									"in_status"		=> 	$in_status,
+									"dt_created"	=>	$this->today
+								);
+				
+			}
+			$question_id = $this->questions_model->add_questions($question_data);
+		    $this->session->set_flashdata('message','Question Added Successfully.');
+			redirect('questions', 'refresh');
+			
+		}
+		$this->load->view('add_questions_view');
+	}
+	
+
+	public function delete_checked(){
+		if(count($_POST)!=0)
+		{
+			$selected_checkbox=json_decode($_POST['selected']);
+			$data=array
+			('in_deleted'=>1);
+			
+				$this->questions_model->delete_checked_row($selected_checkbox,$data);
+				$this->session->set_userdata('message','Record Deleted Successfully.');
+				echo 1;
+				// redirect('questions', 'refresh');
+				
+		}
+	
+	}
+	
+	public function delete_record()
+	{
+		if(count($_POST)!=0)
+		{
+			$deleted_id=json_decode($_POST['deleted_id']);
+			$data=array
+			('in_deleted'=>1);
+			
+				$this->questions_model->update_questions($deleted_id,$data);
+					$this->session->set_userdata('message','Record Deleted Successfully.');
+				echo "1";
+				
+		}
+	}
+	
+	/**
+     * @param POST DATA
+     * @param int $question_id
+     * @return redirect with respective url
+    */
+	public function edit($question_id = ''){
+		$data				= array();
+		$data['Err_Msg']    =   '';
+		$data['questions_details'] = $this->questions_model->get_questions_details($question_id);
+		$ans_array=array();
+		if(!empty($_POST)!=0 && isset($_POST['question_title'])){
+			extract($_POST);
+			$in_status = isset($in_status) ? $in_status : 0;
+			if($_POST['question_type'] == 1 || $_POST['question_type'] == 5 || $_POST['question_type'] == 6){
+					$question_data = array(
+									"st_question"	=>	$question_title,
+									"st_type"		=>	$st_type,
+									"in_ques_type"	=>	$question_type,
+									"st_answers"	=>	null,
+									"in_required"	=>  !empty($is_required) ? $is_required : 0,
+									"in_status"		=> 	$in_status,
+									"dt_modified"	=>	$this->today
+							);
+			}else{
+				$i=0;
+				foreach($ans as $val){
+					if($val!=""){
+						$ans_array[$i]['answer'] = $val;
+						$ans_array[$i]['in_allow_flg'] = $in_allow_flg[$i];
+					}
+					$i++;
+				}
+				$ans_data = serialize($ans_array);
+				$question_data = array(
+									"st_question"	=>	$question_title,
+									"st_type"		=>	$st_type,
+									"in_ques_type"	=>	$question_type,
+									"st_answers"	=>	$ans_data,
+									"in_required"	=>  !empty($is_required) ? $is_required : 0,
+									"in_status"		=> 	$in_status,
+									"dt_modified"	=>	$this->today
+								);
+				
+			}
+
+			$question_id = $this->questions_model->update_questions($question_id,$question_data);
+			//$this->common_function->save_admin_log($this->session->userdata('sess_admin_id'), 'Add Questions','Question Updated Successfully');
+			$this->session->set_userdata('message','Question Updated Successfully.');
+			redirect($this->config->item('admin_base_url').'questions');
+		}
+
+	
+		$this->load->view('edit_questions_view',$data);
+	}
+	
+	
+	public function ajax_load_categories()
+	{
+		$ajax  = $this->input->post('ajax');
+		
+		$rec_per_page = 10;
+		$limit = 0;
+		
+		$search_text  = $this->input->post('search_text');
+		// $sel_status  = $this->input->post('sel_status');
+		$posted_rec_per_page  = $this->input->post('rec_per_page');
+		if(!empty($posted_rec_per_page))
+		{
+			$rec_per_page = $posted_rec_per_page;
+		}
+		$sel_sort  = $this->input->post('sel_sort');
+		$sel_order  = $this->input->post('sel_order');
+		
+		
+		
+		if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+		
+		else	
+				$limit = '0';
+		
+		if($this->uri->segment(3))
+				$sort = $this->uri->segment(3);
+		elseif(!empty($sel_sort))
+			$sort = $sel_sort;
+		else	
+				$sort = 'in_ques_id';
+		
+		if($this->uri->segment(4))
+				$order = $this->uri->segment(4);
+		elseif(!empty($sel_order))
+			$order = $sel_order;
+		else	
+				$order = 'DESC';
+			
+		
+		$this->session->set_userdata('sel_per_page', $rec_per_page);
+		$this->session->set_userdata('sel_limit', $limit);
+		$this->session->set_userdata('sel_search_text', $search_text);
+		// $this->session->set_userdata('sel_status', $sel_status);
+		$this->session->set_userdata('sel_sort', $sort);
+		$this->session->set_userdata('sel_order', $order);
+		
+		
+		if(!empty($ajax))
+		{
+				$data = array();
+				//$data['concerns'] = $this->concern_model->get_all_concern($rec_per_page, $limit,$search_text,$sel_status,$sort,$order);
+				$data['questions'] = $this->questions_model->get_all_questions($rec_per_page, $limit,$search_text,$sort,$order);
+				$totalrecord = $data['total_records'] = $this->questions_model->get_all_questions_cnt($search_text);
+				
+				
+				$config = array();
+		
+				// ------------------------ PAGINATION STARTS HERE -----------------------------
+				
+				
+				$config['base_url'] 	= $this->config->item('admin_base_url').'questions/ajax_load_categories/';
+				$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+				$config['total_rows'] 	= $totalrecord;
+				$config['per_page'] 	= $rec_per_page;
+				$config['cur_page'] 	= $limit;
+				$config['num_links'] 	= '3';
+				$config['first_link']   = FALSE;
+				$config['last_link']    = FALSE;
+
+				$config['full_tag_open'] = '<ul class="pagination pull-right" id="test_pagination" >';
+				$config['full_tag_close'] = '</ul>';
+
+				$config['prev_link'] = 'Previous';
+				$config['prev_tag_open'] = '<li class="prev" onClick="return getAjaxdata2()">';
+				$config['prev_tag_close'] = '</li>';
+
+				$config['next_link'] = 'Next';
+				$config['next_tag_open'] = '<li class="next" onClick="return getAjaxdata2()">';
+				$config['next_tag_close'] = '</li>';
+
+				$config['num_tag_open'] = '<li onClick="return getAjaxdata2()" >';
+				$config['num_tag_close'] = '</li>';
+			
+				$config['cur_tag_open'] = '<li class="active" ><a href="javascript:void(0);" >';
+				$config['cur_tag_close'] = '</a></li>';
+				
+
+				$config['display_pages'] = TRUE;	 			
+				
+				$this->pagination->initialize($config);
+				
+				$data['pagination'] = $this->pagination->create_links();
+				$data['from'] = ($limit + 1 );
+				$data['to'] = (count($data['questions']) + $limit );	//($limit + $rec_per_page);
+				echo json_encode($data);
+		}
+	}
+		
+	public function change_status()
+	{
+		
+		$active = $this->input->post('active');
+		$cat_id = $this->input->post('cat_id');
+		if($active == 1)
+		{
+		  $array = array('in_status'=>0);
+		  $this->concern_model->update_concern($cat_id,$array);
+		  $data['success'] ="0";
+		}else {
+			$array =array('in_status'=>1);
+			
+			 $this->concern_model->update_concern($cat_id,$array);
+			$data['success'] ="0";
+		}
+	//	$this->session->set_userdata('message',"Status Updated Successfully.");
+		echo json_encode($data);	
+		
+	}
+
+}
+
+/* End of file welcome.php */
+/* Location: ./application/controllers/welcome.php */

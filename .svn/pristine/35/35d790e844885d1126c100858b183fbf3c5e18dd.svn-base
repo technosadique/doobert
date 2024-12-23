@@ -1,0 +1,192 @@
+<?php
+# ======================================================================================
+# Created by		: Jigar Patel
+# Created date		: 31-March-2013
+# File description	: Organization Trasnportation Model for Transportation of organization
+# Special - notes	: none
+# Tables used		: tbl_users,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class campaign_animal_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	function index()
+	{
+	
+	}
+	
+	
+
+	
+	function get_details()
+	{
+		
+		$this->db->select("camp.in_campaign_id,						   
+						   camp.st_campaign_type, 
+						   camp.st_page_title,
+						   camp.st_custom_url,    						  
+						   camp.st_profile_story,						   
+						   af.st_file_name", false);					   	
+					$this->db->from('tbl_campaign camp');
+					$this->db->join("tbl_animal a", "a.in_animal_id = camp.in_animal_id AND a.in_deleted='0'","LEFT");	
+					$this->db->join("tbl_animal_file af", "af.in_animal_id = camp.in_animal_id AND af.in_deleted='0' AND af.st_file_type='P'","LEFT");										
+					$this->db->where("camp.dt_campaign_start <=", date('Y-m-d'));
+					$this->db->where("camp.dt_campaign_end >=", date('Y-m-d'));
+					$this->db->where('camp.in_deleted','0');
+					$this->db->where('camp.in_status','1');
+					$this->db->where('camp.in_display_home','1');
+					$this->db->where('camp.in_animal_id >','0');
+					//$this->db->where_in('don.in_status',array('1','2'));  
+					//$this->db->where('don.in_deleted','0');  
+					//$this->db->where('a.in_deleted','0');
+					//$this->db->where('af.in_deleted','0');
+					//$this->db->where('af.st_file_type','P');
+					 $this->db->order_by('RAND()');
+					
+					$this->db->group_by("camp.in_campaign_id"); 
+					$this->db->limit('2');
+						
+					$query = $this->db->get(); 
+					//echo $this->db->last_query(); die;
+					//return $query->result();
+					$arrAnimal = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{			
+						
+							/*$this->db->select('SUM(in_cost) as total_cost');
+							$this->db->from('tbl_campaign_cost');
+							$this->db->where('in_campaign_id',$Row->in_campaign_id);
+							$this->db->where('in_deleted',0);
+							$query = $this->db->get();
+							$cost_sum=$query->row_array();*/
+							//print_r($cost_sum); die;
+							
+						
+						
+						
+							$this->db->select('SUM(in_donation_amount) as total_donation, count(in_donation_id) as c_in_donation_id');
+							$this->db->from('tbl_campaign_donation');
+							$this->db->where('in_campaign_id',$Row->in_campaign_id);
+							$this->db->where('in_deleted',0);
+							$this->db->where('st_donation_type',$Row->st_campaign_type);
+							$this->db->where_in('in_status',array('1','2'));
+							$query = $this->db->get();
+							$donation_sum=$query->row_array();
+							//print_r($donation_sum); die;
+							
+							
+							/*if($donation_sum['total_donation']<$cost_sum['total_cost'])
+							{
+								$total_donation = ($donation_sum['total_donation']>0)?$donation_sum['total_donation']:"0.00";
+								$total_cost = ($cost_sum['total_cost']>0)?$cost_sum['total_cost']:"0.00";
+								if($total_cost>0)
+								{
+									$percent = ($total_donation*100)/$total_cost;
+									$percent = ($percent>100)?"100":$percent;
+								}
+								else
+								{
+									$percent = 0.00;
+								}
+							}
+							else
+							{
+								$percent = '100';
+							}		*/			  
+							
+							if(isset($Row->st_file_name) && $Row->st_file_name != '' && file_exists($this->config->item('upload').'animal_images/315x315/'.$Row->st_file_name)){
+							$image_file = base_url().'upload/animal_images/315x315/'.$Row->st_file_name;	
+							}
+							else{
+								$new_fundraiser_img = $this->get_fundraiser_image($Row->in_campaign_id);
+								
+								if(trim($new_fundraiser_img)!= '' && file_exists($this->config->item('upload').'animal_images/315x315/'.$new_fundraiser_img)) {
+									$image_file = base_url().'upload/animal_images/315x315/'.$new_fundraiser_img;
+								} else {
+									$image_file = base_url().'upload/animal_images/315x315/no_photo_icon.png';
+								}
+								
+							}
+							
+									
+							$arrAnimal[]	= array('in_campaign_id'	=> $Row->in_campaign_id,																						
+											'raised'					=> $donation_sum['total_donation'],															
+											'st_file_name' 				=> $image_file,	
+											'st_custom_url' 			=> base_url().'campaign/'.$Row->st_custom_url,	
+											'st_page_title' 			=> $Row->st_page_title,
+											'st_campaign_type' 			=> $Row->st_campaign_type,																																
+											'st_profile_story'			=> $Row->st_profile_story
+											);
+						}
+						return $arrAnimal;						
+					}					
+	}	
+	
+	
+	public function get_organization()
+	{			
+			
+				$this->db->select("o.in_organization_id,
+								   o.st_org_name,				  
+								   o.st_city,
+								   o.st_org_image,								  
+								   o.st_state",false);						   	
+				$this->db->from('tbl_organization  o');
+				//$this->db->join('tbl_organization_setting os', 'os.in_organization_id=o.in_organization_id AND os.in_public=1','INNER');					
+				$this->db->join('tbl_organization_setting os', 'os.in_organization_id=o.in_organization_id AND (os.in_public=1 OR os.in_public IS NULL)','LEFT');
+				$this->db->where('o.in_display_home','1');
+				//$this->db->where("o.st_org_image !=",'');
+				$this->db->where('o.in_status','1');
+				$this->db->where('o.in_deleted','0');
+				$this->db->order_by('RAND()'); 
+				$this->db->limit('7');
+				$query = $this->db->get();				
+				$arrOrg=array();
+				
+				if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+							$arrOrg[]	= array(
+											'st_org_name' 			    => $Row->st_org_name,
+											'st_city' 			        => $Row->st_city,	
+											'st_state' 			        => $Row->st_state,	
+											'public_page_link' 			=> base_url().'organization-'.$Row->in_organization_id.'-'.$this->common_function->get_filtered_name($Row->st_org_name),
+											'st_org_image'				=> $Row->st_org_image
+											
+											);
+				
+						}
+						return $arrOrg;						
+					}	
+				
+	}
+	
+	public function get_fundraiser_image($cid) {
+		$data = array();
+		
+		$this->db->select('st_file_name');
+		$this->db->from('tbl_campaign_file');
+		$this->db->where('in_campaign_id',$cid);
+		
+		$this->db->where('in_deleted','0');
+		$this->db->where('st_file_type','P');
+		
+		$this->db->order_by('in_campaign_file_id','ASC');
+		$query = $this->db->get();
+		
+		$data = $query->row_array();
+		return (isset($data['st_file_name']) && trim($data['st_file_name']) != '')?$data['st_file_name']:'';
+	}
+}
+?>

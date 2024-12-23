@@ -1,0 +1,651 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Adopt_a_animal extends CI_Controller {
+
+    /**
+     * Index Page for this controller.
+     *
+     * Maps to the following URL
+     * 		http://example.com/index.php/welcome
+     * 	- or -  
+     * 		http://example.com/index.php/welcome/index
+     * 	- or -
+     * Since this controller is set as the default controller in 
+     * config/routes.php, it's displayed at http://example.com/
+     *
+     * So any other public methods not prefixed with an underscore will
+     * map to /index.php/welcome/<method_name>
+     * @see http://codeigniter.com/user_guide/general/urls.html
+     */
+    public function __construct() {
+        parent::__construct();
+        $this->output->enable_profiler(FALSE);
+        $this->load->model('rescue_animal_model');
+        $this->load->model('common_model');
+        $this->load->model('organimal_model');        
+        $this->load->library('common_function');
+        $this->load->library('pagination');
+        $this->load->library('upload');
+       	$this->load->library( array('image_lib') );
+       	$this->load->model('organization_model');
+		$this->load->library('email');
+
+    }
+
+    	public function index($sort=false,$order=false,$limit=false)
+	{
+		$data = array();
+
+		$org_id = $this->session->userdata('org_id');   		
+   		$result = $this->rescue_animal_model->get_rescue_org_id($org_id);   		
+   		$shelter_id = $result[0]['in_adopt_a_pet_id'];
+   		$shelter_key = $result[0]['in_adopt_a_pet_key'];
+   		$data['shelter_id'] = $shelter_id;
+
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		
+		if(!$sort)
+                    $sort='st_animal_name';
+		
+		if(!$order)
+                    $order = 'desc';
+					
+		if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+		else	
+				$limit = '0'; 		
+									
+				
+		// pagination starts
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'adopt_a_animal/index/'.$sort.'/'.$order;
+		
+		$config["per_page"]	 		= 12;              
+        $config['cur_page'] 		= $limit;              
+        $config['num_links'] 		= '3';
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open']  = '<ul class="pagination">';
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 		
+
+		$page = $limit;
+		
+		$data['animal_shelter_group'] = $this->rescue_animal_model->get_all_shelter_animals($sort,$order,$limit,$config["per_page"],$shelter_id,$shelter_key);
+		
+		//Getting total rows
+		$config["total_rows"] = $this->rescue_animal_model->get_all_shelter_animals_count($sort,$order,$limit,$config["per_page"],$shelter_id, $shelter_key);
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		$data['totalrecord'] =$config['total_rows'];
+		$data["pagination"] = $this->pagination->create_links();
+        $data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+
+		$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;			
+		$this->load->view('animal-shelter-group',$data);
+	}
+
+	
+	public function get_data($url){
+		
+		$newfile = '';
+		$handle = curl_init();		
+		
+    	// Set the url
+		curl_setopt($handle, CURLOPT_URL, $url);
+		// Set the result output to be a string.
+		curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
+		$output = curl_exec($handle);
+
+		curl_close($handle);
+		
+		//$info = pathinfo($url);
+		//$newfile =  basename($url,'.'.$info['extension']).".jpg";
+		$newfile =  basename($url);	
+		//$newfile = $file_name =  basename($file,'.'.$info['extension']);
+		
+		if(!empty($newfile)){
+			$myfile = fopen($this->config->item('upload') . 'animal_images/'.$newfile, "w") or die("Unable to open file!");			
+			fwrite($myfile, $output);
+			fclose($myfile);
+		
+			//$data = $this->upload->data();
+			$thumb = array(	'315x315'	=>	'315X315',
+							'140x140'	=>	'140X140',
+							'70x70'		=>	'70X70',
+							'36x36'		=>	'36X36'
+							);
+			foreach($thumb as $key_t =>$value_t){
+				$exp_value = explode('X',$value_t);
+				$height = $exp_value[0];
+				$width = $exp_value[1];
+				$this->resizeImage($key_t,$newfile,$height,$width);	
+			}
+			//echo "success\n";
+
+		}		
+		return $newfile;
+	
+   	}
+
+   	public function resizeImage($folder, $imagname,$height,$width)
+   	{
+   
+      	$source_image		= $this->config->item('upload').'animal_images/'.$imagname;
+		$new_image		= $this->config->item('upload').'animal_images/'.$folder.'/'.$imagname;
+		$config_manip = array(
+	        'image_library' => 'gd2',
+	        'source_image' => $source_image,
+	        'new_image' => $new_image,
+	        'maintain_ratio' => TRUE,
+	       	'width' => $width,
+	        'height' => $height
+      	);
+    	 
+		$this->image_lib->initialize( $config_manip );
+
+      	$this->load->library('image_lib', $config_manip);
+      	if (!$this->image_lib->resize()) {
+          	echo $this->image_lib->display_errors();
+      	}
+		$this->image_lib->clear();
+		
+   	}
+  
+
+   	function shelter_api(){
+   		
+		$shelter_key =   $this->input->post('shelter_api');
+		$shelter_id =    $this->input->post('shelter_id');
+
+		
+		$result1 = file_get_contents("https://api.adoptapet.com/search/pets_at_shelter?key=".$shelter_key."&v=1&output=json&shelter_id=".$shelter_id);
+		$result = json_decode($result1);	
+		//echo '<pre>'; print_r($result); die;
+		if($result->status != 'fail'){
+
+		$org_id = $this->session->userdata('org_id');
+
+		foreach($result->pets as $value){   
+			$image_url = $value->large_results_photo_url;
+			$shelter_animal_id = $value->pet_id;
+			//$originalDate = $value->animalBirthdate;
+
+			$st_gender = $value->sex;
+			if($st_gender =='f'){
+				$gender ="Female";
+			}else if($st_gender =='m'){
+				$gender ="Male";
+			}
+
+			if(!empty($value->secondary_breed)){
+				$st_animal_breed = $value->primary_breed." / ". $value->secondary_breed;
+			}else{
+				$st_animal_breed = $value->primary_breed;
+			}
+				//$imgpath = $value->animalThumbnailUrl;
+			$animal_present = $this->rescue_animal_model->check_availability($shelter_animal_id, $shelter_id);	
+
+			
+			
+			if(empty($animal_present)){
+			
+				$shelter_animal_arr = array(
+					'in_rescue_group_animal_id' => $shelter_animal_id,
+					'in_animal_org_id' 			=> $shelter_id,
+					'st_animal_name' 			=> $value->pet_name,					
+					'st_animal_status' 			=> $value->animalStatus,
+					'st_animal_breed' 			=> $st_animal_breed,
+					'st_animal_species' 		=> $value->species,
+					//'st_animal_color' 			=> $value->animalColor,
+					'st_animal_thumb_img' 		=> $image_url,
+					'st_animal_age' 			=> $value->age,
+					'st_animal_size' 			=> $value->size,
+					'dt_animal_birth_date' 		=> date("Y-m-d", strtotime($originalDate)),
+					//'st_animal_special_needs' 	=> $value->animalSpecialneeds,
+					'st_animal_sex' 			=> $gender,
+					//'in_animal_location	' 		=> $value->animalLocation,
+					'st_animal_citystate'		=> $value->addr_city.", ".$value->addr_state_code,
+					//'st_animal_description'		=> $value->animalDescription,
+					//'animalDescriptionPlain'	=> $value->animalDescriptionPlain,
+					'dt_created'				=> date('Y-m-d H:i:s'),
+					'in_animal_import_type' 		=> 1,
+					'in_adopt_a_pet_key' 		=> $shelter_key
+					);
+					
+
+					$this->rescue_animal_model->add_rescue_animal($shelter_animal_arr);											
+				
+			}
+		}
+			
+			echo json_encode(array('res'=>'success'));
+		}else{
+			
+			echo json_encode(array('res'=>'failure'));
+		}		
+		
+   	}
+
+   	function check_adopt_a_pet_id(){   		
+   		$org_id = $this->session->userdata('org_id');
+   		$adopt_a_pet_id = $this->input->post('adopt_a_pet_id');
+   		$adopt_a_pet_key = $this->input->post('adopt_a_pet_key');
+   		$shelter_present = $this->rescue_animal_model->get_adopt_pet_id($adopt_a_pet_id, $adopt_a_pet_key);
+   		$animal_rescue_id = $this->rescue_animal_model->get_rescue_org_id($org_id);
+   		
+   		//check in database
+   		$Sadopt_a_pet_id =  $shelter_present[0]['in_adopt_a_pet_id'];
+   		$Sadopt_a_pet_key =  $shelter_present[0]['in_adopt_a_pet_key'];
+   		$Sorg_id = $shelter_present[0]['in_organization_id'];
+   		//check using user's value
+   		$Oadopt_a_pet_id =  $animal_rescue_id[0]['in_adopt_a_pet_id'];
+   		$Oadopt_a_pet_key =  $animal_rescue_id[0]['in_adopt_a_pet_key'];
+   		$Oorg_id = $animal_rescue_id[0]['in_organization_id'];
+   		
+   		if(!empty($shelter_present)){
+   			if($org_id == $Sorg_id){   				
+   				if($adopt_a_pet_id == $Oadopt_a_pet_id  && $adopt_a_pet_key == $Oadopt_a_pet_key){
+   					echo json_encode(array('res'=>'success'));
+	   			}else if($adopt_a_pet_id != $Sadopt_a_pet_id  || $adopt_a_pet_key != $Sadopt_a_pet_key){
+	   				$orgarr = array(
+	   				'in_adopt_a_pet_id' => $adopt_a_pet_id,
+	   				'in_adopt_a_pet_key' => $adopt_a_pet_key
+	   				);
+		   			$orgresult = $this->organization_model->edit_org($orgarr, $org_id);
+		   			echo json_encode(array('res'=>'success'));
+	   			}
+
+   			}else{
+   				echo json_encode(array('res'=>'used'));
+   			}
+   		}else{
+   			$orgarr = array(
+   				'in_adopt_a_pet_id' => $adopt_a_pet_id,
+   				'in_adopt_a_pet_key' => $adopt_a_pet_key
+   				);
+   			$orgresult = $this->organization_model->edit_org($orgarr, $org_id);
+   			echo json_encode(array('res'=>'success'));
+   		}
+
+   		/*if($org_id == $Sorg_id){
+   			
+   			if($adopt_a_pet_id == $Oadopt_a_pet_id  && $adopt_a_pet_key == $Oadopt_a_pet_key){
+   					echo json_encode(array('res'=>'success'));
+   			}else if($adopt_a_pet_id != $Sadopt_a_pet_id  || $adopt_a_pet_key != $Sadopt_a_pet_key){
+   				$orgarr = array(
+   				'in_adopt_a_pet_id' => $adopt_a_pet_id,
+   				'in_adopt_a_pet_key' => $adopt_a_pet_key
+   				);
+	   			$orgresult = $this->organization_model->edit_org($orgarr, $org_id);
+	   			echo json_encode(array('res'=>'success'));
+   			}else if($Sadopt_a_pet_id != $Oadopt_a_pet_id && $adopt_a_pet_key != $Oadopt_a_pet_key){
+   				echo json_encode(array('res'=>'success'));
+   			}
+
+   		}else{
+   			$orgarr = array(
+   				'in_adopt_a_pet_id' => $adopt_a_pet_id,
+   				'in_adopt_a_pet_key' => $adopt_a_pet_key
+   				);
+   			$orgresult = $this->organization_model->edit_org($orgarr, $org_id);
+   			echo json_encode(array('res'=>'success'));
+   		}*/
+   		
+   	}
+
+
+
+   
+
+	public function import_animals()
+	{
+
+		$tmparr = array();
+		$animaltypearr = array();
+		$temp_check = $this->input->post('values');
+		$animal_present = array();
+		if(count($temp_check)>0){
+			$checkarr = array_unique($temp_check);
+		
+			$animal_data = $this->rescue_animal_model->get_all_rescue_animals_byid($checkarr);
+			
+
+			//animal_type_id
+			$animal_type = $this->organimal_model->get_animal_all_type();
+			
+			foreach($animal_type as $a_key =>$a_value){
+				$tmparr[$a_value['st_animal_type_name']] = $a_value;
+			}
+			$animaltypearr = $tmparr;
+			$animal_arr = array();
+			foreach ($animal_data as $key => $value) {
+				
+				$org_id = $this->session->userdata('org_id');
+				//$org_id = '28';
+				$shelter_animal_id = $value['in_rescue_group_animal_id'];
+
+				$animal_present = $this->organimal_model->check_availability($shelter_animal_id, $org_id);
+				$primary_breed = '';
+				$secondary_breed ='';
+				if(empty($animal_present)){
+									
+					$animal_name = ucfirst($value['st_animal_species']);
+					
+					if(isset($value['st_animal_species'], $animal_type)){
+				
+						$in_animal_type_id = $animaltypearr[$animal_name]['in_animal_type_id'];
+
+						$animal_breed = $value['st_animal_breed'];
+					
+						$breed_arr = explode(" / ",$animal_breed);
+						
+						if(!empty($breed_arr)){
+							$primary_breed = $breed_arr[0];
+							$secondary_breed = $breed_arr[1];
+						}else{
+							$primary_breed = $animal_breed;
+						}
+						if($primary_breed != ''){
+							$breed_result = $this->organimal_model->chk_animalbreed($primary_breed, $in_animal_type_id);
+							if(!empty($breed_result)){
+								$p_breed = $breed_result[0]['in_animal_breed_id'];
+							}else{
+								$animal_breed = array(
+									'st_animal_breed_name'=> $primary_breed,
+									'in_animal_type_id' => $in_animal_type_id,
+									'in_status' 		=> '1',
+									'dt_created'		=> date('Y-m-d H:i:s')
+									);
+								$p_breed = $this->organimal_model->add_animal_breed($animal_breed);
+							}
+
+						}else{
+							$p_breed ='';
+						}
+
+						if($secondary_breed != ''){
+							$breed_result = $this->organimal_model->chk_animalbreed($secondary_breed, $in_animal_type_id);
+							if(!empty($breed_result)){
+								$s_breed = $breed_result[0]['in_animal_breed_id'];
+							}else{
+								$animal_breed = array(
+									'st_animal_breed_name'=> $secondary_breed,
+									'in_animal_type_id' => $in_animal_type_id,
+									'in_status' 		=> '1',
+									'dt_created'		=> date('Y-m-d H:i:s')
+									);
+								$s_breed = $this->organimal_model->add_animal_breed($animal_breed);
+							}
+
+						}else{
+							$s_breed ='';
+						}
+
+						
+
+						//tbl_demeanor
+						$animal_demeanor = $this->organimal_model->get_demeanor_detail_import($in_animal_type_id);
+						$in_demeanor_id = $animal_demeanor[0]['in_demeanor_id'];
+						$stgender = $value['st_animal_sex'];
+						if($stgender =='Male'){
+							$st_gender ='M';
+						}
+						elseif ($stgender =='Female'){
+							$st_gender ='F';
+						}else{
+							$st_gender ='U';
+						}
+
+						//animalSpecialneeds insert
+						$instatus = $value['st_animal_status'];
+						if($instatus == 'Available'){
+							$in_status = 1;
+						}else{
+							$in_status = 0;
+						}
+
+						$animalarr = array(						
+							'in_organization_id' 	=> $org_id,
+							'st_animal_name' 		=> $value['st_animal_name'],
+							'st_gender'				=> $st_gender,
+							'in_animal_type_id' 	=> $in_animal_type_id,
+							'in_primary_breed_id' 	=> $p_breed,
+							'in_secondry_breed_id' 	=> $s_breed,
+							'in_status'				=> $in_status,
+							'in_rescue_group_animal_id'	=> $shelter_animal_id,
+							'in_progress_status' 		=> 1,
+							'st_current_zip'			=> $value['in_animal_location'],
+							'in_demeanor_id' 		=> $in_demeanor_id,
+							'dt_created'				=> date('Y-m-d H:i:s')
+						);
+						
+						$animal_id = $this->organimal_model->add_animal_profile($animalarr);
+						
+						$tempimg = explode(",",$value['st_animal_thumb_img']);
+						
+						$animalimage = $tempimg[0];											
+							if(!empty($animalimage)){
+								$img =	$this->get_data($animalimage);
+							
+								$file_data = array(	'in_animal_id'	=>	$animal_id,
+											'st_file_name'	=>	$img,
+											'st_file_type'	=>	'P',
+											'dt_created'	=>	date('Y-m-d H:i:s'),
+											'in_deleted'	=>	0
+										);
+							
+							$this->organimal_model->add_animal_files($file_data);
+
+						}//if
+
+					
+						$animal_update_arr = array(
+							'in_deleted' 	=> 1,
+							'dt_modified' 	=> date('Y-m-d H:i:s')
+						);
+						$rescue_animal = $this->rescue_animal_model->update_rescue_animal($animal_update_arr, $shelter_animal_id);
+						
+						$success =  "added"	;
+						$temp_animal_arr['animal_id'] = $animal_id;
+						$temp_animal_arr['st_animal_name'] = $value['st_animal_name'];						
+						$animal_arr[] = $temp_animal_arr;	
+						
+					}//if
+					
+				}else{//empty
+					$success = "present";
+				}
+			}	
+			//$this->send_mail($animal_arr);			
+			echo json_encode(array('res'=>$success));
+		}else{
+			echo json_encode(array('res'=>'null'));
+		}
+		
+		
+	}
+
+
+	public function send_mail($animal_arr){ 		
+
+  		//send mail about import animal
+			//Getting email body
+			$email_body = $this->common_model->get_email_containt('153');		
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			
+				$animal_profile ='';
+				$animal_name = '';
+				$view_animal_img ='';
+				$i = 1;
+				foreach($animal_arr as $key =>$val){
+					
+					if(!empty($animal_name)){
+						$animal_name .= ", ".$val['st_animal_name'];
+					}else{
+						$animal_name .= $val['st_animal_name'];	
+					}
+					$added_animal_image = $this->organimal_model->get_animal_images($val['animal_id']);									
+					$animal_image = '';
+					
+					if($added_animal_image == '') {
+						$animal_image = 'no_photo_icon.png';						
+					} else {
+						$animal_image = $added_animal_image;
+					}
+
+					$animal_url = base_url().'animal-'.$val['animal_id'].'-'.$this->common_function->get_filtered_name($val['st_animal_name']);
+
+
+					$animal_img = base_url().'/upload/animal_images/140x140/'.$animal_image;
+					if($i==1){
+					$animal_profile .='<tr>';
+					}
+					$animal_profile .='<td class="devicewidth" height="140" width="150" style="text-align:center;">
+											  	<table width="100%" border="0" cellspacing="0" cellpadding="0" class="devicewidth">
+											  		<tr>
+														<td class="devicewidth" height="140" width="150" style="text-align:center;"><img alt="" src="'.$animal_img.'" /></td>
+														</tr>
+													<tr>
+														<td style="font-family: Arial, sans-serif; font-size: 14px; color: #4c4c4c; text-align:justify; line-height: 20px; text-align:center; padding-bottom:34px;"><span style="display:block"><a href="'.$animal_url.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;background:#ee6d35;padding:5px 10px;border-radius:3px;display:inline-block;margin:15px 0 0;" title="View Animla Profile"><img src="http://app.doobert.com/assets/img/email_img/animal_profile_icon.gif" style="border:none;vertical-align:top;padding-top:3px;border:none" alt="" /> View Animal Profile</a></span>
+														</td>
+													</tr>
+											 	</table>									  
+
+											</td>';
+					if($i%3 == 0){					
+						$animal_profile .='</tr>';
+						$i = 0;
+					}
+
+										
+					$i++;
+				}//foreach
+
+
+				//Sending email to organization owner.
+				$patterns = array('%##url##%','%##user_display_name##%','%##animal_profile_display_name##%','%##organization_name##%','%##current_year##%','%##user_display_name_adding_animal##%', '%##animal_profile##%');
+				$replacements = array(base_url(),$this->session->userdata('user_name')." ".$this->session->userdata('last_name'),$animal_name,$this->session->userdata('org_name'),date('Y'),$this->session->userdata('user_name')." ".$this->session->userdata('last_name'), $animal_profile);
+				
+				$content = preg_replace($patterns,$replacements,$email_body[0]['st_email_body']);
+				
+			
+
+			//$this->email->message($content);
+			//$this->email->send();
+			$data['get_emails'] = $this->common_model->get_org_users_email($this->session->userdata('org_id'));
+			// echo "<pre>";print_r($data['get_emails']);
+			// $email_add = array();
+			// 	if(!empty($data['get_emails'])) {
+			// 		foreach($data['get_emails'] as $row) {
+			// 			$email_add[] = $row['st_email'];
+			// 		}
+			// 	}
+				
+			// 	//Pushing login user email to array
+			// array_push($email_add,$this->session->userdata('email'));
+
+			$to = $data['get_emails'][0]['st_email'];
+		
+			$subject = str_replace('##organization_name##',$this->session->userdata('org_name'),$email_body[0]['st_email_subject']);
+			$message = $content;			
+			$category  =    $email_body[0]['st_category'];
+			//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		
+			$user_to_id = $this->common_model->get_user_id_by_email($this->session->userdata('email'));
+					
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->session->userdata('email')),$message);		
+			$message = str_replace("##DONATION##",$donation,$message);		
+		
+			$send_email = 0;							
+			$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+			if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_body[0]['in_email_id'];
+		
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}	
+			
+			if($send_email == 0)
+			{
+				$animal_setting = $this->common_model->user_notification_setting($user_to_id);
+				if(isset($animal_setting) && isset($animal_setting['flg_immediate_animal']) && $animal_setting['flg_immediate_animal'] == '1')
+				{
+					$send_email = 1;
+				}								
+			}			
+			if($send_email == '1')
+			{
+
+				$this->common_function->send_mail($this->email, $this->session->userdata('email'), $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+			}
+  	}
+
+	
+
+
+   	
+}
+
+/* End of file user.php */
+/* Location: ./application/controllers/rescue_animal.php */

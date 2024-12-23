@@ -1,0 +1,1933 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# =====================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 5-May-2014 
+# File description		: sponsorship controller 
+# Special- notes		:   
+# Tables used			: 
+# Stored procedures		: none 
+# Triggers used			: none
+# ======================================================================================
+
+class Sponsorship extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->model('sponsorship_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');
+		if($this->router->method != 'campaign_page' && $this->session->userdata('org_id') == false) {
+			redirect(base_url().'my-profile');
+		}
+
+	}	
+	
+	#=========================================================
+	#	Function : sponsorship_select_campaign
+	#	Purpose  : Create Sponsorship campaign
+	#=========================================================
+	
+	public function sponsorship_select_campaign($animal_id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		($this->session->userdata('last_campaign_id')==true)?$this->session->unset_userdata('last_campaign_id'):'';
+		($this->session->userdata('edit_campaign_id')==true)?$this->session->unset_userdata('edit_campaign_id'):'';
+		($this->session->userdata('st_custom_url')==true)?$this->session->unset_userdata('st_custom_url'):'';
+		
+		$data = array();
+		$data['menu_no'] 		= 'yes';
+		$data['animal_id'] = $animal_id;
+		$data['check_animal_id']	=	$this->sponsorship_model->check_animal_id($animal_id);
+		
+		if($data['check_animal_id'] == 0) {
+			redirect(base_url().'org_animal/animals_in_my_organization');
+		}
+		
+		$this->session->set_userdata('spon_animal_id',$animal_id);
+		$data['animal_name'] = $this->sponsorship_model->get_animal_details($animal_id);
+		
+		$this->load->view('sponsorship/sponsorship-select-campaign',$data);
+	}
+	
+	
+	#=========================================================
+	#	Function : sponsorship_page_details
+	#	Purpose  : Sponsorship details
+	#=========================================================
+	
+	public function sponsorship_page_details($animal_id) {
+		//$this->session->unset_userdata('last_campaign_id');
+		$this->session->unset_userdata('camp_id');
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if($this->session->userdata('spon_animal_id') != $animal_id) {
+			redirect(base_url().'org_animal/animals_in_my_organization');
+		}
+		
+		$data = array();
+		$data['menu_no'] 		= 'yes';
+		$data['check_animal_exist'] = $this->sponsorship_model->check_animal_exist($animal_id);
+		
+		if($data['check_animal_exist'] > 0 && $this->session->userdata('last_campaign_id')==false) {
+			$data['cost_breakdown_details'] = $this->sponsorship_model->sponsorship_details($animal_id);
+		}
+		
+		if($this->session->userdata('last_campaign_id') == true){
+			$data['get_campaign_detail'] = $this->sponsorship_model->get_campaign_detail_temp($this->session->userdata('last_campaign_id'));
+		} else {
+			$data['get_campaign_detail'] = $this->sponsorship_model->sponsorship_details($animal_id);
+		}
+		
+		$data['animal_id']	=	$animal_id;
+		
+		if($this->input->post('campaign_type_val')) {
+			$this->session->set_userdata('campaign_type',$this->input->post('campaign_type_val'));
+		}
+		
+		$campaign_id = ($this->session->userdata('last_campaign_id') == true)?$this->session->userdata('last_campaign_id'):((isset($data['get_campaign_detail'][0]['in_campaign_id']))?$data['get_campaign_detail'][0]['in_campaign_id']:0);
+		
+		if($this->input->post('frm_action') == 'add_campaign') {
+			$req_fields = array(array('field'   => 'txtpagetitle',	'label'  => 'Page Title',	'rules' => 'required|trim'),
+								array('field'   => 'from', 			'label'  => 'From Date', 	'rules' => 'required|trim'),
+								array('field'   => 'to', 			'label'  => 'To Date', 		'rules' => 'required|trim'),
+								array('field'   => 'txtcustomurl',	'label'  => 'Custom URL',	'rules' => 'required|trim|callback_check_url['.$campaign_id.']|callback_validate_url'),
+								array('field'   => 'txtpagestorytitle', 	'label'  => 'Page Story Title', 		'rules' => 'required|trim')
+								);
+
+			$this->form_validation->set_rules($req_fields);
+			
+			if($this->session->userdata('campaign_type' )== 'D') {
+				$this->form_validation->set_rules('txtpaypalid', 'Paypal Email', 'required|trim');
+			}
+			
+		}
+		
+		if ($this->form_validation->run() == FALSE) {
+			// Validation error				
+			$data['error_msg'] = validation_errors();
+			
+			//Get Animal details
+			$data['animal_name']	=	$this->sponsorship_model->get_animal_details($animal_id);
+			$data['cost_breakdown']	=	$this->sponsorship_model->cost_breakdown($animal_id);
+			
+			//
+			//if($animal_id != '') {
+				//$data['campaign_images'] = $this->sponsorship_model->get_campaign_photos($campaign_id);
+			//} else {
+				$data['campaign_images'] = $this->sponsorship_model->get_campaign_photos($campaign_id);
+			//}
+			//
+			//print_r($data['campaign_images']);die;
+			//Getting animal photos
+			$data['animal_images'] = $this->sponsorship_model->get_animal_photos($animal_id);
+			
+			if($this->session->userdata('last_campaign_id')) {
+				$data['cost_breakdown_details']	= $this->sponsorship_model->cost_breakdown_details($campaign_id);
+			} else {
+				$data['cost_breakdown_details'] = $this->sponsorship_model->sponsorship_details($animal_id);
+			}
+			
+			$this->load->view('sponsorship/sponsorship-page-details',$data);
+		} else {
+			
+			$cost_description1 = $this->input->post('cost_desc1');
+			$cost_price1 = $this->input->post('cost_price1');
+			
+			$cost_description2 = $this->input->post('cost_desc2');
+			$cost_price2 = $this->input->post('cost_price2');
+			
+			$cost_description = (!empty($cost_description1) && !empty($cost_description2))?array_merge($cost_description1,$cost_description2):((!empty($cost_description1))?$cost_description1:$cost_description2);
+			
+			$cost_price = (!empty($cost_price1) && !empty($cost_price2))?array_merge($cost_price1,$cost_price2):((!empty($cost_price1))?$cost_price1:$cost_price2);
+			
+			
+			$data['campaign_data'] = array(	'in_organization_id'=>	$this->session->userdata('org_id'),
+											'in_animal_id'		=>	$animal_id,
+											'st_campaign_type'	=>	$this->session->userdata('campaign_type'),
+											'st_page_title' 	=>	$this->input->post('txtpagetitle'),
+											'st_page_story_title' =>	$this->input->post('txtstorytitle'),
+											'st_custom_url' 	=>	strtolower($this->input->post('txtcustomurl')),
+											'dt_campaign_start'	=>	date('Y-m-d H:i:s',strtotime($this->input->post('from'))),
+											'dt_campaign_end'	=>	date('Y-m-d H:i:s',strtotime($this->input->post('to'))),
+											'st_profile_story'	=>	($this->input->post('txtpagestorytitle'))?$this->input->post('txtpagestorytitle'):$this->input->post('animal_profile_story'),
+											'st_paypal_email'	=>	($this->input->post('txtpaypalid'))?$this->input->post('txtpaypalid'):'',
+											'in_goal_fund'		=>	array_sum($cost_price),
+											'in_created_by'		=>	$this->session->userdata('userid'),
+											'dt_created'		=>	date('Y-m-d H:i:s'),
+											'dt_modified'		=>	date('Y-m-d H:i:s'),
+											'in_status'			=>	'3',
+											'in_deleted'		=>	0
+										);
+			//print_r($data['campaign_data']);die;
+			$last_id=($this->session->userdata('last_campaign_id') == true)?$this->session->userdata('last_campaign_id'):(isset($data['get_campaign_detail'][0]['in_campaign_id'])?$data['get_campaign_detail'][0]['in_campaign_id']:'');
+			if($this->session->userdata('last_campaign_id')  || (isset($data['get_campaign_detail'][0]['in_campaign_id']) && $data['get_campaign_detail'][0]['in_campaign_id']!='')) {
+				$data['edit_campaign_data'] = $this->sponsorship_model->edit_campaign_data($data['campaign_data'],$campaign_id);
+				
+				
+				if(!is_numeric($_POST['set_default']) && $_POST['set_default_edit'] != '') {
+					$data1 = array('in_profile_pic' => 0);
+					$data['edit_profile_pic'] = $this->sponsorship_model->reset_profile_pic($campaign_id,$data1);
+					$data2 = array('in_profile_pic' => 1);
+					$data['edit_profile_pic'] = $this->sponsorship_model->update_profile_pic($_POST['set_default_edit'],$data2);
+				}
+				
+				$profile_pic = 0;
+				if(isset($_POST['animal_photo']) && !empty($_POST['animal_photo'])) {
+					foreach($_POST['animal_photo'] as $row) {
+						
+						$img_name_array = explode('.', $row);
+						$img_extension = end($img_name_array);
+						$image_name = current(explode('.', $row)); 
+						 
+						if($img_extension == "JPE" || $img_extension == "jpe")
+						{
+							$new_image_name = $image_name.'.jpg';
+							$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $row);
+							imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+							$row =  $new_image_name;
+						}
+						
+						$data['campaign_images'] = array(	'in_campaign_id'		=>	$campaign_id,
+															'st_file_name'			=>	$row,
+															'st_file_type'			=>	'P',
+															'in_profile_pic'		=>	$profile_pic,		
+															'dt_created'			=>	date('Y-m-d H:i:s')
+														);
+						$data['add_campaign_images']	=	$this->sponsorship_model->add_campaign_images($data['campaign_images']);
+					}
+			 	}
+				
+				######## Editing Photo Video ###########
+			$this->load->library('upload');
+			
+			$date = date('Y-m-d H:i:s');
+			
+			$photos = array('photo1' => '',
+							'photo2' => '',
+							'photo3' => '',
+							'photo4' => ''
+							);
+			
+			$xaxis = '';
+			$yaxis = '';
+			$height = '';
+			$width = '';
+							
+			//if($_FILES['photo1']['name'] != '') {
+			if($this->input->post('uploaded_photo1') != '') {
+				$photos['photo1'] = $this->input->post('uploaded_photo1');//$_FILES['photo1']['name'];
+				
+				$img_name_array = explode('.', $photos['photo1']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo1'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo1']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo1'] =  $new_image_name;
+				}
+			}
+			//if($_FILES['photo2']['name'] != '') {
+			if($this->input->post('uploaded_photo2') != '') {
+				$photos['photo2'] = $this->input->post('uploaded_photo2');//$_FILES['photo2']['name'];
+				
+				$img_name_array = explode('.', $photos['photo2']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo2'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo2']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo2'] =  $new_image_name;
+				}
+			}
+			//if($_FILES['photo3']['name'] != '') {
+			if($this->input->post('uploaded_photo3') != '') {
+				$photos['photo3'] = $this->input->post('uploaded_photo3');//$_FILES['photo3']['name'];
+				
+				$img_name_array = explode('.', $photos['photo3']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo3'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo3']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo3'] =  $new_image_name;
+				}
+			}
+			//if($_FILES['photo4']['name'] != '') {
+			if($this->input->post('uploaded_photo4') != '') {
+				$photos['photo4'] = $this->input->post('uploaded_photo4');//$_FILES['photo4']['name'];
+				
+				$img_name_array = explode('.', $photos['photo4']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo4'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo4']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo4'] =  $new_image_name;
+				}
+			}
+			
+			
+			//Add youtube URLS
+			$url_link = array(	'url_link_one'		=>	'',
+								'url_link_two'		=>	'',
+								'url_link_three'	=>	'',
+								'url_link_four'		=>	''
+							);
+			
+			if($this->input->post('url_link_one') != '') {
+				$url_link['url_link_one'] = $this->input->post('url_link_one'); 
+			}
+			if($this->input->post('url_link_two') != '') {
+				$url_link['url_link_two'] = $this->input->post('url_link_two'); 
+			}
+			if($this->input->post('url_link_three') != '') {
+				$url_link['url_link_three'] = $this->input->post('url_link_three'); 
+			}
+			if($this->input->post('url_link_four') != '') {
+				$url_link['url_link_four'] = $this->input->post('url_link_four'); 
+			}
+			//echo $campaign_id;die;
+			foreach($url_link as $key => $value) {
+				if($value != '') {	
+					$data['campaign_links'] = array('in_campaign_id'	=>	$campaign_id,
+													'st_file_name'		=>	$value,
+													'st_file_type'		=>	'V',
+													'dt_created'		=>	$date
+													);
+										  
+					$data['add_campaign_links']	=	$this->sponsorship_model->add_campaign_images($data['campaign_links']);
+				}
+			}
+			
+			//Resize the image with ratio (4 Thumbnails)
+			$thumb = array(	'315x315'	=>	'315X315',
+							'140x140'	=>	'140X140',
+							'70x70'		=>	'70X70',
+							'36x36'		=>	'36X36'
+							);
+			
+			//Adding animal images
+			$rotate_angle1	=	0;
+			$rotate_angle2	=	0;
+			$rotate_angle3	=	0;
+			$rotate_angle4	=	0;
+			
+			$this->load->library('image_lib');
+			
+			foreach($photos as $key => $row) {
+				$config = array();	
+				
+				if(trim($row) != '') {
+					$count_photo = substr($key,-1);
+					if($key == 'photo1') {
+						$rotate_angle = $this->input->post('rotate_angle1');
+						$xaxis = $this->input->post('x1');
+						$yaxis = $this->input->post('y1');
+						$height = $this->input->post('h1');
+						$width = $this->input->post('w1');
+					} else if($key == 'photo2'){
+						$rotate_angle = $this->input->post('rotate_angle2');
+						$xaxis = $this->input->post('x2');
+						$yaxis = $this->input->post('y2');
+						$height = $this->input->post('h2');
+						$width = $this->input->post('w2');
+					} else if($key == 'photo3'){
+						$rotate_angle = $this->input->post('rotate_angle3');
+						$xaxis = $this->input->post('x3');
+						$yaxis = $this->input->post('y3');
+						$height = $this->input->post('h3');
+						$width = $this->input->post('w3');
+					} else if($key == 'photo4'){
+						$rotate_angle = $this->input->post('rotate_angle4');
+						$xaxis = $this->input->post('x4');
+						$yaxis = $this->input->post('y4');
+						$height = $this->input->post('h4');
+						$width = $this->input->post('w4');
+					}
+					
+					$config['file_name'] = $row;
+					
+					if($rotate_angle < 0 )
+					{
+						$rotate_angle	=	360+$rotate_angle;
+					}
+					
+					//rotate image if 90 or 270 deg rotation 
+					//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+					if($rotate_angle > 0 )
+					{
+						if($rotate_angle == 90)
+						{
+							$rotate_angle = 270;
+						}
+						else if($rotate_angle == 270){
+							$rotate_angle = 90;
+						}
+						
+						$config['image_library'] = 'gd2';
+						$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+						$config['rotation_angle'] = $rotate_angle;
+						
+						$this->image_lib->initialize($config);
+						if ( ! $this->image_lib->rotate()) {
+							echo $this->image_lib->display_errors();
+						}
+					}
+					$this->image_lib->clear();
+					
+					if(isset($_POST['set_default']) && $_POST['set_default'] == $key) {
+						$profile_pic = 1;
+					} else {
+						$profile_pic = 0;
+					}
+					
+					//Cropping Image
+					$config['image_library'] = 'gd2';
+					$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+					$config['new_image']	= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+					$config['maintain_ratio'] 	= FALSE;
+					$config['x_axis'] = $xaxis;
+					$config['y_axis'] = $yaxis;					
+					$config['width'] = $width;
+					$config['height'] = $height;
+					
+										
+					$this->image_lib->initialize($config); 
+					if ( ! $this->image_lib->crop()) {
+						echo $this->image_lib->display_errors();
+					}
+					$this->image_lib->clear();
+						
+					
+					foreach($thumb as $key => $value) {
+						$exp_value = explode('X',$value);
+						
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'animal_images/'.$key.'/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= $exp_value[0];
+						$config['height']			= $exp_value[1];
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					}
+					
+					$data1 = array('in_profile_pic' => 0);
+					$data['edit_profile_pic'] = $this->sponsorship_model->reset_profile_pic($campaign_id,$data1);
+					$data['campaign_images'] = array(	'in_campaign_id'		=>	$campaign_id,
+														'st_file_name'			=>	$config['file_name'],
+														'st_file_type'			=>	'P',
+														'in_profile_pic'		=>	$profile_pic,		
+														'dt_created'			=>	$date
+													);
+											  
+					$data['add_campaign_images']	=	$this->sponsorship_model->add_campaign_images($data['campaign_images']);
+				}
+			}
+				######## End Edit Photo Video ##############
+				
+				$this->session->set_userdata('edit_campaign_id',$data['get_campaign_detail'][0]['in_campaign_id']);
+				$this->session->set_userdata('st_custom_url',strtolower($this->input->post('txtcustomurl')));
+				
+			} else {
+				$store_exp_value = array();
+				$exp_value_diff = array();
+				
+				$store_exp_value_video = array();
+				$exp_value_diff_video = array();
+				$date = date('Y-m-d H:i:s');
+				/*print_r($_POST['animal_photo_js'][0]);
+				print_r($_POST['animal_video_js'][0]);
+				die;*/
+				
+				if(trim($_POST['animal_photo_js'][0]) != '') {
+					$store_exp_value = explode(',',$_POST['animal_photo_js'][0]);
+					$exp_value_diff = array_diff($_POST['animal_photo'],$store_exp_value);
+				} else {
+					$exp_value_diff = isset($_POST['animal_photo'])?$_POST['animal_photo']:'';
+				}
+				
+				if(trim($_POST['animal_video_js'][0]) != '') {
+					$store_exp_value_video= explode(',',$_POST['animal_video_js'][0]);
+					$exp_value_diff_video = array_diff($_POST['animal_video'],$store_exp_value_video);
+				} else {
+					$exp_value_diff_video = isset($_POST['animal_video'])?$_POST['animal_video']:'';
+				}
+				
+				$data['add_campaign_data'] = $this->sponsorship_model->add_campaign_data($data['campaign_data']);
+				$last_id = $this->db->insert_id();//get last inserted id
+				$this->session->set_userdata('last_campaign_id',$last_id);
+				$this->session->set_userdata('st_custom_url',strtolower($this->input->post('txtcustomurl')));
+				
+				$profile_pic = '';
+				if(isset($exp_value_diff) && !empty($exp_value_diff)) {
+					foreach($exp_value_diff as $row) {
+						$data['check_profile_pic']  = $this->sponsorship_model->check_profile_pic($last_id);
+						
+						if($data['check_profile_pic'] == 0) {
+							if((trim($_POST['set_profile_pic']) == trim($row) && trim($_POST['set_profile_pic_custom']) == '')){$profile_pic = 1;}
+							if((trim($_POST['set_profile_pic_custom']) == trim($row) && trim($_POST['set_profile_pic'] == ''))){$profile_pic = 1;}
+						} else {
+							$profile_pic = 0;
+						}
+						
+						$data['campaign_images'] = array(	'in_campaign_id'		=>	$last_id,
+															'st_file_name'			=>	$row,
+															'st_file_type'			=>	'P',
+															'in_profile_pic'		=>	$profile_pic,		
+															'dt_created'			=>	$date
+														);
+						$data['add_campaign_images']	=	$this->sponsorship_model->add_campaign_images($data['campaign_images']);
+					}
+			 	}
+				
+				if(isset($exp_value_diff_video) && !empty($exp_value_diff_video)) {
+					foreach($exp_value_diff_video as $row) {
+						$data['campaign_images'] = array(	'in_campaign_id'		=>	$last_id,
+															'st_file_name'			=>	$row,
+															'st_file_type'			=>	'V',
+															'dt_created'			=>	$date
+														);
+						$data['add_campaign_images']	=	$this->sponsorship_model->add_campaign_images($data['campaign_images']);
+					}
+			 	}
+				
+				######## Adding Photo Video ###########
+			$this->load->library('upload');
+			
+			$date = date('Y-m-d H:i:s');
+			
+			$photos = array('photo1' => '',
+							'photo2' => '',
+							'photo3' => '',
+							'photo4' => ''
+							);
+			
+			$xaxis = '';
+			$yaxis = '';
+			$height = '';
+			$width = '';
+							
+			//if($_FILES['photo1']['name'] != '') {
+			if($this->input->post('uploaded_photo1') != '') {
+				$photos['photo1'] = $this->input->post('uploaded_photo1');//$_FILES['photo1']['name'];
+				
+				$img_name_array = explode('.', $photos['photo1']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo1'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo1']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo1'] =  $new_image_name;
+				}
+			}
+			//if($_FILES['photo2']['name'] != '') {
+			if($this->input->post('uploaded_photo2') != '') {
+				$photos['photo2'] = $this->input->post('uploaded_photo2');//$_FILES['photo2']['name'];
+				
+				$img_name_array = explode('.', $photos['photo2']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo2'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo2']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo2'] =  $new_image_name;
+				}
+			}
+			//if($_FILES['photo3']['name'] != '') {
+			if($this->input->post('uploaded_photo3') != '') {
+				$photos['photo3'] = $this->input->post('uploaded_photo3');//$_FILES['photo3']['name'];
+				
+				$img_name_array = explode('.', $photos['photo3']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo3'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo3']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo3'] =  $new_image_name;
+				}
+			}
+			//if($_FILES['photo4']['name'] != '') {
+			if($this->input->post('uploaded_photo4') != '') {
+				$photos['photo4'] = $this->input->post('uploaded_photo4');//$_FILES['photo4']['name'];
+				
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo4'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo4']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo4'] =  $new_image_name;
+				}
+			}
+			
+			
+			//Add youtube URLS
+			$url_link = array(	'url_link_one'		=>	'',
+								'url_link_two'		=>	'',
+								'url_link_three'	=>	'',
+								'url_link_four'		=>	''
+							);
+			
+			if($this->input->post('url_link_one') != '') {
+				$url_link['url_link_one'] = $this->input->post('url_link_one'); 
+			}
+			if($this->input->post('url_link_two') != '') {
+				$url_link['url_link_two'] = $this->input->post('url_link_two'); 
+			}
+			if($this->input->post('url_link_three') != '') {
+				$url_link['url_link_three'] = $this->input->post('url_link_three'); 
+			}
+			if($this->input->post('url_link_four') != '') {
+				$url_link['url_link_four'] = $this->input->post('url_link_four'); 
+			}
+			
+			foreach($url_link as $key => $value) {
+				if($value != '') {	
+					$data['campaign_links'] = array('in_campaign_id'	=>	$last_id,
+													'st_file_name'		=>	$value,
+													'st_file_type'		=>	'V',
+													'dt_created'		=>	$date
+													);
+										  
+					$data['add_campaign_links']	=	$this->sponsorship_model->add_campaign_images($data['campaign_links']);
+				}
+			}
+			
+			//Resize the image with ratio (4 Thumbnails)
+			$thumb = array(	'315x315'	=>	'315X315',
+							'140x140'	=>	'140X140',
+							'70x70'		=>	'70X70',
+							'36x36'		=>	'36X36'
+							);
+			
+			//Adding animal images
+			$rotate_angle1	=	0;
+			$rotate_angle2	=	0;
+			$rotate_angle3	=	0;
+			$rotate_angle4	=	0;
+			
+			$this->load->library('image_lib');
+			
+			foreach($photos as $key => $row) {
+				$config = array();	
+				//echo "<pre>";print_r($_POST);die;
+				if(trim($row) != '') {
+					$count_photo = substr($key,-1);
+					if($key == 'photo1') {
+						$rotate_angle = $this->input->post('rotate_angle1');
+						$xaxis = $this->input->post('x1');
+						$yaxis = $this->input->post('y1');
+						$height = $this->input->post('h1');
+						$width = $this->input->post('w1');
+					} else if($key == 'photo2'){
+						$rotate_angle = $this->input->post('rotate_angle2');
+						$xaxis = $this->input->post('x2');
+						$yaxis = $this->input->post('y2');
+						$height = $this->input->post('h2');
+						$width = $this->input->post('w2');
+					} else if($key == 'photo3'){
+						$rotate_angle = $this->input->post('rotate_angle3');
+						$xaxis = $this->input->post('x3');
+						$yaxis = $this->input->post('y3');
+						$height = $this->input->post('h3');
+						$width = $this->input->post('w3');
+					} else if($key == 'photo4'){
+						$rotate_angle = $this->input->post('rotate_angle4');
+						$xaxis = $this->input->post('x4');
+						$yaxis = $this->input->post('y4');
+						$height = $this->input->post('h4');
+						$width = $this->input->post('w4');
+					}
+					
+					$config['file_name'] = $row;
+					
+					if($rotate_angle < 0 )
+					{
+						$rotate_angle	=	360+$rotate_angle;
+					}
+					
+					//rotate image if 90 or 270 deg rotation 
+					//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+					if($rotate_angle > 0 )
+					{
+						if($rotate_angle == 90)
+						{
+							$rotate_angle = 270;
+						}
+						else if($rotate_angle == 270){
+							$rotate_angle = 90;
+						}
+						
+						$config['image_library'] = 'gd2';
+						$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+						$config['rotation_angle'] = $rotate_angle;
+						
+						$this->image_lib->initialize($config);
+						if ( ! $this->image_lib->rotate()) {
+							echo $this->image_lib->display_errors();
+						}
+					}
+					$this->image_lib->clear();
+					//echo $_POST['set_default'];die;
+					if(isset($_POST['set_default']) && $_POST['set_default'] == $key) {
+						$profile_pic = 1;
+					} else {
+						$profile_pic = 0;
+					}
+					
+					//Cropping Image
+					$config['image_library'] = 'gd2';
+					$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+					$config['new_image']	= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+					$config['maintain_ratio'] 	= FALSE;
+					$config['x_axis'] = $xaxis;
+					$config['y_axis'] = $yaxis;					
+					$config['width'] = $width;
+					$config['height'] = $height;
+					
+										
+					$this->image_lib->initialize($config); 
+					if ( ! $this->image_lib->crop()) {
+						echo $this->image_lib->display_errors();
+					}
+					$this->image_lib->clear();
+						
+					
+					foreach($thumb as $key => $value) {
+						$exp_value = explode('X',$value);
+						
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'animal_images/'.$key.'/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= $exp_value[0];
+						$config['height']			= $exp_value[1];
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					}
+					//echo $last_id;die;
+					$data['campaign_images'] = array(	'in_campaign_id'		=>	$last_id,
+														'st_file_name'			=>	$config['file_name'],
+														'st_file_type'			=>	'P',
+														'in_profile_pic'		=>	$profile_pic,		
+														'dt_created'			=>	$date
+													);
+					$data['add_campaign_images']	=	$this->sponsorship_model->add_campaign_images($data['campaign_images']);
+				}
+			}
+				######## End Photo Video ##############
+				
+			}
+			
+			//Cost Detail code here
+
+			$data['delete_cost_details'] = $this->sponsorship_model->delete_cost_details(($last_id==0)?$this->session->userdata('last_campaign_id'):$last_id);
+			
+			//Adding campaign cost
+			for($i=0;$i<count($cost_price);$i++) {
+				if(trim($cost_description[$i])!='' && trim($cost_price[$i])!='') {
+					$data['campaign_cost'] = array(	'in_campaign_id'	=>	$last_id,
+													'st_items'			=>	$cost_description[$i],
+													'in_cost'			=>	$cost_price[$i],
+													'in_deleted'		=>	'0'
+													);
+					
+					$data['add_campaign_cost'] = $this->sponsorship_model->add_campaign_cost($data['campaign_cost']);
+				}
+			}
+			
+			redirect(base_url().'sponsorship-layout-customization/'.$animal_id);
+		}
+		
+	}
+	
+	#=========================================================
+	#	Function : check_custom_url
+	#	Purpose  : Check Page URL
+	#=========================================================
+	
+	public function check_custom_url() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$data['check_url'] = $this->sponsorship_model->check_custom_url($this->input->post('txtcustomurl'),$this->input->post('campaign_id'));
+		
+		/*if($data['check_url'] == 0) {
+			echo "true";
+		} else {
+			echo "false";
+			//echo $this->db->last_query();
+		}*/
+		
+		if(!empty($data['check_url'])) {
+			$c_date = strtotime($data['check_url']['dt_campaign_end']);
+			
+			if($data['check_url']['in_status'] == 3) {
+				echo "false";
+			} else if($data['check_url']['in_status'] == 1 && $c_date < strtotime(date('Y-m-d'))){
+				echo "true";
+			} else if($data['check_url']['in_status'] == 1 && $c_date >= strtotime(date('Y-m-d'))) {
+				echo "false";
+			} else if($data['check_url']['in_status'] == 2 && $c_date < strtotime(date('Y-m-d'))) {
+				echo "true";
+			} else {
+				echo "false";
+			}
+		} else {
+			echo "true";
+		}
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_url	
+	#	Purpose		:	URL validation.
+	# *******************************************************************************************
+	
+	public function check_url($str,$campaign_id) {		
+		
+		$exist = $this->sponsorship_model->check_url($str,$campaign_id);
+			
+		if(!empty($exist)) {
+			$c_date = strtotime($exist['dt_campaign_end']);
+			
+			if($exist['in_status'] == 3) {
+				$this->form_validation->set_message('check_url', 'URL already exist, Please specify another one.');
+				return FALSE;
+			} else if($exist['in_status'] == 1 && $c_date < strtotime(date('Y-m-d'))){
+				return TRUE;
+			} else if($exist['in_status'] == 1 && $c_date >= strtotime(date('Y-m-d'))) {
+				$this->form_validation->set_message('check_url', 'URL already exist, Please specify another one.');
+				return FALSE;
+			} else if($exist['in_status'] == 2 && $c_date < strtotime(date('Y-m-d'))) {
+				return TRUE;
+			} else {
+				$this->form_validation->set_message('check_url', 'URL already exist, Please specify another one.');
+				return FALSE;
+			}
+		} else {
+			return TRUE;
+		}
+		
+		//die('test11123');
+		
+		/*if($exist == 1) {
+			$this->form_validation->set_message('check_url', 'URL already exist, Please specify another one.');
+			return FALSE;
+		} else {
+			return TRUE;
+		}*/
+	}
+	
+	#=========================================================
+	#	Function : validate_url
+	#	Purpose  : Call Back function validate url
+	#=========================================================	
+	
+	function validate_url($str) {
+		if($str=='') {
+			return TRUE;
+		}
+		
+		$pattern = "|^[a-zA-Z0-9-_]+$|i";
+        if(!preg_match($pattern, $str) ){
+            $this->form_validation->set_message('validate_url', 'Special charecters are not allowed in the URL.');
+            return FALSE;
+		} else {
+			return TRUE;
+		}
+	}
+	
+	#=========================================================
+	#	Function : sponsorship_layout_customization
+	#	Purpose  : Customizing sponsorship layout
+	#=========================================================	
+	
+	public function sponsorship_layout_customization($animal_id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if($this->session->userdata('spon_animal_id') != $animal_id) {
+			redirect(base_url().'org_animal/animals_in_my_organization');
+		}
+		
+		($this->session->userdata('template_id')==true)?$this->session->unset_userdata('template_id'):'';
+		
+		$data = array();
+		$data['menu_no'] 		= 'yes';
+		$data['animal_id'] = $animal_id;
+		$data['animal_name'] = $this->sponsorship_model->get_animal_details($animal_id);
+		
+		$this->load->view('sponsorship/sponsorship-layout-customization',$data);
+	}
+	
+	#=========================================================
+	#	Function : sponsorship_layout_customization_page
+	#	Purpose  : Customizing sponsorship layout page
+	#=========================================================	
+	
+	public function sponsorship_layout_customization_page($animal_id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if($this->session->userdata('spon_animal_id') != $animal_id) {
+			redirect(base_url().'org_animal/animals_in_my_organization');
+		}
+		
+		$data = array();
+		$data['menu_no'] 		= 'yes';
+		$data['animal_id'] = $animal_id;
+		
+		if($this->input->post('frm_action') == 'publish_layout') {
+			$req_fields = array(array('field'   => 'bk_color_val',	'label'  => 'Page Title',	'rules' => 'required|trim'),
+								array('field'   => 'color_pattern_val', 'label'  => 'From Date', 	'rules' => 'required|trim'),
+								array('field'   => 'font_opt_val', 	'label'  => 'To Date', 		'rules' => 'required|trim')
+								);
+
+			$this->form_validation->set_rules($req_fields);
+		}
+		
+		if ($this->form_validation->run() == FALSE) {
+			// Validation error				
+			$data['error_msg'] = validation_errors();
+			
+			if($this->input->post('template_id')) {
+				$data['template_id'] = $this->input->post('template_id');
+				$this->session->set_userdata('template_id',$data['template_id']);
+			} else {
+				$data['template_id'] = 0;
+			}
+			
+			$data['animal_name'] = $this->sponsorship_model->get_animal_details($animal_id);
+			
+			if($this->session->userdata('edit_campaign_id')==true) {
+				$data['design_details'] = $this->sponsorship_model->sponsorship_design_details($this->session->userdata('edit_campaign_id'));
+			}
+			
+			$this->load->view('sponsorship/sponsorship-layout-customization-page',$data);
+		} else {
+			
+			$font_value = preg_replace('/\D/', '', $this->input->post('font_opt_val'));
+			
+			$bk_color_val = $this->input->post('bk_color_val');
+			$color_pattern_val = $this->input->post('color_pattern_val');
+			
+			($this->input->post('sponsorship_status') == 'draft')?$in_status = '3':$in_status = '1';
+			
+			$data['campaign_data'] = array(	'st_template'		=>	$this->input->post('color_pattern_val'),
+											'st_background'		=>	$this->input->post('bk_color_val'),
+											'st_font'			=>	$this->input->post('font_opt_val'),
+											'dt_modified'		=>	date('Y-m-d H:i:s'),
+											'in_status'			=>	$in_status
+										);
+			
+			$campaign_id = ($this->session->userdata('edit_campaign_id')==true)?$this->session->userdata('edit_campaign_id'):$this->session->userdata('last_campaign_id');
+			
+			$data['save_frm'] = $this->sponsorship_model->edit_campaign_data($data['campaign_data'],$campaign_id);
+			
+			if($data['save_frm'] == 1) {
+				if($this->input->post('sponsorship_status') == 'draft') {
+					
+					$this->session->set_flashdata('bk_color_val',$bk_color_val);
+					$this->session->set_flashdata('color_pattern_val',$color_pattern_val);
+					$this->session->set_flashdata('font_opt_val',$font_value);
+					
+					$this->session->set_flashdata('campaign_msg','Page successfully saved to draft.');
+				} else if($this->input->post('sponsorship_status') == 'finish_and_publish') {
+					
+					//Adding Sponsorship notification
+					$data['notification'] = array(	'in_organization_id'	=>	$this->session->userdata('org_id'),
+													'in_animal_id'			=>	$animal_id,
+													'in_type'				=>	17,
+													'in_user_id'			=>	$this->session->userdata('userid'),
+													'in_modified_by'		=>	$this->session->userdata('userid'),
+													'dt_created'			=>	date('Y-m-d H:i:s'),
+													'in_deleted'			=>	0
+												);
+					//echo "<pre>";print_r($data['notification'])						;die;
+					$notification = $this->sponsorship_model->add_notification($data['notification']);
+					
+					$this->session->set_flashdata('campaign_msg','Your selected layout has been successfully published.');
+				}
+				redirect(base_url().'sponsorship-layout-customization-page/'.$animal_id);
+			}
+		}
+		
+	}
+	
+	#=========================================================
+	#	Function : sponsorship_preview
+	#	Purpose  : Viewing Preview
+	#=========================================================
+	
+	public function sponsorship_preview() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['animal_id'] = $this->session->userdata('spon_animal_id');
+		$data['animal_name'] = $this->sponsorship_model->get_animal_details($data['animal_id']);
+		$data['org_id'] = $this->sponsorship_model->organization_profile($data['animal_name']['in_organization_id']);
+
+		$data['get_animal_photos'] = $this->sponsorship_model->get_animal_photos($data['animal_id']);
+		
+		$this->load->view('sponsorship/sponsorship-preview',$data);
+	}
+	
+	#=========================================================
+	#	Function : sponsorship_layout_choose
+	#	Purpose  : Choose Sponsorship layout
+	#=========================================================
+	
+	public function sponsorship_layout_choose($animal_id) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if($this->session->userdata('template_id')) {
+			$this->session->unset_userdata('template_id');
+		}
+		
+		$data = array();
+		$data['menu_no'] 		= 'yes';
+		$data['animal_id'] = $animal_id;
+		$data['animal_name'] = $this->sponsorship_model->get_animal_details($animal_id);
+		
+		$this->load->view('sponsorship/sponsorship-layout-choose',$data);
+	}
+	
+	#=========================================================
+	#	Function : sponsorship_preview_tmpl
+	#	Purpose  : Sponsorship preview template
+	#=========================================================
+	
+	public function sponsorship_preview_tmpl($template_id='') {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		//(is_numeric($template_id))?$data['color_pattern_val'] = $template_id:$data['color_pattern_val'] = '1';
+		
+		$data['tmpl_css'] = $template_id;
+		
+		/*$data['animal_id'] = $this->session->userdata('spon_animal_id');
+		$data['animal_name'] = $this->sponsorship_model->get_animal_details($data['animal_id']);
+		$data['get_animal_photos'] = $this->sponsorship_model->get_animal_photos($data['animal_id']);
+		
+		$data['ses_campaign_data'] = $this->session->userdata('campaign_data');*/
+		
+		$this->load->view('sponsorship/sponsorship-preview-tmpl',$data);
+	}
+	
+	#=========================================================
+	#	Function : sponsorship-pledge
+	#	Purpose  : Sponsorship pledge form
+	#=========================================================
+	
+	public function sponsorship_pledge() {
+		$data = array();
+		
+		//Merging cost data
+		$data['cost_description'] = (isset($ses_campaign_data['cost_desc2']))?array_merge($ses_campaign_data['cost_desc1'],$ses_campaign_data['cost_desc2']):$ses_campaign_data['cost_desc1'];
+			
+		$data['cost_price'] = (isset($ses_campaign_data['cost_price2']))?array_merge($ses_campaign_data['cost_price1'],$ses_campaign_data['cost_price2']):$ses_campaign_data['cost_price1'];
+		
+		$data['cost_details'] = array_combine($data['cost_description'],$data['cost_price']);
+		
+		$this->load->view('sponsorship/sponsorship-pledge-form',$data);
+	}
+	
+	#=========================================================
+	#	Function : campaign_page
+	#	Purpose  : Displaying campaign page
+	#=========================================================
+	
+	public function campaign_page() {
+		$data = array();
+		
+		$data['get_page_details'] = $this->sponsorship_model->campaign_details_by_page($this->uri->segment(2));
+		//echo "<pre>";print_r($data['get_page_details']);die;
+		$data['get_animal_photos'] = $this->sponsorship_model->get_animal_photos($data['get_page_details'][0]['in_animal_id']);
+		
+		$data['sum_of_cost_dtls'] = array();
+		
+		if(!empty($data['get_page_details'])) { 
+			foreach($data['get_page_details'] as $row) {
+				$data['sum_of_cost_dtls'][] = $row['in_cost'];
+			}
+		}
+		
+		if(empty($data['get_page_details'])) {
+			redirect(base_url());
+		}
+		
+		$this->load->view('sponsorship/sponsorship-preview-page',$data);
+	}
+	
+	#=========================================================
+	#	Function : sponsorship_list
+	#	Purpose  : List all sponsorships
+	#=========================================================
+	
+	public function sponsorship_list() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$config = array();
+		
+		$status_value = '';
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'sponsorship/sponsorship_list';
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');
+		$config["uri_segment"] 		= 3;
+	
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+		
+		if($this->input->post('frm_action') == 'search_value') {
+			if($this->session->userdata('sponsorship_status'))
+				$this->session->unset_userdata('sponsorship_status');
+				
+				$status_value = $this->input->post('sponsorship_status');
+				$this->session->set_userdata('sponsorship_status',$status_value);
+		} else {
+			if($this->session->userdata('sponsorship_status'))
+				$status_value	= $this->session->userdata('sponsorship_status');
+			else
+				$status_value	= '' ;
+		}
+
+		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
+		
+		$data['get_sponsorship'] = $this->sponsorship_model->get_all_sponsorship_for_org($config["per_page"],$page,$this->session->userdata('userid'),$this->session->userdata('org_id'),trim($status_value));
+		
+		
+		//echo '<pre>'; print_r($data['get_sponsorship']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['get_sponsorship']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+		
+		$this->load->view('sponsorship/sponsorship_list',$data);
+	}
+	
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_sponsorship	
+	#	Purpose		:	Deleting sponsorship
+	# *******************************************************************************************
+	
+	public function delete_sponsorship($id) {
+		$data = array();
+		 $data['delete'] = array('in_deleted' => 1);
+		 
+		 $data['delete_spon'] = $this->sponsorship_model->update_sponsorship($id,$data['delete']);
+		 
+		 if($data['delete_spon'] == 1) {
+			 $this->session->set_flashdata('delete_success','Fundraiser deleted successfully.');
+			 redirect(base_url().'sponsorship/sponsorship_list/');
+		 } else {
+			 $this->session->set_flashdata('delete_unsuccess','Something went wrong in deleting fundraiser.');
+			 redirect(base_url().'sponsorship/sponsorship_list/');
+		 }
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	inactive_sponsorship	
+	#	Purpose		:	Deleting sponsorship
+	# *******************************************************************************************
+	
+	public function inactive_sponsorship($id) {
+		$data = array();
+		 $data['inactive'] = array('in_status' => 2);
+		 
+		 $data['inactive_spon'] = $this->sponsorship_model->update_sponsorship($id,$data['inactive']);
+		 
+		 if($data['inactive_spon'] == 1) {
+			 $this->session->set_flashdata('inactive_success','Fundraiser inactivate successfully.');
+			 redirect(base_url().'sponsorship/sponsorship_list/');
+		 } else {
+			 $this->session->set_flashdata('inactive_unsuccess','Something went wrong in inactivating fundraiser.');
+			 redirect(base_url().'sponsorship/sponsorship_list/');
+		 }
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	active_sponsorship	
+	#	Purpose		:	Activate Sponsorship
+	# *******************************************************************************************
+	
+	public function active_sponsorship($id,$animal_id) {
+		$data = array();
+		 $data['active'] = array('in_status' => 1);
+		 
+		 $data['active_spon'] = $this->sponsorship_model->update_sponsorship($id,$data['active']);
+		 //echo $this->db->last_query();die;
+		 if($data['active_spon'] == 1) {
+			 
+			 //Adding Sponsorship notification
+				$data['notification'] = array(	'in_organization_id'	=>	$this->session->userdata('org_id'),
+												'in_animal_id'			=>	$animal_id,
+												'in_type'				=>	17,
+												'in_user_id'			=>	$this->session->userdata('userid'),
+												'in_modified_by'		=>	$this->session->userdata('userid'),
+												'dt_created'			=>	date('Y-m-d H:i:s'),
+												'in_deleted'			=>	0
+											);
+											
+				$notification = $this->sponsorship_model->add_notification($data['notification']);
+			 
+			 $this->session->set_flashdata('active_success','Fundraiser activate successfully.');
+			 redirect(base_url().'sponsorship/sponsorship_list/');
+		 } else {
+			 $this->session->set_flashdata('active_unsuccess','Something went wrong in activating fundraiser.');
+			 redirect(base_url().'sponsorship/sponsorship_list/');
+		 }
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	edit_sponsorship	
+	#	Purpose		:	Editing Sponsorship
+	# *******************************************************************************************
+	
+	public function edit_sponsorship($animal_id) {
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		if($this->session->userdata('campaign_type')){
+			$this->session->unset_userdata('campaign_type');
+		}
+		
+		if($this->session->userdata('template_id')) {
+			$this->session->unset_userdata('template_id');
+		}
+		
+		$data = array();
+		
+		$data['animal_id']	=	$animal_id;
+		
+		if($this->input->post('campaign_type_val')) {
+			$this->session->set_userdata('campaign_type',$this->input->post('campaign_type_val'));
+		}
+		
+		if($this->input->post('frm_action') == 'add_campaign') {
+			$req_fields = array(array('field'   => 'txtpagetitle',	'label'  => 'Page Title',	'rules' => 'required|trim'),
+								array('field'   => 'from', 			'label'  => 'From Date', 	'rules' => 'required|trim'),
+								array('field'   => 'to', 			'label'  => 'To Date', 		'rules' => 'required|trim'),
+								array('field'   => 'txtcustomurl',	'label'  => 'Custom URL',	'rules' => 'required|trim|callback_check_url_edit|callback_validate_url')
+								);
+
+			$this->form_validation->set_rules($req_fields);
+		}
+		
+		//Get Animal details
+		$data['animal_name']	=	$this->sponsorship_model->get_animal_details($animal_id);
+		$data['cost_breakdown']	=	$this->sponsorship_model->cost_breakdown($animal_id);
+		
+		$data['get_sponsorship_dtls'] = $this->sponsorship_model->sponsorship_details($animal_id);
+		
+		if ($this->form_validation->run() == FALSE) {
+			// Validation error				
+			$data['error_msg'] = validation_errors();
+			$this->load->view('sponsorship/sponsorship-layout-customization-edit',$data);
+		} else {
+			$spon_ses_array  = array_merge($_POST,$data['get_sponsorship_dtls']);
+			$this->session->set_userdata('campaign_data',$spon_ses_array);
+			$this->session->set_userdata('spon_animal_id',$animal_id);
+			
+			redirect(base_url().'sponsorship-layout-customization/'.$animal_id);
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_cost	
+	#	Purpose		:	Deleting Sponsorship
+	# *******************************************************************************************
+	
+	public function delete_cost() {
+		$data = array();
+		
+		$data['cost_data'] = array('in_deleted' => '1');
+		$data['delete_cost'] = $this->sponsorship_model->delete_cost($this->input->post('cost_id'),$data['cost_data']);
+		
+		if($data['delete_cost'] == 1) {
+			echo "true";
+		} else {
+			echo "false";
+		}
+	}
+	
+	//
+	#=========================================================
+	#	Function : check_custom_url_edit
+	#	Purpose  : Check Page URL
+	#=========================================================
+	
+	public function check_custom_url_edit() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		//$this->input->post('page_url')
+		$data = array();
+		$data['check_url'] = $this->sponsorship_model->check_custom_url_edit($this->input->post('txtcustomurl'),$this->input->post('campaign_id'));
+		
+		if($data['check_url'] == 0) {
+			echo "true";
+		} else {
+			echo "false";
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_url_edit	
+	#	Purpose		:	URL validation.
+	# *******************************************************************************************
+	
+	public function check_url_edit($str) {		
+		$exist = $this->sponsorship_model->check_url_edit($str,$this->input->post('campaign_id'));
+			
+		if($exist == 1) {
+			$this->form_validation->set_message('check_url', 'URL already exist, Please specify another one.');
+			return FALSE;
+		} else {
+			return TRUE;
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	sponsorship_preview_save	
+	#	Purpose		:	Preview Sponsorship page.
+	# *******************************************************************************************
+	
+	public function sponsorship_preview_save($tmpl_values) {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		$data['tmpl'] = explode('_',$tmpl_values);
+		
+		if(count($data['tmpl']) != 3) {
+			redirect(base_url().'sponsorship-layout-customization-page/'.$this->session->userdata('spon_animal_id'));
+		}
+		
+		$data['bk_color_val'] = $data['tmpl'][0];
+		$data['color_pattern_val'] = $data['tmpl'][1];
+		$data['font_opt_val'] = $data['tmpl'][2];
+		
+		$campaign_id = ($this->session->userdata('edit_campaign_id') == true)?$this->session->userdata('edit_campaign_id'):$this->session->userdata('last_campaign_id');
+		
+		$data['sponsorship_detail'] = $this->sponsorship_model->get_campaign_detail_temp($campaign_id);
+		
+		//$data['sponsorship_cost_detail'] = $this->sponsorship_model->get_campaign_cost($campaign_id);
+		
+		$data['items'] = array();
+		$data['costs'] = array();
+		$data['cost_details'] = array();
+		
+		if(!empty($data['sponsorship_detail'])) {
+			foreach($data['sponsorship_detail'] as $row) {
+				$data['items'][] = $row['st_items'];
+				$data['costs'][] = $row['in_cost'];
+			}
+		}
+		
+		$data['cost_details'] = $data['sponsorship_detail'];//array_combine($data['items'],$data['costs']);
+		
+		$data['get_animal_photos'] = $this->sponsorship_model->get_animal_photos($this->session->userdata('spon_animal_id'));
+		$data['animal_name'] = $this->sponsorship_model->get_animal_details($this->session->userdata('spon_animal_id'));
+		
+		$data['get_campaign_photos'] = $this->sponsorship_model->get_campaign_photos($campaign_id);
+		
+		$data['org_id'] = $this->sponsorship_model->organization_profile($data['animal_name']['in_organization_id']);
+		
+		$this->load->view('sponsorship/sponsorship-preview',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	sponsorship_report	
+	#	Purpose		:	Listing Sponsorship report
+	# *******************************************************************************************
+	
+	public function sponsorship_report($campaignId) {
+		//echo $campaignId; die;
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		
+		$data['campaign_detail'] 	= 	$this->sponsorship_model->get_campaign_detail($campaignId);
+		$data['campaign_type']		=	$data['campaign_detail']['st_campaign_type']; 
+		$data['animalname']			=	$data['campaign_detail']['st_animal_name'];
+		$data['animaltype']			=	$data['campaign_detail']['st_animal_type'];		
+		$data['campaign_end_date']	=	$data['campaign_detail']['dt_campaign_end'];	
+		$data['in_goal_fund']		=	$data['campaign_detail']['in_goal_fund'];
+		$data['campaign_id']		=	$campaignId;
+		
+		$data['campaign_title']		=	$data['campaign_detail']['st_page_title'];
+				
+		//echo '<pre>'; print_r($data['campaign_detail']); die;
+		$data['sponsorship_detail'] = $this->sponsorship_model->get_donation_detail($campaignId);
+		//echo '<pre>'; print_r($data['sponsorship_detail']); die;
+		
+		
+		$this->load->view('sponsorship/sponsorship_report',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	save_template	
+	#	Purpose		:	Saving page template values.
+	# *******************************************************************************************
+	
+	public function save_template() {
+		//Getting template tag id
+		($this->input->post('sponsorship_status') == 'draft')?$in_status = '3':$in_status = '1';
+		
+		$data['campaign_data'] = array(	'st_template'		=>	$this->input->post('color_pattern_val'),
+										'st_background'		=>	$this->input->post('bk_color_val'),
+										'st_font'			=>	$this->input->post('font_opt_val'),
+										'dt_modified'		=>	date('Y-m-d H:i:s'),
+										'in_status'			=>	$in_status
+									);
+		
+		$campaign_id = ($this->session->userdata('edit_campaign_id')==true)?$this->session->userdata('edit_campaign_id'):$this->session->userdata('last_campaign_id');
+		//echo "<pre>";print_r($_POST);echo "</pre>";die;
+		$data['save_frm'] = $this->sponsorship_model->edit_campaign_data($data['campaign_data'],$campaign_id);
+		
+		if($data['save_frm'] == 1) {
+			if($this->input->post('sponsorship_status') == 'draft') {
+				$this->session->set_flashdata('campaign_msg','Page successfully saved to draft.');
+			} else if($this->input->post('sponsorship_status') == 'finish') {
+				
+				//Adding Sponsorship notification
+					$data['notification'] = array(	'in_organization_id'	=>	$this->session->userdata('org_id'),
+													'in_animal_id'			=>	$this->session->userdata('spon_animal_id'),
+													'in_type'				=>	17,
+													'in_user_id'			=>	$this->session->userdata('userid'),
+													'in_modified_by'		=>	$this->session->userdata('userid'),
+													'dt_created'			=>	date('Y-m-d H:i:s'),
+													'in_deleted'			=>	0
+												);
+											
+					$notification = $this->sponsorship_model->add_notification($data['notification']);
+					
+					$this->load->model('add_fundraiser_model');
+					$user_fund_settings = $this->add_fundraiser_model->get_user_fundraiser_settings();
+					//print_r($user_fund_settings); //exit;
+					if(isset($user_fund_settings) && !empty($user_fund_settings))
+					{
+						$campaign_data 	= 	$this->add_fundraiser_model->get_campaign_data($campaign_id);
+						//print_r($campaign_data); exit;
+						if(isset($campaign_data) && !empty($campaign_data))
+						{
+							foreach($user_fund_settings as $fund_val)
+							{
+								if(isset($campaign_data[0]['in_animal_id']) && $campaign_data[0]['in_animal_id'] > 0)
+								{	
+									//if setting for new fundraiser notification is Any Animal Fundraisers
+									if((isset($fund_val['in_any_animal_fund']) && $fund_val['in_any_animal_fund'] == 1))
+									{
+									$this->load->library('email');
+									
+									$to			= $fund_val['st_email'];
+									$subject	= 'New Fundraiser created'; 
+									
+									$message 	= "";
+									$message   .= "Hi ".$fund_val['st_display_name'].", <br/><br/>Please check newly created fundraiser: ". base_url()."campaign/".strtolower($this->session->userdata('st_custom_url'))." <br/> <br/> <br/>";
+									$message   .= "Best Regards, <br/>";
+									$message   .= "Doobert Team";
+									
+									$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+									}
+									
+									//if setting for new fundraiser notification is Organization Fundraisers within miles
+									elseif(isset($fund_val['in_spe_animal_fund']) && $fund_val['in_spe_animal_fund'] == 1 && isset($fund_val['in_spe_animal_fund_dist']) && $fund_val['in_spe_animal_fund_dist'] > 0)
+									{
+										//echo 'send mail'; 
+										$org_zipcode = $campaign_data[0]['st_zip'];
+										$user_zipcode = $fund_val['st_zip'];
+										//echo $org_zipcode; echo 'user_zipcode'.$user_zipcode;//exit;
+										if(isset($org_zipcode) && $org_zipcode != '' && isset($user_zipcode) && $user_zipcode != '')
+										{
+											$this->load->model('orgtrasnportation_model');
+											$get_distance = $this->orgtrasnportation_model->get_route_miles($user_zipcode,$org_zipcode);
+											//echo "<pre>";print_r($get_distance['distance']); //exit;
+											if(isset($get_distance) && $get_distance['distance'] <= $fund_val['in_spe_animal_fund_dist'])
+											{
+												$this->load->library('email');
+										
+												$to			= $fund_val['st_email'];
+												$subject	= 'New Fundraiser created'; 
+												
+												$message 	= "";
+												$message   .= "Hi ".$fund_val['st_display_name'].", <br/><br/>Please check newly created fundraiser: ". base_url()."campaign/".strtolower($this->session->userdata('st_custom_url'))." <br/> <br/> <br/>";
+												$message   .= "Best Regards, <br/>";
+												$message   .= "Doobert Team";
+												
+												$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+												
+											}
+										}
+										
+									}
+								
+								}
+								
+								elseif(isset($campaign_data[0]['in_animal_id']) && $campaign_data[0]['in_animal_id'] == 0 && isset($campaign_data[0]['in_organization_id']) && $campaign_data[0]['in_organization_id'] > 0)
+								{	
+									//if setting for new fundraiser notification is Any Organization Fundraisers
+									if((isset($fund_val['in_any_org_fund']) && $fund_val['in_any_org_fund'] == 1))
+									{
+									$this->load->library('email');
+									
+									$to			= $fund_val['st_email'];
+									$subject	= 'New Fundraiser created'; 
+									
+									$message 	= "";
+									$message   .= "Hi ".$fund_val['st_display_name'].", <br/><br/>Please check newly created fundraiser: ". base_url()."campaign/".strtolower($this->session->userdata('st_custom_url'))." <br/> <br/> <br/>";
+									$message   .= "Best Regards, <br/>";
+									$message   .= "Doobert Team";
+									
+									$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+									}
+									
+									//if setting for new fundraiser notification is Organization Fundraisers within miles
+									elseif(isset($fund_val['in_spe_org_fund']) && $fund_val['in_spe_org_fund'] == 1 && isset($fund_val['in_spe_org_fund_dist']) && $fund_val['in_spe_org_fund_dist'] > 0)
+									{
+										
+										$org_zipcode = $campaign_data[0]['st_zip'];
+										$user_zipcode = $fund_val['st_zip'];
+										
+										if(isset($org_zipcode) && $org_zipcode != '' && isset($user_zipcode) && $user_zipcode != '')
+										{
+											$this->load->model('orgtrasnportation_model');
+											$get_distance = $this->orgtrasnportation_model->get_route_miles($user_zipcode,$org_zipcode);
+											//echo "<pre>";print_r($data['get_source_distance']['distance']);
+											if(isset($get_distance) && $get_distance['distance'] <= $fund_val['in_spe_org_fund_dist'])
+											{
+												
+												$this->load->library('email');
+										
+												$to			= $fund_val['st_email'];
+												$subject	= 'New Fundraiser created'; 
+												
+												$message 	= "";
+												$message   .= "Hi ".$fund_val['st_display_name'].", <br/><br/>Please check newly created fundraiser: ". base_url()."campaign/".strtolower($this->session->userdata('st_custom_url'))." <br/> <br/> <br/>";
+												$message   .= "Best Regards, <br/>";
+												$message   .= "Doobert Team";
+												
+												$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+												
+											}
+											
+										}
+									
+									}
+								
+								}
+								
+							}
+							
+						}
+					}
+					
+				$this->session->set_flashdata('campaign_msg','Your selected layout has been successfully published.');
+			}
+			redirect(base_url().'sponsorship-layout-choose/'.$this->session->userdata('spon_animal_id'));
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	collect_funds	
+	#	Purpose		:	Sending email to all donars.
+	# *******************************************************************************************
+	
+	public function collect_funds() {
+		//echo "<pre>";print_r(htmlspecialchars($_POST['campaign_title']));die;
+		
+		$data = array();
+		$data['paypal_email'] = array('st_paypal_email' => $this->input->post('paypal_hidden_email'));
+		$data['update_paypal_email'] = $this->sponsorship_model->update_paypal_email($this->input->post('campaign_id'),$data['paypal_email']);
+		
+		$to = $this->input->post('all_emails');
+		$donation_id = $this->input->post('all_donation_ids');
+		
+		$explode_emails = explode(',',$to);
+		$explode_ids = explode(',',$donation_id);
+		
+		$donation_amt = explode(',',$this->input->post('donation_amt'));
+		$user_names = explode(',',$this->input->post('user_names'));
+		
+		//Getting email body
+		$email_body = $this->common_model->get_email_containt('21');
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		//$subject = $email_body[0]['st_email_subject'];
+		
+		$subject	=	str_replace('##campaign_name##',$this->input->post('campaign_title'),$email_body[0]['st_email_subject']);
+		
+		//Replace contents in email
+		//$this->email->subject(str_replace('##organization_name##',$this->session->userdata('org_name'),$email_body[0]['st_email_subject']));
+		
+		//Load email library
+		$this->load->library('email');
+		
+		for($i=0;$i<count($explode_emails);$i++) {
+			$donation_url = base_url().'pledge-payment/'.$this->common_function->encode_base64($explode_ids[$i]);
+			if(trim($this->input->post('animal_name')) != '') {
+			//Replace Contents
+				$patterns = array('%##url##%','%##first_name##%','%##amount_pledged##%','%##name_of_animal##%','%##organization_name##%','%##donation_link##%','%##campaign_name##%');
+				$replacements = array(base_url(),$user_names[$i],$donation_amt[$i],$this->input->post('animal_name'),$this->input->post('org_name'),$donation_url,$this->input->post('campaign_title'));
+			} else {
+				$patterns = array('%##url##%','%##first_name##%','%##amount_pledged##%','%##name_of_animal##%','%##organization_name##%','%##donation_link##%','%##campaign_name##%');
+				$replacements = array(base_url(),$user_names[$i],$donation_amt[$i],'',$this->input->post('org_name'),$donation_url,$this->input->post('campaign_title'));
+			}
+			
+			$content = preg_replace($patterns,$replacements,$email_body[0]['st_email_body']);
+			
+			//Send Email
+			$category = $email_body[0]['st_category'];
+			
+			// LCR Banner added				
+								$q1			=	$this->common_model->get_affiliate_detail('21','C');	
+							    $q2			=	$this->common_model->get_affiliate_detail('21','L');	
+							    $q3			=	$this->common_model->get_affiliate_detail('21','R');
+											   		
+									if(isset($q1) && !empty($q1)){	
+										
+										foreach($q1 as $qr)
+										{
+											 
+											  if(!empty($qr['st_code']))
+											{    
+												    $affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];										
+													$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';					
+												  
+											}
+											else
+											{
+												   $affiliate_content='';								 
+											}
+											  
+												
+										}
+									}			
+									   
+								   else
+								   {
+									  $affiliate_content='';
+								   }
+				
+						//LEFT BANNER
+									if(isset($q2) && !empty($q2)){					   		
+										foreach($q2 as $qr)
+										{								 
+											 if(!empty($qr['st_code']))
+											{    
+												   $leftbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+													$imgtitle   =   $qr['st_banner_name'];
+													$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';	  
+											} 
+											else
+											{
+												   $leftbanner='';								 
+											} 	
+										}
+									}
+									else
+									{
+										   $leftbanner='';								 
+									}
+									
+						//RIGHT BANNER
+									if(isset($q3) && !empty($q3)){					   		
+										foreach($q3 as $qr)
+										{
+											 
+											if(!empty($qr['st_code']))
+											{    
+												   $rightbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{	
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];
+													$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" /></a>';	
+												  
+											}
+											else
+											{
+												   $rightbanner='';								 
+											}								  
+												
+										}
+									}
+									else
+									{
+										   $rightbanner='';								 
+									}
+				
+				
+						$content = str_replace("##affiliate_content##",$affiliate_content,$content);	
+						$content = str_replace("##leftbanner##",$leftbanner,$content);
+						$content = str_replace("##rightbanner##",$rightbanner,$content);
+						$content = str_replace("##DONATION##",$donation,$content);
+				// LCR Banner added	
+			$this->common_function->send_mail($this->email, $explode_emails[$i], $subject, $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+		}
+		
+		//Set Flashdata for modal popup
+		$this->session->set_flashdata('success','Mail Sent Successfully.');
+		redirect(base_url().'sponsorship/sponsorship_report/'.$this->input->post('campaign_id'));
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	ajax_file_upload
+	#	Purpose		:	Uploading files with ajax
+	# *******************************************************************************************
+	
+	public function ajax_file_upload() {
+		
+		$this->load->library('upload');
+		
+		$config['upload_path']  	= $this->config->item('upload').'animal_images/';
+		$config['max_size']			= '5120';
+		$config['allowed_types']	= 'jpg|png|gif|jpeg|jpe';
+		$config['remove_spaces']  	= TRUE;
+		//$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES[$this->input->post('file_name')]['name']));
+		
+		$lastDot = strrpos($_FILES[$this->input->post('file_name')]['name'], ".");
+		$_FILES[$this->input->post('file_name')]['name'] = str_replace(".", "", substr($_FILES[$this->input->post('file_name')]['name'], 0, $lastDot)) . substr($_FILES[$this->input->post('file_name')]['name'], $lastDot);
+		$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES[$this->input->post('file_name')]['name']));
+		
+		
+		//Initialization
+		$this->upload->initialize($config);
+			
+		//Display errors of file upload.
+		//Upload image by calling do_upload method.
+		$this->upload->do_upload($this->input->post('file_name'));
+		$file_errors = array('errors' => $this->upload->display_errors());
+		
+		if(!empty($file_errors['errors'])) {
+			$data = array('upload_error' => strip_tags($file_errors['errors']));
+			echo json_encode($data);
+			return false;
+		} 
+		
+		$img_name_array = explode('.', $config['file_name']);
+		$img_extension = end($img_name_array);
+		$image_name = current(explode('.', $config['file_name'])); 
+		 
+		if($img_extension == "JPE" || $img_extension == "jpe")
+		{
+			$new_image_name = $image_name.'.jpg';
+			$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $config['file_name']);
+			imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+			$config['file_name'] =  $new_image_name;
+		}
+		
+		echo "{";
+		echo "file_name: '" . $config['file_name'] . "'\n";
+		echo "}";
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	rotate_image
+	#	Purpose		:	Rotating uploaded image
+	# *******************************************************************************************
+	
+	public function rotate_image() {
+		$this->load->library('upload');
+		
+		$config = array();
+		$config['file_name'] = $this->input->post('rotate_file_name');
+		
+		$config['image_library'] = 'gd2';
+		$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+		$config['rotation_angle'] = $this->input->post('angle');
+		
+		$this->load->library('image_lib');
+		$this->load->library('image_lib', $config);
+		$this->image_lib->initialize($config);
+
+		if ( ! $this->image_lib->rotate()) {
+    		echo $this->image_lib->display_errors();
+		}
+		
+		echo $config['file_name'];
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_file	
+	#	Purpose		:	Deleting animal images
+	# *******************************************************************************************
+	
+	public function delete_file() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = $this->sponsorship_model->delete_file($this->input->post('file_id'));
+		
+		return $data;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	sponsorship_date_update	
+	#	Purpose		:	Updating Sponsorship Date
+	# *******************************************************************************************
+	
+	public function sponsorship_date_update(){
+		$data = array();
+		
+		if(date('Y-m-d',strtotime($this->input->post('camp_end_date'))) <= date('Y-m-d',strtotime(date('Y-m-d')))) {
+			echo 'wrong';
+		} else {
+			$data['update_date'] = $this->sponsorship_model->sponsorship_date_update($this->input->post('camp_id'),$this->input->post('camp_end_date'));
+			echo $data['update_date'];
+		}
+	}
+	
+	public function save_animal_fundraiser()
+	{
+		//print_r($_POST);die;
+		if(isset($_POST['campaign_id']) && $_POST['campaign_id'] > 0)
+		{	//echo 'campaign_id in post'.$_POST['campaign_id'];
+			$this->session->set_userdata('camp_id',$_POST['campaign_id']);
+		}
+		
+		if($this->session->userdata('camp_id') && $this->session->userdata('camp_id') > 0)
+		{
+			//echo 'campaign_id from session'.$this->session->userdata('camp_id');
+			$this->sponsorship_model->update_fundraiser($_POST);
+			$this->sponsorship_model->save_fundraiser_cost_breakdown($_POST);
+			$camp_id = $this->session->userdata('camp_id');
+			echo $camp_id;
+			exit;
+		}
+		else
+		{
+			$camp_id	=	$this->sponsorship_model->save_fundraiser($_POST);
+			$this->session->set_userdata('camp_id',$camp_id);
+			echo $camp_id;
+			exit;
+		}		
+	}
+	
+}

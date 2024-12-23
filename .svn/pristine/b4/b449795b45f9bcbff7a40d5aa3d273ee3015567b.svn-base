@@ -1,0 +1,260 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 07-April-2014
+# File description	: Animal Model for admin
+# Special - notes	: none
+# Tables used		: tbl_arpa_org, tbl_animal_breed
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class promo_code_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+	#============================================================
+	#	Function	:	get_total_animal_types()
+	#  Parameter	: 	name
+	#	Perpose		:	to check valid user login
+	#------------------------------------------------------------
+	public function get_total_promo_code($name='',$fromdate='',$todate='',$email='')
+	{ 	//	echo $fromdate; die;
+		 if($fromdate=='1969-12-31'){$fromdate='';  }
+		if($todate=='1969-12-31'){$todate='';  }
+		
+		$this->db->select("tbl_discount_code.in_id", false);						   	
+		$this->db->from('tbl_discount_code');
+		//$this->db->join('tbl_exam','tbl_exam.in_exam_id=tbl_discount_code.in_membership_id','left');			
+		$this->db->where('tbl_discount_code.in_deleted','0');
+		//$this->db->where('tbl_exam.in_deleted','0');
+		if($name!='')
+		{			
+			$this->db->where("tbl_discount_code.st_code_name LIKE '%".$name."%'", NULL, FALSE);
+		}	
+		
+		if($fromdate!='' && $todate!='') {
+			$this->db->where("tbl_discount_code.dt_created >= '".$fromdate."' AND tbl_discount_code.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	get_animal_types()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to check valid user login
+	#------------------------------------------------------------
+	public function promo_code($sort,$order,$limit,$rec_per_page,$name,$fromdate,$todate,$email)
+	{
+		
+				  
+		$this->db->select("d.in_id,d.st_code_name,d.dt_starts,d.dt_expires,d.fl_discount_amount,d.dt_created,d.in_membership_id,d.in_num_users", false);						   	
+		$this->db->from('tbl_discount_code d');
+		//$this->db->join('tbl_exam e','e.in_exam_id=d.in_membership_id','left');		
+		$this->db->where('d.in_deleted','0');
+		//$this->db->where('e.in_deleted','0');
+					  
+		if($name!='')
+		{			
+			$this->db->where("d.st_code_name LIKE '%".$name."%'", NULL, FALSE);
+		}
+		
+		if($fromdate!='' && $todate!='') {
+							$this->db->where("d.dt_created >= '".$fromdate."' AND d.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+		}
+					
+					switch($sort)
+					{
+						
+						case 'name': 							
+							$this->db->order_by('d.st_code_name',$order);
+						break;
+						
+						case 'coursetype': 							
+							$this->db->order_by('e.st_exam_title',$order);
+						break;
+						
+						
+
+						case 'startdate': 							
+							$this->db->order_by('d.dt_starts',$order);
+						break;
+						
+						case 'expirydate': 							
+							$this->db->order_by('d.dt_expires',$order);
+						break;
+						
+						case 'discountamt': 							
+							$this->db->order_by('d.fl_discount_amount',$order);
+						break;
+						
+						
+						
+						
+						default:						
+						$this->db->order_by('d.st_code_name',$order);
+						 break; 	         
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+
+	//echo $this->db->last_query(); die;					
+									
+					$arrMember = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{	
+
+
+							$a	=	explode(',',$Row->in_membership_id);
+								$b=array();
+								foreach($a as $val)
+								{
+									$sqlexamtitle  = "SELECT st_exam_title FROM tbl_exam  where in_exam_id = '".$val."'";
+										$sqlexam	=	$this->db->query($sqlexamtitle);
+										$numrowprostat		=	$sqlexam->num_rows($sqlexam);	
+										$title			=	$sqlexam->result();
+										$exam_title		=	$title[0]->st_exam_title;
+									array_push($b, $exam_title);
+									
+								}
+							
+								$examtitle= implode(', ',$b);
+									
+					$arrMember[]	=	array('st_code_name'		=> $Row->st_code_name,
+												'dt_starts'	    	=> date('m-d-Y',strtotime($Row->dt_starts)),
+												'dt_expires'		=>  date('m-d-Y',strtotime($Row->dt_expires)),
+												'fl_discount_amount' => $Row->fl_discount_amount,												
+												'dt_created'    	=> $Row->dt_created,
+												'in_id'				=>	$Row->in_id,
+												'in_num_users'		=> $Row->in_num_users,
+												'st_exam_title'		=>	$examtitle
+											);
+						}
+						return $arrMember;
+						
+					}
+					
+	}
+	
+	function get_promocode($Id)
+	{
+		$this->db->select('d.in_id,d.st_code_name,d.dt_starts,d.dt_expires,d.fl_discount_amount,d.dt_created,d.in_membership_id,e.st_exam_title,d.in_num_users');
+		$this->db->from('tbl_discount_code as d');
+		$this->db->join('tbl_exam e','e.in_exam_id=d.in_membership_id','left');		
+		$this->db->where('d.in_id',$Id);	
+		$this->db->where('d.in_deleted',0);	
+		$query = $this->db->get();
+		return $query->row_array();	
+	}
+	
+	
+	public function add_promocode_info($data)
+	{
+		$this->db->insert('tbl_discount_code', $data); 
+		return $this->db->insert_id();		
+	}
+	
+	
+	public function get_course_types() {
+		$this->db->select('in_exam_id,st_exam_title');
+		$this->db->from('tbl_exam');		
+		$this->db->where('in_deleted',0);	
+		$query = $this->db->get();
+		return $query->result_array();
+	}	
+	
+	function is_promocode_exists($coursetype)
+	{ 
+		$this->db->select('in_id');
+		$this->db->from('tbl_discount_code');							
+		$this->db->where("in_membership_id",$coursetype); 
+		$this->db->where("in_deleted",0);
+		$query = $this->db->get();		
+		//echo $this->db->last_query(); die;
+		
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;				
+	}
+	
+	function is_promocode_exists2($coursetype,$Id)
+	{ 
+		$this->db->select('in_id');
+		$this->db->from('tbl_discount_code');							
+		$this->db->where("in_membership_id",$coursetype); 
+		$this->db->where("in_id !=",$Id); 
+		$this->db->where("in_deleted",0);
+		$query = $this->db->get();		
+		//echo $this->db->last_query(); die;
+		
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;				
+	}
+	
+	
+	
+	#=====================================================================================
+	#	Function	:	delete_animal_types()
+	#  Parameter	: 	animaltypeId
+	#	Perpose		:	to delete single animal type details from tbl_arpa_org table
+	#-------------------------------------------------------------------------------------
+	function delete_promocode($Id)
+	{
+		$arrMember = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_id', $Id);
+		$this->db->update('tbl_discount_code', $arrMember);		
+	}
+	
+	
+	
+	
+		
+	#=====================================================================================
+	#	Function	:	delete_multiple_promocode()
+	#  Parameter	: 	in_id
+	#	Perpose		:	to delete multiple animal types details from tbl_arpa_org table
+	#--------------------------------------------------------------------------------------
+	function delete_multiple_promocode($Ids)
+	{				
+		$arrMember = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_id', $Ids);
+		$this->db->update('tbl_discount_code', $arrMember);		
+		return $this->db->affected_rows();
+	}	
+	
+	#==========================================================================================
+	#	Function	:	update_animal_type_info()
+	#   Parameter	: 	table, data, animaltypeId
+	#	Perpose		:	updating animal types profile in tbl_arpa_org table
+	#------------------------------------------------------------------------------------------	
+	function update_promocode_info($data,$Id,$table) {		
+		$this->db->where('in_id',$Id);
+		$this->db->update($table,$data);
+		return $this->db->affected_rows();	
+	}
+	
+}
+?>

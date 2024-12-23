@@ -1,0 +1,162 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Paypaltest extends CI_Controller {
+
+	public function __construct() {
+		//error_reporting(E_ALL);
+		//ini_set('display_errors', 1);
+		parent::__construct();
+		//$this->output->enable_profiler(true);
+		$this->load->model('shop_model');
+		$this->load->model('common_model');
+		$this->load->model('quote_model');
+		$this->load->library('common_function');	
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->helper('cookie');
+		$this->load->library('pagination');
+		
+
+	}
+	
+	public function ipn_notification($count='')
+	{
+		$postData = file_get_contents('php://input');
+		$postData = urldecode($postData);
+		$rawPostArray = explode('&', $postData);
+		$rawPostArray = unserialize('a:33:{i:0;s:40:"transaction[0].is_primary_receiver=false";i:1;s:50:"transaction[0].id_for_sender_txn=7DP36871C7950280X";i:2;s:49:"log_default_shipping_address_in_transaction=false";i:3;s:62:"transaction[0].receiver=rajesh.ramakrishnan@pulsesolutions.net";i:4;s:15:"action_type=PAY";i:5;s:70:"ipn_notification_url=http://dev.doobert.com/paypal/ipn_notification/2";i:6;s:34:"transaction[1].paymentType=SERVICE";i:7;s:31:"transaction[0].amount=USD 15.00";i:8;s:20:"charset=windows-1252";i:9;s:37:"transaction_type=Adaptive Payment PAY";i:10;s:50:"transaction[1].id_for_sender_txn=2KH367035X834521W";i:11;s:40:"transaction[1].is_primary_receiver=false";i:12;s:26:"notify_version=UNVERSIONED";i:13;s:35:"cancel_url=http://dev.doobert.com/";i:14;s:46:"transaction[1].status_for_sender_txn=Completed";i:15;s:61:"transaction[1].receiver=rupesh-facilitator@pulsesolutions.net";i:16;s:68:"verify_sign=AFcWxV21C7fd0v3bYYYRCpSSRl31AJXmZgZckRFOn-3qVEGQK2OWwuJR";i:17;s:56:"sender_email=sanjay.surve-facilitator@pulsesolutions.com";i:18;s:23:"fees_payer=EACHRECEIVER";i:19;s:44:"transaction[0].status_for_sender_txn=Pending";i:20;s:51:"return_url=http://dev.doobert.com/shop/thankyou/18";i:21;s:34:"transaction[0].paymentType=SERVICE";i:22;s:31:"transaction[1].amount=USD 50.00";i:23;s:44:"reverse_all_parallel_payments_on_error=false";i:24;s:35:"tracking_id=1504874187doobertcart18";i:25;s:34:"transaction[1].pending_reason=NONE";i:26;s:28:"pay_key=AP-0H108098A7762222L";i:27;s:35:"transaction[1].id=7GU30866M59726434";i:28;s:40:"transaction[0].pending_reason=UNILATERAL";i:29;s:16:"status=COMPLETED";i:30;s:31:"transaction[1].status=Completed";i:31;s:10:"test_ipn=1";i:32;s:49:"payment_request_date=Fri Sep 08 05:36:28 PDT 2017";} ');	
+		
+		/*if(isset($rawPostArray) && $rawPostArray != '')
+		{
+			$message  	= 	serialize($rawPostArray);	
+			$to			=	'rupesh@pulsesolutions.net';
+			$subject	=	'Paypal Notification';
+			$this->load->library('email');
+			$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='ghanshyam.maurya@pulsesolutions.net', $this->config->item('admin_from_name'));
+		}*/
+		
+		//echo "<pre>"; print_r($rawPostArray);exit;
+		$responseData	=	array();
+		$data_arr= array();
+		$checkcount = 0;
+		$checkcount2 = 0;		
+		$st_transactions = '';
+		$st_id_for_sender_txn = '';
+		foreach($rawPostArray as $key=>$value)
+		{
+			
+			$data_val = explode("=",$value);		
+			
+			$responseData[$data_val[0]]	=	$data_val[1];
+			
+			
+			if(isset($data_val[0]) && $data_val[0] == "transaction[".$checkcount."].id")
+			{				
+				if($st_transactions == '')
+				{
+					$st_transactions .= $data_val[1];
+				}else
+				{
+					$st_transactions .= ", " . $data_val[1];
+				}				
+			}
+			if(isset($data_val[0]) && $data_val[0] == "transaction[".$checkcount."].id_for_sender_txn")
+			{
+				
+				if($st_id_for_sender_txn == '')
+				{
+					$st_id_for_sender_txn .= $data_val[1];
+				}else
+				{
+					$st_id_for_sender_txn .= ", " . $data_val[1];
+				}
+				
+				$checkcount++;		
+			}	
+				
+			
+		}
+		
+		if(isset($responseData) && $responseData['status']=='COMPLETED')
+		{
+			$track 		= explode("doobertcart",$responseData['tracking_id']);
+			$order_id	=	str_replace("doobertcart","",$track[1]);
+			
+			$status	=	2; // Processing
+			if($st_transactions=='')
+				$st_transactions	=	$st_id_for_sender_txn;
+			
+			$order_details = $this->quote_model->get_order_details($order_id); 
+			$order_item_details = $this->quote_model->get_order_item_details($order_id);
+			//print_r($order_item_details); exit;
+			
+			if(count($order_details)>0)
+			{
+				
+				$update_details = array("dt_payment_added"		=> date("Y-m-d H:i:s"),
+										"st_transactions"		=> $st_transactions,
+										"st_pp_response"		=>	serialize($rawPostArray),
+										"in_order_status"		=> $status,
+										"in_payment_status"		=> $status);
+										
+				$this->quote_model->update_payment_details($update_details,$order_id);
+				
+				
+				$email_details = $this->common_model->get_email_containt("94");
+				if(isset($email_details[0]['st_email_body']) )
+				{
+					
+					$product_line_items	=	'';
+					
+					foreach($order_item_details as $line_items)
+					{
+						$line_total	=	$line_items['fl_cost']*$line_items['in_qty'];
+						$product_line_items	.=	'<tr>
+						<td style="padding: 5px; font:14px/20px Arial, Helvetica, sans-serif;color:#575757; vertical-align: top;">'.$line_items['st_product_name'].'</td>
+						<td style="padding: 5px; font:14px/20px Arial, Helvetica, sans-serif;color:#575757; vertical-align: top;">'.$line_items['st_sku'].'</td>
+						<td style="padding: 5px; font:14px/20px Arial, Helvetica, sans-serif;color:#575757; vertical-align: top; text-align:center;">'.$line_items['in_qty'].'</td>
+						<td style="padding: 5px; font:14px/20px Arial, Helvetica, sans-serif;color:#575757; vertical-align: top; text-align: right;">$'.number_format($line_total,2).'</td>
+						</tr>';
+					}
+					
+					
+					$address	=	'<p style="font:14px/20px Arial, Helvetica, sans-serif;">'.$order_details['st_first_name']." ".$order_details['st_last_name'].'</p>								
+								<p style="font:14px/20px Arial, Helvetica, sans-serif;">'.$order_details['st_addr1'];
+								if($order_details['st_addr2']!=''){
+									$address	.=	'<br>'.$order_details['st_addr2'];
+								}
+								$address	.=	'<br>'.$order_details['st_city']." ".$order_details['st_state']." ".$order_details['st_zip'].'<br>T: '.$order_details['st_phone'].'</p>';
+								
+					$category  	=   $email_details[0]['st_category'];
+					$templete	= 	$email_details[0]['st_email_body'];
+					
+					$templete  	= 	str_replace("##url##",$this->config->item('base_url'),$templete);
+					$templete  	= 	str_replace("##user_display_name##",$order_details['st_first_name']." ".$order_details['st_last_name'],$templete);
+					$templete  	= 	str_replace("##transction_id##",$st_transactions,$templete);
+					
+					$templete  	= 	str_replace("##order_date##",date("m-d-Y H:i:s"),$templete);
+					$templete  	= 	str_replace("##order_id##",$order_id,$templete);
+					$templete  	= 	str_replace("##ship_to##",$address,$templete);
+					$templete  	= 	str_replace("##bill_to##",$address,$templete);
+					$templete  	= 	str_replace("##order_line_items##",$product_line_items,$templete);
+					$templete  	= 	str_replace("##sub_total##",$order_details['fl_order_total'],$templete);
+					$templete  	= 	str_replace("##admin_fee##",$order_details['fl_admin_fee'],$templete);
+					$templete  	= 	str_replace("##grand_total##",$order_details['fl_grand_total'],$templete);
+					
+					$message  	= 	$templete;	
+					$to			=	$order_details['st_email'];
+					$subject	=	$email_details[0]['st_email_subject'];
+					$this->load->library('email');
+					$this->common_function->send_mail($this->email, 'rupesh@pulsesolutions.net', $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'), $this->email, $category);
+					//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'), $this->email, $category);
+				}
+			}	
+		}		
+	}
+	
+  	
+
+
+		
+}	
+?>	

@@ -1,0 +1,246 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: manglesh Yadav
+# Created date: 14-02-2019
+# File description:  Questation releted
+# Special instructions-notes: none
+# Tables used: tbl_user
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+
+
+class dashboard extends CI_Controller {
+
+    public function __construct() {
+        parent::__construct();
+		
+		//$this->load->library('common_function');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->model('profile_model');
+		$this->load->model('dashboard_model');
+		$this->load->helper('custom_helper');
+		$this->load->helper('libchart');
+		$this->load->library('email');
+		$this->load->library('session');
+
+        $userid = $this->session->userdata('sess_userid');
+		
+		if(isset($userid) && $userid != '')
+		{
+			
+		}else {redirect(base_url());
+		
+		}
+		
+        
+
+	 }
+
+    public function index()
+	{
+     //echo $this->session->userdata("sess_userid"); die;		
+		 $user_email = $this->session->userdata('sess_user_email');
+		  $data['shelter_code']=$this->dashboard_model->get_details($user_email);
+		 
+		 $data['survey_date']=$this->dashboard_model->get_servey_date($data['shelter_code']['in_userid']);
+		 
+		 $data['survey_count']=$this->dashboard_model->get_servey_detail($data['survey_date']['in_id']);
+		 $data['check_date']=$this->dashboard_model->compare_end_date($data['survey_date']['in_id']);
+		 //echo'<pre>'; print_r($data['check_date']); die;
+        $this->load->view('dashboard',$data);
+	}
+	
+	public function edit_profile()
+	{ 
+	
+		$login_email=$this->session->userdata("sess_user_email"); 
+		$data['profile_details']=$this->dashboard_model->get_profile($login_email);
+		$data['location_list']=get_location_list();
+		
+		if($this->input->post('edit_profile') == 'edit_profile_action')
+		{
+			
+			$current_date=date("Y-m-d H:i:s");
+			$org_name=$this->input->post('txt_org_name');
+			$type_org=$this->input->post('type_org');
+			$location=$this->input->post('location');
+			//$email=$this->input->post('email');
+			$alt_email=$this->input->post('alt_email');
+			if(isset($org_name) &&  isset($type_org) &&  isset($location))
+			{
+			$update_profile=array(
+			'st_org_name'=>$org_name,
+			'st_org_type'=>$type_org,
+			'st_org_location'=>$location,
+			//'st_email'=>$email,
+			'dt_modified'=>$current_date
+			); 
+			if($alt_email != '')
+			{
+				$update_profile['st_alt_email']=$alt_email;
+			}
+			else{
+				$update_profile['st_alt_email']='';
+				}
+			}
+			$updated=$this->dashboard_model->updated_profile($login_email,$update_profile);
+			
+			// echo $this->db->last_query(); 
+			//die;
+			if($updated > 0)
+			{
+				$this->session->set_userdata('successfully_updated','Employer Updated Successfully.');
+				//$_SESSION['msg_success']='success';
+				
+				redirect(base_url().'dashboard/edit_profile');
+				
+			}
+			
+		}
+		else
+		{
+			
+			$this->load->view('edit-profile',$data);
+			$this->session->unset_userdata('successfully_updated','Employer Updated Successfully.');
+			
+		}
+		
+		
+		
+	}
+	
+	public function generat_new_link()
+	{
+		$userid = $this->session->userdata('sess_userid');
+		
+		$shelter_code=$this->input->post('shelter_code');	
+		$last_date=Date('Y-m-d H:i:s', strtotime("+12 days"));
+		$end_date=Date('Y-m-d H:i:s', strtotime("+14 days"));
+		$shelter_url=$shelter_code.'-'.time();
+		$current_date=date("Y-m-d H:i:s");
+					
+					$survey=array(
+							'in_user_id'=>$userid,
+							'dt_start'=>$current_date,
+							'dt_last'=>$last_date,
+							'dt_end'=>$end_date,
+							'dt_last_reminder'=>$current_date,
+							'dt_created'=>$current_date,
+							'dt_modified'=>$current_date,
+							'st_survey_code'=>$shelter_url,
+							'in_deleted'=>0
+							);
+					$data=$this->profile_model->save_servey_details($survey);
+					echo $data;
+		
+	}
+	
+	public function extented_survey_date()
+	{
+		$shelter_id=$this->input->post('value');
+		
+		
+		$data=$this->dashboard_model->extend_survey_date($shelter_id);
+		
+		 $end_date = $data['dt_end'];
+		$extend_date=date('Y-m-d', strtotime($end_date. ' + 7 days'));
+	
+		
+		$date_extented=array('dt_end'=>$extend_date		);
+		
+		$upadated=$this->dashboard_model->extend_survey_date_update($date_extented,$shelter_id);
+		 echo $upadated; 
+		
+		
+	}
+	
+	
+	public function view_report()
+	{
+	    $survey_id=$_GET['id'];
+		//print_r($id); die;
+		
+		
+		 $data['survey_details']=$this->dashboard_model->get_servey_detail($survey_id);
+		 
+		$data['currently_active']=$this->dashboard_model->get_currently_active($survey_id);
+		$data['currently_inactive']=$this->dashboard_model->get_currently_inactive($survey_id);
+		$data['taking_break']=$this->dashboard_model->get_taking_break($survey_id);
+		
+		$where="st_foster_ques2 = 'a little of the time (1 to 20%)'";
+		$data['little_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'some of the time (21 to 40%)'";
+		$data['some_of_the_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'majority of the time (41 to 60%)'";
+		$data['some_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'majority of the time (61 to 80%)'";
+		$data['majority_time_41_60']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'most of the time (81-100%)'";
+		$data['majority_time_61_80']=$this->dashboard_model->question2_response($survey_id,$where);
+		
+		$where="st_foster_ques3 = 'Less than 1 year'";
+		$data['less_than1']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '1-3 year'";
+		$data['year13']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '4-6 year'";
+		$data['year46']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '7-9 year'";
+		$data['year79']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '10+ year'";
+		$data['year10']=$this->dashboard_model->question2_response($survey_id,$where);
+		
+		
+		
+		
+		$html=$this->load->view('include/pdf',$data, true);
+		//$html=$this->load->view('include/BasicTerms.html',$data, true);
+			
+		$this->load->library('m_pdf'); 
+		$pdf = $this->m_pdf->load();
+		$mpdf->showImageErrors = true;
+		$stylesheet = '<style>'.file_get_contents('asset/css/pdf.css').'</style>';
+		
+		$pdfFilePath ="survey_details-".time().".pdf";		
+		$pdf->setFooter('{PAGENO}');
+		$pdf->use_kwt = true;
+		$pdf->WriteHTML($stylesheet,1);
+		$pdf->WriteHTML($html,2);
+		 //print_r($html); die;
+		//offer it to user via browser download! (The PDF won't be saved on your server HDD)
+		$pdf->Output($pdfFilePath, "D");
+		exit;
+		
+	
+	
+		
+	}
+	
+	public function previous_report()
+	{
+		 $user_email = $this->session->userdata('sess_user_email');
+		  $data['shelter_code']=$this->dashboard_model->get_details($user_email);
+		  $log_id=$this->session->userdata('sess_userid');
+		 $get_pre_sry=$this->dashboard_model->get_servey_id($log_id);
+		  
+		 $data['pre_survey']=$this->dashboard_model->get_prev_survey($get_pre_sry['in_id'],$log_id);
+		 //print_r($data['pre_survey']); die;
+		 $data['survey_date']=$this->dashboard_model->get_servey_date($data['shelter_code']['in_userid']);
+		 
+		 $data['survey_count']=$this->dashboard_model->get_servey_detail($data['survey_date']['in_id']);
+		 $data['check_date']=$this->dashboard_model->compare_end_date($data['survey_date']['in_id']);
+		 //echo'<pre>'; print_r(count($data['survey_count'])); die;
+		 $data['pdf_user_id']=$get_pre_sry['in_id'];
+        $this->load->view('previous_report',$data);
+		
+	}
+	
+	
+	
+	
+}	
+
+/* End of file welcome.php */
+/* Location: ./application/controllers/welcome.php */

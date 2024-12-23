@@ -1,0 +1,248 @@
+<?php $base_url = $this->config->item('base_url'); 
+
+$check_per_flag = '';
+$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	
+$tc_user = array();
+if(!empty($user_permission)) {
+	$tc_user = unserialize($user_permission);
+}
+if(empty($profile_setting))
+{
+	$first ='yes';
+}
+else
+{
+	$first ='no';
+}
+
+if(isset($profile_setting['st_contact'])!='')
+{ 			  
+	$contact = unserialize($profile_setting['st_contact']); 							   
+} 
+else {
+	$contact = '';
+}	
+
+$tc_permission = ''; 
+if(isset($tc_user) && !empty($tc_user))
+{ 
+	if(array_key_exists('transport',$tc_user))
+	{
+		$tc_permission = 'Y';								 
+	}	
+}
+
+
+
+?>
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<title>Cancelled Transport Feed - <?php echo $this->session->userdata('org_name'); ?>'s Transportations - Transportation - Doobert</title>
+<?php include APPPATH.'views/inc/header-css-js.php';?>
+<script type="text/javascript">
+var page_id = "<?php echo isset($legs_page)?$legs_page:"1"; ?>";
+</script>
+
+<body>
+<?php include APPPATH.'views/inc/header-login.php';?>
+
+<section class="breadcrumb inner-breadcrumb">
+	<div class="container">
+		<div class="text-left">
+			<?php echo $transport_details['st_org_name']; ?>'s Transportation   
+	</div>
+</section>
+
+<section class="main-content-wrapper inner-wrapper">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12">
+	                
+					<article>
+						<div class="entry-content">
+							<div class="main-container clearfix org-transportation-container">
+							<form class="horizontal-form fl" role="form" id="cancel_transport" name="cancel_transport" enctype="multipart/form-data" action="" method="post">
+								<input type="hidden" name="cancel_trans" id="cancel_trans" value="cancel" />
+								<input type="hidden" name="cancel_trans_text" id="cancel_trans_text" value="" />
+							</form>
+								<div class="col-md-12 col-sm-12 col-xs-12 no-space">
+									<h1><?php echo ($transport_details['st_org_name'])?$transport_details['st_org_name']:''; ?></h1>
+									<div class="col-md-9 col-sm-9 col-xs-9 no-space-left">
+                                    	<?php 
+												$trans_name = '';
+												if(isset($transport_details['st_trans_name']) && $transport_details['st_trans_name'] != '')
+												{
+													$trans_name = $transport_details['st_trans_name'];
+												}else{
+													$trans_name = '#DBT'.$transport_details['in_transportation_id'];
+												}
+                                        ?>
+										<p class="sub-heading"><?php echo $trans_name; ?> <span>(<i class="fa fa-code-fork"></i> Pre Defined)</span></p>
+										<p class="transport-info"><strong>#DBT<?php echo ($transport_details['in_transportation_id'])?$transport_details['in_transportation_id']:''; ?> :</strong> <?php echo ($transport_details['dt_pickup_date'] && $transport_details['dt_pickup_date']!='1969-12-31')?date("D, M d",strtotime($transport_details['dt_pickup_date'])):''; ?> - <?php echo ($transport_details['dt_target'] && $transport_details['dt_target']!='1969-12-31')?date("D, M d",strtotime($transport_details['dt_target'])):''; ?>   – From  <?php echo ($transport_details['st_from_city'])?$transport_details['st_from_city']:''; ?>, <?php echo ($transport_details['st_from_state'])?$transport_details['st_from_state']:''; ?> to <?php echo ($transport_details['st_to_city'])?$transport_details['st_to_city']:''; ?>, <?php echo ($transport_details['st_to_state'])?$transport_details['st_to_state']:''; ?> </p>
+										<p class="transport-info co_ordinator"><span><strong>Coordinator:</strong></span> <span><?php echo ($transport_details['st_display_name'])?$transport_details['st_display_name']:''; ?>&nbsp; | &nbsp;</span><span><i class="material-icons">call</i> <a class="tel-link" href="tel:<?php echo ($transport_details['st_primary_phone'])?$transport_details['st_primary_phone']:''; ?>"><?php echo ($transport_details['st_primary_phone'])?$transport_details['st_primary_phone']:''; ?></a>&nbsp; |&nbsp;</span> <span><i class="material-icons">mail_outline</i> <a href="mailto:<?php echo ($transport_details['st_email'])?$transport_details['st_email']:''; ?>"><?php echo ($transport_details['st_email'])?$transport_details['st_email']:''; ?></a></span></p>
+										<div class="confirm-transport-details">
+                                        
+                                  
+               
+											 <?php //echo $transport_details['in_status'];
+			if($transport_details['in_status']=='2')
+			{
+				 if(isset($permission['transport']) && in_array('transport_cnf',$permission['transport'])){ 					
+				 ?>
+          <a data-original-title="If you unconfirm the transport it will put it back in edit mode and the volunteers can join or leave and you can change the transport." data-placement="top"  onClick="$('#unconfirm_transport_popup').modal('show');" class="btn orange fr" name="uc_trans" id="uc_trans"><i class="fa fa-check"></i> Un-Confirm Transportation</a>
+          <?php 
+				 }
+			 }
+			  ?>
+										
+										</div>
+										<div class="transport-detail border_btm">
+											<p class="heading">Transport Details: </p>
+											<p> <?php echo ($transport_details['stAniStory'])?$transport_details['stAniStory']:''; ?> </p>
+											<p class="heading">Animal(s) Rescued in this Transport:</p>
+											<ul class="gallery">
+											    <?php if(isset($transport_animals) &&!empty($transport_animals) && count($transport_animals) >0 ){ ?>
+												<?php for($a=0;$a<count($transport_animals);$a++)
+													  {
+														if(isset($transport_animals[$a]) && !empty($transport_animals[$a]))
+														{
+												?>
+												
+												<?php 	$st_file_name = $this->common_model->get_animal_photo($transport_animals[$a]['in_animal_id']);
+														if($st_file_name!='' && file_exists($this->config->item('upload')."animal_images/140x140/".$st_file_name))
+														{
+																$image_url  = $this->config->item('upload_url')."animal_images/140x140/".$st_file_name;
+														}
+														else
+														{
+																$image_url  = $this->config->item('upload_url')."animal_images/140x140/no_photo_icon.png";
+														}
+												?>
+												<?php 
+														if(file_exists($this->config->item('upload')."demeanor/31x31/".$transport_animals[$a]['st_demeanor_image']) && file_exists($this->config->item('upload')."demeanor/60x60/".$transport_animals[$a]['st_demeanor_image']))
+														{
+																$demenor_url = $this->config->item('upload_url')."demeanor/31x31/".$transport_animals[$a]['st_demeanor_image'];
+																$demenor_thumb_url = $this->config->item('upload_url')."demeanor/60x60/".$transport_animals[$a]['st_demeanor_image'];
+														}
+														else
+														{
+																$demenor_url = $this->config->item('upload_url')."demeanor/31x31/no_photo_icon.png";
+																$demenor_thumb_url = $this->config->item('upload_url')."demeanor/60x60/no_photo_icon.png";
+														}
+												?>
+												<li>
+												<span class="img-info">
+												<img src="<?php echo $image_url; ?>" alt="<?php echo $st_file_name; ?>" title="<?php echo $st_file_name; ?>">
+                                                </span>
+												<span class="name"><?php echo $transport_animals[$a]['st_animal_name'];?><br>
+														<span><?php echo $transport_animals[$a]['st_animal_breed_name']." ".$transport_animals[$a]['st_animal_type_name'];?></span></span>
+												</li>
+												<?php } } }?>
+										
+											</ul>
+										</div>
+										<div class="transport-detail">
+											<p class="heading">Additional Information:</p>
+											<p><?php echo isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '' ? nl2br($transport_details['st_add_comments']) : '';   ?></p>
+											<p class="heading">Attached Documents:</p>
+											 <?php	if(isset($transport_files) && !empty($transport_files)) { ?>
+											<?php	foreach($transport_files as $key=>$value) { ?>
+											<div class="attached-files">
+											 <a href="javascript:void(0)"  onClick="window.open('<?php echo base_url().'org_transportation/generate_download/'.$this->common_function->encode_base64($value['st_file_name']); ?>/','_blank');"><i class="fa fa-file"></i><?php echo $value['st_file_name']; ?></a>
+												<span>
+												   <?php if($this->session->userdata('userid') == $transport_details['in_trans_coods_id'] || ($this->session->userdata('userid')  ==  $transport_details['in_modified_by'])) { ?>
+												   <a id="<?php echo $value['in_transport_file_id']; ?>" href="<?php echo base_url().'org_transportation/delete_transport_files/'?><?php echo $value['in_transport_file_id']; ?>/<?php echo $transport_details['in_transportation_id'];?>" onClick="javascript:return confirm('Are you sure you want to delete it?');" class="close-attachment"><i class="material-icons">cancel</i></a>
+												   <?php } ?>
+												</span>
+											</div>
+											 <?php }} ?>
+										</div>
+										<div class="legs-info">
+											   
+											 <div class="gr-wrap col-lg-9 col-md-8 col-sm-12 tabs mh752 cancel-transporation-info">
+                                            <img src="<?php echo base_url(); ?>assets/img/cancel-transporation-dog-bg.jpg" alt="Cancelled Transport" /><br>
+                                             We're sorry for the inconvenience!<br>This transportation has been <span>CANCELLED.</span>               
+                                            </div>
+                                            <div class="clearfix"></div>
+											<p class="pull-right"><a href="<?php echo base_url().'search-user-trips/'; ?>" class="link-gray font-17">View other trips in my area</a></p>
+										</div>
+									</div>
+									<div class="col-md-3 col-sm-3 col-xs-3 no-space-right">
+										<?php include APPPATH.'views/inc/organization-right-sidebar.php';?>
+									</div>
+							</div>
+						</div><!-- .entry-content -->
+					</article><!-- #post-## -->
+                </div>
+            </div>
+        </div>
+</section>
+
+<div class="modal fade" id="search-info-box" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"> 
+        <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+        <h4 class="modal-title">Search</h4>
+      </div>
+      <div class="modal-body">
+      
+      <form action="" name="search_module_frm" id="search_module_frm" method="post">
+      <div class="form-group">
+      <div class="gr-wrap col-lg-12 col-md-12 col-sm-12 no-space">
+      <div class="gr-wrap col-lg-16 col-md-6 col-sm-6">
+      <label for="search-for">Searching For?</label>
+      <div class="select-style">
+      	 <select class="category-sel form-control" name="select_module" id="select_module">
+              <?php /*?><option value="">Select</option><?php */?>
+              <option value="2" <?php echo ($this->session->userdata('search_module') == 2)?"selected":'' ?>>Transport ID</option>
+              <option value="1" <?php echo ($this->session->userdata('search_module') == 1)?"selected":'' ?>>Animal</option>
+              <option value="3" <?php echo ($this->session->userdata('search_module') == 3)?"selected":'' ?>>Organization</option>
+              <option value="4" <?php echo ($this->session->userdata('search_module') == 4)?"selected":'' ?>>Doobert Users</option>
+              <option value="5" <?php echo ($this->session->userdata('search_module') == 5)?"selected":'' ?>>Fundraising Animals</option>
+            </select>
+      </div>
+      </div>
+      <div class="gr-wrap col-lg-16 col-md-6 col-sm-6">
+      <label for="search-keyword">Search Keyword:</label>
+      <input type="text" name="module_search_text" id="module_search_text" placeholder="Search" class="serch-inp form-control" value="<?php 
+		  							if($this->session->userdata('module_search_org'))
+		  								echo stripslashes($this->session->userdata('module_search_org'));
+									elseif($this->session->userdata('module_search_animal'))
+		  								echo stripslashes($this->session->userdata('module_search_animal'));
+									elseif($this->session->userdata('module_search_user'))
+		  								echo stripslashes($this->session->userdata('module_search_user'));
+									elseif($this->session->userdata('module_search_transport'))
+		  								echo stripslashes($this->session->userdata('module_search_transport'));
+									elseif($this->session->userdata('module_search_animal_fundraiser'))
+		  								echo stripslashes($this->session->userdata('module_search_animal_fundraiser')); 
+								?>">
+	<input type="hidden" name="frm_module_action" id="form_action_value" value="frm_module_post" />
+      </div>
+	  
+      </div>
+      </div>
+     
+      <div class="clearfix"></div>
+      </div>
+      <div class="modal-footer text-center no-margin">
+      <input type="button" id="search_module" name="search_module" class="btn orange-small waves-effect waves-light" value="Search">
+	  
+	  
+       <?php if($this->session->userdata('userid')) { ?>
+      <span class="search-advanced">or <a href="<?php echo base_url(); ?>adv_search">Advanced Search</a></span> 
+      <?php } ?>
+      </div>
+      <input type="hidden" name="sort_by" id="sort_by" value="" />       
+      </form>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>   	  
+<?php include  APPPATH.'views/inc/footer-dashboard.php';?>
+</body>
+</html>

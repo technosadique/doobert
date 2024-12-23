@@ -1,0 +1,142 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 15-jan-2015
+# File description		: cron controller 
+# Special- notes		: 
+# Tables used			: 
+# Stored procedures		: none 
+# Triggers used			: none
+# --------------------------------------------------------------------------------------
+
+class Doobert_events extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');		
+	}	
+	
+	#=========================================================
+	#	Function : index
+	#	Purpose  : Display Org Feed
+	#=========================================================
+	
+	public function create_ical() {
+		$data = array();
+		$cron_events = array();
+		
+		$data['get_all_org'] = $this->common_model->get_all_organization();
+		
+		$fcreated = '';
+		$ics_contents  = '';	
+		
+		if(!empty($data['get_all_org'])) {
+			foreach($data['get_all_org'] as $row) {
+				
+				$ics_contents  = "BEGIN:VCALENDAR\n";
+				$ics_contents .= "PRODID:-//Google Inc//Google Calendar 70.9054//EN\n";
+				$ics_contents .= "VERSION:2.0\n";
+				$ics_contents .= "CALSCALE:GREGORIAN\n";		
+				$ics_contents .= "METHOD:PUBLISH\n";
+				$ics_contents .= "X-WR-CALNAME:Doobert_events_".date('Ymdhis')."\n";		
+				$ics_contents .= "X-WR-CALDESC:\n";
+				$ics_contents .= "X-WR-TIMEZONE:America/Los_Angeles\n";
+				$ics_contents .= "BEGIN:VTIMEZONE\n";
+				$ics_contents .= "TZID:America/Los_Angeles\n";
+				$ics_contents .= "END:VTIMEZONE\n";
+				
+				$data['all_events']	= $this->common_model->get_all_org_events($row['in_organization_id']);
+				$data['transport_events'] = $this->common_model->get_all_transportation($row['in_organization_id']);
+				$data['event_data'] = array_merge($data['all_events'],$data['transport_events']);
+				//echo "<pre>";print_r($data['event_data']);die;
+				if(!empty($data['event_data'])) {
+					foreach($data['event_data'] as $key=>$events) {
+						  $id            = mt_rand();
+						  $start_date    = date('Y-m-d',strtotime($events['start_date']));
+						  $start_time    = date('H:i:s',strtotime($events['start_date']));
+						  $end_date      = date('Y-m-d',strtotime($events['end_date']));
+						  $end_time      = date('H:i:s',strtotime($events['end_date']));
+						  $description	 = '';
+						  $summary = '';
+						  
+						  # Remove '-' in $start_date and $end_date
+						  $estart_date   = str_replace("-", "", $start_date);
+						  $eend_date     = str_replace("-", "", $end_date);
+						 
+						  # Remove ':' in $start_time and $end_time
+						  $estart_time   = str_replace(":", "", $start_time);
+						  $eend_time     = str_replace(":", "", $end_time);
+						  
+						  if(isset($events['tr_title'])) {
+							  $ics_contents .= "BEGIN:VEVENT\n";		  
+							  $ics_contents .= "DTSTART:".$estart_date."T".$estart_time. "\n";		
+							  $ics_contents .= "DTEND:".$eend_date."T".$eend_time. "\n";
+							  $ics_contents .= "DTSTAMP:" . date('Ymd') . "T". date('his') . "Z\n";		  
+							  $ics_contents .= "UID:"     . $id . "\n";
+							  //$ics_contents .= "CREATED:"     . date('Ymd') . "T". date('His') . "Z\n";
+							  if($events['in_status'] == 1) {
+								$ics_contents .= "DESCRIPTION: "     . $events['location'].", URL: ".base_url().'org-transportation-scheduled/'.$events['tr_title']. "\n";
+							  } else if($events['in_status'] == 2) {
+								$ics_contents .= "DESCRIPTION: "     . $events['location'].", URL: ".base_url().'org-confirm-transport/'.$events['tr_title']. "\n";  
+							  } else {
+								$ics_contents .= "DESCRIPTION: "     . $events['location'].", URL: ".base_url().'org-cancel-transport/'.$events['tr_title']. "\n";
+							  }
+							  //$ics_contents .= "LAST-MODIFIED:"     . date('Ymd') . "T". date('His') . "Z\n";		  
+							  $ics_contents .= "LOCATION:"    . $events['location'] . "\n";
+							  //$ics_contents .= "SEQUENCE:5\n";
+							  $ics_contents .= "SUMMARY:#DBT" . $events['tr_title'] . "\n";
+							  
+							  $ics_contents .= "TRANSP:OPAQUE\n";
+							  $ics_contents .= "END:VEVENT\n";
+							  
+						  } else {
+							  $ics_contents .= "BEGIN:VEVENT\n";		  
+							  $ics_contents .= "DTSTART:".$estart_date."T".$estart_time. "\n";		
+							  $ics_contents .= "DTEND:".$eend_date."T".$eend_time. "\n";
+							  $ics_contents .= "DTSTAMP:" . date('Ymd') . "T". date('his') . "Z\n";		  
+							  $ics_contents .= "UID:"     . $id . "\n";
+							  //$ics_contents .= "CREATED:"     . date('Ymd') . "T". date('His') . "Z\n";
+							  $ics_contents .= "DESCRIPTION:" . $events['description'] . "\n";
+							  //$ics_contents .= "LAST-MODIFIED:"     . date('Ymd') . "T". date('His') . "Z\n";		  
+							  $ics_contents .= "LOCATION:"    . $events['location'] . "\n";
+							  //$ics_contents .= "SEQUENCE:5\n";
+							  $ics_contents .= "SUMMARY:"     . $events['title'] . "\n";
+							  $ics_contents .= "TRANSP:OPAQUE\n";
+							  $ics_contents .= "END:VEVENT\n";
+						}
+					}
+				}
+		  $ics_contents .= "END:VCALENDAR\n";
+			
+			# File to write the contents
+		  $ics_file   = 'ical/doobert_events_'.$row['in_organization_id'].'.ics'; 
+					
+				//if (file_exists ( $ics_file ) &&  is_writable($ics_file)) {
+		  if (!$handle = fopen($ics_file, 'w')) {
+			 $response = "Cannot open file ($ics_file)\n\n";
+			 exit;
+		  }
+		 
+		  # Write $ics_contents to opened file
+		  if (fwrite($handle, $ics_contents) === FALSE) {
+			$response = "Cannot write to file ($ics_file)\n\n";
+			exit;
+		  }
+		 
+		   fclose($handle);
+		   echo "Success, wrote to <b>".$ics_file."</b><br>\n\n";
+			
+		   $fcreated .=  "File Created : <b>".$ics_file."</b><br>\n\n";
+		   echo $fcreated;
+			}
+		}
+	}
+}
+
+/* End of file org_feed.php */
+/* Location: ./application/controllers/org_feed.php */

@@ -1,0 +1,1063 @@
+<?php 
+	$base_url = $this->config->item('base_url');
+	$web_url = $this->config->item('web_url');
+	
+	//require $_SERVER['DOCUMENT_ROOT'].'/fbt/facebook/facebook.php';
+	//require $_SERVER['DOCUMENT_ROOT'].'/fbt/config/fbconfig.php';
+	//$this->load->library('facebook');	
+	require $this->config->item('doc_root').'/fbt/facebook/facebook.php';
+	
+	$facebook = new Facebook(array(
+	  'appId'  => '316015238585967',
+	  'secret' => '439ac5dba5430eaa546d9584f33b01ea',
+	));
+	
+	$make_array_user = array();
+	$check_per_flag = '';
+	$draft			= '';
+	$transport_cancel = '';
+	
+	$org_list = $this->common_model->get_organization_list();
+	$user_verified = $this->common_model->get_user_verified($this->session->userdata('userid'));
+	$user_full_details = $this->common_function->get_user_profile($this->session->userdata('userid'));
+
+	if($user_full_details['in_public']=='0')
+	{
+		$lock_icon = "fa-lock";
+	}
+	elseif($user_full_details['in_public']=='1')
+	{
+		$lock_icon = "fa-unlock";
+	}
+	
+	//My Notification Count
+	if($this->router->class == 'user_settings_and_notification' && $this->router->method == 'my_notifications') {
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYNOTIFICATIONS',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+	}
+
+	$data['created_date_user'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYNOTIFICATIONS');
+	//print_r($data['created_date_user']);die;
+	if(!empty($data['created_date_user'])) {  
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'),$data['created_date_user']['dt_created']);
+		//print_r($pending_notifications_front);die;
+		
+	} else { 
+		$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'));
+	}
+	//echo $pending_notifications_front;die;
+	//End My Notification Count
+	$count_feedback = $this->common_model->get_feedback_count($this->session->userdata('userid'));
+	
+	//My Transportation Count
+	if($this->router->class == 'transportation' && $this->router->method == 'transport_list') {
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYTRANSPORTATION',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+	}
+	
+	$data['created_transport'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYTRANSPORTATION');
+	//print_r($data['created_transport']);die;
+
+	//End My Transportation Count
+	
+	$transport_permission = $this->common_model->verify_transport_permission($this->session->userdata('userid'));
+	
+	if($transport_permission == 'true')
+		$tc_count = $this->common_model->get_tc_volunteer_count($this->session->userdata('userid'));
+	
+	$vol_count = $this->common_model->get_transaction_volunteer_count($this->session->userdata('userid'));
+	
+	//$user_sub_details = $this->common_function->get_user_subscription_detail($this->session->userdata('userid'));
+	//echo 'user_sub_details';print_r($user_sub_details);
+	//echo 'user_sub_details count';
+	//echo count($user_sub_details);
+	
+	$common_profile = $this->common_function->get_user_profile($this->session->userdata('userid'));
+	
+	$invitation_count = $this->common_function->pending_invitation_cnt($this->session->userdata('userid'));	
+	$invitation_name = $this->common_function->pending_invitation_name($this->session->userdata('userid'));	
+		
+	if(!isset($owner_id))
+	{
+		$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	}
+		
+	$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	if(isset($user_permission) && !empty($user_permission)) {
+		$make_array_user = unserialize($user_permission);
+	}
+
+	$web_url = $this->config->item('web_url');	 
+	 	
+	$check_user_arpa = $this->common_model->check_arpa_certifcate_status($this->session->userdata('userid'));	
+	
+?>
+
+<div id="fb-root"></div>
+<script>
+window.fbAsyncInit = function() {
+    FB.init({
+          appId: '<?php echo $facebook->getAppID() ?>',
+          cookie: true,
+          xfbml: true,
+          oauth: true
+        });
+  };
+function fb_login(){
+    FB.login(function(response) {
+        if (response.authResponse) {
+            <?php /*?>access_token = response.authResponse.accessToken; //get access token
+            user_id = response.authResponse.userID; //get FB UID<?php */?>
+			window.location ='<?php echo $base_url?>fbt/login-facebook.php';
+        } else {
+            //user hit cancel button
+            //console.log('User cancelled login or did not fully authorize.');
+
+        }
+    }, {
+        scope: 'email'
+    });
+}
+(function() {
+    var e = document.createElement('script');
+    e.src = document.location.protocol + '//connect.facebook.net/en_US/all.js';
+    e.async = true;
+    document.getElementById('fb-root').appendChild(e);
+}());
+</script>
+
+<div class="header navbar navbar-fixed-top mega-menu no-space"> 
+  <!-- BEGIN TOP NAVIGATION BAR -->
+  <div class="header-inner"> 
+    <!-- BEGIN LOGO --> 
+    <a class="navbar-brand" href="https://www.doobert.com"><img src="<?php echo $base_url  ?>assets/img/logo-doobert.jpg" alt="DOOBERT - animal rescue made simple" title="DOOBERT - animal rescue made simple" class="img-responsive"/> </a> 
+    <!-- END LOGO -->
+    <div class="header-right"> 
+    <!-- BEGIN RESPONSIVE MENU TOGGLER --> 
+      <a id="showLeft" class="navbar-toggle"><img src="<?php echo $base_url  ?>assets/img/black-menu-toggler.png" alt=""></a> 
+      <!-- END RESPONSIVE MENU TOGGLER --> 
+      <!-- BEGIN TOP NAVIGATION MENU -->
+      <ul class="nav navbar-nav pull-right col-xs-offset-1">
+       <li class="home-appsearch"> <span class="hor-menu-search-form-toggler off" href="#search-info-box" data-toggle="modal"><i class="fa fa-search"></i></span></li>
+       <li class="home-invite-user" style="<?php echo ($this->session->userdata('userid'))?'':'display:none'; ?>" ><a href="<?php echo $base_url; ?>doobert_non_member/"><i class="fa fa-user-plus"></i></a></li>
+       <li class="last" style="<?php echo ($this->session->userdata('userid'))?'':'display:none'; ?>" ><a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="red-circle"><?php echo $pending_notifications_front['count'] + $invitation_count; ?>  </span><i class="fa fa-bell-o"></i></a>
+       <ul class="dropdown-menu notification-menu">
+            <li class="notification-heading">You have <?php echo $invitation_count;?> Pending Invitations</li>
+			<?php if(isset($invitation_count) && $invitation_count > 0)	{ ?>
+			<?php  foreach($invitation_name as $key => $value) { ?>
+			<li class="pending-invet"><i class="fa fa fa-briefcase"></i><?php echo $value['st_org_name']; ?></li>			
+            <?php } }?>
+            <li class="view-all"><a href="<?php echo $base_url.'pending_invitation'; ?>">View All<i class="fa fa-angle-right"></i></a></li>
+            <li class="other-notification-heading">You have <?php echo $pending_notifications_front['count']; ?> other notifications</li>
+			<?php if((count($pending_notifications_front['notification_msg'])>0) AND is_array($pending_notifications_front['notification_msg'])) { ?>
+			<?php foreach($pending_notifications_front['notification_msg'] as $key => $value) { ?>	
+			<li class="pending-notification"><span><?php echo $value;   ?> <?php //echo "<pre>"; print_r($value); echo "</pre>"; ?></span></li>
+			<?php }} ?>
+            <li class="view-all"><a href="<?php echo $base_url; ?>notification/">View All<i class="fa fa-angle-right"></i></a></li>
+          </ul>
+       </li>
+        <!-- BEGIN USER LOGIN DROPDOWN -->
+		<?php 	$picture = $common_profile['st_profile_image'];
+				$profile_image = '';
+				if(trim($picture) != '' && file_exists($this->config->item('upload').'profile/140x140/'.$picture)) 
+				{
+					$profile_image = $picture;
+					$user_profile_src = $this->config->item('upload_url').'profile/140x140/'.$profile_image; 
+				} else {
+					$profile_image = 'no_photo_icon.png';
+					$user_profile_src = $this->config->item('upload_url').'profile/140x140/'.$profile_image; 
+				}	
+		?>
+        <li class="dropdown user" style="<?php echo ($display_menu == 1 && $this->session->userdata('userid') )?'':'display:none'; ?>" > <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"> <span class="upload-img-info"><img alt="" src="<?php echo $user_profile_src; ?>"/></span> <span class="username"> My Account</span> <i class="fa fa-angle-down"></i> </a>
+          <ul class="dropdown-menu">
+			<?php if($common_profile['st_facebook_uid']=='') { ?>
+			<li class="facebook-ac"><a  href="javascript:void(0);" onclick="javascript:fb_login();" ><i class="fa fa-facebook-square"></i> <span class="title">Link Facebook account</span></a></li>
+			<?php }else{ ?>			
+			<li class="facebook-ac"><a href="javascript:void(0);" onclick="$('#unlink_fb').modal('show')"><i class="fa fa-facebook-square"></i> <span class="title">Un-Link Facebook Account</span></a></li>
+			<?php } ?>		 
+           
+			<?php if(empty($user_verified)) { ?>
+            <li class="get-profile-verified"><a href="<?php echo $base_url; ?>verification/verify/"><i class="fa fa-thumbs-up"></i> Get Your Profile Verified</a>
+			<span><a class="default info-popuptext" data-toggle="modal" href="#infoprofilepopup"> <i class="fa fa-info-circle info"></i> </a></span>
+			</li>
+			<?php } else { ?>
+			<li class="get-profile-verified"><a href="<?php echo $base_url; ?>user/verify_status/"><i class="fa fa-check-square-o"></i>Verified Profile</a></li>
+			<?php } ?>
+			<?php if(!empty($check_user_arpa['st_arpa_cert']) && $check_user_arpa['st_arpa_cert'] =='Y') { ?>
+            <li class="get-profile-certified"><a href="<?php  echo $base_url; ?>user/verified_arpa/"><i class="fa fa-check-square-o"></i> ARPA certified</a></li>
+			<?php } else { ?>
+			<li class="get-profile-certified"><a target='_blank' href="http://www.animalrescueprofessionals.org/certified-rescue-transporter-exam/"><i class="fa fa-thumbs-up"></i> Get ARPA certified</a>
+			<span><a class="default info-popuptext" data-toggle="modal" href="#infoarpapopup"> <i class="fa fa-info-circle info"></i> </a></span>
+			</li>
+			<?php } ?>            
+			
+	<li class="profile-change" style="position:relative;">
+    
+      	<form  method="post" enctype="multipart/form-data" action="<?php echo $base_url.'user/update_user_profile_pic'; ?>" name="user_photo_frm" id="user_photo_frm">
+			<label  class="fileContainer" for="user_profile_photo"><i class="fa fa-file-picture-o"></i> Change Profile Picture <!--<input type="file" name="user_profile_photo" id="user_profile_photo" class="changeAvt-pic">-->
+            <input type="file" name="user_photo1" id="user_photo1" onChange="profile_readURL(this)">
+            </label>  
+         	<input type="hidden" id="rotate_angle1" name="rotate_angle1" value="0"/>
+    	    <input type="hidden" id="crop_x1" name="x1"/>
+		    <input type="hidden" id="crop_y1" name="y1"/>
+		    <input type="hidden" id="crop_w1" name="w1"/>
+		    <input type="hidden" id="crop_h1" name="h1"/>          
+            <input type="hidden" id="user_uploaded_photo1" name="user_uploaded_photo1" value="" />
+            <input type="hidden" id="crop_upload_path" name="crop_upload_path" value="<?php echo $base_url; ?>user/user_profile_pic_upload" />
+        </form>
+           
+    </li>
+            <li style="display:none;"><a href="my-profile.php"><i class="fa fa-user"></i> My Profile</a></li>
+            <li><a href="<?php echo $base_url; ?>profile-privacy-setting/"><span class="text"> <i class="fa fa-cogs"></i> Profile Privacy Settings </span></a></li>
+            
+			 <?php if(!empty($org_list)){  ?>
+			<?php if($this->session->userdata('login_direct_status')== 0 ){  ?>
+			<li><a class="underline" title="Turning this on will log you directly into your organization when you login to Doobert.  You can always get back to your volunteer profile by clicking My Profile" 
+						data-toggle="tooltip" href="javascript:void(0);" onclick="update_login_status_direct('<?php echo $base_url;?>user/update_login_direct_status','<?php echo $base_url."org-dashboard/".$org_list[0]['in_organization_id']."/"; ?>',1)" ><i class="fa fa-briefcase"></i><span class="title">Login Directly to Org</span></a></li>
+			<?php } else { ?>
+			<li><a class="underline" title="Turning this off will log you directly into your dashboard when you login to Doobert." 
+						data-toggle="tooltip" href="javascript:void(0);" onclick="update_login_status_direct('<?php echo $base_url;?>user/update_login_direct_status','<?php echo $base_url."dashboard/"; ?>',0)" ><i class="fa fa-briefcase"></i><span class="title">Turn off Direct Login</span></a></li>
+			<?php } }  ?>
+			
+            <li class="manage-email-list"><a href="<?php  echo $base_url; ?>notification-overview/"><i class="fa fa-envelope-o"></i> Manage My E-mails &amp;<br /><span class="marl28">Notifications <span class="badge badge-danger"> <?php echo $pending_notifications_front['count']; ?> </span></span></a>            	
+            </li>
+            <li><a href="<?php echo $base_url; ?>account-setting/"><i class="fa fa-gear"></i> Account Settings</a></li>
+            <li class="feedback-list dropdown-submenu" style="<?php echo ((($vol_count['count']) >0) || (isset($tc_count['count']) && ($tc_count['count'] >0))) ? '':'display:none'; ?>" ><a href="#"><i class="fa fa-comment"></i> Feedback Rating</a>
+            <ul class="dropdown-menu">
+                	<li><a style="<?php echo (($vol_count['count']) >0) ? '':'display:none'; ?>" href="<?php echo $base_url.'feedback/feedback_transactions/'.$this->session->userdata('userid').'/vol/';?>">Volunteer Rating - 
+					  <?php if(isset($vol_count['average_rating']) && $vol_count['average_rating'] > 0 ) { ?>
+					 <?php for($i=0; $i<$vol_count['average_rating']; $i++){ ?>
+					       <i class="fa fa-paw orange"></i>
+					 <?php } for($j=0;$j<5-$vol_count['average_rating'];$j++) { ?>
+					      <i class="fa fa-paw"></i>
+					 <?php } } ?>
+					</a></li>
+                    <li><a style="<?php echo (isset($tc_count['count']) && ($tc_count['count'] >0)) ? '':'display:none'; ?>" href="<?php echo $base_url.'feedback/feedback_transactions/'.$this->session->userdata('userid').'/tc/';?>">TC Rating - 
+					 <?php if(isset($tc_count['average_rating']) && $tc_count['average_rating'] > 0 ) { ?>
+					 <?php for($i=0; $i<$tc_count['average_rating']; $i++){ ?>
+					       <i class="fa fa-paw orange"></i>
+					 <?php } for($j=0;$j<5-$tc_count['average_rating'];$j++) { ?>
+					      <i class="fa fa-paw"></i>
+					 <?php } } ?>					
+					</a></li>
+                </ul>
+            </li>          
+            <li><a href="<?php echo $base_url ?>user/logout/"><i class="fa fa-sign-out"></i> Logout</a></li>
+          </ul>
+	</li>
+	<?php 		$picture = $this->common_function->get_picture($this->session->userdata('org_id'));
+				$profile_image = '';
+				if(trim($picture) != '' && file_exists($this->config->item('upload').'org_doc/thumb/'.$picture)) 
+				{
+					$profile_image = $picture;
+					$org_profile_src = $this->config->item('upload_url').'org_doc/thumb/'.$profile_image; 
+				} else {
+					$profile_image = 'temp-logo.jpg';
+					$org_profile_src = $this->config->item('upload_url').'org_doc/thumb/'.$profile_image; 
+				}	
+	?>
+  <li class="dropdown user" style="<?php echo (($display_menu == 2 || $display_menu == 3) && $this->session->userdata('userid'))?'':'display:none';?>"> <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"> <span class="upload-img-info"><img alt="" src="<?php echo $org_profile_src; ?>"/></span> <span class="username"> Org Account</span> <i class="fa fa-angle-down"></i> </a>	
+          <ul class="dropdown-menu org-my-account"  >
+            
+			  <li class="profile-change" style="position:relative;">
+				<?php if($owner_id == $this->session->userdata('userid')) { ?>
+				<form  method="post" enctype="multipart/form-data" action="<?php echo $base_url.'org_dashboard/update_org_profile_pic'; ?>" name="org_photo_frm" id="org_photo_frm">
+					<label class="fileContainer" for="org_photo_1"><i class="fa fa-file-picture-o"></i><span class="picture-text">Change Org Profile Picture</span>
+					<input type="file" name="org_photo_1" id="org_photo_1" onChange="profile_readURL(this)">
+					</label>
+					<input type="hidden" id="org_rotate_angle1" name="org_rotate_angle1" value="0"/>
+					<input type="hidden" id="org_crop_x1" name="org_x1"/>
+					<input type="hidden" id="org_crop_y1" name="org_y1"/>
+					<input type="hidden" id="org_crop_w1" name="org_w1"/>
+					<input type="hidden" id="org_crop_h1" name="org_h1"/>
+					<input type="hidden" id="org_uploaded_photo1" name="org_uploaded_photo1" value="" />
+					<input type="hidden" id="org_crop_upload_path" name="org_crop_upload_path" value="<?php echo $base_url; ?>org_dashboard/org_profile_pic_upload" />
+				</form>
+				<?php } ?>       
+			</li>
+			
+            <li><a href="<?php echo $base_url ?>user/logout/"><i class="fa fa-sign-out"></i> Logout</a></li>
+          </ul>
+       </li>
+        <!-- END USER LOGIN DROPDOWN -->
+      </ul>
+      <!-- END TOP NAVIGATION MENU --> 
+    
+      <!-- BEGIN HORIZANTAL MENU -->
+      <div class="hor-menu hidden-sm hidden-xs col-xs-offset-1 menu-right">
+        <ul class="nav navbar-nav">
+          <li class="classic-menu-dropdown" style="display:none;"><a data-toggle="dropdown" data-hover="dropdown" data-close-others="true" href="meet-the-roys.php"><span class="text">About Us </span> <i class="fa fa-angle-down"></i> </a>
+            <ul class="dropdown-menu">
+              <li><a href="meet-the-roys.php">Meet the Roys</a></li>
+              <li><a href="pets-donation-profiles.php">What is a Doobert</a></li>
+            </ul>
+         </li>
+          <li class="classic-menu-dropdown" style="display:none;"> <a data-toggle="dropdown" data-hover="dropdown" data-close-others="true" href="pets-pledge-profiles.php"><span class="text">Browse </span> <i class="fa fa-angle-down"></i> </a>
+            <ul class="dropdown-menu">
+              <li><a href="pets-pledge-profiles.php">Pets Pledge Profiles</a></li>
+              <li><a href="pets-donation-profiles.php">Pets Donation Profiles</a></li>
+              <li><a href="organization-profiles.php">Organization Profiles</a></li>
+            </ul>
+         </li>
+          <li class="classic-menu-dropdown" style="display:none;"><a href="product-store.php">Product Store <span class="selected"> </span></a></li>
+          <li class="classic-menu-dropdown" style="display:none;"><a href="success-stories.php">Success Stories <span class="selected"> </span></a></li>
+          <li class="classic-menu-dropdown" style="display:none;"><a href="blog.php">Blog <span class="selected"> </span></a></li>
+          <li class="classic-menu-dropdown" style="display:none;"><a href="contact-us.php">Contact Us <span class="selected"> </span></a></li>
+        </ul>
+      </div>
+      <!-- END HORIZANTAL MENU --> 
+    </div>
+    <div class="user-profile-header">
+    
+    	 <div class="manage-profile-box" style="display:none;">
+         <div class="profile-arrow"><span></span></div>
+         <div class="content">Here you can manage your all profiles</div></div>
+         
+    	<ul class="profile-nav" style="<?php echo ($display_menu == 1 &&  $this->session->userdata('userid'))?'':'display:none'; ?>">
+        <li class="my-dashboard"> <a href="<?php echo $base_url.'dashboard/' ?>"><span class="dashboard-icon profile-icons" title="My Dashboard"><i class="fa fa-home"></i></span><br /><span class="top-nav-name">My <br />Dashboard</span></a></li>
+        	<li class="user-profile"> <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="user-profile-icon profile-icons" title="My Doobert Profiles"><i class="fa fa-user"></i></span><br /><span class="top-nav-name">My Doobert <span class="down-text">Profiles <i class="fa fa-angle-down"></i></span></span></a>
+            <ul class="dropdown-menu profile-dd">
+			<li class="dd-general-profile"><a href="<?php echo $base_url ?>my-profile/"><i class="fa fa-user"></i> General Profile</a></li>
+            <li class="dd-transport"><a href="<?php echo $base_url ?>transport-profile/">Transporter Profile</a></li>
+            <li class="dd-foster-home"><a href="<?php echo $base_url ?>foster-home/">Foster Home Profile </a></li>
+            <li class="dd-photographer"><a href="<?php echo $base_url ?>photographer-profile/">Photographer Profile</a></li>
+            <li class="dd-lostanimal"><a href="<?php echo $base_url ?>lost-animal-support/">Lost Animal Support Profile</a></li>
+            <li class="dd-inperson"><a href="<?php echo $base_url ?>person-volunteer/">In Person Volunteer Profile</a></li>
+            <li class="dd-virtual"><a href="<?php echo $base_url ?>virtual-support-volunteer/">Virtual Volunteer Profile</a></li>
+          </ul>
+            </li>
+            <li class="transport-req"><a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="transport-req-icon profile-icons" title="My Transport Requests"><i class="fa fa-road"></i></span><br /><span class="top-nav-name">My Transport <span class="down-text">Requests <i class="fa fa-angle-down"></i></span></span></a>
+            <ul class="dropdown-menu my-transport-dd">
+            <span>
+            <li class="red-fa"><a href="<?php echo $base_url ?>my-transportation/"><i class="fa fa-road"></i>My Transport Requests</a></li>
+            <li class="dd-upcoming-trips dropdown-submenu"><a href="#"><i class="fa fa-clone "></i>Manage My Upcoming Trips</a>
+            <ul class="dropdown-menu">
+			<li class="dd-general-profile"><a href="<?php echo $base_url ?>upcoming-trips/"><i class="fa fa-calendar"></i> Upcoming Trips</a></li>
+            <li class="dd-transport"><a href="<?php echo $base_url ?>past-trips/"><i class="fa fa-calendar-times-o"></i> Past Trips</a></li>
+            </ul>
+            </li>
+            <li class="dd-completed-transport"><a href="<?php echo $base_url ?>my-other-transportation/"><i class="fa fa-check"></i>My Completed/Cancelled Transports</a></li></span>
+            <li class="dd-charitable-tracking"><a href="<?php echo $base_url ?>my-transportation-history-subscription/"><i class="fa fa-file-text-o"></i>My Charitable Tracking</a></li>
+			 <li class="open-legs-listing"><a href="<?php echo $base_url ?>open_leg/"><i class="fa fa-check"></i>Open Legs</a></li></span>
+          </ul>
+            </li>
+				
+            <li class="feedback-rating-dd"><a href="<?php echo $base_url ?>feedback/feedback_rating/" onclick="clickMe(this);" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="feedback-rating-icon profile-icons" title="Feedback Rating"><i class="fa fa-comments"></i></span><span style='<?php echo ($count_feedback >0 && $display_menu == 1 &&  $this->session->userdata('userid'))?'':'display:none';?>' class="feedback-point"><?php echo $count_feedback; ?></span><br /><span class="top-nav-name">Feedback <span class="down-text">Rating <i class="fa fa-angle-down"></i></span></span></a>
+            <ul class="dropdown-menu my-transport-dd">
+            <li class="pending-feedback" style='<?php echo ($count_feedback >0 && $display_menu == 1 &&  $this->session->userdata('userid'))?'':'display:none';?>'><a href="<?php echo $base_url ?>feedback/provide_feedback/"><i class="fa fa-comment"></i>Feedback I Need to Provide <span class="feedback-provide-point"><?php echo $count_feedback; ?></span></a></li>
+            <li style='<?php echo ($transport_permission == 'true' && $display_menu == 1 &&  $this->session->userdata('userid'))?'':'display:none';?>'><a href="<?php echo $base_url ?>feedback/feedback_transport_coordinator/"><i class="fa fa-comment"></i>Feedback Received as TC</a>
+            <li><a href="<?php echo $base_url ?>feedback/feedback_volunteer/"><i class="fa fa-comment"></i>Feedback Received as Volunteer</a>
+            <li><a href="<?php echo $base_url ?>feedback/feedback_left_for_others/"><i class="fa fa-comment"></i>Feedback Left for Others</a>
+           </ul>
+            </li>
+			
+			
+			  <li class="get-org"><a href="<?php echo $base_url; ?>rescue-organization/"   data-close-others="true"><span class="get-org-icon profile-icons" title="Get Your Organization on Doobert"><i class="fa fa-briefcase"></i></span><br /><span class="top-nav-name">Get Your Organization <span class="down-text">on Doobert</span></span></a>
+			  </li>
+			  <?php if(!empty($org_list)) { ?>
+            <li class="get-org connected-org"><a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="get-org-icon profile-icons" title="My Connected Organizations"><i class="fa fa-briefcase"></i></span><br /><span class="top-nav-name">My Connected  <span class="down-text">Organizations <i class="fa fa-angle-down"></i></span></span></a>
+            <ul class="dropdown-menu get-org-dd">
+			<?php for($i=0;$i<count($org_list);$i++) { ?> 
+            <li class="dd-org"><a href="<?php echo $base_url."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><i class="fa fa-briefcase"></i><span><?php echo $org_list[$i]['st_org_name']; ?></span></a></li>
+			<?php } ?>
+          </ul>
+          </li>
+		  <?php } ?>
+        </ul>
+        <ul style="<?php echo ($display_menu == 2 && $this->session->userdata('userid'))?'':'display:none'; ?>" >
+        	<li class="org-dashboard-info"> <a href="<?php echo $base_url.'org-dashboard/'.$this->session->userdata('org_id') ?>"><span class="org-dashboard-icon profile-icons" title="Org Dashboard"><i class="fa fa-home"></i></span><br /><span class="top-nav-name">Org Dashboard</span></a></li>
+        	<li class="animal-profile-dd"> <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="animals-profile-icon profile-icons" title="Animals"><i class="fa fa-paw"></i></span><br /><span class="top-nav-name">Animals <i class="fa fa-angle-down"></i></span></a>
+            <ul class="dropdown-menu animal-dd-nav">
+			   <?php
+			if($owner_id != $this->session->userdata('userid')) {
+				if(isset($make_array_user['profile_manager']) && in_array('pr_manager_cr',$make_array_user['profile_manager']) == true) {
+					$check_per_flag = '1';
+				} else {
+					$check_per_flag = '0';
+				}
+			}
+			?>
+			<li><a href="<?php echo $base_url; ?>org_animal/animals_in_my_organization" class="animals-ddm-animal"><i class="fa fa-paw"></i>Animals in Organization</a></li>
+			<?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+			<li><a href="<?php echo $base_url; ?>org-animal/manage-animal-transfer" class="animals-ddm-transfer"><i class="fa fa-check-square-o"></i>Manage Animal Transfer</a></li>
+			<li><a href="<?php echo $base_url; ?>org-animal/" class="animals-ddm-newanimal"><i class="fa fa-edit"></i>Add New Animal Profile</a></li>
+			<li><a href="javascript:void(0);" onClick="$('#upload_animal_profile').modal('show');" class="animals-ddm-upload"><i class="fa fa-upload"></i>Upload Animal Profiles</a></li>
+			<?php } ?>
+			<?php	if($owner_id != $this->session->userdata('userid')) {
+						if((isset($make_array_user['profile_manager']) && in_array('pr_manager_cnf',$make_array_user['profile_manager']) == true) || isset($make_array_user['view_only'])) {
+							$check_per_flag = '1';
+						} else {
+							$check_per_flag = '0';
+						}
+					}
+			?>
+			 <?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+			<li><a href="<?php echo $base_url; ?>org_animal/animal_transefer_request" class="animals-ddm-animal-req"><i class="fa fa-external-link-square fa-rotate-180"></i>Animal Transfer Request</a></li>
+			<?php } ?>
+			</ul>
+            </li>
+			  <?php 
+				if($owner_id != $this->session->userdata('userid')) { 
+					if((isset($make_array_user['fundraiser']) && in_array('fundraiser_cr',$make_array_user['fundraiser']) == true) || isset($make_array_user['view_only'])) {
+					$check_per_flag = '1';
+					} else {
+						$check_per_flag = '0';
+					}
+			}
+			?>
+			<?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+            <li class="fundraiser-profile"><a href="<?php echo $base_url; ?>sponsorship/sponsorship_list/" class="dropdown-toggle"  data-close-others="true"><span class="fundraiser-icon profile-icons" title="Fundraisers"><i class="fa fa-dollar"></i></span><br /><span class="top-nav-name">Fundraisers</span></a></li>
+			<?php } ?>
+            <li class="transport-req"><a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="transport-req-icon profile-icons" title="Transportations"><i class="fa fa-road"></i></span><br /><span class="top-nav-name">Transportations <i class="fa fa-angle-down"></i></span>
+			 <?php
+				if($owner_id != $this->session->userdata('userid')) {
+					if(isset($make_array_user['transport']) && in_array('transport_ed',$make_array_user['transport']) == true || isset($make_array_user['transport']) && in_array('transport_cr',$make_array_user['transport']) == true) {
+						$draft = '1';
+					} else {
+						$draft = '0';
+					}
+				}
+						if($draft == '' ||  $draft == '1') {
+							//if($tab == 3) {
+								echo (isset($total_pending_transport) && $total_pending_transport !=0)?'<span id="draft_tranport_bub1" class="badge_light">'.$total_pending_transport.'</span>':''; 
+							//} else {
+								echo (isset($total_pending_transport) && $total_pending_transport !=0)?'<span id="draft_tranport_bub2" class="badge">'.$total_pending_transport.'</span>':''; 
+							//}
+						}
+			?>
+			</a>
+            <ul class="dropdown-menu transport-dd">
+            <span>
+            <li class="red-fa"><a href="<?php echo $base_url.'organization-transportation/'; ?>"><i class="fa fa-road"></i>Org Active Transports</a></li>
+            <li class="dd-completed-transport"><a href="<?php echo $base_url.'organization-other-transportation/'; ?>"><i class="fa fa-check"></i>Org Completed/Cancelled Transports</a></li></span>
+			 <?php
+			if($owner_id != $this->session->userdata('userid')) {
+				if(isset($make_array_user['transport']) && in_array('transport_cr',$make_array_user['transport']) == true) {
+					$check_per_flag = '1';
+				} else {
+					$check_per_flag = '0';
+				}
+				if(isset($make_array_user['transport']) && in_array('transport_ed',$make_array_user['transport']) == true || isset($make_array_user['transport']) && in_array('transport_cr',$make_array_user['transport']) == true) {
+					$draft = '1';
+				} else {
+					$draft = '0';
+				}
+				if(isset($make_array_user['transport']) && in_array('transport_del',$make_array_user['transport']) == true || isset($make_array_user['transport']) && in_array('transport_del',$make_array_user['transport']) == true) {
+					$transport_cancel = '1';
+				} else {
+					$transport_cancel = '0';
+				}
+			}
+		?>
+		 <?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+            <li class="dd-manage-trips"><a href="<?php echo $base_url; ?>org-add-transport/"><i class="fa fa-edit"></i>Add New Transportation</a></li>
+			<li class="dd-manage-trips"><a href="<?php echo $base_url; ?>org_transportation/transport_email_template/"><i class="fa fa-envelope"></i>Add Transport via Email</a></li>
+		 <?php } ?>
+		 <?php if($draft == '' ||  $draft == '1') { ?>
+            <li class="dd-trans-trips"><a href="<?php echo $base_url; ?>org_transportation/draft_transport/"><i class="fa fa-file-text-o"></i>Draft Transportations <?php echo (isset($total_pending_transport) && $total_pending_transport!='0')?'<span class="badge">'.$total_pending_transport.'</span>':''; ?></a></li>
+		<?php } ?>
+		<?php if($check_per_flag == '' || $check_per_flag == '1') { ?>	
+            <li class="dd-charitable-tracking"><a href="<?php echo $base_url; ?>org_transportation/pre_planned_transport/"><i class="fa fa-clone"></i>Pre-Planned Routes to Copy From</a></li>
+			<?php } ?>
+			 <li class="dd-charitable-tracking"><a href="<?php echo $base_url; ?>search-user-trips/"><i class="fa fa-user-plus"></i>Find space on volunteer drives & flights (My Trips)</a></li>
+          </ul>
+            </li>
+            <li class="find-part-org"><a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="part-org-icon profile-icons" title="Rescue Connection"></span><br /><span class="top-nav-name">Rescue <span class="rescue-right-text">Connection <i class="fa fa-angle-down"></i></span></span></a>
+            <ul class="dropdown-menu manage-org-dd">
+            <li class="get-org-find-org"><a href="<?php echo $base_url; ?>find-partner-organization"><i class="fa fa-search"></i>Find Partner Organizations</a></li>
+            <li class="dropdown-submenu"><a href="javascript:void(0);"><i class="fa fa-street-view"></i>Search for Volunteers</a>
+            	<ul class="dropdown-menu org-user-menu">
+                <li class="dd-foster-volunteer"><a href="<?php echo $base_url.'foster-home-volunteer-search/'; ?>">Foster Home Volunteer</a></li>
+                <li class="dd-photographer-volunteer"><a href="<?php echo $base_url.'photographer-volunteer-search/'; ?>">Photographer Volunteer</a></li>
+                <li class="dd-inperson-volunteer"><a href="<?php echo $base_url.'inperson-volunteer-search'; ?>">In-Person Volunteer</a></li>
+				<li class="dd-virtual-volunteer"><a href="<?php echo $base_url.'virtual-volunteer-search'; ?>">Virtual Volunteer</a></li>
+                <li class="dd-lostanimal-volunteer"><a href="<?php echo $base_url.'lost-animal-volunteer-search'; ?>">Lost Animal Volunteer</a></li>
+                </ul>
+            </li>
+          </ul>
+            </li>
+            <li class="get-org org-mang"><a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true"><span class="get-org-icon profile-icons" title="Org Management"><i class="fa fa-briefcase"></i></span><br /><span class="top-nav-name">Org Management <i class="fa fa-angle-down"></i></span></a>
+            <ul class="dropdown-menu manage-org-dd">
+            <!--<li class="get-org-search-volunteer"><a href="<?php echo $base_url; ?>foster-home-volunteer-search"><i class="fa fa-street-view"></i>Search for Volunteers</a></li>-->
+			<?php	if($owner_id == $this->session->userdata('userid')){ ?>
+			<li class="dropdown-submenu"><a href="javascript:void(0);"><i class="fa fa-user"></i>Organization Users</a>
+            	<ul class="dropdown-menu org-user-menu">
+                <li><a href="<?php echo $base_url.'org_info/'; ?>"><i class="fa fa-exclamation-triangle"></i>Pending users</a></li>
+                <li><a href="<?php echo $base_url.'org_info/approved_users'; ?>"><i class="fa fa-check-square-o"></i>Approved users</a></li>
+                <li><a href="<?php echo $base_url.'org_info/blocked_users'; ?>"><i class="fa fa-ban"></i>Blocked users</a></li>
+                </ul>
+            </li>
+            <li class="invite-user-nav"><a href="<?php echo $base_url.'org_info/invite_user'; ?>"><i class="fa fa-odnoklassniki"></i>Invite/Block a User</a></li>
+			<?php } ?>
+            <li class="org-donation-nav"><a href="<?php echo $base_url.'org_info/organization_donation'; ?>"><i class="fa fa-heart"></i>Organization Donation</a></li>
+			<li><a href="<?php echo  $base_url; ?>org_feed/" class="org-feed"> <i class="fa fa-list"></i>Organization Feed</a></li>
+			<?php if($owner_id == $this->session->userdata('userid')) { ?>
+			<li><a href="<?php echo $base_url; ?>organization-privacy-setting/"><span class="text"> <i class="fa fa-cogs"></i> Org Profile Privacy Settings </span></a></li>
+			<?php } ?>
+            <li><a href="<?php echo $base_url; ?>organization-profile/"><i class="fa fa-briefcase"></i> Manage Org Profile</a></li>
+          </ul>
+          </li>
+        </ul>
+    </div>
+  </div>
+  <!-- END TOP NAVIGATION BAR --> 
+</div>
+
+<div class="clear"></div>
+<div class="row no-margin top-animal-bar" style=<?php echo ($display_menu == 2 && $this->session->userdata('userid'))?'':'display:none'; ?>>
+    <div class="top-animal-rescue-bar">
+    <a href="<?php echo $base_url."my-profile/"; ?>"><i class="fa fa-arrow-left"></i>Back to My Profile</a>
+   <?php /*?> <span>Animal Rescue Association</span><?php */?>
+    <div class="btn-group org-switch-dd">
+    	<a class="btn switch-org-btn" href="javascript:;" data-toggle="dropdown" aria-expanded="true">Switch to Organization <i class="fa fa-caret-down"></i></a> 
+			<ul class="dropdown-menu">
+			<?php //$org_list = $this->common_model->get_organization_list();
+					if(!empty($org_list)) {
+					for($i=0;$i<count($org_list);$i++) { 			
+			?>
+            	<li><a href="<?php echo $base_url."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><i class="fa fa-briefcase"></i> <?php echo $org_list[$i]['st_org_name']; ?> </a></li>
+					  <?php  } } ?> 
+            </ul>
+     </div>
+    </div>
+  </div>
+
+<nav class="page-sidebar cbp-spmenu cbp-spmenu-vertical cbp-spmenu-left" id="cbp-spmenu-s1">
+			
+  <ul class="page-sidebar-menu hidden-sm hidden-xs" data-auto-scroll="true" data-slide-speed="200">
+  <li><a href="javascript:;">My Doobert Profiles</a>
+  	<ul class="sub-menu">
+    	<li><a href="">Transporter Profile</a></li>
+        <li><a href="">Foster Home Profile</a></li>
+        <li><a href="">Photographer Profile</a></li>
+        <li><a href="">In Person Volunteer Profile</a></li>
+        <li><a href="">Virtual Volunteer Profile</a></li>
+    </ul>
+  </li>
+  <li><a href="">My Transport Requests</a>
+  	<ul class="sub-menu">
+    	<li><a href="">My Transport Requests</a></li>
+        <li><a href="">My Completed/Cancelled Transports</a></li>
+        <li><a href="">Manage My Upcoming Trips</a></li>
+        <li><a href="">My Charitable Tracking</a><?php /*?><span>* premium feature</span><?php */?></li>
+    </ul>
+  </li>
+  <li><a href="">My Connected Organizations</a>
+  	<ul class="sub-menu">
+    	<li><a href="">Flying Dog Rescue</a></li>
+        <li><a href="">Animal Rescue Association</a></li>
+        <li><a href="">Dog Transport Organization</a></li>
+    </ul>
+  </li>
+  </ul>
+  <!--HORIZONTAL AND SIDEBAR MENU FOR MOBILE & TABLETS-->
+  <ul class="page-sidebar-menu visible-sm visible-xs"  data-auto-scroll="true" data-slide-speed="200">
+  <li><a href="<?php echo $base_url.'dashboard/' ?>" class="my-dashboard-view">My Dashboard</a></li>
+  <li style="<?php echo ($display_menu == 1)?'':'display:none'; ?>;"><a href="javascript:void(0);" class="my-dp">My Doobert Profiles<span class="arrow "> </span></a>
+  	<ul class="sub-menu">
+		<li class="gen-profile"><a href="<?php echo $base_url ?>my-profile/" class="my-dp-general"><i class="fa fa-user"></i>General Profile</a></li>
+    	<li><a href="<?php echo $base_url ?>transport-profile/" class="my-dp-transporter">Transporter Profile</a></li>
+        <li><a href="<?php echo $base_url ?>foster-home/" class="my-dp-fosterhome">Foster Home Profile</a></li>
+        <li><a href="<?php echo $base_url ?>photographer-profile/" class="my-dp-photographer">Photographer Profile</a></li>
+        <li><a href="<?php echo $base_url ?>lost-animal-support/"  class="my-dp-lostanimal">Lost Animal Support Profile</a></li>
+        <li><a href="<?php echo $base_url ?>person-volunteer/" class="my-dp-inperson">In Person Volunteer Profile</a></li>
+        <li><a href="<?php echo $base_url ?>virtual-support-volunteer/" class="my-dp-virtual">Virtual Volunteer Profile</a></li>
+    </ul>
+  </li>
+  <li style="<?php echo ($display_menu == 1)?'':'display:none'; ?>;"><a href="javascript:void(0);" class="my-tr"><span class="mobile-menu-cont">My Transport Requests</span><span class="arrow "> </span></a>
+  	<ul class="sub-menu inner-menu">
+    	<li class="red-fa"><a href="<?php echo $base_url ?>my-transportation/"><i class="fa fa-road"></i><span>My Transport Requests</span></a></li>
+        <li class="red-fa dropdown-submenu"><a href="#"><i class="fa fa-clone "></i><span>Manage My Upcoming Trips</span></a>
+        	<ul class="sub-menu">
+            <li><a href="<?php echo $base_url ?>upcoming-trips/" class="trip-upcoming">Upcoming Trips</a></li>
+            <li><a href="<?php echo $base_url ?>past-trips/" class="trip-past">Past Trips</a></li>
+            </ul>
+        </li>
+        <li class="red-fa"><a href="<?php echo $base_url ?>my-other-transportation/"><i class="fa fa-check"></i><span>My Completed/Cancelled Transports</span></a></li>
+        <li class="green-fa"><a href="<?php echo $base_url ?>my-transportation-history-subscription/"><i class="fa fa-file-text-o"></i><span>My Charitable Tracking</span><?php /*?><span class="premium">* premium feature</span><?php */?></a></li>
+        <li class="green-fa"><a href="<?php echo $base_url ?>open_leg/"><i class="fa fa-check"></i><span>Open Legs</span></a></li>
+    </ul>
+  </li>
+  
+    <li style="<?php echo ($display_menu == 1)?'':'display:none'; ?>;" ><a href="<?php echo $base_url ?>feedback/feedback_rating/" class="feedbk-rate">Feedback Rating<span class="arrow "><span style="" class="feedback-point"><?php echo $count_feedback; ?></span></span></a>
+  	<ul class="sub-menu inner-menu">
+		<li class="green-fa"><a href="<?php echo $base_url ?>feedback/feedback_rating/"><i class="fa fa-comment"></i><span>All Received Feedback & Rating</span></a></li> 
+    	<li style='<?php echo ($count_feedback >0 && $display_menu == 1 &&  $this->session->userdata('userid'))?'':'display:none';?>' class="green-fa"><a href="<?php echo $base_url ?>feedback/provide_feedback/"><i class="fa fa-comment"></i><span>Feedback I Need to Provide</span></a></li>
+        <li style='<?php echo ($transport_permission == 'true' && $display_menu == 1 &&  $this->session->userdata('userid'))?'':'display:none';?>' class="green-fa"><a href="<?php echo $base_url ?>feedback/feedback_transport_coordinator/"><i class="fa fa-comment"></i><span>Feedback Received as TC</span></a></li>
+        <li class="green-fa"><a href="<?php echo $base_url ?>feedback/feedback_volunteer/"><i class="fa fa-comment"></i><span>Feedback Received as Volunteer</span></a></li>
+        <li class="green-fa"><a href="<?php echo $base_url ?>feedback/feedback_left_for_others/"><i class="fa fa-comment"></i><span>Feedback Left for Others</span></a></li>        
+    </ul>
+  </li>
+  
+  <li style="<?php echo ($display_menu == 1)?'':'display:none'; ?>;"><a href="<?php echo  $base_url ?>/rescue-organization" class="my-co"><span class="mobile-menu-cont">Get Your Organization on Doobert</span></a></li>
+   <?php if(!empty($org_list)) { ?>
+  <li style="<?php echo ($display_menu == 1)?'':'display:none'; ?>;"><a href="javascript:void(0);" class="my-co"><span class="mobile-menu-cont">My Connected Organizations</span><span class="arrow "> </span></a>
+  	<ul class="sub-menu inner-menu connected-org">
+	<?php for($i=0;$i<count($org_list);$i++) { ?> 
+    	<li class="green-fa"><a href="<?php echo $base_url."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><i class="fa fa-briefcase"></i><span><?php echo $org_list[$i]['st_org_name']; ?></span></a></li>
+       <?php } ?> 
+    </ul>
+  </li>
+   <?php } ?>
+  </ul>
+  <ul class="page-sidebar-menu visible-sm visible-xs"  data-auto-scroll="true" data-slide-speed="200">
+  <li style="<?php echo ($display_menu == 2)?'':'display:none'; ?>;"><a href="<?php echo $base_url.'org-dashboard/'.$this->session->userdata('org_id') ?>" class="my-dashboard-view">Org Dashboard</a></li>
+  <li style="<?php echo ($display_menu == 2)?'':'display:none'; ?>;"><a href="javascript:void(0);" class="mob-animals">Animals<span class="arrow "> </span></a>
+  	<ul class="sub-menu transport-sub-menu">
+	 <?php
+			if($owner_id != $this->session->userdata('userid')) {
+				if(isset($make_array_user['profile_manager']) && in_array('pr_manager_cr',$make_array_user['profile_manager']) == true) {
+					$check_per_flag = '1';
+				} else {
+					$check_per_flag = '0';
+				}
+			}
+			?>
+    	<li><a href="<?php echo $base_url; ?>org_animal/animals_in_my_organization" class="animals-ddm-animal-mob">Animals in Organization</a></li>
+        <?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+		<li><a href="<?php echo $base_url; ?>org-animal/manage-animal-transfer" class="animals-ddm-transfer-mob">Manage Animal Transfer</a></li>
+        <li><a href="<?php echo $base_url; ?>org-animal/" class="animals-ddm-newanimal-mob">Add New Animal Profile</a></li>
+        <li><a href="javascript:void(0);" onClick="$('#upload_animal_profile').modal('show');" class="animals-ddm-upload-mob">Upload Animal Profiles</a></li>
+		<?php } ?>
+		<?php	if($owner_id != $this->session->userdata('userid')) {
+						if((isset($make_array_user['profile_manager']) && in_array('pr_manager_cnf',$make_array_user['profile_manager']) == true) || isset($make_array_user['view_only'])) {
+							$check_per_flag = '1';
+						} else {
+							$check_per_flag = '0';
+						}
+					}
+		?>
+		<?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+        <li><a href="<?php echo $base_url; ?>org_animal/animal_transefer_request" class="animals-ddm-animal-req-mob">Animal Transfer Request</a></li>
+		<?php } ?>
+    </ul>
+  </li>
+   <?php 
+				if($owner_id != $this->session->userdata('userid')) { 
+					if((isset($make_array_user['fundraiser']) && in_array('fundraiser_cr',$make_array_user['fundraiser']) == true) || isset($make_array_user['view_only'])) {
+					$check_per_flag = '1';
+					} else {
+						$check_per_flag = '0';
+					}
+			}
+			?>
+			<?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+  <li style="<?php echo ($display_menu == 2)?'':'display:none'; ?>;"><a href="<?php echo $base_url ?>sponsorship/sponsorship_list/" class="mob-fundraiser">Fundraisers</a></li>
+  <?php } ?>
+  <li style="<?php echo ($display_menu == 2)?'':'display:none'; ?>;"><a href="javascript:void(0);" class="my-tr">Transportations <span class="arrow "> </span>
+   <?php
+				if($owner_id != $this->session->userdata('userid')) {
+					if(isset($make_array_user['transport']) && in_array('transport_ed',$make_array_user['transport']) == true || isset($make_array_user['transport']) && in_array('transport_cr',$make_array_user['transport']) == true) {
+						$draft = '1';
+					} else {
+						$draft = '0';
+					}
+				}
+						if($draft == '' ||  $draft == '1') {
+							//if($tab == 3) {
+								echo (isset($total_pending_transport) && $total_pending_transport !=0)?'<span id="draft_tranport_bub1" class="badge_light">'.$total_pending_transport.'</span>':''; 
+							//} else {
+								echo (isset($total_pending_transport) && $total_pending_transport !=0)?'<span id="draft_tranport_bub2" class="badge">'.$total_pending_transport.'</span>':''; 
+							//}
+						}
+			?>
+  
+  </a>
+  	<ul class="sub-menu transport-sub-menu">
+    	<li><a href="<?php echo $base_url.'organization-transportation/'; ?>" class="trans-oat">Org Active Transports</a></li>
+        <li><a href="<?php echo $base_url.'organization-other-transportation/'; ?>" class="trans-oct">Org Completed/Cancelled Transports</a></li>
+		 <?php
+			if($owner_id != $this->session->userdata('userid')) {
+				if(isset($make_array_user['transport']) && in_array('transport_cr',$make_array_user['transport']) == true) {
+					$check_per_flag = '1';
+				} else {
+					$check_per_flag = '0';
+				}
+				if(isset($make_array_user['transport']) && in_array('transport_ed',$make_array_user['transport']) == true || isset($make_array_user['transport']) && in_array('transport_cr',$make_array_user['transport']) == true) {
+					$draft = '1';
+				} else {
+					$draft = '0';
+				}
+				if(isset($make_array_user['transport']) && in_array('transport_del',$make_array_user['transport']) == true || isset($make_array_user['transport']) && in_array('transport_del',$make_array_user['transport']) == true) {
+					$transport_cancel = '1';
+				} else {
+					$transport_cancel = '0';
+				}
+			}
+		?>
+		 <?php if($check_per_flag == '' || $check_per_flag == '1') { ?>
+        <li><a href="<?php echo $base_url; ?>org-add-transport/" class="trans-ant">Add New Transportation</a></li>
+        <li><a href="<?php echo $base_url; ?>org_transportation/transport_email_template/" class="trans-otve">Add Transport via Email</a></li>
+		<?php } ?>
+		<?php if($draft == '' ||  $draft == '1') { ?>
+        <li><a href="<?php echo $base_url; ?>org_transportation/draft_transport/" class="trans-dt">Draft Transportations</a></li>
+		<?php } ?>
+		<?php if($check_per_flag == '' || $check_per_flag == '1') { ?>	
+        <li><a href="<?php echo $base_url; ?>org_transportation/pre_planned_transport/" class="trans-pprf">Pre-Planned Routes to Copy From</a></li>
+		<?php } ?>
+		<li><a href="<?php echo $base_url; ?>search-user-trips" class="trans-sut">Find space on volunteer drives & flights (My Trips)</a></li>
+    </ul>
+  </li>
+  <li style="<?php echo ($display_menu == 2)?'':'display:none'; ?>;"><a href="javascript:void(0);" class="find-partner-vol-mobile">Rescue Connection<span class="arrow "> </span></a>
+  	<ul class="sub-menu transport-sub-menu">
+    	<li><a href="<?php echo $base_url; ?>find-partner-organization/" class="org-fpo">Find Partner Organizations</a></li>
+        <li><a href="javascript:void(0);" class="org-sfv">Search for Volunteers<span class="arrow "> </span></a>
+        	<ul class="sub-menu">
+            <li><a href="<?php echo $base_url.'foster-home-volunteer-search/'; ?>" class="org-fhvs">Foster Home Volunteer</a></li>
+            <li><a href="<?php echo $base_url.'photographer-volunteer-search/'; ?>" class="org-pvs">Photographer Volunteer</a></li>
+            <li><a href="<?php echo $base_url.'inperson-volunteer-search'; ?>" class="org-ipv">In-Person Volunteer</a></li>
+            <li><a href="<?php echo $base_url.'virtual-volunteer-search'; ?>" class="org-vvs">Virtual Volunteer</a></li>
+            <li><a href="<?php echo $base_url.'lost-animal-volunteer-search'; ?>">Lost Animal Volunteer</a></li>
+            </ul>
+        </li>
+   </ul>
+  </li>
+  <li style="<?php echo ($display_menu == 2)?'':'display:none'; ?>;"><a href="javascript:void(0);" class="my-co">Org Management<span class="arrow "> </span></a>
+  	<ul class="sub-menu transport-sub-menu">
+	<?php	if($owner_id == $this->session->userdata('userid')){ ?>
+    	<li class="green-fa"><a href="javascript:void(0);"  class="org-user-mob">Organization Users<span class="arrow "> </span></a>
+        <ul class="sub-menu">
+            <li><a href="<?php echo $base_url.'org_info/'; ?>" class="org-user-pu">Pending users</a></li>
+            <li><a href="<?php echo $base_url.'org_info/approved_users'; ?>" class="org-user-au">Approved users</a></li>
+            <li><a href="<?php echo $base_url.'org_info/blocked_users'; ?>" class="org-user-bu">Blocked users</a></li>
+            </ul>
+        </li>
+        <li><a href="<?php echo $base_url.'org_info/invite_user'; ?>" class="org-ibu">Invite/Block a User</a></li>
+	<?php } ?>
+        <li><a href="<?php echo $base_url.'org_info/organization_donation'; ?>" class="org-donation">Organization Donation</a></li>
+		<li><a href="<?php echo  $base_url; ?>org_feed/" class="org-feed">Organization Feed</a></li>
+		<?php	if($owner_id == $this->session->userdata('userid')){ ?>
+		 <li><a href="<?php echo $base_url; ?>organization-privacy-setting/" class="org-pps">Org Profile Privacy Settings </span></a></li>
+		<?php } ?>
+            <li><a href="<?php echo $base_url; ?>organization-profile/" class="org-mop">Manage Org Profile</a></li>
+    </ul>
+  </li>
+  </ul>
+
+		</nav>
+
+<!-- END THANK YOU MODAL POPUP-->
+
+<script src="<?php echo $base_url; ?>js/classie.js"></script>
+<script>
+			var menuLeft = document.getElementById( 'cbp-spmenu-s1' ),
+				menuRight = document.getElementById( 'cbp-spmenu-s2' ),
+				menuTop = document.getElementById( 'cbp-spmenu-s3' ),
+				menuBottom = document.getElementById( 'cbp-spmenu-s4' ),
+				showLeft = document.getElementById( 'showLeft' ),
+				showRight = document.getElementById( 'showRight' ),
+				showTop = document.getElementById( 'showTop' ),
+				showBottom = document.getElementById( 'showBottom' ),
+				showLeftPush = document.getElementById( 'showLeftPush' ),
+				showRightPush = document.getElementById( 'showRightPush' ),
+				body = document.body;
+
+			showLeft.onclick = function() {
+				classie.toggle( this, 'active' );
+				classie.toggle( menuLeft, 'cbp-spmenu-open' );
+				disableOther( 'showLeft' );
+			};
+			showRight.onclick = function() {
+				classie.toggle( this, 'active' );
+				classie.toggle( menuRight, 'cbp-spmenu-open' );
+				disableOther( 'showRight' );
+			};
+			showTop.onclick = function() {
+				classie.toggle( this, 'active' );
+				classie.toggle( menuTop, 'cbp-spmenu-open' );
+				disableOther( 'showTop' );
+			};
+			showBottom.onclick = function() {
+				classie.toggle( this, 'active' );
+				classie.toggle( menuBottom, 'cbp-spmenu-open' );
+				disableOther( 'showBottom' );
+			};
+			showLeftPush.onclick = function() {
+				classie.toggle( this, 'active' );
+				classie.toggle( body, 'cbp-spmenu-push-toright' );
+				classie.toggle( menuLeft, 'cbp-spmenu-open' );
+				disableOther( 'showLeftPush' );
+			};
+			showRightPush.onclick = function() {
+				classie.toggle( this, 'active' );
+				classie.toggle( body, 'cbp-spmenu-push-toleft' );
+				classie.toggle( menuRight, 'cbp-spmenu-open' );
+				disableOther( 'showRightPush' );
+			};
+
+			function disableOther( button ) {
+				if( button !== 'showLeft' ) {
+					classie.toggle( showLeft, 'disabled' );
+				}
+				if( button !== 'showRight' ) {
+					classie.toggle( showRight, 'disabled' );
+				}
+				if( button !== 'showTop' ) {
+					classie.toggle( showTop, 'disabled' );
+				}
+				if( button !== 'showBottom' ) {
+					classie.toggle( showBottom, 'disabled' );
+				}
+				if( button !== 'showLeftPush' ) {
+					classie.toggle( showLeftPush, 'disabled' );
+				}
+				if( button !== 'showRightPush' ) {
+					classie.toggle( showRightPush, 'disabled' );
+				}
+			}
+</script>
+
+<div class="modal fade" id="search-info-box" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"> 
+        <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+        <h4 class="modal-title">Search</h4>
+      </div>
+      <div class="modal-body">
+      
+      <form action="" name="search_module_frm" id="search_module_frm" method="post">
+      <div class="form-group">
+      <div class="gr-wrap col-lg-12 col-md-12 col-sm-12 no-space">
+      <div class="gr-wrap col-lg-16 col-md-6 col-sm-6">
+      <label for="search-for">Searching For?</label>
+      <div class="select-style">
+      	 <select class="category-sel form-control" name="select_module" id="select_module">
+              <option value="2" <?php echo ($this->session->userdata('search_module') == 2)?"selected":'' ?>>Transport ID</option>
+              <option value="1" <?php echo ($this->session->userdata('search_module') == 1)?"selected":'' ?>>Animal</option>
+              <option value="3" <?php echo ($this->session->userdata('search_module') == 3)?"selected":'' ?>>Organization</option>
+              <option value="4" <?php echo ($this->session->userdata('search_module') == 4)?"selected":'' ?>>Doobert Users</option>
+              <option value="5" <?php echo ($this->session->userdata('search_module') == 5)?"selected":'' ?>>Fundraising Animals</option>
+            </select>
+      </div>
+      </div>
+      <div class="gr-wrap col-lg-16 col-md-6 col-sm-6">
+      <label for="search-keyword">Search Keyword:</label>
+      <input type="text" name="module_search_text" id="module_search_text" placeholder="Search" class="serch-inp form-control" value="<?php 
+		  							if($this->session->userdata('module_search_org'))
+		  								echo stripslashes($this->session->userdata('module_search_org'));
+									elseif($this->session->userdata('module_search_animal'))
+		  								echo stripslashes($this->session->userdata('module_search_animal'));
+									elseif($this->session->userdata('module_search_user'))
+		  								echo stripslashes($this->session->userdata('module_search_user'));
+									elseif($this->session->userdata('module_search_transport'))
+		  								echo stripslashes($this->session->userdata('module_search_transport'));
+									elseif($this->session->userdata('module_search_animal_fundraiser'))
+		  								echo stripslashes($this->session->userdata('module_search_animal_fundraiser')); 
+								?>">
+	<input type="hidden" name="frm_module_action" id="form_action_value" value="frm_module_post" />
+      </div>
+	  
+      </div>
+      </div>
+     
+      <div class="clearfix"></div>
+      </div>
+      <div class="modal-footer text-center no-margin">
+      <input type="button" id="search_module" name="search_module" class="btn dark-blue fl search-btn submit" value="Search" title="Search">
+	  
+	  
+       <?php if($this->session->userdata('userid')) { ?>
+      <span class="search-advanced">or <a href="<?php echo $base_url; ?>adv_search">Advanced Search</a></span> 
+      <?php } ?>
+      </div>
+      <input type="hidden" name="sort_by" id="sort_by" value="" />       
+      </form>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+
+<?php /*?><div id="responsive">
+  <div class="modal fade" id="infoprofilepopup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" title="Close" data-dismiss="modal" class="close close_modal1" type="button"></button>
+        </div>
+        <div class="modal-body">
+          <div class="scroller" style="height:110px" data-always-visible="1" data-rail-visible1="1">
+            <p>Having your profile verified provides an additional level of confidence to Doobert organizations that you are a reputable animal rescue volunteer.  When you apply for verification, we use the information provided to check references, verify your driving status and confirm the information you provide.  If we have additional questions or need more information to verify your profile, we'll reach out to you.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn pink" title="Close" data-dismiss="modal" type="button">Close</button>
+        </div>
+      </div>
+      <!-- /.modal-content --> 
+    </div>
+    <!-- /.modal-dialog --> 
+  </div>
+</div><?php */?>
+
+
+<div id="responsive">
+
+   <div class="modal fade" id="infoproductpopup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" title="Close" data-dismiss="modal" class="close close_modal1" type="button"></button>
+        <h4 class="modal-title">Alert</h4>
+		</div>
+        <div class="modal-body">
+          <!--<div class="scroller" style="height:110px" data-always-visible="1" data-rail-visible1="1">-->
+            <p>Please enter your organization's PayPal email address in your organization profile.  This is where payment for items and auctions will be sent.  We will take you to your organization profile so you can update that now.</p>
+          <!--</div>-->
+        </div>
+        <div class="modal-footer" style='text-align:center;'>
+         <a href="<?php echo base_url(); ?>org_info/edit_organization_profile"  title="Close" class="btn pink">OK</a>
+          <!--<button class="btn pink" title="Close" data-dismiss="modal" type="button">Close</button>-->
+        </div>
+      </div>
+      <!-- /.modal-content --> 
+    </div>
+    <!-- /.modal-dialog --> 
+  </div>	
+
+<div id="responsive">
+
+  <?php /*?><div class="modal fade" id="infoarpapopup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" title="Close" data-dismiss="modal" class="close close_modal1" type="button"></button>
+        </div>
+        <div class="modal-body">
+          <div class="scroller" style="height:110px" data-always-visible="1" data-rail-visible1="1">
+            <p>Doobert is proud to partner with the Animal Rescue Professionals Association to indicate Doobert volunteers that have successfully passed the ARPA Certified Animal Rescue Transporter exam.  For more information about this exam please visit their website at <a href="http://www.animalrescueprofessionals.org/certified-rescue-transporter-exam/" target="_blank">http://www.animalrescueprofessionals.org/certified-rescue-transporter-exam/</a>.  If you successfully pass their exam we will update your profile to display your certified status.</p>
+          </div>
+        </div>
+        <div class="modal-footer" style="text-align:center;">
+         <a href="http://www.animalrescueprofessionals.org/" target="_blank" title="Visit ARPA Site" class="btn pink">Visit ARPA Site</a>
+          <button class="btn pink" title="Close" data-dismiss="modal" type="button">Close</button>
+        </div>
+      </div>
+      <!-- /.modal-content --> 
+    </div>
+    <!-- /.modal-dialog --> 
+  </div><?php */?>
+  
+  <div class="modal fade" id="user_crop_img_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+            <h4 class="modal-title">Profile Picture</h4>
+          </div>
+          <div class="modal-body">
+          <div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%;">
+
+          	<p>Select an area of an image and then click on Save Photo button to save photo.<img id="ajax-loader-bar-rotate1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+            <div class="crop-img-here1">
+            	<img id="ajax-loader-bar1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/>
+            </div>
+            </div>
+          </div>
+          <div class="modal-footer text-center no-margin"> 
+          <button class="btn light-green save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Save Photo">Save Photo</button>
+          <button class="btn blue cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Cancel">Cancel</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+	</div>
+	
+	<div class="modal fade" id="org_crop_img_popup1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+            <h4 class="modal-title">Profile Picture</h4>
+          </div>
+          <div class="modal-body">
+          <div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%;">
+
+          	<p>Select an area of an image and then click on Save Photo button to save photo.<img id="org-ajax-loader-bar-rotate1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+            <div class="org-crop-img-here1">
+            	<img id="org-ajax-loader-bar1" src="<?php echo $base_url; ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/>
+            </div>
+            </div>
+          </div>
+          <div class="modal-footer text-center no-margin"> 
+          <button class="btn light-green org_save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Save Photo">Save Photo</button>
+          <button class="btn blue cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button" title="Cancel">Cancel</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+	</div>	
+  
+</div>
+
+<div id="unlink_fb" class="modal fade unlink-fb" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true" title="Close"></button>
+                    <p>Are you sure, you want to Un-Link your facebook account from Doobert.com?</p>
+             </div>
+            <div class="modal-footer no-border">
+                <button type="button" class="btn pink-btn no-border" id="unlink_confirm" name="unlink_confirm" onClick="javascript:void(0);">Confirm</button>
+                <button type="button" class="btn light-green" id="cancel_unlink" name="cancel_unlink" onClick="$('#unlink_fb').modal('hide');">Cancel</button>
+             </div>
+        </div>
+    </div>
+</div>
+                            
+<div id="delink_with_fb" class="modal fade delink-with-fb" tabindex="-1" aria-hidden="true">
+    <input type="hidden" id="user_name" name="user_name" value="<?php echo isset($common_profile['st_display_name']) ? $common_profile['st_display_name'] : ''; ?>">
+    <input type="hidden" id="lastname" name="lastname" value="<?php echo isset($common_profile['st_last_name']) ? $common_profile['st_last_name'] : ''; ?>">
+    <input type="hidden" id="email" name="email" value="<?php echo isset($common_profile['st_email']) ? $common_profile['st_email'] : ''; ?>">
+    <input type="hidden" id="user_doobert_password" name="user_doobert_password" value="<?php echo (isset($common_profile['st_password']) && $common_profile['st_password'] != '') ? '1' : '' ; ?>" />
+  	<input type="hidden" id="user_fb_password" name="user_fb_password" value="<?php echo (isset($common_profile['st_facebook_uid']) && $common_profile['st_facebook_uid'] != '') ? '1' : '' ; ?>" />
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true" title="Close"></button>
+                <div class="scroller" style="height:100px" data-always-visible="1" data-rail-visible1="1">
+                    <p>You signed into Doobert.com by using your Facebook e-mail and password. If you de-link your Facebook account from your Doobert.com profile we will convert your Doobert.com account to use your e-mail <a href="mailto:<?php echo $common_profile['st_email'];  ?>"><?php echo $common_profile['st_email'];  ?></a> for you to sign-in with, and we'll send you a link to set your password.</p>
+                </div>
+            </div>
+            <div class="modal-footer no-border">
+                <button type="button" class="btn pink-btn no-border" id="unlink_continue" name="unlink_continue" onClick="javascript:void(0);">Continue</button>
+                <button type="button" class="btn light-green" id="cancel_continue" name="cancel_continue" onClick="$('#delink_with_fb').modal('hide');">Cancel</button>
+             </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<script> 
+ //Added By Nirav 23 May 2016 
+function update_login_status_direct(ajaxurl,redirecturl,status)
+		{
+			$.ajax({
+				type:'POST',
+				url:ajaxurl,
+				data:{
+					'status':status,
+				},
+				success: function(result){
+						if(result === 'true')
+							window.location = redirecturl;
+						else
+							alert("Login status direct is not enabled");
+				},		
+			});
+		}
+</script>

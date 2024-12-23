@@ -1,0 +1,194 @@
+<?php
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 21-Feb-2018
+# File description	: new location Model for admin
+# Special - notes	: none
+# Tables used		: tbl_zip_code
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class manage_location_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_manage_locations()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of locations from tbl_zip_code
+	#------------------------------------------------------------
+	public function get_total_manage_locations($city=array(), $zip_code ='')
+	{ 				
+		$this->db->select('id, zip_code, city, state_prefix, lat, lon, st_country', false);						   	
+		$this->db->from('tbl_zip_code');					
+		
+		if(count($city) > 0) {
+			$citytxt = $city[0];
+			// $this->db->where_in('state_prefix',$city);
+			// $this->db->or_where("LOWER(city) LIKE '%".$citytxt."%'");
+			$city = implode("','", $city);
+			$this->db->where("(state_prefix IN('".$city."') OR LOWER(city) LIKE '%".$citytxt."%')");
+			
+		}
+		if(trim($zip_code) != ''){ 
+		$this->db->where("zip_code LIKE '%".$zip_code."%'", NULL, FALSE);
+		}
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_manage_locations()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to get location details
+	#------------------------------------------------------------
+	public function get_manage_locations($sort,$order,$limit,$rec_per_page,$city=array(), $zip_code='')
+	{	  
+		$this->db->select("id, zip_code, city, state_prefix, lat, lon, st_country", false);						   	
+		$this->db->from('tbl_zip_code');					
+
+		if(count($city) > 0) {
+			$citytxt = $city[0];
+			// $this->db->where_in('state_prefix',$city);
+			// $this->db->or_where("LOWER(city) LIKE '%".$citytxt."%'");
+			$city = implode("','", $city);
+			$this->db->where("(state_prefix IN('".$city."') OR LOWER(city) LIKE '%".$citytxt."%')");
+			
+		}
+		if(trim($zip_code) != ''){
+				$this->db->where("zip_code LIKE '%".$zip_code."%'", NULL, FALSE);
+		}
+		
+					
+		switch($sort)
+		{
+			case 'city': 						
+				$this->db->order_by('city',$order);
+			break;							
+			
+			case 'state_prefix': 						
+				$this->db->order_by('state_prefix',$order);
+			break;						
+				
+			case 'zip_code': 							
+				$this->db->order_by('zip_code',$order);
+			break;
+			
+			case 'st_country': 							
+				$this->db->order_by('st_country',$order);
+			break;						
+			
+		}
+					  
+					  
+		if(!isset($limit))
+			{
+				$limit=0;
+			}					
+		$this->db->limit($rec_per_page,$limit);		
+		$query = $this->db->get(); 	
+		//echo $this->db->last_query();  die;					
+		$arrlocation = array();
+		
+		if($query->num_rows()>0)
+		{  
+			foreach($query->result() as $Row)
+			{				
+						
+				$arrlocation[$Row->id]	=	array(
+								'id'			=> $Row->id,
+								'zip_code'		=> $Row->zip_code,
+								'city'			=> $Row->city,
+								'state_prefix'	=> $Row->state_prefix,
+								'st_country'	=> $Row->st_country
+								);
+			}
+			
+			return $arrlocation;						
+		}
+					
+	}
+	
+	
+	#====================================================================================
+	#	Function	:	delete_manage_locations()
+	#   Parameter	: 	locationId
+	#	Perpose		:	to delete single location details from tbl_zip_code table
+	#------------------------------------------------------------------------------------
+	public function delete_manage_locations($locationId)
+	{
+				$this->db->where('id', $locationId);
+				$this->db->delete('tbl_zip_code');
+				return $this->db->affected_rows();
+	}
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	delete_multiple_manage_locations()
+	#   Parameter	: 	planetypeIds
+	#	Perpose		:	to delete multiple location details from tbl_zip_code table
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_manage_locations($locationIds)
+	{			
+				$this->db->where_in('id', $locationIds);
+				$this->db->delete('tbl_zip_code');
+				return $this->db->affected_rows();
+	}
+
+	
+	
+	#============================================================================
+	#	Function	:	get_manage_locations_profile()
+	#   Parameter	: 	planetypeIds
+	#	Perpose		:	to get location details from tbl_zip_code table
+	#----------------------------------------------------------------------------
+	public function get_manage_locations_profile($locationId)
+	{
+				$this->db->select("id, zip_code, city, state_prefix, lat, lon, st_country", false);
+				$this->db->from('tbl_zip_code');		
+				$this->db->where('id',$locationId);
+				$query = $this->db->get();
+				return $query->row_array();	
+	}
+	
+	#============================================================================
+	#	Function	:	update_location_info()
+	#   Parameter	: 	data,planetypeId,table
+	#	Perpose		:	to update location details tbl_zip_code table
+	#----------------------------------------------------------------------------
+	public function update_location_info($data,$locationId) {
+				$this->db->where('id',$locationId);
+				$this->db->update('tbl_zip_code',$data);
+				return $this->db->affected_rows();	
+	}
+	
+    #============================================================================
+	#	Function	:	insertLocation()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert new location details in tbl_zip_code table
+	#----------------------------------------------------------------------------
+	public function insertLocation($post)
+	{
+				 $arrlocation = 	  array(
+										'zip_code'		=>	$post['zip_code'],
+										'city'			=>	$post['city'],															
+										'state_prefix'	=>  $post['state_prefix'],
+										'st_country'	=>	$post['st_country'],
+										'lat'			=>	$post['lat'],															
+										'lon'			=>  $post['lon']															
+										);	
+										$this->db->insert('tbl_zip_code', $arrlocation);
+				return $this->db->affected_rows();							
+										
+	}
+	
+	
+			
+	
+}
+?>

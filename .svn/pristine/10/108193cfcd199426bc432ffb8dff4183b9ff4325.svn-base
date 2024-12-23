@@ -1,0 +1,597 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: User(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class transport_routing extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+	   error_reporting(E_ALL);
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('transport_routing_model');
+	
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function user_deleted_request()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		//$this->session->unset_userdata('searchadmin4');	
+		//$this->session->unset_userdata('searchadmin5');	
+		//$this->session->unset_userdata('searchadmin6');	
+		$this->user_deleted_request_page();		
+	}
+	
+	
+	function user_deleted_request_page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='transport_id';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearch'); die;
+			
+			//if($this->session->userdata('searchadmin'))
+				//$this->session->unset_userdata('searchadmin');			
+				
+		 	//$searchtxt = trim(mysql_real_escape_string($this->input->post('txtsearch')));
+			//$this->session->set_userdata('searchadmin',$searchtxt);	
+			
+			/*if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');*/						
+				
+			/*$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin1',$this->common_function->custom_htmlentities($searchtxt));*/
+
+									
+			$this->session->set_userdata('searchadmin1',$this->input->post('search_name'));
+			
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin2',$this->input->post('search_email'));	
+
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+				$this->session->set_userdata('searchadmin3',$this->input->post('transport_id'));		
+
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+		
+		}		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		//$rec_per_page =	  25;
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		//$totalrecord		= $this->transport_routing_model->get_count_user_trips($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		$totalrecord = $this->transport_routing_model->get_deleted_transport_routing_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'));
+		// GET PAGE LIST RESULT HERE
+		
+		//$data['user_list']	= $this->transport_routing_model->get_user_trips($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		$data['deleted_request_tranport']  = $this->transport_routing_model->get_deleted_transport_routing($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'));
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'transport_routing/user_deleted_request_page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'Deleted Routing Information is not Available.';
+		}
+		
+		$this->load->view('deleted-routing-lisitng',$data);
+	}
+	
+	
+	public function submitted_routing_request()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('status');
+		$this->session->set_userdata('searchadmin4',2);		
+		$this->submitted_routing_request_page();		
+	}
+	
+	
+	function submitted_routing_request_page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='transport_id';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{
+												
+			$this->session->set_userdata('searchadmin1',$this->input->post('search_name'));
+			
+						
+			$this->session->set_userdata('searchadmin2',$this->input->post('search_email'));	
+				
+			$this->session->set_userdata('searchadmin3',$this->input->post('transport_id'));
+			
+			$this->session->set_userdata('searchadmin4',$this->input->post('transport_status'));
+			$status = $this->session->userdata('searchadmin4');
+
+			if(!empty($status) && $status == 1 || $status == 5){
+				$this->session->set_userdata('status','true');
+			}
+					
+		}
+
+		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		//$rec_per_page =	  25;
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		//$totalrecord		= $this->transport_routing_model->get_count_user_trips($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		$totalrecord = $this->transport_routing_model->get_submitted_transport_routing_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'));
+		// GET PAGE LIST RESULT HERE
+		
+		//$data['user_list']	= $this->transport_routing_model->get_user_trips($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		$data['submitted_request_tranport']  = $this->transport_routing_model->get_submitted_transport_routing($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'));
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'transport_routing/submitted_routing_request_page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'Submitted Routing Information is not Available.';
+		}
+		
+		$this->load->view('submitted-routing-lisitng',$data);
+	}
+	
+	
+	public function enabled_tc_request_board()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		//$this->session->unset_userdata('searchadmin4');	
+		//$this->session->unset_userdata('searchadmin5');	
+		//$this->session->unset_userdata('searchadmin6');	
+		$this->enabled_tc_request_board_page();		
+	}
+	
+	
+	function enabled_tc_request_board_page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{
+									
+			$this->session->set_userdata('searchadmin1',$this->input->post('search_name'));
+			
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin2',$this->input->post('search_email'));	
+
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin3',$this->input->post('transport_id'));	
+
+		}		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		//$rec_per_page =	  25;
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		//$totalrecord		= $this->transport_routing_model->get_count_user_trips($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		$totalrecord = $this->transport_routing_model->get_enabled_user_tc_board_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		// GET PAGE LIST RESULT HERE
+		
+		//$data['user_list']	= $this->transport_routing_model->get_user_trips($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		$data['user_list']  = $this->transport_routing_model->get_enabled_user_tc_board($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'transport_routing/enabled_tc_request_board_page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'Enabled User TC Board is not Available.';
+		}
+		
+		$this->load->view('enabled-tc-routing',$data);
+	}
+	
+	function unset_user_deleted_transport()
+	{
+		$user_id = $this->input->post('user_id');
+		$transport_id = $this->input->post('transport_id');
+		$data =  array('in_deleted' =>'1','dt_modified' => date('Y-m-d H:i:s'));
+		$this->db->where('in_user_id',$user_id);
+		$this->db->where('in_transport_id',$transport_id);		
+		$update_status = $this->db->update('tbl_trans_rout_deleted', $data);
+		$this->session->set_flashdata('message', 'Transport for a selected user has been reset.');
+		echo json_decode($update_status);
+		//$this->db->update('')
+	}
+	
+	
+	public function user_suggested_leg()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->set_userdata('searchadmin4',1);		
+		$this->user_suggested_leg_page();		
+	}
+	
+	
+	function user_suggested_leg_page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='transport_id';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		
+		
+		if(($this->input->post('action') == 'search'))
+		{						
+			$this->session->set_userdata('searchadmin1',$this->input->post('search_name'));
+							
+			$this->session->set_userdata('searchadmin2',$this->input->post('search_email'));	
+				
+			$this->session->set_userdata('searchadmin3',$this->input->post('transport_id'));	
+			
+			$this->session->set_userdata('searchadmin4',$this->input->post('transport_status'));
+					
+		}
+
+		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		//$rec_per_page =	  25;
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord = $this->transport_routing_model->get_submitted_transport_routing_leg_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'));
+		// GET PAGE LIST RESULT HERE
+		
+		//$data['user_list']	= $this->transport_routing_model->get_user_trips($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		$data['submitted_request_tranport']  = $this->transport_routing_model->get_submitted_transport_routing_leg($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'));
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'transport_routing/user_suggested_leg_page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'Submitted Routing Information is not Available.';
+		}
+		
+		$this->load->view('user-covering-legs',$data);
+	}
+	
+function delete_transport(){
+		$id =  $this->input->post("id");		
+		$transarr = array(
+			'in_deleted' => 1
+			);
+		$result = $this->transport_routing_model->update_transport($id, $transarr);
+		if($result == 1){
+			echo json_encode(array('res'=>'success'));
+		}else{
+			echo json_encode(array('res'=>'fail'));
+		}
+	}
+	
+}
+
+/* End of file user.php */
+/* Location: ./application/controllers/user.php */

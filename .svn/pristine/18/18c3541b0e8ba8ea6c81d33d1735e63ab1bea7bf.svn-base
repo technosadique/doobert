@@ -1,0 +1,167 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 11-Apr-2014
+# File description: Dameanor(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Rescue_store_banner extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');
+		$this->load->library('upload');
+		$this->load->model('common_model');	
+		$this->load->model('rescue_store_banner_model');
+		$this->load->helper(array('form', 'url'));	
+		 	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		$data			 =	array();
+		
+		$rescue_store_banner_data = $this->rescue_store_banner_model->rescue_store_banner_data();
+		//print_r($rescue_store_banner_data); die;
+		
+		$data['rescue_store_banner_data'] = $rescue_store_banner_data;
+		
+		$this->session->unset_userdata('field1');		
+		//$this->load->library('upload'); 
+		$form_field	=	array( 'bannerimage'	=> "");
+		
+		if($this->input->post('action')=='Add')
+		{   					
+							$file_size=	$_FILES['bannerimage']['size'];
+					 	    if(($file_size >= 	5242880) || ($file_size == 0)) { 
+								
+								$this->session->set_flashdata('err','File is too large. File must be 5 MB.');
+										redirect(site_url('rescue_store_banner/'));
+										return;
+							}
+							
+							$image_dim = getimagesize($_FILES['bannerimage']['tmp_name']);
+							//echo '<pre>'; print_r($image_dim); die;
+							$image_width = $image_dim[0];
+							$image_height = $image_dim[1];
+							$width='1087'; $height='453';
+							if($image_width < $width && $image_height < $height)
+									{											
+										$this->session->set_flashdata('err','Please upload 1087px X 453px size image');
+										redirect(site_url('rescue_store_banner/'));
+										return;
+									}
+									
+							if($image_width > $width && $image_height > $height)
+									{											
+										$this->session->set_flashdata('err','Please upload 1087px X 453px size image');
+										redirect(site_url('rescue_store_banner/'));
+										return;
+									}
+									
+							
+							
+
+							
+							
+							$bannerimage		        = time().'_'.$_FILES['bannerimage']['name'];
+							//upload image start
+							
+							$config['upload_path']  	= $this->config->item('upload').'product/';
+							$config['max_size']			= '5120';  // 5 MB
+							//$config['width']	 		= 60;
+							//$config['height']			= 60;
+							$config['allowed_types']	= 'jpg|jpeg|png|gif';
+							$config['remove_spaces']  	= TRUE;
+							$config['file_name'] 		= $bannerimage;
+							
+							//Initialization
+							$this->upload->initialize($config);
+								
+							//RW permission to upload folder.
+							//chmod($this->config->item('upload')."demeanor/", 0777);
+							
+							//Upload image by calling do_upload method.
+							$this->upload->do_upload("bannerimage"); 							
+							$file_errors = array('errors' => $this->upload->display_errors());
+							
+							//Display errors of file upload.
+							
+							if(!empty($file_errors['errors'])) {  echo 'SS'; die;								
+							
+								$data = array('upload_error' => strip_tags($file_errors['errors']));								
+								$this->session->set_flashdata($data);								
+								$data['Err_Msg'] = strip_tags($file_errors['errors']);								
+								$this->load->view('rescue-store-banner-add',$data); 							
+								
+							}
+							else
+							{
+									
+							//Resize the image with ratio (Thumbnail)
+							$config['image_library'] 	= 'gd2';
+							$config['source_image']		= $this->config->item('upload').'product/'.$config['file_name'];
+							$config['new_image']		= $this->config->item('upload').'product/190x190/'.$config['file_name'];
+							$config['maintain_ratio'] 	= TRUE;
+							$config['width']	 		= 190;
+							$config['height']			= 190;
+							
+							$this->load->library('image_lib');
+							$this->load->library('image_lib', $config); 
+							$this->image_lib->initialize($config);
+							$this->image_lib->resize();										
+							
+							$data['add']['st_image'] = $config['file_name'];
+							$id						 =	$this->input->post('id');
+							
+							if(isset($id) && !empty($id)){ 
+							$data['add']['dt_modified'] = date('Y-m-d H:i:s');
+							$this->rescue_store_banner_model->updateBanner($id,$data['add'],'tbl_rescue_store_banner');	
+							}
+							else{
+							$this->rescue_store_banner_model->insertBanner($data['add'],$bannerimage);
+
+							}	
+							$this->session->set_flashdata('success', 'You have successfully uploaded banner!');							
+							redirect(site_url('rescue_store_banner/'));								
+							}
+						
+		}
+		else
+		{ 		
+			$this->load->view('rescue-store-banner-add',$data);			
+			
+		}	
+	}
+	
+}
+
+/* End of file demeanor.php */
+/* Location: ./application/controllers/demeanor.php */

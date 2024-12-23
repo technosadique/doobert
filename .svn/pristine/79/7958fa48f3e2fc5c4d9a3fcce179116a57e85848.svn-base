@@ -1,0 +1,598 @@
+<?php
+# ======================================================================================
+# Created by		: Chetan Pedgaonkar
+# Created date		: 17-July-2014
+# File description	: Rescue Map controller
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class rescue_map_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	# *******************************************************************************************	
+	#	Function	:	get_all_users	
+	#	Purpose		:	Getting all users from site
+	# *******************************************************************************************
+	
+	function get_all_users($str='') {
+		$data = array();
+		
+		$sql = "SELECT ";		
+		$sql .= "up.st_driver,
+				up.st_pilot,
+				up.st_foster_home,
+				u.in_user_id,
+				concat(u.st_display_name,' ',u.st_last_name) as name,
+				u.st_email,
+				up.st_address1,
+				up.st_address2,
+				up.st_city,
+				up.st_state,
+				up.st_country,
+				up.st_zip as address,
+				z.lat as lat,
+				z.lon as lon 
+			FROM tbl_users u 
+			INNER JOIN tbl_user_profile as up
+				ON 
+			u.in_user_id = up.in_user_id
+			LEFT JOIN tbl_zip_code as z
+				ON
+			up.st_zip = z.zip_code
+				WHERE
+			u.in_status = 1 AND
+			u.in_public = 1 AND
+			u.in_deleted = 0";
+								
+		if($str!='0' && $str!='V') {
+			$sql .= ' AND u.in_user_id IN("'.implode('","',$this->get_all_users_where($str)).'")';
+		}
+		//$sql .= " HAVING type='".$str."'";
+		if($str == 'M') {//|| $str == '0'
+			$sql .= ' AND (st_driver = "Y" AND st_foster_home = "Y")'; 
+			$sql .= ' OR (st_driver ="Y" AND st_pilot = "Y")'; 
+			$sql .= ' OR (st_foster_home ="Y" AND st_pilot = "Y")';
+		} else if($str != 'V' && $str!= '0') {
+			$sql .= ' AND '.$this->common_function->type[$str].' = "Y"';
+		}
+		
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();
+		//print_r($this->get_all_users_where($str));die;
+		//echo "<pre>";print_r($query->result_array());die;
+		//return $query->result_array();
+		//print_r(count($query->result_array()));die;
+		foreach($query->result_array() as $row) {
+			$role = ($row['st_driver']=='Y')?'Driver':'';
+			$role .= ($row['st_pilot'] == 'Y')?'Pilot':'';
+			$role .= ($row['st_foster_home']=='Y')?'Foster Home':'';
+		
+			/*if(strlen($role) == 11) {
+				$role = substr_replace($role,' & Pilot',6);
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',6);
+			}*/
+			
+			$img = '';
+			
+			if(strlen($role) == 11 && $role == "Foster Home") {
+				$role = substr_replace($role,'Foster Home',0);
+				$img = 'foster.png';
+			} else if(strlen($role) == 11 && $role == "DriverPilot")  {
+				$role = substr_replace($role,' & Pilot',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',5);
+				$img = 'multi.png';
+			} else if(strlen($role) == 6) {
+				$img='driver.png';
+			} else if(strlen($role) == 5) {
+				$img='pilot.png';
+			} else if(strlen($role) == 0) {
+				$img='volunteer.png';
+			}
+			
+			$data[] = array(	'user_id'			=>	$row['in_user_id'],
+								'name'				=>	$row['name'],
+								'address'			=>	$row['address'],
+								'lat'				=>	$row['lat'],
+								'lon'				=>	$row['lon'],
+								'img'				=>	($str=='0')?$img:$this->common_function->roles[$str],
+								//'type'				=>	$row['type'],
+								'drive_distance'	=>	$this->get_drive_distance($row['in_user_id']),
+								'fly_distance'		=>	$this->get_fly_distance($row['in_user_id']),
+								'role'				=>	$role,
+								'st_driver'			=>	$row['st_driver'],
+								'st_pilot'			=>	$row['st_pilot'],
+								'st_foster_home'	=>	$row['st_foster_home'],
+ 								'st_photographer'   =>  $row['st_photographer'],
+								'in_person_volunteer' => $row['st_in_person_volunteer'],
+								'st_virtual_support_volunteer' => $row['st_virtual_support_volunteer'],
+								'zip'				=>  $row['address'],
+								'st_email'			=>  $row['st_email'],
+							);
+
+		}
+		
+			//echo $this->db->last_query();die;		
+			//echo "<pre>";print_r($data);die;
+		return $data;
+		//return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_users_where	
+	#	Purpose		:	Getting all users from site
+	# *******************************************************************************************
+	
+	function get_all_users_where($str='') {
+		$data = array();
+		
+		/*if($str == 'M') {
+			$query = $this->db->query("	SELECT DISTINCT in_user_id
+										FROM 
+											tbl_user_vehicle 
+										WHERE
+											in_status = 1
+										AND
+											in_deleted = 0 
+											UNION
+										SELECT DISTINCT in_user_id 
+										FROM 
+											tbl_user_pilot
+										WHERE
+											in_status = 1
+										AND
+											in_deleted = 0");
+			
+			foreach($query->result_array() as $row) {
+				$data[] = $row['in_user_id'];
+			}
+			//echo $this->db->last_query();die;
+			return $data;
+		} else {*/
+			$query = $this->db->query("	SELECT DISTINCT in_user_id
+										FROM 
+											".$this->common_function->table_name[$str]." 
+										WHERE
+											in_status = 1
+										AND
+											in_deleted = 0 
+										");
+			foreach($query->result_array() as $row) {
+				$data[] = $row['in_user_id'];
+			}
+			
+			return $data;
+			
+			/*$this->db->distinct();
+			$this->db->select('in_user_id');
+			$this->db->from($this->common_function->table_name[$str]);
+			//echo $this->common_function->table_name[$str];die;	
+			$this->db->where('in_status',1);
+			$this->db->where('in_deleted',0);
+			
+			$this->db->order_by('in_user_id','DESC');
+			$query = $this->db->get();
+					
+			foreach($query->result_array() as $row) {
+				$data['users'][] = $row;
+			}
+			return $data;*/
+		//}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_drive_distance	
+	#	Purpose		:	Getting drive distance of user
+	# *******************************************************************************************
+	
+	public function get_drive_distance($user_id) {
+		$query = $this->db->query('SELECT in_distance_to_drive
+									FROM 
+										tbl_user_vehicle 
+									WHERE
+										in_user_id = '.$user_id.'
+									AND
+										in_status = 1
+									AND
+										in_deleted = 0'
+								);
+		$data = $query->row_array();
+		return (isset($data['in_distance_to_drive']))?$data['in_distance_to_drive']:'';
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_drive_distance	
+	#	Purpose		:	Getting air distance of user
+	# *******************************************************************************************
+	
+	public function get_fly_distance($user_id) {
+		$query = $this->db->query('SELECT in_distance_to_pilot
+									FROM 
+										tbl_user_pilot 
+									WHERE
+										in_user_id = '.$user_id.'
+									AND
+										in_status = 1
+									AND
+										in_deleted = 0'
+								);
+		$data = $query->row_array();
+		return (isset($data['in_distance_to_pilot']))?$data['in_distance_to_pilot']:'';
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_transport_users	
+	#	Purpose		:	Getting all transport users
+	# *******************************************************************************************	
+	
+	public function get_all_transport_users($days='',$type='',$status=''){
+		$data = array();
+		
+		($type == '1')?$null_type = 'NOT':$null_type = '';
+		//$type=1;$status=0;
+		//$sub_query = "tr.dt_pickup_date >= ( CURDATE() - INTERVAL ".$days." DAY)";
+		$real_days = $days-1;
+		//$real_days = $days;
+		if($status == 1)
+		{
+			$get_date = date('Y-m-d',strtotime("+ ".$real_days." days"));
+		}
+		if($status == 2)
+		{
+			$get_date = date('Y-m-d',strtotime("- ".$real_days." days"));
+		}
+		//$get_date = date('Y-m-d',strtotime("- ".$real_days." days"));
+		
+		$this->db->select("tr.in_transportation_id,tr.in_trans_coods_id,tr.st_from_zip,
+							tr.st_to_zip,tr.in_created_by,tr.dt_created,tr.in_tot_distance,tr.st_from_street,
+							tr.st_from_city,tr.st_from_state,tr.st_from_zip,tr.st_from_country,
+							tr.st_to_street,tr.st_to_city,tr.st_to_state,tr.dt_pickup_date,
+							tr.dt_target,tr.st_to_zip,tr.st_to_country"
+						);
+						
+		$this->db->from('tbl_transportation as tr');
+		
+		$this->db->join('tbl_organization as o','tr.in_organization_id = o.in_organization_id AND o.in_deleted=0','INNER');
+		
+		$this->db->join('tbl_transportation_leg as tl','tr.in_transportation_id = tl.in_transportation_id AND  tl.in_deleted=0','LEFT');
+		
+		//$this->db->where("(tl.in_route_type =  ".$type." OR tl.in_route_type IS ".$null_type." NULL)");
+		$this->db->where("(tl.in_route_type =  ".$type." OR tl.in_route_type IS NULL)");
+		
+		//$this->db->where('tr.in_status',$status);
+		$this->db->where('tr.in_deleted',0);
+		
+		//$this->db->where("(tl.in_route_type =  ".$type." OR tl.in_route_type IS NULL)");
+		if($status == 1)
+		{
+	//	$this->db->where('tr.in_status',$status);
+	//	$this->db->where("(DATE_FORMAT(tr.dt_pickup_date,'%Y-%m-%d') >='".date('Y-m-d')."')");
+	//	$this->db->where("(DATE_FORMAT(tr.dt_pickup_date,'%Y-%m-%d') <='".$get_date."')");
+		
+			$this->db->where('tr.in_status',1);
+			$where  = '';
+			$where .= "tr.dt_pickup_date >= '".date('Y-m-d')."' AND (tr.dt_pickup_date <= '".$get_date."' OR tr.dt_target <= '".$get_date."')";
+			$this->db->where($where);
+		}
+		
+		if($status == 2)
+		{
+		$this->db->where('tr.in_status',$status);
+		$this->db->where("(DATE_FORMAT(tr.dt_pickup_date,'%Y-%m-%d') <='".date('Y-m-d')."')");
+		$this->db->where("(DATE_FORMAT(tr.dt_pickup_date,'%Y-%m-%d') >='".$get_date."')");
+		
+		}
+		$this->db->where('o.in_status',1);
+		$this->db->group_by('tr.in_transportation_id');
+		$this->db->order_by('tr.dt_created','DESC');
+		
+		$query = $this->db->get();
+		
+		//echo $this->db->last_query();die;
+		
+		foreach($query->result_array() as $row) {
+			
+			$data[] = array('trans_id'		=> $row['in_transportation_id'],
+							'from_zip'		=> $row['st_from_zip'],
+							'to_zip' 		=> $row['st_to_zip'],
+							'distance' 		=> $row['in_tot_distance'],
+							'from_lat' 		=> $this->get_lat($row['st_from_zip']),
+							'from_long' 	=> $this->get_long($row['st_from_zip']),
+							'to_lat' 		=> $this->get_lat($row['st_to_zip']),
+							'to_long' 		=> $this->get_long($row['st_to_zip']),
+							'from_city' 	=> $row['st_from_city'],
+							'to_city' 		=> $row['st_to_city'],
+							'from_street' 	=> $row['st_from_street'],
+							'from_state' 	=> $row['st_from_state'],
+							'from_country'	=> $row['st_from_country'],
+							'to_street' 	=> $row['st_to_street'],
+							'to_state' 		=> $row['st_to_state'],
+							'to_country'	=> $row['st_to_country']
+							);
+		}
+		//echo "<pre>"; print_r($data);die;
+		return $data;
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_lat	
+	#	Purpose		:	Getting lattitude
+	# *******************************************************************************************
+	
+	public function get_lat($zipcode) {
+		$data = array();
+		$this->db->select('lat');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get();
+		$data = $query->row_array();
+		//print_r($data);
+		return (!empty($data))?$data:'';
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_long	
+	#	Purpose		:	Getting longitude
+	# *******************************************************************************************
+	
+	public function get_long($zipcode) {
+		$data = array();
+		$this->db->select('lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get();;
+		$data = $query->row_array();
+		//print_r($data);
+		return (!empty($data))?$data:'';
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_organization	
+	#	Purpose		:	Getting All Organizations
+	# *******************************************************************************************
+	
+	public function get_all_organization(){
+		$data = array();
+		$this->db->select('o.st_org_name,o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_country,o.st_zip,z.lat,z.lon,o.st_email_address,o.in_organization_id');
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_organization_setting as os','o.in_organization_id = os.in_organization_id','LEFT');
+		$this->db->join('tbl_zip_code as z','o.st_zip = z.zip_code','INNER');
+		$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','INNER'); // for testing. 
+		$this->db->where('(os.in_public = 0 OR os.in_public IS NULL)');
+		$this->db->where('o.in_deleted',0);
+		$query = $this->db->get();
+		foreach($query->result_array() as $row) {
+			$data[] = array('name'				=> $row['st_org_name'],	
+							'lat' 				=> $row['lat'],
+							'lon' 				=> $row['lon'],
+							'address' 			=> $row['st_address1'].', '.$row['st_address2'].', '.$row['st_city'].', '.$row['st_state'].', '.$row['st_country'].', '.$row['st_zip'],
+							'img'				=> 'shelters.png',
+							'drive_distance'	=>	'',
+							'fly_distance'		=>	'',
+							'role'				=>	'organization',
+							'zip'               =>  $row['st_zip'],
+							'st_email'			=>  $row['st_email_address'],
+							'org_id'			=>  $row['in_organization_id']
+							);
+		}
+		
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : get_user_verified
+	#	Purpose  : Checking user is Verified or not
+	#=========================================================
+	
+	public function get_user_verified($id) {
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_verification');
+		$this->db->where('in_user_id',$id);
+		$this->db->where('fl_doobert_verified',1);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	public function get_campaign()
+	{
+	  	$this->db->select("camp.in_campaign_id,
+							camp.st_campaign_type,
+							camp.st_page_title,
+							camp.st_custom_url,
+							camp.in_goal_fund,
+							camp.st_profile_story,
+							(SELECT SUM(in_donation_amount) FROM  tbl_campaign_donation WHERE in_campaign_id=camp.in_campaign_id AND in_status IN('1','2') AND in_deleted='0') as in_fund_raised,
+							camp.in_status,										
+							camp.dt_campaign_start,
+							camp.dt_campaign_end,
+							camp.dt_created,
+							camp.dt_modified,
+							camp.in_display_home,	
+							a.st_animal_name,
+							a.in_animal_id,									
+							concat(usr.st_display_name, ' ',usr.st_last_name) as st_display_name,
+							af.st_file_name", false);	
+													
+		$this->db->from('tbl_campaign camp');
+		$this->db->join('tbl_animal a', 'camp.in_animal_id = a.in_animal_id AND a.in_deleted = 0','LEFT');
+		$this->db->join("tbl_animal_file af", "af.in_animal_id = camp.in_animal_id AND af.in_deleted='0' AND af.st_file_type='P'","LEFT");	
+		$this->db->join('tbl_users usr', 'camp.in_created_by = usr.in_user_id AND usr.in_deleted = 0','LEFT');
+		$this->db->where('camp.in_deleted','0');
+		$this->db->where('camp.in_status','1');
+		$this->db->where('camp.in_animal_id >','0');
+		$this->db->where('camp.dt_campaign_end >=',date('Y-m-d',strtotime(date('Y-m-d'))));
+	    $this->db->order_by('camp.in_campaign_id','RANDOM');
+		//$this->db->limit('10');
+			
+		$query = $this->db->get(); 					
+		//echo $this->db->last_query();  die;					
+		$arrCampaign = array();
+		
+		
+		if($query->num_rows()>0)
+		{  
+			foreach($query->result() as $Row)
+			{			
+			
+			if(isset($Row->st_file_name) && $Row->st_file_name != '' && file_exists($this->config->item('upload').'animal_images/140x140/'.$Row->st_file_name)){
+			$image_file = base_url().'upload/animal_images/140x140/'.$Row->st_file_name;	
+			}
+			else{
+				$new_fundraiser_img = $this->get_fundraiser_image($Row->in_campaign_id);
+				
+				if(trim($new_fundraiser_img)!= '' && file_exists($this->config->item('upload').'animal_images/140x140/'.$new_fundraiser_img)) {
+					$image_file = base_url().'upload/animal_images/140x140/'.$new_fundraiser_img;
+				} else {
+					$image_file = base_url().'upload/animal_images/140x140/no_photo_icon.png';
+				}
+				
+			}
+						
+			if($Row->dt_campaign_end!='0000-00-00') {
+				
+					if(date('Y-m-d',strtotime($Row->dt_campaign_end)) > date('Y-m-d',strtotime(date('Y-m-d')))) {
+					$date1 = date_create($Row->dt_campaign_end);
+					$date2 = date_create(date('Y-m-d'));
+					$diff = date_diff($date2,$date1);
+					$days_remaining	= $diff->format("%a");
+				} else if(date('Y-m-d',strtotime($Row->dt_campaign_end)) == date('Y-m-d',strtotime(date('Y-m-d')))) {
+					$days_remaining	='0';
+				} else {
+					$days_remaining	='Expired';
+				}
+			} else {
+				$days_remaining	= '&nbsp;';
+			}
+						
+						if($Row->st_campaign_type == 'P')
+						{
+							$type =	'Pledge';
+						}
+						if($Row->st_campaign_type == 'D')
+						{
+							$type =	 'Donation';
+						}
+						
+						
+						
+				$arrCampaign[]	= array('in_campaign_id'	    => $Row->in_campaign_id,
+								'st_campaign_type'				=> $type,															
+								'st_page_title'				    => $Row->st_page_title,
+								'st_custom_url'				    => $Row->st_custom_url,
+								'in_goal_fund'					=> ($Row->in_goal_fund)?$Row->in_goal_fund:"0.00",
+								'in_fund_raised'				=> ($Row->in_fund_raised)?$Row->in_fund_raised:"0.00",											
+								'in_status' 					=> $Row->in_status,			
+								'days_remaining' 				=> $days_remaining,										
+								'dt_created' 			    	=> $Row->dt_created,
+								'dt_modified' 			    	=> $Row->dt_modified,
+								'in_display_home' 			   	=> $Row->in_display_home,
+								'st_animal_name' 				=> $Row->st_animal_name,
+								'in_animal_id' 					=> $Row->in_animal_id,
+								'st_display_name' 				=> $Row->st_display_name,
+								'campaign_end'					=> $Row->dt_campaign_end,
+								'campaign_start'				=> $Row->dt_campaign_start,
+								'st_profile_story'				=> $Row->st_profile_story,
+								'st_file_name' 					=> $image_file,	
+								);
+			}
+			}
+			//print_r($arrCampaign);exit;
+			return $arrCampaign;			
+					
+	}
+	
+	public function get_fundraiser_image($cid) {
+		$data = array();
+		
+		$this->db->select('st_file_name');
+		$this->db->from('tbl_campaign_file');
+		$this->db->where('in_campaign_id',$cid);
+		
+		$this->db->where('in_deleted','0');
+		$this->db->where('st_file_type','P');
+		
+		$this->db->order_by('in_campaign_file_id','ASC');
+		$query = $this->db->get();
+		
+		$data = $query->row_array();
+		return (isset($data['st_file_name']) && trim($data['st_file_name']) != '')?$data['st_file_name']:'';
+	}
+	// by bhushan 
+	
+	function get_all_dist_zip_code()
+	{
+		//$this->db->query('SELECT DISTINCT  up.st_zip FROM tbl_user_profile as up');
+		//$this->db->from('tbl_user_profile');
+		//$this->db->where(1);
+		$this->db->distinct();
+		$this->db->select('up.st_zip');
+		$this->db->from('tbl_user_profile up');
+		$this->db->join('tbl_zip_code z', 'z.zip_code = up.st_zip','LEFT');
+		//$this->db->where('record', $record); 
+		$query = $this->db->get();
+		/*print_r($query->result());
+		die();*/
+		return $query->result();
+	}
+	function get_count_by_zip_code($zip)
+	{
+		$sql = "SELECT ";		
+		$sql .= "count(*) as cnt 
+			FROM tbl_users u 
+			INNER JOIN tbl_user_profile as up
+				ON 
+			u.in_user_id = up.in_user_id
+			LEFT JOIN tbl_zip_code as z
+				ON
+			up.st_zip = z.zip_code
+				WHERE
+			u.in_status = 1 AND
+			u.in_public = 1 AND
+			u.in_deleted = 0 AND 
+			up.st_zip=".$zip;
+		
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();  die;	
+		return $query->result();
+		//print_r($query->result());
+		
+	}
+	function user_details($uid)
+	{
+		$this->db->select('u.st_display_name ,u.st_email');
+		$this->db->from('tbl_users as u');
+		$this->db->where('u.in_user_id',$uid);
+		$qry = $this->db->get();
+		return $qry->result();
+	}
+	
+	function org_details($uid)
+	{
+		$this->db->select('o.st_org_name ,o.st_email_address,o.in_organization_id');
+		$this->db->from('tbl_organization as o');
+		$this->db->where('o.in_organization_id',$uid);
+		$qry = $this->db->get();
+		return $qry->result();
+	}
+}
+?>

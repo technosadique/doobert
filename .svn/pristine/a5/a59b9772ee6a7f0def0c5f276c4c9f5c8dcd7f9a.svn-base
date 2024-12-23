@@ -1,0 +1,517 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Cms extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->load->model('common_model');
+		$this->load->library('common_function');	
+		$this->load->model('open_leg_model');
+		$this->load->helper('url');
+		$this->load->helper('cookie');
+		$this->load->library('pagination');
+		$this->load->model('user_model'); 
+		$this->load->library('form_validation');
+		error_reporting(0);
+	}
+	
+	public function signup()
+	{
+		if($this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url') . "dashboard/");
+		}			
+		$this->load->view('signup', $data);
+	}
+	
+	public function check_session_status(){
+		if($this->session->userdata('userid'))
+			 $status = 'true';
+		else 
+			 $status = 'false';
+		echo $status; 
+	}
+	
+	
+	public function harvey_signup()
+	{
+		if($this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url') . "dashboard/");
+		}			
+		$this->load->view('hurricane_signup', $data);
+	}
+	
+	public function signup_user_leg()
+	{
+		if($this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url') . "dashboard/");
+		}
+
+        $data = array();
+        $data['Err_Msg_forgot'] = '';
+        $data['Err_Msg_reg'] = '';
+        $data['Err_Msg_login'] = '';
+        $data['Err_Msg'] = '';
+        $data['rem_password'] = get_cookie('pass');
+        $data['rem_email'] = get_cookie('user');
+        $data['menu_no'] = 'yes';
+	
+		$this->session->unset_userdata('fb_user');
+		 
+        $form_field = array('username' => "",
+            'lastname' => "",
+            'email' => "",
+            'password' => "",
+            'rpassword' => "",
+            'referred_by' => "",
+            'tnc' => "",
+            'signup' => "",
+            'remember' => "",
+            'action' => "",
+            'oldertc' => "",
+			'volunteer_as' => "",
+			'zipcode' => "",
+			'maskphone' => "",
+        );
+        foreach ($form_field as $key => $value) {
+            $data['register'][$key] = $value;
+        }
+        if ($this->input->post('action')) 
+		{
+			
+            foreach ($form_field as $key => $value) 
+			{
+				if(!is_array($this->input->post($key)))
+				{
+                	$data['register'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));
+				}else{
+					$data['register'][$key] = $this->input->post($key);
+					}
+            }
+			
+			$removed_empty_space_pass = preg_replace('/\s+/', '',$data['register']['password']);
+			$data['register']['password'] = $removed_empty_space_pass;
+			
+			$verificationCode = $this->generate_random_password(15);
+			$data['register']['email_verification_code'] = $verificationCode;
+			
+            if ($this->input->post('action') == "registeruser") 
+			{
+                $this->form_validation->set_rules('username', 'First Name', 'trim|required');
+                $this->form_validation->set_rules('lastname', 'Last Name', 'trim|required');
+                $this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[6]');
+				$this->form_validation->set_rules('zipcode', 'Zipcode', 'trim|required');		
+                $counts = $this->common_model->check_exists("tbl_users", "in_user_id", array("st_email" => $data['register']['email'], "in_deleted" => '0'));
+                $Err_Msg = '';
+                if ($counts > 0) 
+				{
+                    $Err_Msg = "Email address already exists.";					
+					$fb_user_id = $this->common_model->check_fb_user($data['register']['email']);
+					if(isset($fb_user_id) && !empty($fb_user_id) && $fb_user_id['st_facebook_uid'] != '')
+					{
+						$this->session->set_userdata('fb_user', 'It looks like you created your account by using the Facebook Login / App. Please click on the Sign In to With Facebook to be logged into the system.');	
+						//$Err_Msg = 'It looks like you created your account by using the Facebook.';	
+						$Err_Msg = '';					
+					}
+                }
+                if ($this->form_validation->run() == FALSE || $Err_Msg != '' || ($this->session->userdata('fb_user') && $this->session->userdata('fb_user') != '')) 
+				{
+                    $data['Err_Msg_reg'] = validation_errors() . $Err_Msg;
+                    //$this->load->view('individual-signup',$data);	
+                } else 
+				{
+                    $browser_details = array();
+                    $browser_details["page_referral"] = $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                    $browser_details["ip_address "] = $_SERVER['REMOTE_ADDR'];
+                    $browser_details["browser_used"] = $_SERVER['HTTP_USER_AGENT'];
+
+					$referred_by ='';					
+
+
+                    $data_array = array("st_display_name" => $data['register']['username'],
+										   "st_last_name" => $data['register']['lastname'],
+											   "st_email" => $data['register']['email'],
+											"st_password" => md5($data['register']['password']),
+										 "st_referred_by" => $st_referred_by,
+											 "dt_created" => date("Y-m-d h:i:s"),
+										    "dt_modified" => date("Y-m-d h:i:s"),
+										  "in_newsletter" => (($data['register']['signup'] != '') ? "Y" : "N"),
+											  "in_public" => "1",
+                                              "in_status" => "1",
+                                      "in_age_terms_flag" => "1",
+                                        "st_browser_info" => @serialize($browser_details),
+						     "st_email_verification_code" => $verificationCode,
+									  'flg_immediate_all' => 1,
+								'flg_immediate_transport' => 1,
+								   'flg_immediate_animal' => 1,
+								   'flg_immediate_fund'	  => 1,	
+									);
+					
+					$zipcode 	  = $data['register']['zipcode'];
+					$volunteer_as = $data['register']['volunteer_as'];
+
+
+					//print_r($volunteer_as);exit;
+					
+                   
+                    $inserted_id = $this->user_model->insert_user($data_array);
+					$country = $this->common_model->get_country(trim($zipcode));
+					$timezone='';
+					if(trim($country['st_country'])=='IN')
+					{ 
+						$timezone='IST';
+					}
+					else{
+						$timezone='EST';
+					}
+                    $this->user_model->insert_user_profile(array("in_user_id" => $inserted_id,"st_zip" => $zipcode, "in_status" => "1", "dt_created" => date("Y-m-d H:i:s"),'in_complete_profile'=>'0',"st_time_zone"=>$timezone));
+				
+					$address_details	=	$this->common_model->getaddress($zipcode);
+					$user_profile_info["st_city"]  = isset($address_details['city']) ? $address_details['city'] : '';
+					$user_profile_info["st_state"] = isset($address_details['state_prefix']) ? $address_details['state_prefix'] : '';
+					$user_profile_info["st_country"] = isset($address_details['st_country']) ? trim($address_details['st_country']) : '';
+					$this->user_model->update_user_info($user_profile_info, $inserted_id, 'tbl_user_profile');
+					
+					
+					$this->session->set_userdata('userid', $inserted_id);
+					$this->session->set_userdata('user_name', $data['register']['username']);
+                    $this->session->set_userdata('last_name', $data['register']['lastname']);
+                    $this->session->set_userdata('email', $data['register']['email']);
+					$this->session->set_userdata('zip',$zipcode);
+					$this->session->set_userdata('ststate',$user_profile_info["st_state"]);
+					$this->session->set_userdata('stcountry',$user_profile_info["st_country"]);
+					setcookie("userid",$inserted_id,0,"/",".doobert.com");
+                    $this->login_details($data['register']);
+					$this->email_confirm();	
+					
+					$lat = 0;
+					$lon = 0;	
+					
+                    $user_result = $this->user_model->match_nondoobert_email_id($this->session->userdata('email'));
+                    if (isset($user_result) && !empty($user_result)) 
+					{
+                        $lat = 0;
+                        $lon = 0;
+                        if ($user_result[0]['st_zipcode'] != '') 
+						{
+							$get_lat_long = $this->common_model->get_lattitude_longitude($this->session->userdata('zip'));
+
+                            if (!empty($get_lat_long['lat']) && !empty($get_lat_long['lon']))
+							{
+                                $user_vehicle_info['zip_lat'] = $get_lat_long['lat'];
+                                $lat = $get_lat_long['lat'];
+                                $user_vehicle_info['zip_lon'] = $get_lat_long['lon'];
+                                $lon = $get_lat_long['lon'];
+                            }
+
+                            $user_profile_info = array();
+                            $user_profile_info['st_primary_phone'] = $user_result[0]['st_phone'];
+                            $user_profile_info['in_status'] = "1";
+
+                            $data['user_profile'] = $this->user_model->update_user_info($user_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+
+                            $user_data_array = array("in_status" => "1");
+                            $this->load->model('orgtrasnportation_model');
+
+                            $transport_co_details = $this->orgtrasnportation_model->get_transport_coordinator_detail($user_result[0]['in_transportation_id']);
+                            if (isset($transport_co_details) && !empty($transport_co_details))
+							{
+                                $user_data_array['st_referred_by'] = $transport_co_details['coordinatorname'];
+                            }
+
+                            $this->user_model->update_user($user_data_array, $this->session->userdata('userid'));
+
+                            $driver_data = array("driver_user" => "Y",
+                                "avl_days" => array("0" => "Sun", "1" => "Mon", "2" => "Tue", "3" => "Wed", "4" => "Thu", "5" => "Fri", "6" => "Sat"),
+                                "zipcode" => $this->session->userdata('zip'),
+                                "vehicle_ids" => array("0" => ""),
+                                "vehicletype" => array("0" => "4-Door Car"),
+                                "distance" => array("0" => 100),
+                                "color" => array("0" => $user_result[0]['st_vehicle_color']),
+                                "license" => array("0" => $user_result[0]['st_license_plate']),
+                                "license_state" => array("0" => $user_result[0]['st_license_state']),
+								"googlephotos_vehicle" =>array("0"=>""),
+                            );
+                            $this->user_model->update_vehicle_details($driver_data, $this->session->userdata('userid'), $this->session->userdata('zip'), serialize($driver_data['avl_days']),'100',$lat, $lon, 'tbl_user_vehicle');
+                            $driver_profile_info['st_driver'] = "Y";
+                            $driver_profile_info['dt_modified'] = date('Y-m-d H:i:s');
+                            $data['user_profile'] = $this->user_model->update_user_info($driver_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+                        }
+
+						foreach ($user_result as $key => $value) 
+						{
+							$join_data = array("in_transportation_id" => $value['in_transportation_id'],
+														 "in_user_id" => $this->session->userdata('userid'),
+										   "in_transportation_leg_id" => $value['in_leg_id'],
+													  "in_created_by" => $this->session->userdata('userid'),
+													     "dt_created" => date("Y-m-d H:i:s"),
+													     "in_deleted" => 0
+												);
+
+							$this->orgtrasnportation_model->join_legs($join_data);
+
+
+							$this->orgtrasnportation_model->update_non_doobert_user_leg($value['in_non_doobert_user_id']);
+							$leg_type = $this->orgtrasnportation_model->get_leg_type_by_id($value['in_leg_id']);
+
+							if (!empty($leg_type)) 
+							{
+								if (isset($leg_type[0]['in_route_type']) && $leg_type[0]['in_route_type'] != '' && $leg_type[0]['in_route_type'] == 0) 
+								{
+									//code to update vehicle id in leg details 
+									$data['arrVehicle'] = $this->user_model->get_vehicle_detail($this->session->userdata('userid'));
+									if (!empty($data['arrVehicle'][0]) && isset($data['arrVehicle'][0]['in_vehicle_id'])) 
+									{
+											$leg_vehicle_detail = array("in_transportation_id" => $value['in_transportation_id'],
+																		          "in_user_id" => $this->session->userdata('userid'),
+																			   "in_vehicle_id" => $data['arrVehicle'][0]['in_vehicle_id'],
+																	"in_transportation_leg_id" => $value['in_leg_id'],
+																				  "dt_created" => date("Y-m-d H:i:s"),
+																				  "in_deleted" => 0
+																		);
+											$this->orgtrasnportation_model->add_leg_vehicle_detail($leg_vehicle_detail);
+									}
+								}
+							}
+						}
+                    }  else 
+					{
+						$zip_code = $this->session->userdata('zip');
+						$available_days = array("0" => "Sun", "1" => "Mon", "2" => "Tue", "3" => "Wed", "4" => "Thu", "5" => "Fri", "6" => "Sat");	
+						$lat = 0;
+						$lon = 0;
+						$get_lat_long = $this->common_model->get_lattitude_longitude($zip_code);
+						if (!empty($get_lat_long['lat']) && !empty($get_lat_long['lon'])) 
+						{
+							$lat = $get_lat_long['lat'];
+							$lon = $get_lat_long['lon'];
+						}
+						$arrVehicle = array('in_user_id' 			 => $this->session->userdata('userid'),
+											'st_driver_availability' => serialize($available_days),
+													'st_zip_vehicle' => $zip_code,
+											  'in_distance_to_drive' => '100',
+										                'dt_created' => date('Y-m-d H:i:s'),
+													   'dt_modified' => date('Y-m-d H:i:s'),
+												   'st_vehicle_type' => '4-Door Car',
+													     'in_status' => '1',
+														   'zip_lat' => $lat,
+														   'zip_lon' => $lon,
+														'in_deleted' => '0'
+										   );
+									
+						$this->db->insert('tbl_user_vehicle', $arrVehicle);
+							
+						$driver_profile_info['st_driver'] = "Y";
+                        $driver_profile_info['dt_modified'] = date('Y-m-d H:i:s');
+                        $data['user_profile'] = $this->user_model->update_user_info($driver_profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+					}
+
+					$redirect_url = $this->session->userdata('url_data');
+					if($redirect_url!='')
+					{
+						redirect($redirect_url);	
+					} else {		
+						redirect($this->config->item('base_url') . "dashboard");
+					}
+						
+				}
+				
+
+            }
+		}	
+		
+		$this->load->view('signup_user', $data);
+	}
+	
+	function login_details($data) 
+	{
+        $allmail = $data['email'];
+        $this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("1");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+        if (isset($email_details[0]['st_email_body'])) {
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##url##", $this->config->item('base_url'), $templete);
+            $templete = str_replace("##display_name##", $data['username'] . " " . $data['lastname'], $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+			$userid = $this->session->userdata('userid');
+			
+			//$confirm_email_link = base_url().'verify/'.base64_encode($userid).'/'.base64_encode($data['email_verification_code']);
+			
+			//$user_email_verify_status = $this->user_model->check_email_verification_status($userid);
+									
+			/*if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+			{			
+				$confirm_email_url = '<p style="font:16px/24px Arial, Helvetica, sans-serif;color:#222222;margin:0;padding:0 0 25px;">
+					<a href="'.$confirm_email_link.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:20px;display:inline;background:#ee6d35;padding:13px 25px 13px 18px;border-radius:3px; display:inline-block;"><img alt="Click here to confirm your email" src="https://app.doobert.com//assets/img/email_img/confirm-email-icon.jpg" style="border:none; display:inline-block; vertical-align:top; padding-right:10px;" title="" />
+						Click here to confirm your email</a></p>';
+			}else{
+				$confirm_email_url = '';
+			}*/
+			//$templete = str_replace("##confirm_email_link##", $confirm_email_url, $templete);
+					
+            $strMail = $templete;
+            $to = $allmail;
+            $subject = $email_details[0]['st_email_subject'];
+            $message = $strMail;
+			
+			//print_r($message);exit;
+			$category = $email_details[0]['st_category'];
+			
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+			
+	        $this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+        }
+    }
+	
+		
+	function email_confirm()
+	{		
+		$userid = $this->session->userdata('userid');	
+		$verificationCode = $this->generate_random_password(15);
+		$details = array("st_email_verification_code" => $verificationCode);
+        $this->user_model->update_user($details, $userid);
+					
+		$this->load->library('email');
+		$email_details = $this->common_model->get_email_containt("81");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		if (isset($email_details[0]['st_email_body'])) 
+		{
+			$templete = $email_details[0]['st_email_body'];
+			
+			$templete = str_replace("##display_name##", $this->session->userdata('user_name') . " " . $this->session->userdata('last_name'), $templete);
+			$templete = str_replace("##current_year##", date('Y'), $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+			
+			//echo 'userid'.$userid;
+			//$confirm_email_url = base_url().'verify/'.base64_encode($userid).'/'.base64_encode($verificationCode);
+			//$confirm_email_url = '<a href="'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($data['email_verification_code']).'">'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($data['email_verification_code']).'</a>';
+			$confirm_email_url = '<a href="'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($verificationCode).'">'.base_url().'verify/'.base64_encode($userid).'/'.base64_encode($verificationCode).'</a>';
+			$templete = str_replace("##confirm_email_link##", $confirm_email_url, $templete);
+			$strMail = $templete;
+			$to = $this->session->userdata('email');
+			$subject = $email_details[0]['st_email_subject'];
+			$message = $strMail;
+			$email_sent_status = 0;
+			//print_r($message);exit;
+			$category = $email_details[0]['st_category'];
+			
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($userid).'/'.$this->common_function->encode_base64($to),$message);
+			
+			$send_email = 1;							
+			$sub_data = $this->common_model->check_user_unsub_emails($userid);
+			if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_details[0]['in_email_id'];
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}
+			
+			if($send_email == '1')
+			{
+				$email_sent_status = $this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+			}	
+		}
+	}
+	
+	function generate_random_password($length = 10) 
+	{
+		$alphabets = range('A','Z');
+		$numbers = range('0','9');
+		$additional_characters = array('_','.');
+		$final_array = array_merge($alphabets,$numbers,$additional_characters);
+			 
+		$password = '';
+	  
+		while($length--) {
+		  $key = array_rand($final_array);
+		  $password .= $final_array[$key];
+		}
+	  
+		return $password;
+	}
+	
+	
+	public function logout() 
+	{
+		$this->session->unset_userdata('user_name');
+		$this->session->unset_userdata('last_name');
+		$this->session->unset_userdata('email');
+		$this->session->unset_userdata('userid');
+		$this->session->unset_userdata('url_data');
+		$this->session->unset_userdata('zip');
+		//Destroying all session data associated with this user.
+		unset($_COOKIE['doobert_home']);
+		setcookie("doobert_home","",time()-3600,"/",".doobert.com");
+		
+		$this->session->sess_destroy();
+		redirect($this->config->item('base_url').'cms/signup/');
+	}
+	
+}	
+?>	

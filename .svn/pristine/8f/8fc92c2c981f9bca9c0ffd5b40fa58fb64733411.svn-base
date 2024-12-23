@@ -1,0 +1,650 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# =====================================================================================
+# Created by			: Rajashri Mahapure
+# Created date			: 22 April, 2019
+# File description		: transport summary controller 
+# Special- notes		:  
+# Tables used			:  
+# Stored procedures		: none 
+# Triggers used			: none
+# ======================================================================================
+
+class Transport_summary extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');	
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');
+		$this->load->model('transport_summary_model');
+		$this->load->model('org_notify_model');
+		$this->load->library('pagination');
+		if($this->session->userdata('org_id') == false) {
+			redirect(base_url().'my-profile');
+		}
+
+	}	
+	
+
+
+	public function send_receive($transport_id, $org_id, $type,$status='',$sort=false,$order=false,$limit=false)
+	{			
+		if(!$sort)
+		$sort='in_adoption_id';
+
+		if(!$order)
+		$order = 'desc';
+
+		if($this->uri->segment(9))
+		$limit = $this->uri->segment(9);		
+		else	
+		$limit = '0';
+		//$rec_per_page =	 $this->config->item('per_page');
+		$rec_per_page =	 '';
+
+		if($type == 'send')
+		{
+		$data['organization_type'] = "Sending Organization";
+		}
+		else if($type == 'receive')
+		{
+		$data['organization_type'] = "Receiving Organization";
+		}
+
+		$data['transport_id'] 	= $transport_id;
+		$data['org_id']			= $org_id;
+		$data['type']			= $type;
+
+		$adoptionarr 	= $this->transport_summary_model->get_animalBy_trans_org($transport_id, $org_id, $type, $status, $order,$sort,$limit,$rec_per_page);					
+		$data['trans_crate'] = array();
+		$transport_details = $this->org_notify_model->get_transport_details($transport_id);
+		
+		$permission_details 		= array();
+		$permission			 		= array();
+		$owner_id					= array();
+		$permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		if($owner_id>0 && $owner_id == $this->session->userdata('userid'))
+		{
+			$permission_details['transport']		= array("transport_cr","transport_ed","transport_cnf","transport_del");
+			$permission_details['fundraiser']		= array("fundraiser_cr","fundraiser_ed","fundraiser_cnf","fundraiser_del");
+			$permission_details['profile_manager']	= array("pr_manager_cr","pr_manager_ed","pr_manager_cnf","pr_manager_del");
+		}
+		elseif(!empty($permission))
+		{
+			$permission_details = unserialize($permission);
+		}
+		else
+		{
+			$permission_details = '';
+		}
+		$data['permission'] = $permission_details;
+		
+		if(count($adoptionarr)>0)
+		{	
+			for($i=0; $i<count($adoptionarr);$i++)
+			{
+				foreach ($adoptionarr as $a_key => $a_value) {					
+					if($a_value['is_shared'] >0 && $adoptionarr[$i]['in_trans_summary_id'] == ($a_value['is_shared']))
+					{						
+						$adoptionarr[$i]['share'] = $a_value;						
+					}
+				}
+			}
+		}		
+		$data['adoptiondata'] = $adoptionarr;
+		$data['in_adoption_id'] = $in_adoption_id;
+		if(!empty($data['animaldata']) && count($data['animaldata'] )>0){
+			if($type =='receive')
+			{
+				$org_id = $data['animaldata'][0]['receiving_org_id'];
+			}
+			else if($type == 'send')
+			{
+				$org_id = $data['animaldata'][0]['sending_org_id'];
+			}
+			$data['org_id'] 	=$org_id;
+			$data['transport_id'] = $data['animaldata'][0]['in_transportation_id'];
+			$data['org_name']	= $data['animaldata'][0]['st_org_name'];
+			$data['director_name'] = $data['animaldata'][0]['st_director'];
+			$data['phone_number']	= $data['animaldata'][0]['st_primary_phone'];
+			$data['email'] = $data['animaldata'][0]['st_email_address'];		
+			//$data['transport_details'] = $this->org_notify_model->get_transport_details($data['transport_id']);
+			$data['trans_crate'] = $this->common_model->get_transport_crates($data['transport_id']);
+
+		}
+
+		
+		$temp_trans_crate = $this->common_model->get_transport_crates($transport_id);
+		if(!empty($temp_trans_crate))
+		{
+			foreach ($temp_trans_crate as $key => $value) {
+				$data['trans_crate'][$value['in_crate_id']] =$value;
+			}
+		}
+			
+		$data['transport_details'] = $transport_details;
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->load->view('adopt_animal_trans_summary',$data);		
+		//$this->page($transport_id, $org_id, $type,$sort=false,$order=false,$limit=false,$key);
+		
+	}
+
+	
+
+	//function to delete the ordered animal from the transport.
+	public function delete_animal($in_id)
+	{		
+		$animal_arr = array(
+			'in_deleted' => 1,			
+			);
+		$result = $this->transport_summary_model->update_adoption_order($animal_arr,$in_id);
+
+		//$this->
+		if($result == 1)
+		{
+			echo json_encode("success");
+		}
+		else{
+			echo json_encode("failure");
+		}
+	}
+
+	public function animal_details($type, $in_adoption_id)
+	{
+		$data = array();
+		$animalarr 	= $this->transport_summary_model->get_animalBy_adoptionId($in_adoption_id, $type);			
+		if(count($animalarr)>0)
+		{	
+			// for($i=0; $i<count($animalarr);$i++)
+			// {
+				// //echo $animalarr[$i]['in_status']."<br>";
+				// if($animalarr[$i]['in_status'] == 1){				
+					foreach ($animalarr as $a_key => $a_value) {	
+
+				// 		if($a_value['is_shared'] >0 && $a_value[$i]['in_trans_summary_id'] == ($a_value['is_shared']))
+				// 		{						
+				// 			$animalarr1[$i]['share'] = $a_value;						
+				// 		}
+				// 		else if($a_value[$i]['in_status'] == 1)
+				// 		{	
+				// 			$animalarr1[$i] = $a_value;
+				// 		}
+				// 	}
+					if($a_value['in_status'] == 1)
+					{
+						$arr[] = $a_value;
+					}
+				}
+				
+			//}
+		}			
+		$data['animaldata'] = $arr;
+		$data['in_adoption_id'] = $in_adoption_id;
+		if(!empty($data['animaldata']) && count($data['animaldata'] )>0){
+			if($type =='receive')
+			{
+				$org_id = $data['animaldata'][0]['receiving_org_id'];
+			}
+			else if($type == 'send')
+			{
+				$org_id = $data['animaldata'][0]['sending_org_id'];
+			}
+			$data['org_id'] 	=$org_id;
+			$data['transport_id'] = $data['animaldata'][0]['in_transportation_id'];
+			$data['org_name']	= $data['animaldata'][0]['st_org_name'];
+			$data['director_name'] = $data['animaldata'][0]['st_director'];
+			$data['phone_number']	= $data['animaldata'][0]['st_primary_phone'];
+			$data['email'] = $data['animaldata'][0]['st_email_address'];		
+			$data['transport_details'] = $this->org_notify_model->get_transport_details($data['transport_id']);
+			$data['trans_crate'] = $this->common_model->get_transport_crates($data['transport_id']);
+			$crate_html = '';
+			if(!empty($data['trans_crate']) && count($data['trans_crate'])>0)
+			{
+				foreach ($data['trans_crate'] as $key => $value) {	
+					$trans_count = $this->transport_summary_model->get_trans_crate_count($value['in_crate_id']);	
+					$crate_cnt = $value['in_crate_qty'] - $trans_count;	
+				
+					if($crate_cnt >0)
+					{
+				   		$crate_html .='<option value="'.$value['in_crate_id'].'" >'.$value['st_crate_type'].'('.$crate_cnt.')</option>';
+				   	}
+				   	
+				   }
+			}
+			$crate_html .='<option value="No">No Crate</option>';
+			$data['crate_html'] = $crate_html;
+			$data['type']  = $type;
+		}		
+		$this->load->view('reservation-details',$data);
+	}
+
+	public function reservation_action()	
+	{		
+		$actionarr = $this->input->post();				
+		$adoption_order_arr = array('in_status' => $actionarr['in_status']);
+		$result = $this->transport_summary_model->update_adoption_order($adoption_order_arr, $actionarr['in_adoption_order']);
+		
+		$trans_summary = $this->transport_summary_model->get_summaryBy_adoptionId($actionarr['in_adoption_order']);		
+		if($actionarr['in_status'] == 1)
+		{ 
+			$trans_summary_arr = array(
+				'in_id' => $actionarr['in_adoption_order'],
+				'in_qty'=>$actionarr['crate_qty'],
+				'in_crate_id' =>$actionarr['crate_id'],
+				'in_status'	=> 1,
+				
+				);
+			if(empty($trans_summary))
+			{			
+				
+				$trans_summary_arr['dt_created']	= date('Y-m-d H:i:s');
+				$result1 = $this->transport_summary_model->insert_trans_summary($trans_summary_arr);			
+			}
+			if(!empty($trans_summary))
+			{
+				
+				$in_trans_summary_id = $trans_summary[0]['in_trans_summary_id'];
+				$trans_summary_arr['dt_updated']	= date('Y-m-d H:i:s');
+				$trans_summary_arr['is_shared']			= 0;
+				$result1 = $this->transport_summary_model->update_trans_summary($in_trans_summary_id ,$trans_summary_arr);
+								
+			}			
+		}
+
+		else if($actionarr['in_status'] == 2)
+		{
+			$trans_summary_arr = array(
+				'in_id' => $actionarr['in_adoption_order'],				
+				'in_status'	=> 2,				
+				);
+			if(empty($trans_summary))
+			{
+				$trans_summary_arr['dt_created']	= date('Y-m-d H:i:s');
+				$result1 = $this->transport_summary_model->insert_trans_summary($trans_summary_arr);
+			}
+			if(!empty($trans_summary))
+			{
+				$in_trans_summary_id = $trans_summary[0]['in_trans_summary_id'];
+				$trans_summary_arr['dt_updated']	= date('Y-m-d H:i:s');
+				$result1 = $this->transport_summary_model->update_trans_summary($in_trans_summary_id,$trans_summary_arr);
+			}			
+		}
+		echo json_encode("success");	
+
+	}
+
+	function insert_shared_details()
+    {
+    	
+    	$data = $this->input->post();      	
+        $transport_id = $data['transport_id'];
+        $org_id = $data['org_id'];
+        
+        $sharewithanimal = $this->transport_summary_model->get_summaryBy_adoptionId($data['animal_sharedwithcrate']);
+        $trans_summary = $this->transport_summary_model->get_summaryBy_adoptionId($data['in_adoption_order']);		
+
+        if (strpos($data['crate_id'], 'share_') !== false) {
+		  
+		    $crate_id = $sharewithanimal[0]['in_crate_id'];
+		}
+		else{
+			$crate_id = $data['crate_id'];
+		}        
+
+        $adoption_order_arr = array('in_status' => $data['in_status']);
+		$result = $this->transport_summary_model->update_adoption_order($adoption_order_arr, $data['in_adoption_order']);
+		if($data['in_status'] == 1)
+		{				
+			$trans_summary_arr = array(
+				'in_id' => $data['in_adoption_order'],
+				'is_shared'=> $sharewithanimal[0]['in_trans_summary_id'],
+				'in_status'	=> 1,				
+				);
+
+			if(empty($trans_summary))
+			{					
+				$trans_summary_arr['dt_created']	= date('Y-m-d H:i:s');
+				$result1 = $this->transport_summary_model->insert_trans_summary($trans_summary_arr);			
+			}
+			if(!empty($trans_summary))
+			{
+				
+				$in_trans_summary_id = $trans_summary[0]['in_trans_summary_id'];
+				$trans_summary_arr['dt_updated']	= date('Y-m-d H:i:s');
+				$trans_summary_arr['in_crate_id']	= NULL;				
+				$result1 = $this->transport_summary_model->update_trans_summary($in_trans_summary_id ,$trans_summary_arr);				
+			}				
+		}
+		
+		echo json_encode("success");	
+    }
+
+
+
+
+	public function comments()
+	{		
+		$data= $this->input->post();
+		if(!empty($data['comment']))
+		{
+			$commentarr= array(
+				'st_commment'	=> nl2br($data['comment']),
+				'in_id' 		=> $data['in_id'],
+				'in_user_id'	=> $this->session->userdata('userid'),
+				'dt_created'	=> date('Y-m-d H:i:s')
+				);				
+				$result = $this->transport_summary_model->insert_trans_comment($commentarr);				
+			if($result)
+			{
+				echo json_encode("success");
+			}	
+		}
+	}
+
+	public function get_comments()
+	{
+		$data = $this->input->post();
+		$in_id = $data['in_id'];
+		$comments = $this->transport_summary_model->get_commentBy_adoptionId($in_id);
+		echo json_encode($comments);
+	}
+
+	//function to disply the animal details by using the crate id or status
+    //used to disply the animal details on popup of transport summary
+    function get_animal_details()
+    {   
+        $data = $this->input->post();
+        $animal = array();   	
+        $transport_id = $data['trans_id'];
+        $org_id = $data['org_id'];
+        $type = $data['type'];
+        $adoptionarr 	= $this->transport_summary_model->get_animalBy_trans_org($transport_id, $org_id,$type);
+        if(count($adoptionarr)>0)
+		{	
+			for($i=0; $i<count($adoptionarr);$i++)
+			{
+				foreach ($adoptionarr as $a_key => $a_value) {					
+					if($a_value['is_shared'] >0 && $adoptionarr[$i]['in_trans_summary_id'] == ($a_value['is_shared']))
+					{						
+						$adoptionarr[$i]['share'] = $a_value;						
+					}
+				}
+			}
+		}	
+		$data['adoptiondata'] = $adoptionarr;
+        $tempdata = explode("_", $data['temp']);
+        $filter1 = $tempdata[0];
+        $filter2 = $tempdata[1];      
+      
+		$data['trans_crate'] = array();
+		$temp_trans_crate = $this->common_model->get_transport_crates($transport_id);
+		if(!empty($temp_trans_crate))
+		{
+			foreach ($temp_trans_crate as $key => $value) {
+				$data['trans_crate'][$value['in_crate_id']] =$value;
+			}
+		}		
+		if($filter1 == "status")
+		{
+			foreach($data['adoptiondata'] as $a_key =>$a_val)
+			{
+				if($a_val['in_status'] == 0)
+				{
+					$animal[] = $a_val;
+				}
+
+			}
+			
+		}
+
+		else if($filter1 =="crate")
+		{
+			foreach($data['adoptiondata'] as $t_key =>$t_val)
+			{
+				if($t_val['in_crate_id'] == $filter2)
+				{
+					$animal[] = $t_val;				
+				}
+			}
+		}	
+		$data['animal']	= $animal;		
+		echo json_encode($data);
+    }
+
+
+    public function get_animal_for_share()
+    {
+    	$data = $this->input->post();    
+        $transport_id = $data['transport_id'];
+        $org_id = $data['org_id'];
+        $type = $data['type'];
+        $adoption_id = $data['adoption_id'];        
+        $adoptionarr 	= $this->transport_summary_model->get_animalBy_adoptionId($adoption_id,$type);      
+       
+       	$animal = array();
+       	
+       	if(count($adoptionarr)>0)
+		{	
+			for($i=0; $i<count($adoptionarr);$i++)
+			{
+				foreach ($adoptionarr as $a_key => $a_value) {					
+					if($a_value['is_shared'] >0 && $adoptionarr[$i]['in_trans_summary_id'] == ($a_value['is_shared']))
+					{						
+						$adoptionarr[$i]['share'] = $a_value;						
+					}
+				}
+			}
+		}	
+		$adoptiondata = $adoptionarr;		
+
+		if(!empty($adoptiondata) && count($adoptiondata)>0)				
+		{
+			foreach($adoptiondata as $key =>$val)
+			{					
+				if( ($val['in_crate_id']!=0) )
+				{
+					if(!isset($val['share']))
+						$animal[] = $val;
+				}
+			}
+		}				
+		echo json_encode($animal);
+		exit; 
+    }
+    
+    
+
+    //function used to delete the particiapant organziation while editing transport
+    function delete_participant_org()
+    {
+    	$data = $this->input->post();
+    	$org_id = $data['org_id'];
+    	$transport_id = $data['transport_id'];
+    	$org_arr = array(
+			'in_deleted' => 1,			
+		);
+		$result = $this->transport_summary_model->update_participant_org($org_arr, $org_id, $transport_id);
+		if($result)
+		{
+			echo json_encode('success');
+		}
+
+    }
+
+    //get the organization details for sending/ receiving party autocomplete details.
+    function orgdetails()
+    {
+   		$org = addslashes($this->input->get('term'));  
+   		$result = $this->transport_summary_model->orgdetails($org);
+        echo json_encode($result);
+    }
+   
+	public function get_org_details()
+	{
+		$org_id = $this->input->post('org_id');
+		$cnt = $this->input->post('cnt');
+		$org_details = array();
+		$org_details = $this->common_model->get_single_org_details($org_id);
+		$org_html = '';
+		if(count($org_details)>0)
+		{
+			if(isset($org_details['st_org_image']) && $org_details['st_org_image']!='' && file_exists($this->config->item('upload').'org_doc/thumb/'.$org_details['st_org_image']))
+			{
+				$org_img = $org_details['st_org_image']; 
+			} else {
+				$org_img = 'temp-logo.jpg';
+			}		
+			$org_html .= '<div class="orglist participate_in_id_'.$cnt.'"><div class="col-lg-8 col-md-8 col-sm-7 col-xs-7 pad0">';
+			$org_html .= '<div class="col-lg-2 col-md-2 col-sm-2 col-xs-3 pad0"><img src="'.base_url().'upload/org_doc/thumb/'.$org_img.'" alt="'.$org_details['st_org_name'].'" title="'.$org_details['st_org_name'].'"></div>';
+			$org_html .= '<div class="col-lg-10 col-md-10 col-sm-10 col-xs-9 pad0 orgtitle"><input type="hidden" id="participate_org_id_'.$cnt.'" name="participate_org_id_'.$cnt.'" value="'.$org_details['in_organization_id'].'" /><p>'.$org_details['st_org_name'].'</p></div>';
+			$org_html .= '</div>';
+			$org_html .= '<div class="col-lg-4 col-md-4 col-sm-5 col-xs-5 padr0 switch-container option">';
+			$org_html .= '<div class="choose sending"><span class="description send select">Sending</span><label class="switch"><input type="checkbox" value="1" name="send_receive[]" data-orgid="'.$cnt.'"><span class="slider round"></span></label><span class="description receive">Receiving</span><input type="hidden" name="invitation_type_'.$cnt.'" class="invitation_type" id="invitation_type_'.$cnt.'" value="sending" /> <a href="javascript:void(0);" onclick="delete_org_list('.$cnt.')"><i class="fa fa-times" aria-hidden="true" style="color:red"></i></a> </div>';
+			$org_html .= '</div><div class="br"></div><input type="hidden" id="participate_in_id_'.$cnt.'" name="participate_in_id_'.$cnt.'" value="" /></div>';
+			
+		}
+
+		echo $org_html;	
+	}
+
+	public function get_manage_vehicle()
+	{
+		$option_html = '';
+		$vehicle_list	= $this->transport_summary_model->get_vehicle($this->input->post('org_id'));
+		//$veh_id 		= $this->input->post('vehicle_id')?$this->input->post('vehicle_id'):'';
+		if(count($vehicle_list)>0)
+		{
+			$option_html .='<option value="">Select Vehicle</option>';
+			foreach($vehicle_list as $key=>$value)
+			{
+				/*if($veh_id == $value['in_vehicle_id'])
+				{	
+					$option_html .='<option value="'.$value['in_vehicle_id'].'" checked>'.$value['st_vehicle_name'].'</option>';
+				} else {*/
+					$option_html .='<option value="'.$value['in_vehicle_id'].'">'.$value['st_vehicle_name'].'</option>';
+				//}		
+			}	
+		}		
+		echo $option_html;
+	}	
+
+	public function get_manage_vehicle_detail()
+	{
+		$option_html = '';
+		$vehicle_detail_list	= $this->transport_summary_model->get_vehicle_detail($this->input->post('veh_id'));		
+		echo json_encode($vehicle_detail_list);
+	}
+	
+	public function route_reservation($org_id='',$status='',$sort=false,$order=false,$limit=false)
+	{		
+
+		$org_id = $this->session->userdata('org_id');
+		
+		$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		$make_array_user = array();
+		$check_per_flag = '';
+		$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		if(!empty($user_permission)) {
+			$make_array_user = unserialize($user_permission);
+		}
+		if($owner_id != $this->session->userdata('userid')) {	
+			if(isset($make_array_user['transport']) && (in_array('transport_ed',$make_array_user['transport']) == true || in_array('transport_cr',$make_array_user['transport']) == true)) 				
+			{
+				$check_per_flag = '1';
+			} else {
+				$check_per_flag = '0';
+				$this->session->set_flashdata('rights_error', 'Please contact organization for get access this module.');
+				redirect($this->config->item('base_url')."org-dashboard/".$this->session->userdata('org_id')."/");
+			}
+			
+		}
+		
+		if(!$sort)
+		$sort='in_adoption_id';
+
+		if(!$order)
+		$order = 'desc';
+
+		if($this->uri->segment(9))
+		$limit = $this->uri->segment(9);		
+		else	
+		$limit = '0';
+		//$rec_per_page =	 $this->config->item('per_page');
+		$rec_per_page =	 '';
+
+		/*if($type == 'send')
+		{
+		$data['organization_type'] = "Sending Organization";
+		}
+		else if($type == 'receive')
+		{
+		$data['organization_type'] = "Receiving Organization";
+		}*/
+
+		//$data['transport_id'] 	= $transport_id;
+		$data['org_id']			= $org_id;
+		$data['type']			= $type;
+
+		$adoptionarr 	= $this->transport_summary_model->get_assigning_crate_animal_by_org($org_id,$order,$sort,$limit,$rec_per_page);					
+		$data['trans_crate'] = array();
+		if(count($adoptionarr)>0)
+		{	
+			for($i=0; $i<count($adoptionarr);$i++)
+			{
+				foreach ($adoptionarr as $a_key => $a_value) {					
+					if($a_value['is_shared'] >0 && $adoptionarr[$i]['in_trans_summary_id'] == ($a_value['is_shared']))
+					{						
+						$adoptionarr[$i]['share'] = $a_value;						
+					}
+				}
+			}
+		}		
+		$data['adoptiondata'] = $adoptionarr;
+		$data['in_adoption_id'] = $in_adoption_id;
+		if(!empty($data['animaldata']) && count($data['animaldata'] )>0){
+			if($type =='receive')
+			{
+				$org_id = $data['animaldata'][0]['receiving_org_id'];
+			}
+			else if($type == 'send')
+			{
+				$org_id = $data['animaldata'][0]['sending_org_id'];
+			}
+			$data['org_id'] 	=$org_id;
+			$data['transport_id'] = $data['animaldata'][0]['in_transportation_id'];
+			$data['org_name']	= $data['animaldata'][0]['st_org_name'];
+			$data['director_name'] = $data['animaldata'][0]['st_director'];
+			$data['phone_number']	= $data['animaldata'][0]['st_primary_phone'];
+			$data['email'] = $data['animaldata'][0]['st_email_address'];		
+			$data['transport_details'] = $this->org_notify_model->get_transport_details($data['transport_id']);
+			$data['trans_crate'] = $this->common_model->get_transport_crates($data['transport_id']);
+
+		}
+
+		
+		/*$temp_trans_crate = $this->common_model->get_transport_crates($transport_id);
+		if(!empty($temp_trans_crate))
+		{
+			foreach ($temp_trans_crate as $key => $value) {
+				$data['trans_crate'][$value['in_crate_id']] =$value;
+			}
+		}*/
+			
+		//$data['transport_details'] = $this->org_notify_model->get_transport_details($transport_id);
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->load->view('assigning_crate_animal_trans_summary',$data);		
+		//assigning_crate_animal_trans_summary adopt_animal_trans_summary
+		//$this->page($transport_id, $org_id, $type,$sort=false,$order=false,$limit=false,$key);
+		
+	}
+
+}

@@ -1,0 +1,331 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Nirav Motta	
+# Created date: 16-August-2016
+# File description: admin account(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class transport_email_checksum extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');
+		$this->load->library('pagination');			
+		$this->load->library('form_validation');		
+		$this->load->library('upload');
+		$this->load->model('common_model');
+		$this->load->library('user_agent');		
+		$this->load->helper(array('form', 'url'));
+		//error_reporting(E_ALL);
+		$this->load->model('transport_email_checksum_model');	
+		$this->load->library('nativesession');
+	}	
+	
+	
+	#=========================================================
+	#Function : dashboard
+	#Purpuse  : To load admin dashboard
+	#---------------------------------------------------------
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+		$this->get_user_email_checksum();
+	}
+	
+	#=========================================================
+	#Function : dashboard
+	#Purpuse  : To load admin dashboard
+	#---------------------------------------------------------
+	public function get_user_email_checksum($sort=false,$order=false,$limit=false)
+	{
+		//echo $this->uri->segment(5);exit;
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='transport_id';
+		
+		if(!$order)
+			$order = 'desc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		//$rec_per_page =	 $this->config->item('per_page');
+			
+		$rec_per_page =	 10;
+			
+		if(($this->input->post('action') == 'search'))
+		{				
+			$this->nativesession->set('searchadmin1',trim($this->input->post('txtname')));				
+			$this->nativesession->set('searchadmin2',$this->input->post('txtfrom'));				
+			$this->nativesession->set('searchadmin3',$this->input->post('txtto'));
+		}
+
+		//$data['email_checksum_type'] = $this->transport_email_checksum_model->get_transport_email_checksum($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$sort,$order);
+		
+		$data['email_checksum_type'] = $this->transport_email_checksum_model->get_total_transport_email_details($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$sort,$order);
+		
+		
+		$totalrecord = count($data['email_checksum_type']);
+		
+		
+		$data['email_checksum_type'] = $this->transport_email_checksum_model->get_transport_email_details($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$sort,$order,$limit,$rec_per_page);
+		
+		//print_r($data['email_checksum_type']);exit;
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		
+		$config 				  = array();
+		$config['base_url'] 	  = $this->config->item('admin_base_url').'transport_email_checksum/get_user_email_checksum/'.$sort.'/'.$order;
+		//$config['base_url']	  	  = $config['base_url'].$transport_id.'/'.$type_id.'/'.$sort.'/'.$order.'/';
+		$config['total_rows'] 	  = $totalrecord;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['uri_segment']    =  '8'; 
+		$config['cur_page'] 	  = $limit;		
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';	
+	
+	
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		
+		//print_r($data['pagination']);exit;
+		
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		
+		$this->load->view('email-checksum-transportation',$data);
+	}
+	
+	
+	#=========================================================
+	#Function : dashboard
+	#Purpuse  : To load admin dashboard
+	#---------------------------------------------------------
+	public function display_user_email_transport_checksum($transport_id='',$type_id='',$sort=false,$order=false,$limit=false)
+	{
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'asc';
+		
+		$data['transport_id'] = $transport_id;
+		$data['type_id'] = $type_id;
+	
+		if($this->uri->segment(7))
+			$limit = $this->uri->segment(7);
+		else	
+			$limit = '0';
+		
+		if($this->input->post('action') == 'search')
+		{
+			$transport_id = $this->input->post('transport_id');
+			$type_id  = $this->input->post('type_id');
+			$search_email_address = $this->input->post('email_address');
+			$data['transport_id'] = $transport_id;
+			$data['type_id'] = $type_id;
+			$data['email_address'] = $search_email_address;
+		}
+		
+		$rec_per_page = 1;
+		
+		//$rec_per_page =	 $this->config->item('per_page');
+		//$data['user_email_checksum'] = $this->transport_email_checksum_model->get_users_transport_email_checksum($transport_id,$type_id,$search_email_address,$sort,$order,$limit,$rec_per_page);	
+		$get_users_transport_type_email_checksum = $this->transport_email_checksum_model->get_users_transport_email_checksum($transport_id,$type_id,$search_email_address,$sort,$order,$limit,$rec_per_page);	
+		$data['user_email_checksum'] = $get_users_transport_type_email_checksum['checksum_user_email'];
+		$totalrecord = count($data['user_email_checksum']);
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		
+		$config 				  = array();
+		$config['base_url'] 	  = $this->config->item('admin_base_url').'transport_email_checksum/display_user_email_transport_checksum/';
+		$config['base_url']	  	  = $config['base_url'].$transport_id.'/'.$type_id.'/'.$sort.'/'.$order.'/';
+		$config['total_rows'] 	  = $totalrecord;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['uri_segment']    =  '8'; 
+		$config['cur_page'] 	  = $limit;		
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';	
+	
+	
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No User Information Available.';
+		}
+		
+		$this->load->view('view-user-listing-new',$data);
+	}
+	
+	function display_user_email_detail($id,$transport_id)
+	{
+		$get_users_transport_type_email_checksum = $this->transport_email_checksum_model->get_users_transport_email_list($id,$transport_id);
+		//print_r($get_users_transport_type_email_checksum);exit;	
+		$data['user_email_checksum'] = $get_users_transport_type_email_checksum;
+		
+		$data['record_id'] = $id;
+		$data['transport_id'] = $transport_id;
+		
+		$this->load->view('view-user-listing-new',$data);
+		
+	}
+	
+	function get_user_email_detail($id,$transport_id)
+	{
+		$email_address = $this->input->post('email_address');
+		$get_users_transport_type_email_checksum = $this->transport_email_checksum_model->get_user_email_detail($id,$transport_id,$email_address);
+		//print_r($get_users_transport_type_email_checksum);exit;	
+		$data['user_email_checksum'] = $get_users_transport_type_email_checksum[0];
+		
+		//echo '<pre/>';
+		//print_r($data['user_email_checksum']);
+		//exit;
+		$key =  $this->myfunction($data['user_email_checksum'], $field = 'email_address', $email_address) ;
+		//print_r($product);exit;
+		//print_r($product);exit;
+		//print_r($data['user_email_checksum'][$key]);exit;
+		
+		$data['user_email_checksum'] = array('0'=>$data['user_email_checksum'][$key]);
+		//print_r($data['user_email_checksum']);//exit;
+		//exit;
+		
+		$data['record_id'] = $id;
+		$data['transport_id'] = $transport_id;
+		$data['email_address'] = $email_address;
+		
+		$this->load->view('view-user-listing-new-1',$data);
+		
+	}
+	
+	
+	function myfunction($products, $field, $value)
+	{	
+		//echo $value;
+		//exit;
+	   foreach($products as $key => $product)
+	   { 
+	   	//echo $product[$field];
+		//echo '============================'. $value;
+		  if ( $product[$field] === $value )
+			 return $key;
+	   }
+	   return false;
+	}
+	
+	/*public function search_user_email_transport_checksum()
+	{
+		if($this->input->post('action') == 'search')
+		{
+			$transport_id = $this->input->post('transport_id');
+			$type_id  = $this->input->post('type_id');
+			$search_email_address = $this->input->post('email_address');
+			$data['user_email_checksum'] = $this->transport_email_checksum_model->get_users_transport_email_checksum($transport_id,$type_id,$search_email_address);	
+			$data['transport_id'] = $transport_id;
+			$data['type_id'] = $type_id;
+			$data['search_email_address'] = $search_email_address;
+			$this->load->view('view-user-listing.php',$data);
+		}
+	}*/
+	
+	#=========================================================
+	#Function : logout
+	#Purpuse  : To destroy admin sessions
+	#---------------------------------------------------------
+	function logout()
+	{  
+		$this->session->unset_userdata('sess_admin_id');
+		$this->session->unset_userdata('sess_admin_email');
+		$this->session->unset_userdata('sess_admin_name');	
+		$this->session->unset_userdata('redirect_url');		
+		$this->unset_data();		
+		redirect($this->config->item('admin_base_url'));
+	}
+	
+	#=========================================================
+	#Function : unset_data
+	#Purpuse  : To unset all temp data of user
+	#---------------------------------------------------------
+	function unset_data()
+	{
+		//Unset previusly set sessions for products,customers and stores		
+		$session_data = array('');	
+		$this->session->unset_userdata($session_data);
+		$this->session->unset_userdata();
+	}
+	
+	public function old_index()
+	{
+		$data['email_checksum_type'] = $this->transport_email_checksum_model->get_transport_email_checksum();	
+		$this->load->view('email-checksum-transportation.php',$data);
+	}
+}
+
+/* End of file account.php */
+/* Location: ./application/administration/controllers/account.php */

@@ -1,0 +1,400 @@
+<?php
+# ======================================================================================
+# Created by		: Nirav Motta
+# Created date		: 24-March-2014
+# File description	: User Model for admin
+# Special - notes	: none
+# Tables used		: tbl_admin
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class user_trips_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	public function get_lat_long($zipcode)
+	{
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get()->result_array();
+		return $query;	
+	}
+	
+	public function get_count_user_trips($user_name,$user_email,$from_date,$to_date,$radius,$zipcode)
+	{
+		if($from_date=='1969-12-31' || empty($from_date) ){ $from_date='';  }
+		if($to_date=='1969-12-31' || empty($to_date) ){$to_date='';  }
+		
+		$todaysdate=date('Y-m-d');
+		
+		if($zipcode != '' && $radius != '')
+		{	
+			$lat_long = $this->get_lat_long($zipcode);	
+		}
+		
+		$this->db->select('tr.*,u.st_display_name,u.st_last_name,u.st_email');
+		$this->db->from('tbl_trips tr');
+		$this->db->join('tbl_users u','tr.in_user_id = u.in_user_id','LEFT');
+		
+		 if ($radius != '' && $zipcode != ''){
+			 //$this->db->join('tbl_zip_code zp', 'zp.zip_code=tr.st_from_zip', 'LEFT');
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=tr.st_from_zip OR zp.zip_code=tr.st_to_zip', 'LEFT');
+		 }	
+		
+		$this->db->where('tr.in_deleted',0);
+		
+		$this->db->where("tr.dt_trip >= '".$todaysdate."'", NULL, FALSE);
+		
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($from_date!='' && $to_date!='') {
+			$this->db->where('tr.dt_trip between "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"');
+			//$this->db->where('tr.dt_trip between'.$from_date.'AND'.$to_date);
+		}
+		
+		if($from_date !='' && $to_date =='') {
+			$this->db->where('tr.dt_trip >="'.date('Y-m-d',strtotime($from_date)).'"');
+			//$this->db->where('tr.dt_trip >='.$from_date);
+		}
+		
+		if($from_date =='' && $to_date!='') {
+			$this->db->where('tr.dt_trip <="'.date('Y-m-d',strtotime($to_date)).'"');
+		}
+		
+		 if ($radius != '' && $zipcode != ''){ 
+			if (sizeof($lat_long) > 0){
+			  $this->db->where("((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+			} 
+		 } else if($radius == '' && $zipcode != ''){
+			 $this->db->where('(st_from_zip = "'.$zipcode.'" or st_to_zip = "'.$zipcode.'")',NULL,false);
+			//$this->db->where('st_from_zip = "'.$zipcode.'" or st_to_zip = "'.$zipcode.'"');
+		}	 
+		
+		$this->db->group_by('tr.in_trip_id');
+		$query = $this->db->get();
+		//echo "<pre>"; print_r($query->num_rows()); echo "</pre>";
+		//exit(0);
+		return $query->num_rows();
+	}	
+	
+	
+	public function get_user_trips($sort,$order,$limit,$rec_per_page,$user_name,$user_email,$from_date,$to_date,$radius,$zipcode)
+	{
+		if($from_date=='1969-12-31' || empty($from_date) ){ $from_date='';  }
+		if($to_date=='1969-12-31' || empty($to_date) ){$to_date='';  }
+		
+		if($zipcode != '' && $radius != '')
+		{	
+			$lat_long = $this->get_lat_long($zipcode);
+		}
+		
+		$todaysdate=date('Y-m-d');
+		
+		$this->db->select('tr.*,u.st_display_name,u.st_last_name,u.st_email');
+		$this->db->from('tbl_trips tr');
+		$this->db->join('tbl_users u','tr.in_user_id  = u.in_user_id','LEFT');
+		
+		 if ($radius != '' && $zipcode != ''){
+			 //$this->db->join('tbl_zip_code zp', 'zp.zip_code=tr.st_from_zip', 'LEFT');
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=tr.st_from_zip OR zp.zip_code=tr.st_to_zip', 'LEFT'); 
+		 }	
+		
+		$this->db->where('tr.in_deleted',0);
+		$this->db->where("tr.dt_trip >= '".$todaysdate."'", NULL, FALSE);
+		
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+			//$this->db->where('concat(u.st_display_name, ' ', u.st_last_name) LIKE %"'.addslashes($user_name).'"%');
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($from_date!='' && $to_date!='') {
+			$this->db->where('tr.dt_trip between "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"');
+			//$this->db->where('tr.dt_trip between'.date('Y-m-d',strtotime($from_date)).'AND'.date('Y-m-d',strtotime($to_date)));
+		}
+		
+		if($from_date!='' && $to_date =='') {
+			$this->db->where('tr.dt_trip >="'.date('Y-m-d',strtotime($from_date)).'"');
+		}
+		
+		if($from_date=='' && $to_date!='') {
+			$this->db->where('tr.dt_trip <="'.date('Y-m-d',strtotime($to_date)).'"');
+		}
+		 if ($radius != '' && $zipcode != ''){
+					if (sizeof($lat_long) > 0){
+						$this->db->where("((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+					}
+		} else if($radius == '' && $zipcode != ''){
+			$this->db->where('(st_from_zip = "'.$zipcode.'" or st_to_zip = "'.$zipcode.'")',NULL,false);
+		}
+		
+			switch($sort)
+			{		
+						case 'email': 							
+							$this->db->order_by('u.st_email',$order);							
+						break;
+
+						case 'tethered':
+							$this->db->order_by('tr.in_tethered',$order);							
+						break;
+						
+						case 'name': 							
+							$this->db->order_by('u.st_display_name',$order);
+							$this->db->order_by('u.st_last_name',$order);
+						break;	 
+						
+						case 'id': 							
+							$this->db->order_by('tr.in_trip_id',$order);
+						break;	
+						
+						case 'date':							
+							$this->db->order_by('tr.dt_trip',$order);							
+						break;
+						
+						case 'crates':							
+							$this->db->order_by('tr.in_crates',$order);							
+						break;
+						
+						case 'paid':							
+							$this->db->order_by('tr.in_paid',$order);							
+						break;
+						
+						case 'type':							
+							$this->db->order_by('tr.in_type',$order);							
+						break;
+						
+						case 'source_add':							
+							$this->db->order_by('tr.st_from_state',$order);
+							$this->db->order_by('tr.st_from_city',$order);
+							$this->db->order_by('tr.st_from_zip',$order);
+							$this->db->order_by('tr.st_from_street',$order);	
+						break;
+						
+						case 'dest_add':							
+							$this->db->order_by('tr.st_to_state',$order);
+							$this->db->order_by('tr.st_to_city',$order);
+							$this->db->order_by('tr.st_to_zip',$order);
+							$this->db->order_by('tr.st_to_street',$order);							
+						break;
+						
+						case 'filled':							
+							$this->db->order_by('tr.in_filled',$order);						
+						break;
+						
+						default:						
+							$this->db->order_by('tr.in_trip_id','asc');
+						break;        
+		}
+		$this->db->group_by('tr.in_trip_id');
+		$this->db->limit($rec_per_page,$limit);	
+		$query = $this->db->get();	
+		/*echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+		exit(0);*/
+		$arr_user_trips = array();
+	    if($query->num_rows()>0)
+		{  
+			foreach($query->result() as $Row)
+			{
+				$source_trips  = '';
+				//$source_trips .= (!empty($Row->st_from_street)?$Row->st_from_street.',':'');
+				$source_trips .= (!empty($Row->st_from_city)?$Row->st_from_city.', ':'');
+				$source_trips .= (!empty($Row->st_from_state)?$Row->st_from_state.', ':'');
+				//$source_trips .= (!empty($Row->st_from_country)?$Row->st_from_country.',':'');
+				$source_trips .= (!empty($Row->st_from_zip)?$Row->st_from_zip:'');
+							
+				$destination_trips = '';
+				//$destination_trips .= (!empty($Row->st_to_street)?$Row->st_to_street.',':'');
+				$destination_trips .= (!empty($Row->st_to_city)?$Row->st_to_city.', ':'');
+				$destination_trips .= (!empty($Row->st_to_state)?$Row->st_to_state.', ':'');
+				//$destination_trips .= (!empty($Row->st_to_country)?$Row->st_to_country.',':'');
+				$destination_trips .= (!empty($Row->st_to_zip)?$Row->st_to_zip:'');
+							
+				$arr_user_trips[$Row->in_trip_id]	=	array('in_trip_id'	=> $Row->in_trip_id,
+											'trip_source'					=> $source_trips,
+											'trip_destination'				=> $destination_trips,
+											'dt_trip'				    	=> $Row->dt_trip,
+											'in_crates'                     => $Row->in_crates,
+											'in_tethered'				    => $Row->in_tethered,
+											'type'							=> ($Row->in_type==1?'Driving':'Flying'),
+											'paid'				        	=> ($Row->in_paid==0?'Unpaid':'Paid'),
+											'user_name'						=> ($Row->st_display_name)." ".($Row->st_last_name),
+											'user_email_address'            =>  $Row->st_email,
+											'filled'						=> ($Row->in_filled==0?'Not Filled':'Filled'),
+											);
+		   }				
+		}
+		$arr_user_trips;
+		return $arr_user_trips;
+	}
+	
+	
+	#======================================================================
+	#	Function	:	get_trip_profile()
+	#   Parameter	: 	tripId
+	#	Perpose		:	to get trip profile from tbl_trips table
+	#----------------------------------------------------------------------
+	function get_trip_profile($tripId)
+	{
+		$this->db->select('t.in_trip_id,t.in_user_id,t.in_filled,t.st_from_city,t.st_from_state,t.st_from_zip,t.st_from_country,t.st_to_city,t.st_to_state,t.st_to_zip,t.st_to_country,t.dt_trip,t.in_crates,t.in_tethered,t.in_type,t.in_paid');
+		$this->db->from('tbl_trips as t');		
+		$this->db->where('t.in_trip_id',$tripId);			
+		$query = $this->db->get();
+		return $query->row_array();	
+	}
+	
+	#======================================================================
+	#	Function	:	update_trip_info()
+	#   Parameter	: 	data,tripId,table
+	#	Perpose		:	to update trip details in tbl_trips table
+	#----------------------------------------------------------------------
+	public function update_trip_info($data,$tripId,$table) {		
+		$this->db->where('in_trip_id',$tripId);
+		$this->db->update($table,$data);
+		//echo $this->db->last_query(); die;
+		return $this->db->affected_rows();	
+	}
+	
+	public function get_fullzipcode_by_state_city($city='',$state='')
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix,st_country",FALSE);
+		$this->db->from('tbl_zip_code');
+	
+		
+		//$this->db->where('city',$city);
+		//$this->db->where('state_prefix',$state);
+		$this->db->where('lower(city) LIKE lower("'.$city.'%") AND UPPER(state_prefix) = UPPER("'.trim($state).'")');
+		$this->db->limit("1");
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array("label"			=> $Row->label.", ".$this->common_function->shortCountry[trim($Row->st_country)],
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+		
+	public function get_zipcode($zipcode='',$city='',$state='',$action='')
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix,st_country",FALSE);
+		$this->db->from('tbl_zip_code');
+		if($action=='')
+		{
+			$this->db->where('zip_code LIKE "'.$zipcode.'%"',FALSE,FALSE);
+			$this->db->limit("10");
+		}
+		else
+		{
+		if($city)
+		{
+			$this->db->where('lower(city) LIKE lower("'.$city.'%")',FALSE,FALSE);
+		}
+		if($state)
+		{
+			if(strlen($state) > 2)
+			{
+				$states_list = $this->common_function->state_list;
+				if(in_array(ucfirst($state), $states_list))
+				{
+					$state_key = array_search(ucfirst($state), $states_list);
+					$state = $state_key;
+				}
+				//echo $state;exit;
+			}
+			$this->db->where('UPPER(state_prefix) = UPPER("'.$state.'")',FALSE,FALSE);
+		}
+		$this->db->limit("10");
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array("label"			=> $Row->label.", ".$this->common_function->shortCountry[trim($Row->st_country)],
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+		return $query->result_array();
+	}
+	
+	public function trip_details($id)
+	{
+		$data = array();
+		$result = array();
+		$sql	=	"SELECT  t.in_trip_id,t.st_from_city,t.st_from_state,t.st_from_zip,t.st_to_city,t.st_to_state,t.st_to_zip,t.dt_trip,t.in_crates,t.in_tethered,t.in_type,t.in_filled,t.in_paid
+					FROM (`tbl_trips` t) 					
+					WHERE `t`.`in_trip_id` = '".$id."' AND `t`.`in_deleted` = 0";
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query(); die;	
+		
+		if($query->num_rows() > 0) { 
+			$result = $query->result_array();
+			//return  $result;		
+			
+			foreach($query->result_array() as $row){
+				    $type=$tripdate='';
+					if($row['in_type']==1){ $type='Driving';}
+					if($row['in_type']==2){ $type='Flying';}
+					$tripdate=date("m-d-Y",strtotime($row['dt_trip']));
+					//$tripdate = date('M d Y',strtotime($trip['dt_trip']));
+			
+					$data[] = $row['in_trip_id'].','.$row['st_from_city'].','.$row['st_from_state'].','.$row['st_from_zip'].','.$row['st_to_city'].','.$row['st_to_state'].','.$row['st_to_zip'].','.$tripdate.','.$row['in_crates'].','.$row['in_tethered'].','.$type.','.$row['in_filled'].','.$row['in_paid'];	
+					
+				  $data =array(
+				  	'in_trip_id' =>$row['in_trip_id'],
+					'from_city'  =>(isset($row['st_from_city']) && $row['st_from_city']!='')? $row['st_from_city']:'',
+					'from_state' =>(isset($row['st_from_state']) && $row['st_from_state']!='')? $row['st_from_state']:'',
+					'from_zip'   =>(isset($row['st_from_zip']) && $row['st_from_zip']!='')? $row['st_from_zip']:'',
+					'to_city'    =>(isset($row['st_to_city']) && $row['st_to_city']!='')? $row['st_to_city']:'',
+					'to_state'   =>(isset($row['st_to_state']) && $row['st_to_state']!='')? $row['st_to_state']:'',
+					'to_zip'	 =>(isset($row['st_to_zip']) && $row['st_to_zip']!='')? $row['st_to_zip']:'',
+					'in_crates'  =>(isset($row['in_crates']) && $row['in_crates']!='')? $row['in_crates']:'',
+					'in_tethered'=>(isset($row['in_tethered']) && $row['in_tethered']!='')? $row['in_tethered']:'',
+					'in_filled'  =>(isset($row['in_filled']) && $row['in_filled']!='')? $row['in_filled']:'',
+					'in_paid'	 =>(isset($row['in_paid']) && $row['in_paid']!='')? $row['in_paid']:'',
+					'tripdate'	 =>(isset($tripdate) && $tripdate!='')? $tripdate:'',
+					'type'		 =>(isset($type) && $type!='')? $type:''
+				  );	
+					
+			}			
+			return json_encode($data);				
+		}	
+	}
+	
+}
+?>

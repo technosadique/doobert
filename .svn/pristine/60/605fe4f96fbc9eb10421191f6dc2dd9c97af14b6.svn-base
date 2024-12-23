@@ -1,0 +1,1135 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Order_transport extends CI_Controller { 
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	
+	
+	public function __construct()
+    {
+    	parent::__construct();
+    	$this->load->model('common_model');
+    	$this->load->model('order_transport_model');
+    	$this->load->library('common_function');
+    	$this->load->helper('cookie');
+    	$this->load->helper('url');
+    	$this->load->library('pagination');
+    	$this->load->library('form_validation');
+    	$this->load->model('orgtrasnportation_model');
+    	$this->load->model('route_animal_model');
+    	$this->load->library('email');
+    	$this->load->model('organimal_model');
+		
+    }
+
+    public function index()
+	{
+		
+		$code = $this->session->userdata('verify');
+		if($this->session->userdata('userid')){
+			$userid = $this->session->userdata('userid');
+		}
+		else{
+			$userid ='';
+		}
+		$transport_id = $this->input->post('in_transport_id');
+		$temp_crate_details = $this ->common_model->get_transport_crates($transport_id);
+		$transport_details 			= $this->orgtrasnportation_model->get_transport_details($transport_id);
+		
+		$test = array();
+		$crate_details = array();
+		foreach($temp_crate_details as $key =>$value){
+			$test[$value['in_crate_id']] = $temp_crate_details[$key];
+		}
+		$crate_details =  $test;
+		$qty = $this->input->post('in_qty');
+		$waitqty = $this->input->post('in_wait');
+		
+		$order_id =  $this->session->userdata('order_trans_id');
+		$in_from_id = $this->input->post('from_id');
+		$in_to_id = $this->input->post('to_id');
+		
+		if($this->input->post('accept_term')==1 && $userid!='')
+		{
+					$term_condition = array('in_user_id'=>$this->session->userdata('userid'),
+											'in_organization_id'=>$transport_details[0]['in_organization_id'],
+											'dt_created' => date('Y:m:d H:i:s'),
+											'dt_modified'=> date('Y:m:d H:i:s'),
+											'in_deleted'=>0,
+											'in_route_transport'=>1,
+											);
+					$this->db->insert('tbl_users_accept_condition',$term_condition);
+		}
+		
+		if($this->input->post('accept_term')==1 && $userid=='')
+		{
+			if($this->session->userdata('accept_term_org'))
+			{
+				$array_term_str = $this->session->userdata('accept_term_org');
+				$array_term_cond = explode(",",$array_term_str);
+				array_push($array_term_cond,$transport_details[0]['in_organization_id']);
+				$accept_term_org = implode(",",$array_term_cond);
+				$this->session->unset_userdata('accept_term_org');
+				$this->session->set_userdata('accept_term_org',$accept_term_org);
+			} else 
+			{
+				$array_term_cond = array();
+				array_push($array_term_cond,$transport_details[0]['in_organization_id']);
+				$accept_term_org = implode(",",$array_term_cond);
+				$this->session->set_userdata('accept_term_org',$accept_term_org);
+			}			
+		}
+		
+		
+		
+		if($order_id ==''){
+			//tbl_order
+			$order = array(
+				'dt_order_date' => date("Y-m-d H:i:s"),
+				'in_order_type'	=> '1',
+				//'in_user_id' 	=> $userid,
+				'dt_created' 	=> date("Y-m-d H:i:s")
+				);
+			if(!empty($userid)){
+				$order['in_user_id'] 	= $userid;
+			}
+
+			$order_id = $this->order_transport_model->add_order($order);
+			if($order_id != ''){
+				$this->session->set_userdata('order_trans_id',$order_id);
+			}
+			}else{
+				$order_id = $this->session->userdata('order_trans_id');
+			}
+
+
+		
+		//tbl_order_transport
+		
+		foreach ($qty as $key => $qvalue) {
+
+			$value = explode("_",$qvalue);
+			$userqty = $value[0];
+			$crate_id = $value[1];
+			$ord_trans_id = $code."/".$crate_id;
+
+			$crateqty =0;
+			$totalqty = 0;
+			if($userqty !='' && $crate_id !='' && $userqty != 0){
+				$crate_details = $this->order_transport_model->crate_details($crate_id, $order_id);
+				$cratesdata = $this->order_transport_model->crates_byid($crate_id);
+					
+				if(!empty($crate_details)){
+					foreach ($crate_details as $key => $value) {
+						if($value['in_crate_id'] == $crate_id){
+							$crateqty = $crateqty + $value['in_qty'];
+
+							$route_animal_arr = array(
+							'in_ord_trans_id' 	=> 	$order_id."_".$crate_id,
+							'dt_modified' 		=>  date('Y-m-d H:i:s')
+							);
+							$ordtransid = $this->route_animal_model->update_ord_trans_id($route_animal_arr, $ord_trans_id);
+
+
+						}
+						
+					}
+					$totalqty = $userqty+$crateqty;
+					if($crateqty >0){
+						$ordertrans = array(
+								'in_qty' => $totalqty
+						);
+						
+						$order_transport_id = $this->order_transport_model->update_crate_trans($ordertrans, $order_id, $crate_id);						
+					}
+				
+				}
+				else{
+					$order_transport = array(
+					'in_order_id' 		=> $order_id,
+					'in_transport_id' 	=> $transport_id,
+					'in_crate_id'		=> $crate_id,
+					'in_qty' 			=> $userqty,
+					'dt_created' 		=> date("Y-m-d H:i:s"),
+					//'is_waitinglist' 	=> $waitlist,
+					'in_from_id'		=> $in_from_id,
+					'in_to_id'			=> $in_to_id
+					);
+					if($temp_crate_details[0]['in_approval'] == 0){
+						$order_transport['in_approval'] = 1;
+						$order_transport['is_waitinglist'] = 2;
+					}else{
+						$order_transport['in_approval'] = 0;
+						$order_transport['is_waitinglist'] = 2;
+					}
+					$order_transport_id = $this->order_transport_model->add_order_transport($order_transport);
+					$route_animal_arr = array(
+							'in_ord_trans_id' 	=>	$order_id."_".$crate_id,
+							'dt_modified' 		=>  date('Y-m-d H:i:s')
+							);
+					$ordtransid = $this->route_animal_model->update_ord_trans_id($route_animal_arr, $ord_trans_id);
+
+				}
+			}
+		
+		}//foreach
+
+		if(!empty($waitqty)){
+			foreach ($waitqty as $key => $qvalue) {
+				$value = explode("_",$qvalue);
+				$userqty = $value[0];
+				$crate_id = $value[1];
+				$ord_trans_id = $code."/".$crate_id;
+				$crateqty =0;
+				$totalqty = 0;
+				if($userqty !='' && $crate_id !='' && $userqty != 0){
+					$crate_details = $this->order_transport_model->crate_details($crate_id, $order_id);
+					if(!empty($crate_details)){
+						foreach ($crate_details as $key => $value) {
+							if($value['in_crate_id'] == $crate_id){
+								$crateqty = $crateqty + $value['in_qty'];
+								
+								$route_animal_arr = array(
+								'in_ord_trans_id' => $order_id."_".$crate_id,
+								'dt_modified' 	=>  date('Y-m-d H:i:s')
+								);
+								$ordtransid = $this->route_animal_model->update_ord_trans_id($route_animal_arr, $ord_trans_id);
+
+
+							}
+							
+						}
+						$totalqty = $userqty+$crateqty;
+						$ordertrans = array(
+								'in_qty' => $totalqty,
+								'is_waitinglist' 	=> 1,
+								'in_approval'		=> 0
+						);
+						
+						$order_transport_id = $this->order_transport_model->update_crate_trans($ordertrans, $order_id, $crate_id);
+						
+					
+					}
+					else{
+						$order_transport = array(
+						'in_order_id' 		=> $order_id,
+						'in_transport_id' 	=> $transport_id,
+						'in_crate_id'		=> $crate_id,
+						'in_qty' 			=> $userqty,
+						'dt_created' 		=> date("Y-m-d H:i:s"),
+						'is_waitinglist' 	=> 1,
+						'in_from_id'		=> $in_from_id,
+						'in_to_id'			=> $in_to_id,
+						'in_approval'		=> 0
+						);					
+						
+						$order_transport_id = $this->order_transport_model->add_order_transport($order_transport);
+						$route_animal_arr = array(
+								'in_ord_trans_id' 	=>	$order_id."_".$crate_id,
+								'dt_modified' 		=>  date('Y-m-d H:i:s')
+								);
+						$ordtransid = $this->route_animal_model->update_ord_trans_id($route_animal_arr, $ord_trans_id);
+					}
+				}
+			}
+
+		}
+
+		if($order_transport_id){
+		 	echo json_encode(array('res'=> TRUE));
+		 }else{
+		 	echo json_encode(array('res'=> FALSE));
+		 }
+
+	}
+
+	public function manage_reservation(){
+		
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+
+		$trans_id = $this->input->post('in_transport_id');
+		if(!empty($trans_id)){
+			$trans_id = $trans_id;
+		}else{
+			$trans_id ='';
+		}
+
+		$this->session->unset_userdata('searchadmin');		
+		$this->session->unset_userdata('searchadmin2');
+		$this->page($sort=false,$order=false,$limit=false,$trans_id);
+	}
+	public function page($sort=false,$order=false,$limit=false,$trans_id='')
+	{
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+
+		$temp_reservation= array();
+		$data['Err_Msg'] = '';
+		if(!$sort)
+			$sort='in_order_id';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);		
+		else	
+			$limit = '0';
+
+			$org_code 	= $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		    $orgcode	= ($org_code['st_org_code'])? $org_code['st_org_code'] : array('DBT','dbt');
+		
+		if($this->input->post('search_text'))
+		{
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');						
+				
+			//$search = trim(htmlentities($this->input->post('search_text')));				
+
+			$this->session->set_userdata('searchadmin',$this->common_function->custom_htmlentities($this->input->post('search_text')));
+				
+		}
+		
+		
+		if($this->session->userdata('searchadmin'))
+		{
+			$upper_text = strtoupper($this->session->userdata('searchadmin'));
+			$search = addslashes(str_replace($orgcode,"",$upper_text));
+		}
+		
+		$transport_id = $trans_id;
+		if($transport_id){
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');						
+							
+			$this->session->set_userdata('searchadmin2',$this->common_function->custom_htmlentities($transport_id));
+		}
+	
+		$rec_per_page =	 $this->config->item('per_page');		
+		$totalrecord = $this->order_transport_model->get_order_count($search,$this->session->userdata('searchadmin2') );
+		$order_details = $this->order_transport_model->get_order_details($sort,$order,$limit,$rec_per_page,$search, $this->session->userdata('searchadmin2'));
+		$data['animal_type'] 	= $this->organimal_model->get_animal_all_type();
+
+		$org_code = $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		$data['org_code'] = ($org_code['st_org_code'])? $org_code['st_org_code']:'DBT';
+		foreach($order_details as $o_key =>$o_value){
+			$order_id = $o_key;
+			$total = 0;
+			$cost = 0;	
+			$order_data = $this->order_transport_model->get_data_by_order_id($order_id);
+			foreach ($o_value as $t_key =>$t_value) {
+				
+				$temp_trans_id = $t_key;	
+					foreach ($t_value as $key => $value) {
+						foreach ($order_data as $o_key => $o_value) {
+                        
+	                        $approval =array();
+	                        $waitlistval = array();
+	                        foreach($o_value as  $val){
+	                           	if($temp_trans_id == $val['in_transport_id']){
+	                                	$approval[] =  $val['in_approval_o'];
+	                                	$waitlistval[] = $val['is_waitinglist'];										
+	                                	
+	                           	}
+	                        }
+	                       	//echo "<pre>";print_r($approval);print_r($waitlistval);echo"</pre>";
+	                        //if(!empty($approval) && (!in_array(2, $waitlistval)) && (!in_array(1, $waitlistval))){
+	                       	if(!empty($approval)){
+	                       		
+	                       		
+	                        	$array2 = array(2);                    
+		                        $array1 = array(1);                    
+			                    $result_r = array_diff($approval,$array2);
+
+			                    $result_a = array_diff($approval,$array1);
+			                  	
+				                    if(empty($result_r)){
+				                    	$order_status = 'Fully Rejected';
+				                    }
+				                    else if(empty($result_a)){
+				                    	$order_status = 'Fully Approved';
+				                    }
+				                    else if((in_array(1, $approval))){
+				                    	$order_status = 'Partially Approved';
+				                    }else if(in_array(2, $approval)){
+				                    	$order_status = 'Partially Rejected';
+				                    }
+				                    if(in_array(2, $waitlistval)){
+				                    	if(in_array(0, $approval)){
+				                    		$order_status = 'Pending Approval';
+				                   		}
+			                		}
+				                	if(in_array(2, $waitlistval)){
+				                		if(in_array(1, $approval)){
+		                       				$order_status = "Awaiting Payment";
+				                		}
+		                       		}
+		                       		if(in_array(1, $waitlistval)){
+		                       			$order_status = 	"Waiting List";
+		                       		}
+
+			                    else if(in_array(0, $approval) && (in_array(1, $waitlistval)) ){
+			                    	$order_status ='Waiting List';
+			                    }
+				               
+			                }
+	              		}
+
+					$order_date 	= $value['dt_order_date'];
+					$st_first_name 	= $value['st_first_name'];
+					$st_last_name 	= $value['st_last_name'];
+					$total 			= $value['fl_order_total'];
+					
+					$temp_reservation[] =array(
+					'order_id' => $order_id,
+					'transport_id'=>$temp_trans_id,
+					'total' => number_format((float)$total, 2, '.', ''),
+					'order_status'=>$order_status,
+					'order_date' =>$order_date,
+					'st_first_name'=>$st_first_name,
+					'st_last_name'=>$st_last_name
+
+					);
+
+					
+				}
+			
+			}
+					
+
+		}
+
+		
+		$data['reservation'] = $temp_reservation;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('base_url').'order_transport/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		//$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		//$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Reservation Available.';
+		}
+
+		$this->load->view('manage-reservation', $data);
+		
+	}
+	
+
+	public function view_reservation()
+	{
+
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+
+		$order_trans_id = $this->input->post('order_trans_id');
+
+		$id = explode("_", $order_trans_id);
+		$order_id = $id[0];
+		$transport_id = $id[1];
+		$transport_details	= $this->orgtrasnportation_model->get_transport_details($transport_id);
+		$order_data = $this->order_transport_model->get_data_by_order_id($order_id);
+		$animal_data = $this->route_animal_model->route_animal_by_oid($order_id);
+
+		$address_data = $this->order_transport_model->get_address_by_order_id($order_id);
+		$order_details = array();
+		$temp_order_animal =array();
+		foreach($order_data as $o_key => $o_value){
+			
+			if($transport_id == $o_key){
+				$total_cost = 0;
+				$total =0;
+				foreach ($o_value as $key => $value) {
+					
+					$qty = $value['in_qty'];
+
+					$order_date = $value['dt_order_date'];
+					$st_transaction_id = $value['st_transaction_id'];
+
+					$in_user_id = $value['in_user_id'];
+					if($in_user_id != 0){
+						$cost = $value['in_cost_private'];
+					}else if($in_user_id == 0){
+						$cost = $value['in_cost_public'];
+					}
+					$in_from_id = $value['in_from_id'];
+					$in_to_id = $value['in_to_id'];
+					$total = $qty*$cost;
+					$total_cost = $total_cost+$total;
+
+					$crate_status = $value['in_approval_o'];
+					switch ($crate_status) {
+	                    case '1':
+	                        $order_status = 'Approved';
+	                        break;
+	                    case '2':
+	                        $order_status = 'Rejected';
+	                        break;
+	                    default:
+	                        $order_status ='Pending';
+	                        break;
+                	}
+                	$crate_id = $value['in_crate_id'];
+                	$orderqty = $this->order_transport_model->approve_order_qty($crate_id);
+
+					$temp_order_data['order'][] = array(
+						'st_crate_type' => $value['st_crate_type'],
+						'in_qty' 		=> $qty,
+						'cost'			=> $cost,
+						'total'			=>  number_format((float)$total, 2, '.', ''),
+						'in_approval_t' => $value['in_approval_t'],
+						'crate_status' 	=> $order_status,
+						'is_waitinglist' =>$value['is_waitinglist'],
+						'in_id'			=> $value['in_id'],
+						'in_approval_o' => $value['in_approval_o'],
+						'orderqty'		=> $orderqty,
+						'in_crate_qty'  => $value['in_crate_qty'],
+						'in_crate_id'   => $value['in_crate_id']
+						
+					);
+
+
+
+					
+				}
+
+				if(isset($animal_data) && !empty($animal_data)){
+					foreach ($animal_data as $akey => $avalue) {
+						$tempid = explode("_",$avalue['in_ord_trans_id']);
+						$crateId = $tempid[1];
+
+					$temp_order_animal[$crateId][] = array(
+
+						'animal_name' 	=> $avalue['st_animal_name'],
+						'animal_breed' 	=> $avalue['st_animal_breed_name'],
+						'animal_pic'	=> $avalue['st_animal_photo'],
+						'animal_id' 	=> $avalue['in_route_animal_id'],
+						'animal_crate_id'=> $crateId
+						);
+					
+					}				
+
+				}
+			
+				
+				$from_details =$this->orgtrasnportation_model->get_leg_by_leg_id($in_from_id, 'P');
+				$to_details = $this->orgtrasnportation_model->get_leg_by_leg_id($in_to_id,'D');
+				if(isset($from_details->st_street) && !empty($from_details->st_street)){
+					$pick_up = $from_details->st_street.", ".$from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+				}
+				else{
+					$pick_up = $from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+				}
+
+				if(isset($to_details->st_street) &&!empty($to_details->st_street)){
+					$drop_off = $to_details->st_street.", ".$to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;
+				}else{
+					$drop_off = $to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;		
+				}
+				
+				if(isset($address_data[0]['st_notes']) && !empty($address_data[0]['st_notes'])){
+					$st_notes = $address_data[0]['st_notes'];
+				}else{
+					$st_notes = "-";		
+				}
+
+				$from_date = date("D, M d - h:i A",strtotime($from_details->dt_start_time))." ".$from_details->st_timezone;
+				$to_date = date("D, M d - h:i A",strtotime($to_details->dt_start_time))." ".$to_details->st_timezone;
+				
+				$order_details = $temp_order_data;	
+				//$order_details = $temp_order_animal;	
+				$order_details['animal']		= $temp_order_animal;
+				$order_details['transport_id'] 	= $transport_id;
+				$order_details['total_cost'] 	=  number_format((float)$total_cost, 2, '.', '');				
+				$order_details['reserve_id'] 	= $order_id;
+				$order_details['first_name'] 	= $address_data[0]['st_first_name'];
+				$order_details['last_name'] 	= $address_data[0]['st_last_name'];
+				$order_details['contact'] 	 	= $address;
+				$order_details['mail']       	= $address_data[0]['st_email'];
+				$order_details['phone']      	= $address_data[0]['st_phone'];
+				$order_details['add1'] 			= $address_data[0]['st_addr1'];
+				$order_details['add2'] 			= $address_data[0]['st_addr2'];
+				$order_details['country']  		= $address_data[0]['st_country'];
+				$order_details['city'] 			=  $address_data[0]['st_city'];
+				$order_details['state'] 		= $address_data[0]['st_state'];
+				$order_details['zip'] 			= $address_data[0]['st_zip'];
+				$order_details['st_transaction_id'] = $st_transaction_id;
+				$order_details['note']		= $st_notes;
+				$order_details['order_date'] = date("M d, Y", strtotime($order_date));
+				$order_details['pick_up']	 = $pick_up;
+				$order_details['drop_off'] 	 = $drop_off;
+				$order_details['pick_up_date'] = $from_date;
+				$order_details['drop_off_date'] = $to_date;
+				$trans_from_date = date("D, M d",strtotime($transport_details[0]['dt_pickup_date']));
+				$trans_to_date = date("D, M d",strtotime($transport_details[0]['dt_target']));
+				$trans_add = $trans_from_date." - ".$trans_to_date." – From ".$transport_details[0]['st_from_city'].", ".$transport_details[0]['st_from_state']." to ".$transport_details[0]['st_to_city'].", ".$transport_details[0]['st_to_state']; 
+				$order_details['trans_add'] = $trans_add;
+
+				$Ustatelist = $this->common_function->state_list;
+				$Cstatelist = $this->common_function->canadian_state_list;
+				$statelist = array_merge($Ustatelist,$Cstatelist);
+
+				$order_details['statelist'] = $statelist;
+
+			}
+			
+		}
+		$data['reserve_details'] = $order_details;
+		echo json_encode($data['reserve_details']);		
+	}
+
+
+
+	public function approve_reservation(){
+		
+
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+
+
+		$order_trans_id = $this->input->post('order_trans_id');
+		$in_id_array = $this->input->post('app_rej_arr');
+		$qtyarr = $this->input->post('in_qty');
+		$id = explode("_", $order_trans_id);
+		$order_id = $id[0];
+		$transport_id = $id[1];
+		$approved_in_id = array();
+		
+		/*if(!empty($in_id)){
+			$order_transport_arr = array(
+				'in_approval'=> 1,
+				'is_waitinglist' => 2
+			);
+			$this->order_transport_model->approve_reject_order($order_transport_arr, $order_id, $transport_id , $in_id , $crate_id ='');
+			$this->approve_reject_mail($order_id,$transport_id,'approve',$in_id);
+			$success = 1;
+		}*/
+		
+		if(!empty($qtyarr)){
+			foreach ($qtyarr as $key => $value) {
+				$tempqty = explode("_", $value);
+				$ordertrans = array(
+					'in_qty' =>$tempqty[0]
+				);
+				$crate_id = $tempqty[1];
+				$success = $this->order_transport_model->approve_reject_order($ordertrans, $order_id, $transport_id , $in_id=array() , $crate_id);
+			}
+		
+			$success = 1;			
+			
+		}
+		
+		if(!empty($in_id_array) && count ($in_id_array)>0)
+		{
+			foreach($in_id_array as $key=>$value)
+			{
+				$crate_id = $this->order_transport_model->order_trans_details_byid($value);
+			
+			if(isset($crate_id[0]['in_crate_id']))
+			{
+				$get_crate_price = $this->order_transport_model->crates_byid($crate_id[0]['in_crate_id']);
+				$order_detail = $this->common_model->get_order_detail($crate_id[0]['in_order_id']);
+				if($order_detail['in_user_id']!='0' && $order_detail['in_user_id']!='')
+				{
+					$price = $get_crate_price['0']['in_cost_private'];
+				} else {
+					$price = $get_crate_price['0']['in_cost_public'];
+				}	
+			}
+			if($price >0)
+			{
+				$order_transport_arr = array('in_approval'=> 1,'is_waitinglist' => 2);
+			} else {		
+				$order_transport_arr = array('in_approval'=> 1,'is_waitinglist' => 0);
+			}
+				$this->db->where('in_id',$value);
+				$this->db->update('tbl_order_transport', $order_transport_arr);
+				$success = 1;
+			}
+			$this->approve_reject_mail($order_id,$transport_id,'approve',$in_id_array);
+		}
+		
+
+	
+
+		if($success == 1){
+				echo json_encode(array('res'=>TRUE));
+		}else{
+			echo json_encode(array('res'=> FALSE));
+		}
+	}
+
+
+	public function reject_reservation(){
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+
+		$order_trans_id = $this->input->post('order_trans_id');
+		$in_id = $this->input->post('app_rej_arr');
+		$qtyarr = $this->input->post('in_qty');
+		$id = explode("_", $order_trans_id);
+		$order_id = $id[0];
+		$transport_id = $id[1];
+		
+		if(!empty($in_id)){
+			$order_transport_arr = array(
+				'in_approval'=> 2,
+				'is_waitinglist'=> 0
+			);
+			
+			$this->order_transport_model->approve_reject_order($order_transport_arr, $order_id, $transport_id , $in_id , $crate_id ='');
+			$success = $this->approve_reject_mail($order_id,$transport_id,'rejecet', $in_id);
+			$success = 1;
+			
+		}
+
+		if(!empty($qtyarr)){
+			foreach ($qtyarr as $key => $value) {
+				$tempqty = explode("_", $value);
+				$ordertrans = array(
+					'in_qty' =>$tempqty[0]
+				);
+				$crate_id = $tempqty[1];
+			
+			$this->order_transport_model->approve_reject_order($ordertrans, $order_id, $transport_id , $in_id=array() , $crate_id);
+			
+			}
+
+			$success = 1;
+		}	
+		
+		
+		
+		if($success == 1){
+				echo json_encode(array('res'=>TRUE));
+		}else{
+			echo json_encode(array('res'=> FALSE));
+		}
+	}
+
+	public function approve_reject_mail($order_id , $trans_id, $type, $in_id=array()){
+
+		$order_data = $this->order_transport_model->get_data_by_order_id($order_id);
+		$transport_details	= $this->orgtrasnportation_model->get_transport_details($trans_id);
+		$address_data = $this->order_transport_model->get_address_by_order_id($order_id);
+		$to  = $address_data[0]['st_email'];
+		$user_name  = $address_data[0]['st_first_name']." ".$address_data[0]['st_last_name'];
+		$org_name = $transport_details[0]['st_org_name'];
+		$trans_from_date = date("D, M d",strtotime($transport_details[0]['dt_pickup_date']));
+		$trans_to_date = date("D, M d",strtotime($transport_details[0]['dt_target']));
+		$coordinator = $transport_details['0']['st_display_name'];
+		$coordinator_email = $transport_details['0']['st_email'];
+		$orgcode = ($transport_details[0]['st_org_code'] != '')? '#'.$transport_details[0]['st_org_code'] : '#DBT';
+
+		if($type == 'approve'){
+			$email_templete = 133;
+			$action = 'approved';
+		}else if($type == 'rejecet'){
+			$email_templete = 134;
+			$action = 'rejected';
+		}
+
+		$email_details = $this->common_model->get_email_containt($email_templete);
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		$email_templete  = $email_details[0]['st_email_body'];
+		$user_info ='';   
+		//$user_info .= 'Name: '.$user_detail['st_first_name'].'<br>';
+		$user_info .= 'your space reservation is '.$action.' with the following details:<br>';
+		$cart_detail ='';
+		$cart_detail .= '<table id="card-table-fromto" class="table list-animal-profile" style="width:100%">
+							<thead>
+							  <tr>
+							  	<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Transport ID</th>
+								<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Crates</th>
+								<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Quantity</th>
+								<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:left!important;">Cost per Crate</th>
+								<th style="padding: 10px 14px !important; background:#68686d!important; color:#fff!important; text-align:right!important;">Total</th>
+							  </tr>
+							</thead>
+						<tbody id="crate_table">';
+		$cost =0;
+		$total_cost = 0;
+		$total =0;
+		foreach($order_data as $o_key => $o_value){
+			if($trans_id == $o_key){
+				foreach ($o_value as $key => $value) {
+					if(!empty($in_id)){
+						if(in_array($value['in_id'], $in_id)){
+							$qty = $value['in_qty'];
+
+							$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+							$in_user_id = $value['in_user_id'];
+							if($in_user_id != 0){
+								$cost = $value['in_cost_private'];
+							}else if($in_user_id == 0){
+								$cost = $value['in_cost_public'];
+							}
+							$in_from_id = $value['in_from_id'];
+							$in_to_id = $value['in_to_id'];
+							$total = $qty*$cost;
+							$total_cost = $total_cost+$total;
+							$cart_detail .= '<tr><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$o_key.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$value['st_crate_type'].' Crate</td>'; 
+										$cart_detail .= '<td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$qty.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">$'.$cost.'</td>';
+										$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format((float)$total, 2, '.', '').'</td></tr>';	
+						}
+					}/*else{
+
+						$qty = $value['in_qty'];
+
+							$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+							$in_user_id = $value['in_user_id'];
+							if($in_user_id != 0){
+								$cost = $value['in_cost_private'];
+							}else if($in_user_id == 0){
+								$cost = $value['in_cost_public'];
+							}
+							$in_from_id = $value['in_from_id'];
+							$in_to_id = $value['in_to_id'];
+							$total = $qty*$cost;
+							$total_cost = $total_cost+$total;
+							$cart_detail .= '<tr><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$o_key.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$value['st_crate_type'].' Crate</td>'; 
+										$cart_detail .= '<td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">'.$qty.'</td><td style="padding: 10px 14px !important; text-align:left!important; border-bottom:1px solid #e1e1e1!important;">$'.$cost.'</td>';
+										$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.number_format((float)$total, 2, '.', '').'</td></tr>';	
+					}*/
+				}
+			}														
+			
+		}
+		$from_details =$this->orgtrasnportation_model->get_leg_by_leg_id($in_from_id, 'P');
+		$to_details = $this->orgtrasnportation_model->get_leg_by_leg_id($in_to_id,'D');
+		if(isset($from_details->st_street) && !empty($from_details->st_street)){
+			$pick_up = $from_details->st_street.", ".$from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+		}
+		else{
+			$pick_up = $from_details->st_city.", ".$from_details->st_state.", ".$from_details->st_zip;
+		}
+
+		if(isset($to_details->st_street) &&!empty($to_details->st_street)){
+			$drop_off = $to_details->st_street.", ".$to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;
+		}else{
+			$drop_off = $to_details->st_city.", ".$to_details->st_state.", ".$to_details->st_zip;		
+		}
+		
+		if($total_cost >0 && $order_id !='')
+		{
+			$crate_id = serialize($in_id);
+			$url_link = base_url().'checkout/index/'.$this->common_function->encode_base64($order_id).'/'.$this->common_function->encode_base64($crate_id);
+			$order_link = 'Click here to complete the checkout process. <a href="'.$url_link.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline-block;background:#ee6d35;padding:0px 15px;border-radius:3px;margin-right:10px; line-height:27px" title="Checkout">Checkout</a>';
+		} else {
+			$order_link = '';
+		}	
+		$final_cost = number_format((float)$total_cost, 2, '.', '');
+		$cart_detail .= '<tr style="background: #f5f5f5 !important;"><td colspan="4" style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">Total</td>';
+		$cart_detail .= '<td style="padding: 10px 14px !important; text-align:right!important; border-bottom:1px solid #e1e1e1!important;">$'.$final_cost.'</td></tr>';
+		$cart_detail .= '	</tbody></table>';
+					
+		$templete   = $email_templete;
+		$templete   = str_replace("##display_name##",'Rajashri',$templete);
+		$templete   = str_replace("##DONATION##",$donation,$templete);
+		$templete   = str_replace("##user_details##",$user_info,$templete);  
+		$templete   = str_replace("##CART_DETAIL##",$cart_detail,$templete);
+		$templete 	= str_replace("##transport_id##", $orgcode.$trans_id, $templete);
+		$templete 	= str_replace("##user_display_name##", $user_name, $templete);
+		$templete 	= str_replace("##organization_name##", $org_name, $templete);
+		$templete 	= str_replace("##Pickup_date##", $trans_from_date, $templete);
+		$templete 	= str_replace("##Dropoff_date##", $trans_to_date, $templete);
+		$templete 	= str_replace("##transport_day,transport_date##", $trans_from_date, $templete);
+		$templete 	= str_replace("##sending_city/state/zip_code##", $pick_up, $templete);
+		$templete 	= str_replace("##receiving_city/state/zip_code##", $drop_off, $templete);
+		$templete   = str_replace("##transport_coordinator##", $coordinator, $templete);
+		$templete   = str_replace("##coordinator_email##", $coordinator_email, $templete);
+		$templete   = str_replace("##order_id##", $order_link, $templete);
+		$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg?'.rand();
+		if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$trans_id.'.jpg'))
+			{
+				$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+			} else {
+				$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+			}
+		
+		$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+
+		$share_facebook_str  = ''; 
+		$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+		$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+		
+		$share_twitter_str = ''; 
+		
+		$share_twitter_str .= '<a href="http://twitter.com/share?url='.urlencode($share_url).'&text='.urlencode($description_str).'"><img src="https://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+
+		$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+		
+		$share_gplus_str = ''; 
+		$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="https://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+		
+		
+                
+		$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+					
+		// for latest Blog.
+		$blog_details = $this->get_doobert_recent_post();
+		
+		if(!empty($blog_details))
+		{
+		$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+		$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+		$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+		}
+
+		$strMail 	= 	$templete;
+		$to			=	$to;
+		$subject	=	$email_details[0]['st_email_subject'];
+		$message	=	$strMail;
+		$category   =   $email_details[0]['st_category'];
+		$result = $this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='rajashri.mahapure@pulsesolutions.net',$this->config->item('admin_from_name'),$this->email,$category);
+		return $result;
+	}	
+
+
+	public function get_doobert_recent_post() {
+      
+		//$c=curl_init('https://www.doobert.com/feed/');
+		$c=curl_init('https://www.doobert.com/category/blog-home/feed/');
+		curl_setopt( $c, CURLOPT_USERAGENT,'nginx-curl-blahblahblah' );
+		curl_setopt( $c, CURLOPT_RETURNTRANSFER, true );
+		$r=curl_exec( $c );
+		curl_close( $c );
+		//print_r($r);
+		
+		$rss = new DOMDocument();
+		$rss->loadxml($r);
+		$feed = array();
+		foreach ($rss->getElementsByTagName('item') as $node) {
+			$item = array ( 
+				'title' => $node->getElementsByTagName('title')->item(0)->nodeValue,
+				'desc' => $node->getElementsByTagName('description')->item(0)->nodeValue,
+				'link' => $node->getElementsByTagName('link')->item(0)->nodeValue,
+				'date' => $node->getElementsByTagName('pubDate')->item(0)->nodeValue,
+				);
+			array_push($feed, $item);
+		}
+		$limit = 1;
+		$blog =array();
+		for($x=0;$x<$limit;$x++) {
+			$title = str_replace(' & ', ' &amp; ', $feed[$x]['title']);
+			$link = $feed[$x]['link'];
+			$description = $feed[$x]['desc'];
+		    $description = preg_replace("/<img[^>]+\>/i","", $description); 
+			if(strlen($description) > 100)
+				{
+					$des = substr($description, 0, 99);
+					$des.= '...';
+				}
+			
+			$blog['title']=$title;
+			$blog['content']=$des;
+			$blog['blog_link'] = $link;
+			
+			//$date = date('l F d, Y', strtotime($feed[$x]['date']));
+			/*echo '<p><strong><a href="'.$link.'" title="'.$title.'">'.$title.'</a></strong><br />';
+			echo '<small><em>Posted on '.$date.'</em></small></p>';
+			echo '<p>'.$description.'</p>';*/
+			//print_r($blog);
+		}
+		return $blog;	
+	}
+
+
+
+	public function delete_crate(){
+		$crate_id = $this->input->post('crate_id');
+		$order_transport_arr = array(
+			'in_deleted'=> 1
+		);
+			
+		$success = $this->order_transport_model->delete_crate($order_transport_arr, $crate_id);
+		if($success == 1){
+			echo json_encode("Success");	
+		}else{
+			echo json_encode("Failure");
+		}
+	}
+
+
+	public function update_order_address(){
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$address_data = $this->input->post();
+		$order_id = $this->input->post('orderid');
+		$orderarr = array(
+			'st_first_name' => $address_data['st_first_name'],
+			'st_last_name' 	=> $address_data['st_last_name'],
+			'st_email' 		=> $address_data['st_email'],
+			'st_phone'		=> $address_data['st_phone'],
+			'st_addr1'		=> $address_data['st_addr1'],
+			'st_addr2'		=> $address_data['st_addr2'],
+			'st_city'		=> $address_data['st_city'],
+			'st_state'		=> $address_data['st_state'],
+			'st_country'	=> $address_data['st_country'],
+			'st_zip'		=> $address_data['st_zip']
+
+		);		
+		$this->order_transport_model->update_order_address($orderarr, $order_id);
+		$this->manage_reservation();
+		
+	}
+
+
+
+	public function paid_reservation(){
+		if(!$this->session->userdata('org_id'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$order_trans_id = $this->input->post('order_trans_id');
+		$in_id = $this->input->post('paid_arr');
+		$qtyarr = $this->input->post('in_qty');
+		$id = explode("_", $order_trans_id);
+		$order_id = $id[0];
+		$transport_id = $id[1];
+		
+		if(!empty($in_id)){
+			$order_transport_arr = array(
+				'in_approval'=> 1,
+				'is_waitinglist'=> 0
+			);
+			
+			$this->order_transport_model->approve_reject_order($order_transport_arr, $order_id, $transport_id , $in_id , $crate_id ='');
+			$success = $this->approve_reject_mail($order_id,$transport_id,'approve', $in_id);
+			$success = 1;
+			
+		}
+
+		if(!empty($qtyarr)){
+			foreach ($qtyarr as $key => $value) {
+				$tempqty = explode("_", $value);
+				$ordertrans = array(
+					'in_qty' =>$tempqty[0]
+				);
+				$crate_id = $tempqty[1];
+			
+			$this->order_transport_model->approve_reject_order($ordertrans, $order_id, $transport_id , $in_id=array() , $crate_id);
+			
+			}
+
+			$success = 1;
+		}	
+		
+		
+		
+		if($success == 1){
+				echo json_encode(array('res'=>TRUE));
+		}else{
+			echo json_encode(array('res'=> FALSE));
+		}
+	}
+
+	public function delete_session(){
+		$order_trans_id = $this->session->userdata('order_trans_id');				
+		$this->session->unset_userdata('order_trans_id');
+		$this->session->unset_userdata('approved_crate_id');				
+		$this->session->unset_userdata('approved_crate_id');
+		$this->session->unset_userdata('verify');
+		redirect($this->config->item('base_url'));	
+	}
+
+}
+
+

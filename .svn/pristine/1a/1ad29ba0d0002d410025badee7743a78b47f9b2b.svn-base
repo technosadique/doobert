@@ -1,0 +1,592 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Login extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		//$this->output->enable_profiler(true);
+		$this->load->model('common_model');
+		$this->load->library('common_function');	
+		$this->load->model('login_model');
+		//$this->load->model('orgtrasnportation_model');
+		//$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->helper('cookie');
+		$this->load->library('pagination');
+		//$this->load->library('nativesession'); 
+		error_reporting(0);
+		/*if(!$this->session->userdata('org_id')){
+			redirect(base_url().'my-profile');
+		}*/
+	}
+	
+	public function user_login()
+	{
+					$user_email = $_POST['useremail'];
+					$user_pass = $_POST['userpass'];
+					$data = array();
+					$result = $this->login_model->user_login($user_email,$user_pass);
+                    if (isset($result) && !empty($result)) {
+						$user_details = $this->login_model->get_user_profile($result['user_details']['userid']);
+                        #===================== remember me ==================#
+                        if ($data['register']['remember'] != '') {
+
+                            set_cookie('pass', $this->input->post('password'), 864000);
+                            set_cookie('user', $data['register']['email'], 864000);
+                        }
+						
+						$this->session->set_userdata('userid', $result['user_details']['userid']);
+                        $this->session->set_userdata('user_name', $result['user_details']['user_name']);
+                        $this->session->set_userdata('last_name', $result['user_details']['last_name']);
+                        $this->session->set_userdata('email', $result['user_details']['email']);
+                        $this->session->set_userdata('zip', $user_details['st_zip']);  // added by sadiq on 5-1-15
+						$this->session->set_userdata('ststate',$user_details["st_state"]);
+						$this->session->set_userdata('stcountry',$user_details["st_country"]);
+						$this->session->set_userdata('login_direct_status', $result['user_details']['login_direct_status']); 
+						setcookie("userid",$result['user_details']['userid'],0,"/",".doobert.com");
+						// user activity log starts
+						$user_activity = array();					
+						$user_activity = array("in_user_id" 	=> $result['user_details']['userid'],
+                       						   "st_ip_server" 	=> $_SERVER['REMOTE_ADDR'],
+											    "dt_created" 	=> date('Y-m-d H:i:s')                      
+                   							 );					
+						$this->login_model->add_user_activity($user_activity);
+						// user activity log ends
+						
+						if($this->session->userdata('recommend_routing_id'))
+						{
+							if(count($this->session->userdata('recommend_routing_id'))>0)
+							{
+								foreach($this->session->userdata('recommend_routing_id') as $key=>$value)
+								{
+									if(!empty($value))
+									{
+										$routing_leg = $this->common_model->get_public_assisted_routing($value);
+										if(isset($routing_leg)&& count($routing_leg)>0)
+										{	
+										$legs_cover = array('in_transportation_id'=> $routing_leg['in_transportation_id'],
+																 'in_route_type'  => $routing_leg['in_route_type'],
+																	'in_user_id'  => $this->session->userdata('userid'),
+																'st_from_street' => $routing_leg['st_from_street'],
+																  'st_from_city' => $routing_leg['st_from_city'],
+																'st_from_state'	 => $routing_leg['st_from_state'],	
+																  'st_from_zip'	 => $routing_leg['st_from_zip'],
+															  'st_from_country'	 => $routing_leg['st_from_country'],
+																'st_to_street' 	 => $routing_leg['st_to_street'],
+																  'st_to_city'	=> $routing_leg['st_to_city'],
+																 'st_to_state'  => $routing_leg['st_to_state'],	
+																	'st_to_zip'	=> $routing_leg['st_to_zip'],
+																'st_to_country' => $routing_leg['st_to_country'],
+																	'dt_created' => date("Y-m-d H:i:s"),
+																	'dt_modified' => date("Y-m-d H:i:s"),
+																		'st_info' => $routing_leg['st_notes']
+															);
+										$this->db->insert('tbl_legs_cover', $legs_cover);
+										$delete_legs = array('in_deleted'=>1);
+										$this->db->where('in_id',$value);
+										$this->db->update('tbl_recommend_routing_leg',$delete_legs);
+										}
+										
+									}	
+								}
+							}	
+							$this->session->unset_userdata('recommend_routing_id');
+						}
+						if($this->session->userdata('recommend_trip_id'))
+						{
+							if(count($this->session->userdata('recommend_trip_id'))>0)
+							{
+								foreach($this->session->userdata('recommend_trip_id') as $key=>$value)
+								{
+									if(!empty($value))
+									{
+										$airline_date = $this->common_model->get_public_airline_routing($value);
+										if(isset($airline_date)&& count($airline_date)>0)
+										{	
+											$trip_date = array('in_transportation_id' => $airline_date['in_transportation_id'],
+																'in_user_id'   => $this->session->userdata('userid'),
+																'in_deleted'   => 0,	
+																'dt_created'   => date("Y-m-d H:i:s"),
+																'dt_modified'  => date("Y-m-d H:i:s"),
+																'dt_trip_date' => date('Y-m-d',strtotime($airline_date['trip_date'])),
+																'st_info'	   => $airline_date['st_notes'],	
+															  );									
+											$this->db->insert('tbl_airline_transport_leg', $trip_date);
+											
+											$delete_legs = array('in_deleted'=>1);
+											$this->db->where('in_id',$value);
+											$this->db->update('tbl_recommend_tripdate',$delete_legs);
+										}
+										
+									}	
+								}
+							}	
+							$this->session->unset_userdata('recommend_trip_id');
+						}
+						
+                        //set coockie
+                        if (!isset($_COOKIE['doobert_home'])) {
+                            setcookie("doobert_home", "doobert_value", 0, "/", ".doobert.com");
+                        }
+						  if ($this->session->userdata('url_data')) {
+                                $url = $this->session->userdata('url_data');
+								if(stristr($url,"transport-create-legs") == true)
+								{
+									if(stristr($url,"?") == true)
+									{
+										$query_string = parse_url($url);
+										$url_variable = preg_split("/id=/mi",$query_string['query']);
+										if(count($url_variable)> 0 )
+												$transport_id = $url_variable[1];
+										else	
+												$transport_id = $url_variable[0];
+										if(!empty($transport_id))
+										{
+											  $organization_id = $this->user_model->get_organization_id($transport_id);
+											  $user_permission = $this->user_model->verify_user_permission($this->session->userdata('userid'),$organization_id['in_organization_id']);
+											  if($user_permission == "true" )
+											  {
+												  $this->session->set_userdata('org_id',$organization_id['in_organization_id']);
+												  $this->session->set_userdata('transport_id',$transport_id);
+												  //echo "Success";
+												  //exit(0);
+											  } 	  
+										} 		
+									}
+									//$this->session->unset_userdata('url_data');
+									//$redirect = $url;
+									//redirect($url);				
+								} 		
+                                
+                            }
+						
+						//Added By Nirav 23 May 2016
+						$org_status = $this->login_model->check_organization_status($this->session->userdata('userid'));
+						if(count($org_status)>0)
+						{
+							if($org_status['st_org_complete']!=0)
+							{
+								$this->session->set_userdata('orgstep',$org_status['st_org_complete']);
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$redirect = $this->config->item('base_url') . "org-signup";
+							} else {
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$redirect = $this->config->item('base_url') . "org-signup-thankyou";
+							}	
+						}else if(count($this->login_model->check_userprofile_status($this->session->userdata('userid')))>0){
+							$this->session->set_userdata('registerstep','1');
+								$redirect = $this->config->item('base_url') . "volunteer-profile";
+						} else if($this->session->userdata('url_data'))
+						{
+							$redirect = $this->session->userdata('url_data');
+							$this->session->unset_userdata('url_data');
+								
+						} else { 	
+						if($result['user_details']['login_direct_status']== 1)
+						{	
+								$org_list =  $this->common_model->get_organization_list();
+								if(count($org_list)>0 and is_array($org_list))
+								{	
+									$user_email_verify_status = $this->login_model->check_email_verification_status($this->session->userdata('userid'));
+									
+									if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+									{
+										if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+										$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+										}else{
+											$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+										}
+									}	
+									$redirect = base_url()."org-dashboard/".$org_list[0]['in_organization_id']."/";
+									
+									$redirect = $redirect;
+								}	
+						} else {	
+								$user_email_verify_status = $this->login_model->check_email_verification_status($this->session->userdata('userid'));
+								if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+								{
+									if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+									$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+									}else{
+										$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+									}	
+								}	
+								
+								$redirect = $this->config->item('base_url') . "dashboard/";
+						}
+					}	
+						// FOR THE POPOVER FLAG IN SESSION
+						$this->session->set_userdata('popup_display',1);						
+						/*if($this->session->userdata('popup_display')) {
+							$this->session->userdata->unset_userdata('popup_display');
+						}
+						if($this->session->userdata('popup_display_flag')){
+							$this->session->userdata->unset_userdata('popup_display_flag');
+						}*/
+						//$data['status'] = 1;
+						//$data['redirect_url'] = $redirect;
+						$data = array('status'=>1,'redirect_url'=>$redirect);
+						 //$this->session->set_flashdata('success', $redirect);
+						
+                    } else {
+                        //$this->session->set_flashdata('warning', 'Invalid username or password.');
+						//$data['status'] = 2;
+						//$data['error_msg'] = 'Invalid username or password.';
+						$data = array('status'=>2,'error_msg'=>'Invalid username or password.');
+						/*$fb_user_id = $this->common_model->check_fb_user($data['register']['email']);
+						if(isset($fb_user_id) && !empty($fb_user_id) && $fb_user_id['st_facebook_uid'] != '')
+						{
+							$this->session->set_userdata('fb_warning', 'It looks like you created your account by using the Facebook Login / App. Please click on the Login with Facebook to be logged into the system.');	
+							$this->session->set_flashdata('warning','');	
+						}*/
+						//redirect($this->config->item('base_url') . "user/");
+                    }
+					$data = json_encode($data,JSON_PRETTY_PRINT);
+					echo $data;
+					//echo 1;
+	}
+	
+	public function wp_user_login()
+	{
+					$user_email = $_POST['useremail'];
+					$user_pass = $_POST['userpass'];
+					$data = array();
+					$result = $this->login_model->user_login($user_email,$user_pass);
+                    if (isset($result) && !empty($result)) {
+						$user_details = $this->login_model->get_user_profile($result['user_details']['userid']);
+                        #===================== remember me ==================#
+                        if ($data['register']['remember'] != '') {
+
+                            set_cookie('pass', $this->input->post('password'), 864000);
+                            set_cookie('user', $data['register']['email'], 864000);
+                        }
+						
+						
+						// user activity log starts
+						$user_activity = array();					
+						$user_activity = array("in_user_id" 	=> $result['user_details']['userid'],
+                       						   "st_ip_server" 	=> $_SERVER['REMOTE_ADDR'],
+											    "dt_created" 	=> date('Y-m-d H:i:s')                      
+                   							 );					
+						$this->login_model->add_user_activity($user_activity);
+						// user activity log ends
+						$data = array('status'=>1,'user_result'=>$result['user_details']);
+						
+                    } else {
+                    
+						$data = array('status'=>2,'error_msg'=>'Invalid username or password.');
+					
+                    }
+					$data = json_encode($data,JSON_PRETTY_PRINT);
+					echo $data;
+					//echo 1;
+	}
+	
+	public function public_user_login()
+	{
+					$user_email = $_POST['useremail'];
+					$user_pass = $_POST['userpass'];
+					$data = array();
+					$result = $this->login_model->user_login($user_email,$user_pass);
+                    if (isset($result) && !empty($result)) {
+						$user_details = $this->login_model->get_user_profile($result['user_details']['userid']);
+                        #===================== remember me ==================#
+                        if ($data['register']['remember'] != '') {
+
+                            set_cookie('pass', $this->input->post('password'), 864000);
+                            set_cookie('user', $data['register']['email'], 864000);
+                        }
+						
+						$this->session->set_userdata('userid', $result['user_details']['userid']);
+                        $this->session->set_userdata('user_name', $result['user_details']['user_name']);
+                        $this->session->set_userdata('last_name', $result['user_details']['last_name']);
+                        $this->session->set_userdata('email', $result['user_details']['email']);
+                        $this->session->set_userdata('zip', $user_details['st_zip']);  // added by sadiq on 5-1-15
+						$this->session->set_userdata('ststate',$user_details["st_state"]);
+						$this->session->set_userdata('stcountry',$user_details["st_country"]);
+						$this->session->set_userdata('login_direct_status', $result['user_details']['login_direct_status']); 
+						setcookie("userid",$result['user_details']['userid'],0,"/",".doobert.com");
+						// user activity log starts
+						$user_activity = array();					
+						$user_activity = array("in_user_id" 	=> $result['user_details']['userid'],
+                       						   "st_ip_server" 	=> $_SERVER['REMOTE_ADDR'],
+											    "dt_created" 	=> date('Y-m-d H:i:s')                      
+                   							 );					
+						$this->login_model->add_user_activity($user_activity);
+						// user activity log ends
+						
+                        //set coockie
+                        if (!isset($_COOKIE['doobert_home'])) {
+                            setcookie("doobert_home", "doobert_value", 0, "/", ".doobert.com");
+                        }
+						  if ($this->session->userdata('url_data')) {
+                                $url = $this->session->userdata('url_data');
+								if(stristr($url,"transport-create-legs") == true)
+								{
+									if(stristr($url,"?") == true)
+									{
+										$query_string = parse_url($url);
+										$url_variable = preg_split("/id=/mi",$query_string['query']);
+										if(count($url_variable)> 0 )
+												$transport_id = $url_variable[1];
+										else	
+												$transport_id = $url_variable[0];
+										if(!empty($transport_id))
+										{
+											  $organization_id = $this->user_model->get_organization_id($transport_id);
+											  $user_permission = $this->user_model->verify_user_permission($this->session->userdata('userid'),$organization_id['in_organization_id']);
+											  if($user_permission == "true" )
+											  {
+												  $this->session->set_userdata('org_id',$organization_id['in_organization_id']);
+												  $this->session->set_userdata('transport_id',$transport_id);
+												  //echo "Success";
+												  //exit(0);
+											  } 	  
+										} 		
+									}
+									$this->session->unset_userdata('url_data');
+									$redirect = $url;				
+								} 		
+                                
+                            }
+						
+						//Added By Nirav 23 May 2016
+						$org_status = $this->login_model->check_organization_status($this->session->userdata('userid'));
+						if(count($org_status)>0)
+						{
+							if($org_status['st_org_complete']!=0)
+							{
+								$this->session->set_userdata('orgstep',$org_status['st_org_complete']);
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$redirect = $this->config->item('base_url') . "org-signup";
+							} else {
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$redirect = $this->config->item('base_url') . "org-signup-thankyou";
+							}	
+						}else if(count($this->login_model->check_userprofile_status($this->session->userdata('userid')))>0){
+							$this->session->set_userdata('registerstep','1');
+								$redirect = $this->config->item('base_url') . "volunteer-profile";
+						} else if(isset($_SERVER['HTTP_REFERER']) && !empty($_SERVER['HTTP_REFERER'])) {
+							$redirect = $_SERVER['HTTP_REFERER'];
+						} else  { 	
+						if($result['user_details']['login_direct_status']== 1)
+						{	
+								$org_list =  $this->common_model->get_organization_list();
+								if(count($org_list)>0 and is_array($org_list))
+								{	
+									$user_email_verify_status = $this->login_model->check_email_verification_status($this->session->userdata('userid'));
+									
+									if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+									{
+										if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+										$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+										}else{
+											$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+										}
+									}	
+									$redirect = base_url()."org-dashboard/".$org_list[0]['in_organization_id']."/";
+									
+									$redirect = $redirect;
+								}	
+						} else {	
+								$user_email_verify_status = $this->login_model->check_email_verification_status($this->session->userdata('userid'));
+								if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+								{
+									if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+									$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+									}else{
+										$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+									}	
+								}	
+								
+								$redirect = $this->config->item('base_url') . "dashboard/";
+						}
+					}	
+						// FOR THE POPOVER FLAG IN SESSION
+						$this->session->set_userdata('popup_display',1);						
+						$data = array('status'=>1,'redirect_url'=>$redirect);
+						
+                    } else {
+						$data = array('status'=>2,'error_msg'=>'Invalid username or password.');
+                    }
+					$data = json_encode($data,JSON_PRETTY_PRINT);
+					echo $data;
+	}
+	
+	
+	public function user_login2()
+	{
+		$this->load->library('form_validation');
+		if($this->input->post('action')=="login"){
+					$user_email = $_POST['email'];
+					$user_pass = $_POST['password'];
+					$data = array();
+					
+					$form_field	=	array(
+							  'email'		=> "",							  
+							  'password'	=> "",							 
+							  'action'		=> ""							  
+					  	 	);
+		
+					
+					foreach ($form_field as $key => $value) {	
+					$data['register'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+					}
+					$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+					$this->form_validation->set_rules('password', 'Password', 'trim|required');
+					if($this->form_validation->run() == FALSE)
+					{  
+							$data['Err_Msg_login'] = validation_errors();							
+							$this->load->view('signup_user',$data);	
+					}
+					
+					else{ 
+					
+					$result = $this->login_model->user_login($user_email,$user_pass);
+                    if (isset($result) && !empty($result)) {
+						$user_details = $this->login_model->get_user_profile($result['user_details']['userid']);
+                        #===================== remember me ==================#
+                        if ($data['register']['remember'] != '') {
+
+                            set_cookie('pass', $this->input->post('password'), 864000);
+                            set_cookie('user', $data['register']['email'], 864000);
+                        }
+						
+						$this->session->set_userdata('userid', $result['user_details']['userid']);
+                        $this->session->set_userdata('user_name', $result['user_details']['user_name']);
+                        $this->session->set_userdata('last_name', $result['user_details']['last_name']);
+                        $this->session->set_userdata('email', $result['user_details']['email']);
+                        $this->session->set_userdata('zip', $user_details['st_zip']);  // added by sadiq on 5-1-15
+						$this->session->set_userdata('login_direct_status', $result['user_details']['login_direct_status']); 
+						setcookie("userid",$result['user_details']['userid'],0,"/",".doobert.com");
+						// user activity log starts
+						$user_activity = array();					
+						$user_activity = array("in_user_id" 	=> $result['user_details']['userid'],
+                       						   "st_ip_server" 	=> $_SERVER['REMOTE_ADDR'],
+											    "dt_created" 	=> date('Y-m-d H:i:s')                      
+                   							 );					
+						$this->login_model->add_user_activity($user_activity);
+						// user activity log ends
+						
+                        //set coockie
+                        if (!isset($_COOKIE['doobert_home'])) {
+                            setcookie("doobert_home", "doobert_value", 0, "/", ".doobert.com");
+                        }
+						  if ($this->session->userdata('url_data')) {
+                                $url = $this->session->userdata('url_data');
+								if(stristr($url,"transport-create-legs") == true)
+								{
+									if(stristr($url,"?") == true)
+									{
+										$query_string = parse_url($url);
+										$url_variable = preg_split("/id=/mi",$query_string['query']);
+										if(count($url_variable)> 0 )
+												$transport_id = $url_variable[1];
+										else	
+												$transport_id = $url_variable[0];
+										if(!empty($transport_id))
+										{
+											  $organization_id = $this->user_model->get_organization_id($transport_id);
+											  $user_permission = $this->user_model->verify_user_permission($this->session->userdata('userid'),$organization_id['in_organization_id']);
+											  if($user_permission == "true" )
+											  {
+												  $this->session->set_userdata('org_id',$organization_id['in_organization_id']);
+												  $this->session->set_userdata('transport_id',$transport_id);
+												  //echo "Success";
+												  //exit(0);
+											  } 	  
+										} 		
+									}
+									$this->session->unset_userdata('url_data');
+									$redirect = $url;
+									redirect($redirect);				
+								} 		
+                                
+                            }
+						
+						
+						
+						$org_status = $this->login_model->check_organization_status($this->session->userdata('userid'));
+						
+						if(count($org_status)>0)
+						{ 
+							if($org_status['st_org_complete']!=0)
+							{
+								$this->session->set_userdata('orgstep',$org_status['st_org_complete']);
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$redirect = $this->config->item('base_url') . "org-signup";
+							} else {
+								$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+								$redirect = $this->config->item('base_url') . "org-signup-thankyou";
+							}	
+						}else if(count($this->login_model->check_userprofile_status($this->session->userdata('userid')))>0){
+							$this->session->set_userdata('registerstep','1');
+								$redirect = $this->config->item('base_url') . "volunteer-profile";
+						} else if($this->session->userdata('url_data'))
+						{  
+							$redirect = $this->session->userdata('url_data');
+							$this->session->unset_userdata('url_data');
+								
+						} else {   
+						if($result['user_details']['login_direct_status']== 1)
+						{	
+								$org_list =  $this->common_model->get_organization_list();
+								if(count($org_list)>0 and is_array($org_list))
+								{	
+									$user_email_verify_status = $this->login_model->check_email_verification_status($this->session->userdata('userid'));
+									
+									if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+									{ 
+										if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+										$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+										}else{
+											$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+										}
+									}	
+									
+									$redirect = base_url()."org-dashboard/".$org_list[0]['in_organization_id']."/";									
+									redirect($redirect);
+									
+								}	
+						} else {  
+								$user_email_verify_status = $this->login_model->check_email_verification_status($this->session->userdata('userid'));
+								if(isset($user_email_verify_status) && isset($user_email_verify_status['in_email_verify_status']) && $user_email_verify_status['in_email_verify_status'] == '0')
+								{
+									if(strtotime($user_email_verify_status['dt_created']) >= strtotime(date("2016-11-25"))) { 
+									$this->session->set_userdata('email_confirm_error', 'Your email has not yet been confirmed. You will not receive transport requests or notifications until you confirm your email. Please click on the below resend button to resend the email confirmation link.');	
+									}else{
+										$this->session->set_userdata('email_confirm_error', 'We have had some problems with emails not being delivered so we are asking all users to CONFIRM their email address by clicking the CONFIRM EMAIL button below. This will send you an email with a unique confirmation link. Simply click on that link and your email will be confirmed. As a reminder, please add no-reply@doobert.com to your email address book as well.');	
+									}	
+								}							
+								
+								$redirect = $this->config->item('base_url') . "dashboard/";
+								redirect($redirect);
+						}
+					}	
+						// FOR THE POPOVER FLAG IN SESSION
+						$this->session->set_userdata('popup_display',1);	
+						
+						redirect($redirect);			
+						
+                    }			
+					
+					else { 
+					$this->session->set_flashdata('warning','Invalid username or password.');
+                   redirect($this->config->item('base_url')."cms/signup_user_leg");				
+						
+                    }					
+					
+				}	
+
+					
+				}
+				else {   
+
+                    $this->load->view('signup_user',$data);		
+						
+						
+                    }
+	}
+	
+}	
+?>	

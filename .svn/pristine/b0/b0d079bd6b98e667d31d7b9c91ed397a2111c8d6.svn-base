@@ -1,0 +1,965 @@
+<?php
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 31-May-2017
+# File description	: Partner map model
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class supply_demand_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+	public function get_total_transfer_setting($org_id,$animal_name='',$transfer_type='')
+	{
+		//$animal_type = array('Dog','Cat');
+		$this->db->select('*');
+		$this->db->from('tbl_animal_transfer_setting');			
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_transfer_type',$transfer_type);
+		$this->db->where('st_animal_name',$animal_name);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function get_animal_transfer_detail($org_id)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_animal_transfer_detail');			
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_organization_id',$org_id);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+
+    function get_doobert_org_bystatezip($state_name='', $zipcode='') 
+    {
+		$avaliable_transfer = array();
+		$sql = '';
+		$sql .= ' select o.in_organization_id,o.st_org_name,zp.lat,zp.lon,o.st_org_image,o.st_zip,o.st_director,o.st_email_address';
+		$sql .= ' FROM tbl_organization o';
+		$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=o.st_zip';
+		$sql .=' AND o.in_deleted = 0';
+		$sql .= ' AND o.in_status = 1';		
+		/*if(!empty($state_name) || !empty($zipcode))
+		{
+			$sql .= ' AND ';	
+			if(!empty($state_name))	
+			{
+				$state_list = $this->common_function->state_list[$state_name];
+				$sql .= ' o.st_state="'.$state_name.'" OR o.st_state="'.$state_list.'"';
+				//$sql .= ' o.st_state="'.$state_name.'"';
+			}
+			
+			if(!empty($zipcode))	
+			{
+				if(!empty($state_name))
+				{	
+					$sql .= ' AND ';
+				}	
+				$sql .= ' o.st_zip="'.$zipcode.'"';
+			}
+		}*/ 	
+		$sql .= ' AND (';
+				//$sql .=" (select count(in_id) as id4 from tbl_animal_transfer_setting  where in_organization_id = o.in_organization_id AND in_deleted =0 AND in_transfer_type=1)";
+				$sql .=" (select count(in_id) as id11 from tbl_animal_transfer_setting  where in_organization_id = o.in_organization_id AND in_deleted=0)";
+				$sql .=" OR (select count(in_id) as id2 from tbl_animal_transfer_detail  where in_organization_id = o.in_organization_id AND in_deleted=0)";	
+
+		$sql .= ' )';
+		
+		$sql .= ' group by o.in_organization_id';
+		
+		$query = $this->db->query($sql);
+		
+		 
+		
+		if ($query->num_rows() > 0) 
+		{
+			foreach ($query->result_array() as $Row) 
+			{
+				$in_type_id =$out_type_id='0';
+				$animal_transfer_detail = array();
+				$animal_weight = $this->common_model->get_animal_weight();
+				$animal_age    = $this->common_model->get_animal_age();
+				$trns_cat_out = $trns_dog_out  = $trns_other_out = 0;
+				$trns_dog_in = $trns_cat_in = $trns_other_in = 0;
+				$cat_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Cat',1);
+				//if(count($cat_transfer_out)>0 && $cat_transfer_out['in_animal_no']!='0')
+				if(count($cat_transfer_out)>0)	
+				{			
+					$out_type_id  = $cat_transfer_out['in_automatic_type'];
+					$trns_cat_out = $cat_transfer_out['in_animal_no'];
+				}
+
+				$dog_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Dog',1);
+				//if(count($dog_transfer_out)>0 && $dog_transfer_out['in_animal_no']!='0')
+				if(count($dog_transfer_out)>0)	
+				{	
+					$out_type_id  = $dog_transfer_out['in_automatic_type'];
+					$trns_dog_out = $dog_transfer_out['in_animal_no'];
+				}
+				
+				$other_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Other',1);
+				//if(count($other_transfer_out)>0 && $other_transfer_out['in_animal_no']!='0')
+				if(count($other_transfer_out)>0)	
+				{	
+					$out_type_id = $other_transfer_out['in_automatic_type'];
+					$trns_other_out = $other_transfer_out['in_animal_no'];
+				}
+				
+				$animal_transfer_detail = $this->get_animal_transfer_detail($Row['in_organization_id']);		
+				
+				
+				if(count($animal_transfer_detail)>0)
+				{
+					$in_type_id = 2;
+				} else {
+					$dog_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Dog',2);
+					//if(count($dog_transfer_in)>0 && $dog_transfer_in['in_animal_no']!='0')
+					if(count($dog_transfer_in)>0)	
+					{		
+							$in_type_id = 1;
+							$trns_dog_in = $dog_transfer_in['in_animal_no'];	
+					}
+					$cat_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Cat',2);
+					//if(count($cat_transfer_in)>0 && $cat_transfer_in['in_animal_no']!='0')
+					if(count($cat_transfer_in)>0)	
+					{	
+							$in_type_id = 1;
+							$trns_cat_in = $cat_transfer_in['in_animal_no'];	
+					}
+					$other_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Other',2);
+					//if(count($other_transfer_in)>0 && $other_transfer_in['in_animal_no']!='0')
+					if(count($other_transfer_in)>0)	
+					{	
+							$in_type_id = 1;
+							$trns_other_in = $other_transfer_in['in_animal_no'];
+					}		
+				}
+				if($in_type_id!='0' || $out_type_id!='0')
+				{
+					$out_transfer='0';
+					$in_transfer = '0';
+					if($out_type_id!='0')
+					{
+							$out_transfer='1';
+					}
+					if($in_type_id!='0') 
+					{
+						$in_transfer = '1';
+					}
+					if($this->session->userdata('userid'))
+					{
+						$st_org_image = $Row['st_org_image'];
+						
+						if ($st_org_image != '' && file_exists($this->config->item('upload')."org_doc/63x63/".$st_org_image)) 
+						{
+							$path = $this->config->item('upload_url') . "org_doc/63x63/".$st_org_image;
+						} else {
+							$path = '';
+							//$path = $this->config->item('upload_url') . "org_doc/63x63/no_photo.png";
+						}
+						$username =$Row['st_org_name'];
+						$link = base_url().'organization-'.$Row['in_organization_id'].'-'.$Row['st_org_name'];		
+						$str1='';
+						//if($out_type_id!='0' && ($trns_dog_out!='0' || $trns_other_out!='0' || $trns_cat_out!='0'))
+						if($out_type_id!='0')	
+						{
+							$str1 .= $trns_dog_out.' Dogs <br>';
+							$str1 .= $trns_cat_out.' Cat <br>';
+							$str1 .= $trns_other_out.' Other <br>';
+						}		
+							
+						$str2='';
+						if($in_type_id!='0') 
+						{
+							
+							if($in_type_id=='1')
+							{
+								$str2 .= $trns_dog_in.' Dogs <br>';
+								$str2 .= $trns_cat_in.' Cat <br>';
+								$str2 .= $trns_other_in.' Other <br>';
+								//$str2 .= 'Please contact organization for more information on transfer IN animals needed<br>';
+							} else if($in_type_id=='2' && count($animal_transfer_detail)>0) {
+								foreach($animal_transfer_detail as $key=>$value)
+								{
+									$age =isset($value['st_age']) && !empty($value['st_age'] && array_key_exists($value['st_age'],$animal_age)) ? $animal_age[$value['st_age']] : '';
+									$weight =isset($value['st_weight']) && !empty($value['st_weight'] && array_key_exists($value['st_weight'],$animal_weight)) ? $animal_weight[$value['st_weight']] : '';
+																				
+									$str2 .= $value['in_animal_count'].' '.$value['st_animal_type'].' / Age '.$age.' / Weight '.$weight."<br>";
+								}
+							}	
+						}	
+						$final_string = '';
+						$cont_string = '';
+						$img_path = '';
+						$no_image_class= '';
+						$add_partner  = '';
+						$show_animal_link = '';
+						$org_send_mail = "contactOrgUserPartner('".$Row['st_director']."','".$Row['st_email_address']."');";
+						//$show_ani_fun = "show_animal('".$Row['st_zip']."')";
+						//$show_animal_link = '<p><a href="javascript:void(0);" onClick="'.$show_ani_fun.'" class="showanimals" title="Show animals"><i class="fa fa-paw"></i>Show animals</a></p>';
+						if($in_type_id==1 && $out_transfer==1)
+						{
+							$cont_string  = $this->get_template1();
+							$cont_string  = str_replace('##avaliable_transfer##',$str1,$cont_string);
+							$cont_string  = str_replace('##avaliable_space##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							//$show_animal_link = base_url().'animal-rescue/'.$foster['in_organization_id'];
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==2 && $out_transfer==1)
+						{
+							$cont_string  = $this->get_template2();
+							$cont_string  = str_replace('##avaliable_transfer##',$str1,$cont_string);
+							$cont_string  = str_replace('##avaliable_space_detail##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==0 && $out_transfer==1)
+						{
+							$cont_string  = $this->get_template3();
+							$cont_string  = str_replace('##avaliable_transfer##',$str1,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##phone_no##','',$cont_string);
+							$cont_string  = str_replace('##email##','',$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							if($foster['out_type_id']==2)
+							{	
+								$add_info = '<p>Contact the organization for animal profiles they can transfer.</p>';
+							} else {
+								$add_info = '';
+							}
+							$cont_string  = str_replace('##additional_info##',$add_info,$cont_string);
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==1 && $out_transfer==0)
+						{
+							$cont_string  = $this->get_template4();
+							$cont_string  = str_replace('##avaliable_space##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							//$cont_string  = str_replace('##img_url##',$path,$cont_string);
+							$cont_string  = str_replace('##phone_no##','',$cont_string);
+							$cont_string  = str_replace('##email##','',$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							/*if(!$partner)
+							{
+								$add_partner  = '<div class="groups"><button class="addpartner waves-effect waves-light config" onClick="add_partner('.$foster['in_organization_id'].')" type="button"><img src="'.base_url().'assets/img/add-partner.png" alt="" />Add Partner</button></div>';
+							} else {
+								$add_partner  = '';
+							}*/
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==2 && $out_transfer==0)
+						{
+							$cont_string  = $this->get_template5();
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##avaliable_space_detail##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							$add_partner  = '';
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);			
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+							$finalstring = $cont_string;
+						
+					
+					} else {
+						
+						$st_org_image = $Row['st_org_image'];
+						if ($st_org_image != '' && file_exists($this->config->item('upload')."org_doc/63x63/".$st_org_image)) 
+						{
+							$path = $this->config->item('upload_url') . "org_doc/63x63/" . $st_org_image;
+						} else {
+							$path = $this->config->item('upload_url') . "org_doc/63x63/no_photo.png";
+						}
+						$username =$Row['st_org_name'];
+						$link = base_url().'organization-'.$Row['in_organization_id'].'-'.$Row['st_org_name'];		
+						$str1='';
+						$finalstring = '<div class="pinblock01"><div class="w345">
+							<h3><a href="javascript:void(0);"><img src="'.$path.'" alt="" width="53" height="53" align="left"></a><a href="'.$link.'">'.$username.'</a></h3>
+							<p>Transfer OUT and IN information is available only to Doobert Organizations. Sign-up for free today!</p>
+							<div class="signup"><a href="'.base_url().'signup/">Sign-up for free</a></div>
+							</div>
+							</div>';
+						/*$finalstring = 'Transfer OUT and IN information is available only to Doobert Organizations. Sign-up for free today!';
+						$finalstring .= '<div id="subscribe-pop"><div class="find-partner-popup-result-box"><div class="top-part"><img src="' . $path . '" alt="' . $username . '" title="' . $username . '" class="find-partner-img"/><div class="inner-map-pup"><h4><a href="' .$link.'">' . $username . '</a></h4><div><p>'.$str1.'.</p></div></div><div class="clear"></div><a href="'.base_url().'signup/" class="show-animals" style="margin-top:10px;" title="Sign Up for Free">Sign Up For Free</a> ';
+						$finalstring .= '</div></div></div>';*/
+					}
+				
+							$avaliable_transfer[] = 	  array('out_transfer' => $out_transfer,
+															   'in_transfer'   => $in_transfer,
+														       'pop_up_desc'   => $finalstring,
+																       'lat'   => $Row['lat'],
+																       'lon'   => $Row['lon'],
+																);
+				}							
+					
+			}	 
+		}
+		return $avaliable_transfer;
+		
+	}
+	
+		function get_doobert_org_bystateziplogin() 
+    {
+		$avaliable_transfer = array();
+		$animal_weight = $this->common_model->get_animal_weight();
+		$animal_age    = $this->common_model->get_animal_age();	
+		$sql = '';
+		$sql .= ' select o.in_organization_id,o.st_org_name,zp.lat,zp.lon,zp.id,o.st_org_image,o.st_zip,o.st_director,o.st_email_address';
+		$sql .= ' FROM tbl_organization o';
+		$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=o.st_zip';
+		$sql .=' AND o.in_deleted = 0';
+		$sql .= ' AND o.in_status = 1';	
+		$sql .= ' AND (';
+		$sql .=" (select count(in_id) as id11 from tbl_animal_transfer_setting  where in_organization_id = o.in_organization_id AND in_deleted=0)";
+		$sql .=" OR (select count(in_id) as id2 from tbl_animal_transfer_detail  where in_organization_id = o.in_organization_id AND in_deleted=0)";	
+
+		$sql .= ' )';
+		
+		$sql .= ' group by o.in_organization_id';
+		
+		$query = $this->db->query($sql);
+		
+		 
+		
+		if ($query->num_rows() > 0) 
+		{
+			foreach ($query->result_array() as $Row) 
+			{
+				$in_type_id =$out_type_id='0';
+				$animal_transfer_detail = array();
+				
+				$trns_cat_out = $trns_dog_out  = $trns_other_out = 0;
+				$trns_dog_in = $trns_cat_in = $trns_other_in = 0;
+				$cat_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Cat',1);
+				if(count($cat_transfer_out)>0)	
+				{			
+					$out_type_id  = $cat_transfer_out['in_automatic_type'];
+					$trns_cat_out = $cat_transfer_out['in_animal_no'];
+				}
+
+				$dog_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Dog',1);
+				if(count($dog_transfer_out)>0)
+				{	
+					$out_type_id  = $dog_transfer_out['in_automatic_type'];
+					$trns_dog_out = $dog_transfer_out['in_animal_no'];
+				}
+				
+				$other_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Other',1);
+				if(count($other_transfer_out)>0)
+				{	
+					$out_type_id = $other_transfer_out['in_automatic_type'];
+					$trns_other_out = $other_transfer_out['in_animal_no'];
+				}
+				
+				
+				if($trns_dog_out==0 && $trns_cat_out==0 && $trns_other_out == 0)
+				{
+					$out_type_id = 0;
+				}	
+				else
+				{ 
+					$out_type_id = 1; 
+				}
+				
+				$animal_transfer_detail = $this->get_animal_transfer_detail($Row['in_organization_id']);
+				if(count($animal_transfer_detail)>0)
+				{
+					$in_type_id = 2;
+				} else {
+					$dog_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Dog',2);
+					if(count($dog_transfer_in)>0)	
+					{		
+							$in_type_id = 0;
+							$trns_dog_in = $dog_transfer_in['in_animal_no'];	
+					}
+					$cat_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Cat',2);
+					if(count($cat_transfer_in)>0)
+					{	
+							$in_type_id = 0;
+							$trns_cat_in = $cat_transfer_in['in_animal_no'];	
+					}
+					$other_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Other',2);
+					if(count($other_transfer_in)>0)
+					{	
+							$in_type_id = 0;
+							$trns_other_in = $other_transfer_in['in_animal_no'];
+					}
+					if($trns_dog_in==0 && $trns_cat_in==0 && $trns_other_in == 0)
+					{
+						$in_type_id = 0;
+					}	
+					else
+					{ 
+				
+						$in_type_id = 1; 
+					}
+				}
+				if($in_type_id!='0' || $out_type_id!='0')
+				{
+					$out_transfer='0';
+					$in_transfer = '0';
+					if($out_type_id!='0')
+					{
+							$out_transfer='1';
+					}
+					if($in_type_id!='0') 
+					{
+						$in_transfer = '1';
+					}
+						$st_org_image = $Row['st_org_image'];
+						if ($st_org_image != '' && file_exists($this->config->item('upload')."org_doc/63x63/".$st_org_image)) 
+						{
+							$path = $this->config->item('upload_url') . "org_doc/63x63/" . $st_org_image;
+						} else {
+							$path = '';
+							//$path = $this->config->item('upload_url') . "org_doc/63x63/no_photo.png";
+						}
+						$username =$Row['st_org_name'];
+						$link = base_url().'organization-'.$Row['in_organization_id'].'-'.$Row['st_org_name'];		
+						$str1='';
+						//if($out_type_id!='0' && ($trns_dog_out!='0' || $trns_other_out!='0' || $trns_cat_out!='0'))
+						if($out_type_id!='0')	
+						{
+							$str1 .= $trns_dog_out.' Dogs <br>';
+							$str1 .= $trns_cat_out.' Cat <br>';
+							$str1 .= $trns_other_out.' Other <br>';
+						}		
+							
+						$str2='';
+						if($in_type_id!='0') 
+						{
+							
+							if($in_type_id=='1')
+							{
+								$str2 .= $trns_dog_in.' Dogs <br>';
+								$str2 .= $trns_cat_in.' Cat <br>';
+								$str2 .= $trns_other_in.' Other <br>';
+							} else if($in_type_id=='2' && count($animal_transfer_detail)>0) {
+								foreach($animal_transfer_detail as $key=>$value)
+								{
+									//$age =isset($value['st_age']) && !empty($value['st_age']) ? $this->common_function->animal_age[$value['st_age']] : '';
+									//$weight =isset($value['st_weight']) && !empty($value['st_weight']) ? $this->common_function->animal_weight[$value['st_weight']] : '';
+									$age =isset($value['st_age']) && !empty($value['st_age'] && array_key_exists($value['st_age'],$animal_age)) ? $animal_age[$value['st_age']] : '';
+									$weight =isset($value['st_weight']) && !empty($value['st_weight'] && array_key_exists($value['st_weight'],$animal_weight)) ? $animal_weight[$value['st_weight']] : '';			
+									
+									$str2 .= $value['in_animal_count'].' '.$value['st_animal_type'].' / Age '.$age.' / Weight '.$weight."<br>";
+								}
+							}	
+						}	
+						$final_string = '';
+						$cont_string = '';
+						$img_path = '';
+						$no_image_class= '';
+						$add_partner  = '';
+						$show_animal_link = '';
+						$org_send_mail = "contactOrgUserPartner('".$Row['st_director']."','".$Row['st_email_address']."');";
+						if($in_type_id==1 && $out_transfer==1)
+						{
+							$cont_string  = $this->get_template1();
+							$cont_string  = str_replace('##avaliable_transfer##',$str1,$cont_string);
+							$cont_string  = str_replace('##avaliable_space##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==2 && $out_transfer==1)
+						{
+							$cont_string  = $this->get_template2();
+							$cont_string  = str_replace('##avaliable_transfer##',$str1,$cont_string);
+							$cont_string  = str_replace('##avaliable_space_detail##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==0 && $out_transfer==1)
+						{
+							
+							$cont_string  = $this->get_template3();
+							$cont_string  = str_replace('##avaliable_transfer##',$str1,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##phone_no##','',$cont_string);
+							$cont_string  = str_replace('##email##','',$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							if($foster['out_type_id']==2)
+							{	
+								$add_info = '<p>Contact the organization for animal profiles they can transfer.</p>';
+							} else {
+								$add_info = '';
+							}
+							$cont_string  = str_replace('##additional_info##',$add_info,$cont_string);
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==1 && $out_transfer==0)
+						{
+							$cont_string  = $this->get_template4();
+							$cont_string  = str_replace('##avaliable_space##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##phone_no##','',$cont_string);
+							$cont_string  = str_replace('##email##','',$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+						if($in_type_id==2 && $out_transfer==0)
+						{
+							
+							$cont_string  = $this->get_template5();
+							$cont_string  = str_replace('##show_animals_link##',$show_animal_link,$cont_string);
+							$cont_string  = str_replace('##avaliable_space_detail##',$str2,$cont_string);
+							$cont_string  = str_replace('##org_name##',$username,$cont_string);
+							if($path!='')
+							{	
+								$img_path ='<div class="logo"><img src="'.$path.'" width="53" height="53" alt="" /></div>';
+							} else {
+								$no_image_class='without';
+							}		
+							$cont_string  = str_replace('##img_url##',$img_path,$cont_string);
+							$cont_string  = str_replace('##no_image##',$no_image_class,$cont_string);
+							$cont_string  = str_replace('##org_url##',$link,$cont_string);
+							$add_partner  = '';
+							$cont_string  = str_replace('##add_partner##',$add_partner,$cont_string);			
+							$cont_string  = str_replace('##send_org_mail##',$org_send_mail,$cont_string);
+						}
+						
+							$finalstring = $cont_string;
+						
+					
+					
+				
+							$avaliable_transfer[] = 	  array('out_transfer' => $out_transfer,
+															   'in_transfer'   => $in_transfer,
+														       'pop_up_desc'   => $finalstring,
+																       'lat'   => $Row['lat'],
+																       'lon'   => $Row['lon'],
+																	   'id'    => $Row['id'],
+																);
+				}							
+					
+			}	 
+		}
+		return $avaliable_transfer;
+		
+	}
+	
+	function get_doobert_org_bystatezip_nonlogin() 
+    {
+		$avaliable_transfer = array();
+		$sql = '';
+		$sql .= ' select o.in_organization_id,o.st_org_name,zp.lat,zp.lon,o.st_org_image,o.st_zip,o.st_director,o.st_email_address';
+		$sql .= ' FROM tbl_organization o';
+		$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=o.st_zip';
+		$sql .=' AND o.in_deleted = 0';
+		$sql .= ' AND o.in_status = 1';	
+		$sql .= ' AND (';
+				$sql .=" (select count(in_id) as id11 from tbl_animal_transfer_setting  where in_organization_id = o.in_organization_id AND in_deleted=0)";
+				$sql .=" OR (select count(in_id) as id2 from tbl_animal_transfer_detail  where in_organization_id = o.in_organization_id AND in_deleted=0)";	
+
+		$sql .= ' )';
+		
+		$sql .= ' group by o.in_organization_id';
+		
+		$query = $this->db->query($sql);
+		
+		 
+		
+		if ($query->num_rows() > 0) 
+		{
+			foreach ($query->result_array() as $Row) 
+			{
+				$in_type_id =$out_type_id='0';
+				$animal_transfer_detail = array();
+				
+				$trns_cat_out = $trns_dog_out  = $trns_other_out = 0;
+				$trns_dog_in = $trns_cat_in = $trns_other_in = 0;
+				$cat_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Cat',1);
+				if(count($cat_transfer_out)>0)	
+				{			
+					$out_type_id  = $cat_transfer_out['in_automatic_type'];
+					$trns_cat_out = $cat_transfer_out['in_animal_no'];
+				}
+
+				$dog_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Dog',1);
+				if(count($dog_transfer_out)>0)
+				{	
+					$out_type_id  = $dog_transfer_out['in_automatic_type'];
+					$trns_dog_out = $dog_transfer_out['in_animal_no'];
+				}
+				
+				$other_transfer_out = $this->get_total_transfer_setting($Row['in_organization_id'],'Other',1);
+				if(count($other_transfer_out)>0)
+				{	
+					$out_type_id = $other_transfer_out['in_automatic_type'];
+					$trns_other_out = $other_transfer_out['in_animal_no'];
+				}
+				if($trns_dog_out==0 && $trns_cat_out==0 && $trns_other_out == 0)
+				{
+					$out_type_id = 0;
+				}	
+				else
+				{ 
+					$out_type_id = 1; 
+				}
+				
+				$animal_transfer_detail = $this->get_animal_transfer_detail($Row['in_organization_id']);
+				if(count($animal_transfer_detail)>0)
+				{
+					$in_type_id = 2;
+				} else {
+					$dog_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Dog',2);
+					if(count($dog_transfer_in)>0)	
+					{		
+							$in_type_id = 0;
+							$trns_dog_in = $dog_transfer_in['in_animal_no'];	
+					}
+					$cat_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Cat',2);
+					if(count($cat_transfer_in)>0)
+					{	
+							$in_type_id = 0;
+							$trns_cat_in = $cat_transfer_in['in_animal_no'];	
+					}
+					$other_transfer_in = $this->get_total_transfer_setting($Row['in_organization_id'],'Other',2);
+					if(count($other_transfer_in)>0)
+					{	
+							$in_type_id = 0;
+							$trns_other_in = $other_transfer_in['in_animal_no'];
+					}	
+
+					if($trns_dog_in==0 && $trns_cat_in==0 && $trns_other_in == 0)
+					{
+						$in_type_id = 0;
+					}	
+					else
+					{ 
+				
+						$in_type_id = 1; 
+					}
+				}
+				if($in_type_id!='0' || $out_type_id!='0')
+				{
+					$out_transfer='0';
+					$in_transfer = '0';
+					if($out_type_id!='0')
+					{
+							$out_transfer='1';
+					}
+					if($in_type_id!='0') 
+					{
+						$in_transfer = '1';
+					}
+					
+						
+						$st_org_image = $Row['st_org_image'];
+						if ($st_org_image != '' && file_exists($this->config->item('upload')."org_doc/63x63/".$st_org_image)) 
+						{
+							$path = $this->config->item('upload_url') . "org_doc/63x63/" . $st_org_image;
+						} else {
+							$path = $this->config->item('upload_url') . "org_doc/63x63/no_photo.png";
+						}
+						$username =$Row['st_org_name'];
+						$link = base_url().'organization-'.$Row['in_organization_id'].'-'.$Row['st_org_name'];		
+						$str1='';
+						$finalstring = '<div class="pinblock01"><div class="w345">
+							<h3><a href="javascript:void(0);"><img src="'.$path.'" alt="" width="53" height="53" align="left"></a><a href="'.$link.'">'.$username.'</a></h3>
+							<p>Transfer OUT and IN information is available only to Doobert Organizations. Sign-up for free today!</p>
+							<div class="signup"><a href="'.base_url().'signup/">Sign-up for free</a></div>
+							</div>
+							</div>';
+					
+				
+							$avaliable_transfer[] = 	  array('out_transfer' => $out_transfer,
+															   'in_transfer'   => $in_transfer,
+														       'pop_up_desc'   => $finalstring,
+																       'lat'   => $Row['lat'],
+																       'lon'   => $Row['lon'],
+																);
+				}							
+					
+			}	 
+		}
+		return $avaliable_transfer;
+		
+	}
+	
+	public function get_template1()
+	{
+		return '<div class="pinblock02 medium ##no_image##"><div class="w524">
+			<div class="pads"><h3><a href="##org_url##">##org_name##</a><span class="right"><a href="javascript:void(0);" onclick="##send_org_mail##"><img src="'.base_url().'assets/img/contact.png" alt="" /></a></span></h3><div class="br"></div>
+			##img_url##
+			<div class="detail">				
+				<p><strong>Available to Transfer:</strong><br/>##avaliable_transfer##</p>
+				##show_animals_link##				
+			</div>
+			<div class="spacefor">
+				<p><strong>We Have Space for:</strong><br/>##avaliable_space##</p><p>Contact the organization for animal profiles they can receive.</p>
+			</div>
+			<div class="br"></div>
+			</div>
+			##add_partner##
+			</div>
+		</div>';
+	}
+	
+	public function get_template2()
+	{
+		return '<div class="pinblock02 long ##no_image##"><div class="w588">
+			<div class="pads"><h3><a href="##org_url##">##org_name##</a><span class="right"><a href="javascript:void(0);" onclick="##send_org_mail##"><img src="'.base_url().'assets/img/contact.png" alt="" /></a></span></h3><div class="br"></div>
+			##img_url##
+			<div class="detail">				
+				<p><strong>Available to Transfer:</strong><br/>##avaliable_transfer##</p>
+				##show_animals_link##
+			</div>
+			<div class="spacefor">
+				<p><strong>We Have Space for:</strong><br/>##avaliable_space_detail##</p>
+			</div>
+			<div class="br"></div>
+			</div>
+			##add_partner##
+			</div>
+		</div>';
+	}
+	public function get_template3()
+	{
+		return '<div class="pinblock02 ##no_image##"><div class="w278">
+			<div class="pads"><h3><a href="##org_url##">##org_name##</a><span class="right"><a href="javascript:void(0);" onclick="##send_org_mail##"><img src="'.base_url().'assets/img/contact.png" alt="" /></a></span></h3><div class="br"></div>
+			##img_url##
+			<div class="detail">
+				<p>##phone_no##</p>
+				<p>##email##</p>
+				<p><strong>Available to Transfer:</strong><br/>##avaliable_transfer##</p>
+				##show_animals_link##
+			</div>
+			<div class="br"></div>
+				##additional_info##
+			</div>
+			##add_partner##
+			</div>
+		</div>';
+	}
+	
+	public function get_template4()
+	{
+		return '<div class="pinblock02 ##no_image##"><div class="w278">
+			<div class="pads"><h3><a href="##org_url##">##org_name##</a><span class="right"><a href="javascript:void(0);" onclick="##send_org_mail##"><img src="'.base_url().'assets/img/contact.png" alt="" /></a></span></h3><div class="br"></div>
+			##img_url##
+			<div class="detail">				
+				<p>##phone_no##</p>
+				<p>##email##</p>
+				<p><strong>We Have Space for:</strong><br/>##avaliable_space##</p>
+				##show_animals_link##
+			</div>
+			<div class="br"></div>
+				<p>Contact the organization for animal profiles they can transfer.</p>
+			</div>
+			##add_partner##
+			</div>
+		</div>';
+	}
+	
+	public function get_template5()
+	{
+		return '<div class="pinblock02 medium ##no_image##"><div class="w278">
+			<div class="pads"><h3><a href="##org_url##">##org_name##</a><span class="right"><a href="javascript:void(0);" onclick="##send_org_mail##"><img src="'.base_url().'assets/img/contact.png" alt="" /></a></span></h3><div class="br"></div>
+			##img_url##
+			<div class="w278">				
+				<p><strong>We Have Space for:</strong><br/>##avaliable_space_detail##</p>
+				##show_animals_link##
+			</div>
+			<div class="br"></div>
+			</div>
+			##add_partner##
+			</div>
+		</div>';
+	}
+
+	
+	/*public function retrive_pinblock1()
+	{
+		
+	}*/
+	
+	public function distance($lat1, $lon1, $lat2, $lon2, $unit) {
+
+	  $theta = $lon1 - $lon2;
+	  $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+	  $dist = acos($dist);
+	  $dist = rad2deg($dist);
+	  $miles = $dist * 60 * 1.1515;
+	  $unit = strtoupper($unit);
+
+	  if ($unit == "K") {
+	    return ($miles * 1.609344);
+	  } else if ($unit == "N") {
+	      return ($miles * 0.8684);
+	    } else {
+	        return $miles;
+	      }
+	}
+	
+	public function get_zipcode2($zipcode)
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix",FALSE);
+		$this->db->from('tbl_zip_code');	
+		
+		// if normal 1 char is present 
+		if (strpos($zipcode ,',') == false) {
+		$this->db->where('zip_code LIKE "'.$zipcode.'%" OR lower(city) LIKE lower("'.$zipcode.'%") OR UPPER(state_prefix) = UPPER("'.trim($zipcode).'")');
+		} else {
+		$value=explode(',',$zipcode);
+		if(!empty($value))
+		{
+			if(is_numeric($value[0]))
+			{
+				$this->db->where('zip_code LIKE "'.$value[0].'%"',FALSE,FALSE);			
+			}else {
+			 if(isset($value[0]) && isset($value[1])){
+
+			 	if(strlen($value[1]) > 2)
+				{
+					$states_list = $this->common_function->state_list;
+					if(in_array(ucfirst($value[1]), $states_list))
+					{
+						$state_key = array_search(ucfirst($value[1]), $states_list);
+						$value[1] = $state_key;
+					}
+					//echo $state;exit;
+				}
+			 
+			 $this->db->where('lower(city) LIKE lower("'.$value[0].'%") AND UPPER(state_prefix) = UPPER("'.trim($value[1]).'")');
+			 }else {
+			  $this->db->where('lower(city) LIKE lower("'.$value[0].'%") AND UPPER(state_prefix) = UPPER("'.trim($value[0]).'")');
+			 }
+			}
+			
+		}
+		}
+		$this->db->limit("10");
+				
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array( "label"     	=> $Row->label,
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										//"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+	}
+	
+
+
+}

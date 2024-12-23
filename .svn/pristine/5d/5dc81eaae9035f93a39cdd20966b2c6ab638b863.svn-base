@@ -1,0 +1,404 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 16-Aug-2018
+# File description	: Organization Animal Notification Model
+# Special - notes	: none
+# Tables used		: tbl_org_animal_notify
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class org_animal_notify_cron_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+        $this->load->model('org_info_model');
+        $this->load->model('partner_map_model');
+        $this->load->model('partner_model');
+        $this->load->model('common_model');
+    }
+
+
+    public function insert_animal_notify($data)
+	{
+		$this->db->insert('tbl_org_animal_notify', $data);		
+		return $this->db->insert_id();
+	}
+	
+	public function get_org_animal_notify()
+	{	
+		$org_animal_notify = array();
+		$this->db->select('in_animal_notify, in_org_id, in_notify_on, st_location, in_radius, in_partner, in_coalitions, st_animal_dtl, st_breed_dtl, dt_created, in_deleted');
+		$this->db->from('tbl_org_animal_notify');
+		$this->db->where('in_notify_on',1);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get(); 		
+		if($query->row())
+		{
+			$partner_animal = array();
+			$coalition_animal = array();
+			foreach($query->result_array() as $row) {
+				
+				$org_id = $row['in_org_id'];
+				$st_location = $row['st_location'];
+				$radius = $row['in_radius'];				
+				if($row['in_coalitions'] == 1){
+					$coalition_details[$org_id] =	$this->partner_model->get_all_partner_byOrg($st_location, $org_id,$radius);				
+					if(!empty($coalition_details)){
+						foreach($coalition_details as $c_key => $c_value){
+							for ($c=0; $c < count($c_value) ; $c++) {							
+								$corg_id = $c_value[$c]['in_organization_id'];						
+								//$coalition_animal[$porg_id] = $this->get_all_animals_by_orgid($porg_id);
+								$coalition_animal[] = $porg_id;
+							}													
+					  	}
+				  	}
+				}
+
+				
+				if($row['in_partner'] == 1){
+					$partner_details[$org_id] =	$this->partner_model->get_all_partner_byOrg($st_location, $org_id,$radius);				
+					if(!empty($partner_details)){
+						foreach($partner_details as $p_key => $p_value){
+							for ($p=0; $p < count($p_value) ; $p++) {							
+								$porg_id = $p_value[$p]['in_organization_id'];						
+								$partner_animal [] = $porg_id;
+							}													
+					  	}
+				  	}
+				}				
+				
+				$st_animal_dtl= array();				
+				$st_breed_dtl = array();
+				$st_animal_dtl = unserialize($row['st_animal_dtl']);
+				$st_breed_dtl = unserialize($row['st_breed_dtl']);
+				$org_animal_notify[] = array(
+								'in_animal_notify' 	=> $row['in_animal_notify'],
+								'in_org_id' 		=> $org_id,
+								'in_notify_on' 		=> $row['in_notify_on'],
+								'st_location' 		=> $st_location,
+								'in_radius' 		=> $radius,
+								'in_partner' 		=> $row['in_partner'],
+								'in_coalitions' 	=> $row['in_coalitions'],
+								'st_animal_dtl' 	=> $st_animal_dtl,
+								'st_breed_dtl' 		=> $st_breed_dtl,
+								'coalitions_id' 	=> $coalition_animal,
+								'partner_id' 		=> $partner_animal,
+								
+							);
+			}
+		}		
+		return $org_animal_notify;
+
+	}
+
+  /*  public function get_all_organization_transfer($aniaml=array())
+	{
+		$org_id = $this->session->userdata('org_id');
+		
+		$this->db->select('tr.in_animal_transfer_id ,tr.in_public_flag ,tr.st_prov_animal_type ,tr.st_accpt_animal_type ,o.in_organization_id, o.st_org_name ,o.st_org_image,zp.lat,zp.lon');
+		$this->db->from('tbl_animal_transfers tr');
+		//$this->db->join('tbl_organization o','o.in_user_id = u.in_user_id','INNER');
+		$this->db->join('tbl_organization o','o.in_organization_id = tr.in_org_id ','INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'LEFT');
+		$this->db->where('o.in_organization_id !=', $org_id);
+		$this->db->where('tr.in_public_flag',0);
+		$this->db->where('tr.in_deleted',0);
+		$this->db->where('o.in_deleted',0);
+		$this->db->where("(tr.st_prov_animal_type!= '' || tr.st_accpt_animal_type!= '')");
+		
+		
+		$provideanimal_array	=	array();
+		if(count($provideanimal)>0)
+		{
+			foreach($provideanimal as $pvala)
+			{
+				$strpval	=	'tr.st_prov_animal_type LIKE "%\"'.$pvala.'\"%"';
+				array_push($provideanimal_array,$strpval);
+			}
+			
+		}
+		if(count($acceptaniaml)>0)
+		{
+			foreach($acceptaniaml as $avala)
+			{
+				$strpval	=	'tr.st_accpt_animal_type LIKE "%\"'.$avala.'\"%"';
+				array_push($provideanimal_array,$strpval);
+			}
+			
+		}		
+		if(count($provideanimal_array)>0)
+		{
+			$qrypvals	=	implode(" || ",$provideanimal_array);
+			$this->db->where("(".$qrypvals.")");
+		}
+		
+		if(!empty($orgname)){
+			$this->db->where("o.st_org_name like '%".$orgname ."%'");
+		}
+		
+		elseif (!empty($radius) != '' && !empty($zipcode) != '') {
+		   $lat_long1 = $this->google_lat_long($zipcode);
+
+            if ($lat_long1['lon'] != '' && $lat_long1['lat'] != ''){
+                $lat_long = $lat_long1;
+            }
+
+            if (sizeof($lat_long) > 0) {
+                $this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+            }
+		}
+		
+		if(!empty($provideother))
+		{
+			$this->db->where('tr.st_provied_other',$provideother);			
+		}
+		if(!empty($acceptother)){
+			 $this->db->where('tr.st_accept_other',$acceptother);		
+		}
+		
+		if($all!=1){
+			if (!isset($limit)) {
+		            $limit = 0;
+		        }
+		    $this->db->group_by('tr.in_animal_transfer_id');
+			$this->db->order_by('o.st_zip');			
+	        $this->db->limit($rec_per_page, $limit);
+	        $query = $this->db->get();
+		}else{
+			$this->db->group_by('tr.in_animal_transfer_id');
+			$this->db->order_by('o.st_zip');
+			$query = $this->db->get();
+		}	
+		$arrorg = array();
+		
+		
+		$temp_lat	=	0;
+		$temp_lon	=	0;
+		$i = 0;
+		 if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+				
+				if($temp_lat!=0 && $temp_lon!=0)
+				{
+					$miles = $this->distance($temp_lat, $temp_lon, $Row->lat, $Row->lon, 'K');
+					if($miles < 1)
+					{	
+						$i++;
+						$temp_lat	=	$Row->lat + ($i/30);
+						$temp_lon	=	$Row->lon;
+					}
+					else{
+						$temp_lat	=	$Row->lat;
+						$temp_lon	=	$Row->lon;
+					}
+					
+				}else{
+					$temp_lat	=	$Row->lat;
+					$temp_lon	=	$Row->lon;
+				}					
+				
+			$arrorg[] = array(				
+			
+                    'in_animal_transfer_id' => $Row->in_animal_transfer_id,
+                    'in_organization_id' => $Row->in_organization_id,
+					'in_public'			=>	$Row->in_public_flag,
+					'provide_animal'    =>  unserialize($Row->st_prov_animal_type),
+					'accept_animal'		=> 	unserialize($Row->st_accpt_animal_type),
+					'st_org_name'       => 	$Row->st_org_name,
+					'st_org_image'		=>  $Row->st_org_image,
+					'lat' 				=>  $temp_lat,
+					'lon'			 	=>  $temp_lon
+	            );
+		}
+		//}
+	
+		return $arrorg;
+	}//else
+}	*/
+
+
+	
+
+	function google_lat_long($address) {
+		
+		$latlon =array();
+        $latlon['lat'] = '';
+        $latlon['lon'] = '';
+	
+		if($address)
+		{
+			
+			$sql1	=	"SELECT lat,lon FROM tbl_zip_code WHERE zip_code ='".$address."'";
+			$query 	=	$this->db->query($sql1);
+			$result	=	$query->result();			
+			
+			if(!empty($result)){
+				
+				$latlon['lat'] = $result[0]->lat;
+                $latlon['lon'] = $result[0]->lon;				
+			}			
+			if(!isset($latlon['lat']) && $latlon['lat']==''){
+			
+			
+				$url ="http://maps.googleapis.com/maps/api/geocode/json?address=" .urlencode(@$address)."&sensor=false";
+				
+				// create curl resource
+				$ch = curl_init();
+				// set url
+				curl_setopt($ch, CURLOPT_URL, $url);
+				//return the transfer as a string
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+				// $output contains the output string
+				$output = curl_exec($ch);
+				// close curl resource to free up system resources
+				curl_close($ch);
+				//echo $output;die;
+				$response_array = json_decode($output, TRUE);
+				if($response_array['status'] == 'OK')
+				{
+					$arrAxis = json_decode($output)->results[0]->geometry->location;
+					$lat = $arrAxis->lat;
+					$lan = $arrAxis->lng;
+					$latlon['lat'] = $lat;
+					$latlon['lon'] = $lan;
+				}
+			}
+		}
+		
+		return $latlon;
+    }
+	
+	public function get_animalbyId($animal_id){
+		$this->db->select('st_animal_name');
+		$this->db->from('tbl_animal');
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_animal_id',$animal_id);
+		$query = $this->db->get();		
+		return $query->result_array();
+	}
+
+
+
+			public function get_all_animals_by_orgid($org_id='') {		
+		        $current_time = date('Y-m-d H:i:s');		
+				$min_time = date('Y-m-d H:i:s', strtotime('-30 minutes'));	
+
+		        $this->db->select('a.in_animal_id, a.in_animal_type_id, a.st_gender, a.in_age, a.in_weight,  a.in_primary_breed_id, a.in_organization_id,a.st_animal_name,af.st_file_name',FALSE);
+				$this->db->from('tbl_animal as a');
+		        $this->db->join('tbl_animal_file as af','a.in_animal_id = af.in_animal_id','LEFT');
+				$this->db->where('a.in_deleted',0);
+				$this->db->where('a.in_status <>',3);
+				if(!empty($org_id)){
+					$this->db->where('a.in_organization_id',$org_id);	
+				}		
+				$this->db->where('a.dt_modified >=', '2018-08-20 01:52:18');//$min_time);
+				//$this->db->where('a.dt_modified >=', $min_time);
+				$this->db->where('a.dt_modified <=', $current_time);
+				$this->db->group_by('a.in_animal_id');		
+				
+				$query = $this->db->get();
+				//echo $this->db->last_query();
+				$org_animal_details =array();
+				if($query->row()){
+					
+					foreach($query->result_array() as $row) {
+					
+						$in_animal_id = $row['in_animal_id'];												
+						$org_animal_details[] = array(
+									'in_animal_id'		=> $in_animal_id,
+									//'st_org_name' 		=> $row['st_org_name'],
+									'in_animal_type_id' => $row['in_animal_type_id'],
+									'st_gender' 		=> $row['st_gender'],
+									'in_age' 			=> $row['in_age'],
+									'in_weight' 		=> $row['in_weight'],
+									'in_breed' 			=> $row['in_primary_breed_id'],
+									'photos' 			=> $row['st_file_name'],
+									'st_animal_name'    => $row['st_animal_name']
+								);
+					}
+				}				
+			
+				//return $org_animal_details;
+			}
+
+		public function get_total_animal($myloc = '',$radius='',$ckcoilation, $ckpartner, $org_id){			
+			
+			$current_time = date('Y-m-d H:i:s');		
+			$min_time = date('Y-m-d H:i:s', strtotime('-30 minutes'));
+
+			//$this->db->select("o.in_organization_id,a.in_animal_id", false);	
+		$this->db->select("a.in_animal_id, o.st_org_name,a.in_animal_type_id, a.st_animal_name, a.st_gender,a.in_age, a.in_weight, a.in_primary_breed_id ", false);
+			$this->db->from('tbl_organization as o');
+			$this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'LEFT');
+			$this->db->join('tbl_animal as a', 'o.in_organization_id=a.in_organization_id','INNER');
+			$this->db->join('tbl_animal_type aty', 'aty.in_animal_type_id=a.in_animal_type_id','INNER');
+			$this->db->join('tbl_animal_breed ab', 'ab.in_animal_breed_id=a.in_primary_breed_id','INNER');
+			$this->db->join('tbl_animal_file af', "af.in_animal_id=a.in_animal_id and af.in_deleted=0 and af.st_file_type='P'",'LEFT');	
+			
+			if($ckcoilation!= 0){ 
+				//$this->db->where("o.in_organization_id IN (SELECT in_organization_id FROM tbl_org_coalition WHERE in_coalition_id IN (SELECT in_coalition_id FROM tbl_org_coalition WHERE in_organization_id = '".$this->session->userdata('org_id')."' AND in_status=1 AND in_deleted=0) AND in_status=1 AND in_deleted=0)");
+				
+				$this->db->where("o.in_organization_id IN (SELECT in_organization_id FROM tbl_org_coalition WHERE in_coalition_id ='".$org_id."' AND in_deleted=0)");
+			    
+			}
+			
+			if($ckpartner!= 0){					
+				$this->db->where("o.in_organization_id IN (SELECT in_organization_id FROM tbl_partner WHERE in_user_organization_id = '".$org_id."' AND in_deleted=0)");
+			}
+			
+			if($myloc!=''){		
+
+				if($radius==''){
+					$radius	=	100;
+				}				
+					
+					$lat_long1 = $this->google_lat_long($myloc);				
+					if ($lat_long1['lon'] != '' && $lat_long1['lat'] != ''){
+					 	$lat_long = $lat_long1;
+					// }
+				
+					// if ($lat_long1['lon'] != '') {
+						$this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+					}				
+			}		
+			
+			/*if($animal_type!='')
+			{			
+			 $this->db->where("a.in_animal_type_id ='".$animal_type."'", NULL, FALSE);
+			}
+			if($gender!='')
+			{			
+			 $this->db->where("a.st_gender = '".$gender."'", NULL, FALSE);
+			}
+			
+			if($age!='')
+			{			
+			 $this->db->where("a.in_age < '".$age."'", NULL, FALSE);
+			}
+			
+			if($size!='')
+			{			
+			 $this->db->where("a.in_weight < '".$size."'", NULL, FALSE);
+			}	*/
+			
+			
+			$this->db->where('a.in_deleted','0');
+			$this->db->where('a.in_status <>',3);
+			$this->db->where('o.in_status','1');
+			$this->db->where('o.in_deleted','0');
+			
+			//$this->db->where('a.dt_modified >=', '2018-08-20 01:52:18');//$min_time);
+			$this->db->where('a.dt_modified >=', $min_time);
+			$this->db->where('a.dt_modified <=', $current_time);
+
+			$this->db->group_by('a.in_animal_id');
+			
+			$query = $this->db->get();						
+			return $query->result_array();	
+		}
+
+	
+}
+?>

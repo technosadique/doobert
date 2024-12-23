@@ -1,0 +1,742 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Lost_found extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	public function __construct()
+    {
+		parent::__construct();
+		/*if($_SERVER['REMOTE_ADDR']=='172.68.144.175' || $_SERVER['REMOTE_ADDR']=='162.158.154.19')
+		{
+			$this->output->enable_profiler(TRUE);
+		}
+		else
+		{
+			$this->output->enable_profiler(FALSE);
+		}*/
+		
+		$this->load->model('common_model');
+		$this->load->model('lost_found_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');		
+		$this->session->unset_userdata('org_id');
+		$this->session->unset_userdata('transport_id');
+			
+		
+	}	
+	 
+	public function index()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data=array();
+		//if($this->uri->segment('3') == 'reset'){
+			
+			$this->session->unset_userdata('sesstxtorgname');
+			$this->session->unset_userdata('sesstxtanimaltype');
+			$this->session->unset_userdata('sesstxtgender');
+			$this->session->unset_userdata('sesstxtage');
+			$this->session->unset_userdata('sesstxtsize');
+			$this->session->unset_userdata('sesstxtmyloc');
+			$this->session->unset_userdata('sesstxtradius');				
+		//}
+		$this->page();	
+		
+	}
+	
+	
+	public function pet_search()
+	{
+		
+		/*echo "<pre>"; print_r($this->input->post()); echo "</pre>";
+		die;*/
+		if($this->input->post('search_pet_details') || $this->input->post('form-pagination'))
+		{
+			
+			if($this->input->post('search_pet_details'))
+			{	
+				$start_date = '';
+				$end_date = '';
+				if($this->input->post('pickupselect'))
+				{
+					if($this->input->post('pickupselect_year'))
+					{
+						$start_date = date("Y-m-d", strtotime($this->input->post('pickupselect').' '.$this->input->post('pickupselect_year')));
+					}	
+				}
+				
+				if($this->input->post('dateselect'))
+				{
+					if($this->input->post('dateselect_year'))
+					{
+						$end_date = date("Y-m-d", strtotime($this->input->post('dateselect').' '.$this->input->post('dateselect_year')));
+					}	
+				}		
+			
+				$location = isset($_POST['location']) ? $_POST['location'] : ''; 
+				$distance = isset($_POST['radius_miles']) ? $_POST['radius_miles'] : '200'; 
+				//$start_date = isset($_POST['start_date']) ? $_POST['start_date'] : ''; 
+				//$end_date = isset($_POST['end_date']) ? $_POST['end_date'] : '';
+				$report_type = isset($_POST['report_type']) ? $_POST['report_type'] : '';
+				$species_array = isset($_POST['species']) ? $_POST['species'] : '';
+				$limit  = isset($_POST['limit']) ? $_POST['limit'] : '1';
+				$species = implode(",",$species_array);
+				$this->session->set_userdata('location',$location);
+				$this->session->set_userdata('distance',$distance);
+				$this->session->set_userdata('report_type',$report_type);
+				$this->session->set_userdata('species',$species);
+				$this->session->set_userdata('start_date',$start_date);
+				$this->session->set_userdata('end_date',$end_date);
+				//$species = implode(",",$species_array);
+			}
+			
+			if($this->input->post('form-pagination'))
+			{
+				$limit  = isset($_POST['page_limit']) ? $_POST['page_limit'] : '1';
+				$location = $this->session->userdata('location') ? $this->session->userdata('location') : ''; 
+				$distance = $this->session->userdata('distance') ? $this->session->userdata('distance') : '200';
+				$report_type = $this->session->userdata('report_type') ? $this->session->userdata('report_type') : '';
+				$species = $this->session->userdata('species') ? $this->session->userdata('species') : '';
+				$start_date = $this->session->userdata('start_date') ? $this->session->userdata('start_date') : '';
+				$end_date = $this->session->userdata('end_date') ? $this->session->userdata('end_date') : '';	
+			}		
+			
+			if($species == '1')
+			{ 
+				$species=array(false,true,false,false);
+			}
+		
+			elseif($species == '2')
+			{
+				$species=array(false,false,true,false);
+			}
+			
+			elseif($species == '3')
+			{
+				$species=array(false,false,false,true);
+			}
+			
+			elseif($species == '2,3' || $species == '3,2')
+			{
+				$species=array(false,false,true,true);
+			}
+		elseif($species == '1,2,3'  || $species == '3,2,1' || $species == '3,1,2' || $species == '2,3,1' || $species == '2,1,3'){ 
+			$species=array(false,true,true,true);
+		}
+		elseif($species == '1,2' || $species == '2,1'){
+			
+			$species=array(false,true,true,false);
+		}
+		elseif($species == '1,3' || $species == '3,1'){
+			
+			$species=array(false,true,false,true);
+		}
+		
+		$species = json_encode($species);
+		
+		$frmloc=explode(', ',$location);
+		 $zipcode = trim($frmloc[0]);
+		
+		
+		//$get_lat_long = $this->common_model->get_lattitude_longitude($zipcode);
+		
+		//$get_lat_long['lat'];
+		//$get_lat_long['lon'];	    
+		
+		//$strreport_type = implode(',',$report_type);
+		//$strspecies = implode(',',$species);
+
+		
+		
+		$url='https://api.petfbi.org/dev/reports?start_date='.$start_date.'&end_date='.$end_date.'&distance='.$distance.'&zipcode='.$zipcode.'&report_type='.$report_type.'&species='.$species;
+		
+		//echo $url."<br>";
+		//die;
+		
+		//$url='https://api.petfbi.org/doobert/reports?start_date='.$start_date.'&end_date='.$end_date.'&distance='.$distance.'&zipcode='.$zipcode.'&report_type='.$report_type.'&species='.$species;
+		$url=str_replace ( ' ', '%20', $url);
+
+		$cSession = curl_init($url); 
+		$header = array();
+		//$header[] = 'Content-length: 0';
+		$header[] = 'Content-type: application/json';
+		$header[] = 'Authorization: doobert';
+		//$header[] = 'x-api-key: 5alcZwaorP84XGUyS0wtg3vxGCaP4cVm6URQiwEl';	
+		
+		curl_setopt($cSession,CURLOPT_RETURNTRANSFER,1); 
+		curl_setopt($cSession, CURLOPT_HTTPHEADER, $header);
+		curl_setopt($cSession,CURLOPT_HEADER, false);
+			curl_setopt($crl, CURLOPT_SSL_VERIFYHOST, false);
+		curl_setopt($crl, CURLOPT_SSL_VERIFYPEER, false);
+		//curl_setopt($cSession, CURLOPT_SSL_VERIFYHOST, false);
+		//curl_setopt($cSession, CURLOPT_SSL_VERIFYPEER, false);
+		//step3
+		$result=curl_exec($cSession);
+		$result =json_decode($result);
+		$search_pet = array();
+		
+		if($result!=false)
+		{
+			$search_pet = $result->results; 	
+		}
+		curl_close($cSession);
+		$this->display_result($search_pet,$limit);
+		} else {
+		$this->load->view('search-lost-found-pet',$data);
+		}
+	}
+
+	public function display_result($search_pet,$start_limit)
+	{
+		
+		$rec_per_page             = 12;
+		$start_index              = $start_limit*$rec_per_page-$rec_per_page;
+		$limit            		  = $start_index;
+		$search_pet_record        =  array_slice($search_pet,$start_index,$rec_per_page);
+		$data					  = array();	
+		$config 				  = array();
+		
+		//$config['base_url'] 	  = base_url().'search/page/';
+		//$config['base_url']	  	  = $config['base_url'];
+		$config['total_rows'] 	  = count($search_pet);
+		$config['per_page'] 	  = $rec_per_page;
+		$config['cur_page'] 	  = $limit;
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination transport_pagination">';
+		
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  
+		$this->load->library('pagination');	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();	
+		$data['limit']	=	$limit;	
+		$data['total_rows']	=	$config['total_rows'];
+		$data['search_pet']	= $search_pet_record;
+		$search_pet_data = $search_pet_record;
+		$this->session->set_userdata('search_pet_record',$search_pet_record);
+		$this->session->set_userdata('start_limit',$start_limit);
+		
+		$this->load->view('search-lost-found-pet-result',$data);
+	}
+
+	public function pet_profile_search_detail($key='')
+	{
+		$data['pet_profile_detail'] = $GLOBALS['_SESSION']['search_pet_record'][$key];
+		$data['start_limit'] = $GLOBALS['_SESSION']['start_limit'];
+		$this->load->view('pet-profile-search-details',$data);
+	}		
+	
+	
+	
+	
+	public function add_pet_detail()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data=array();
+		$this->load->model('lost_found_model');
+		$form_field	=	array('dt_lostfound'				    => '',
+							  'location_specific'		    	=> '',
+								'report_type'		    		=> '',
+								'location'		    		    => '',
+								'pet_type'	        			=> '',
+								'gender'	        			=> '',
+								'petname'	        			=> '',
+								'height'	        			=> '',
+								'coattype'	        			=> '',
+								'coatlength'	        		=> '',
+								'breed'	        				=> '',
+								'weight'	        			=> '',
+								'collarcolor'	        		=> '',
+								'color'	        				=> '',
+								'age'	        				=> '',
+								'identitymark'	        		=> '',
+								'comment'	        			=> '',
+								'uploaded_photo1'               => ''
+							);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['pet'][$key] = $value;	
+			}
+		
+		if($this->input->post('action') == 'ADD')
+		 {
+			 $this->form_validation->set_rules('report_type', 'Report Type', 'required');
+			 $this->form_validation->set_rules('pet_type', 'Pet Type', 'required');
+			 $this->form_validation->set_rules('gender', 'Gender', 'required');
+			 $this->form_validation->set_rules('petname', 'Pet Name', 'required');
+			 $this->form_validation->set_rules('breed', 'Breed', 'required');
+			 $this->form_validation->set_rules('location_specific', 'Location Specific', 'trim');
+			 $this->form_validation->set_rules('comment', 'Comment', 'trim');
+			 
+			 if($this->form_validation->run() == FALSE || $Err_Msg!='')
+				{
+						$data['Err_Msg'] = validation_errors().$Err_Msg;
+						//echo "<pre>";print_r($data);die;
+						$this->load->view('add-pet',$data);	
+				}
+				
+			else{
+			 
+			 foreach ($form_field as $key => $value) {	
+					$data['pet'][$key] = $this->input->post($key);	
+				}
+				
+				if(preg_match('/^[0-9]+$/', $data['pet']['location'])){
+					$zipcode   =  trim($data['pet']['location']);
+				}
+				else{
+				$frmloc=explode(', ',$data['pet']['location']);
+				 $zipcode = trim($frmloc[0]);
+				}
+				
+				$this->load->library('upload');
+						$photos = array('photo1' => '');
+						$xaxis = '';
+						$yaxis = '';
+						$height = '';
+						$width = '';
+						
+						$thumb = array(	'315x315'	=>	'315X315',
+							'140x140'	=>	'140X140',
+							'70x70'		=>	'70X70',
+							'36x36'		=>	'36X36'
+							);
+			
+						//Adding animal images
+						$rotate_angle1	=	0;
+						$rotate_angle2	=	0;
+						$rotate_angle3	=	0;
+						$rotate_angle4	=	0;
+						
+						$this->load->library('image_lib');
+				
+				if($this->input->post('uploaded_photo1') != '') {
+					
+					
+						
+						
+				$photos['photo1'] = $this->input->post('uploaded_photo1');//$_FILES['photo1']['name'];
+				
+				$img_name_array = explode('.', $photos['photo1']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo1'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'animal_images/' . $photos['photo1']);
+					imagejpeg($image, $this->config->item('upload') . 'animal_images/' . $new_image_name);
+					$photos['photo1'] =  $new_image_name;
+				}
+			   }
+			   
+			   
+			   
+			   foreach($photos as $key => $row) {
+				$config = array();	
+				
+				if(trim($row) != '') {
+					$count_photo = substr($key,-1);
+					if($key == 'photo1') {
+						$rotate_angle = $this->input->post('rotate_angle1');
+						$xaxis = $this->input->post('x1');
+						$yaxis = $this->input->post('y1');
+						$height = $this->input->post('h1');
+						$width = $this->input->post('w1');
+					} else if($key == 'photo2'){
+						$rotate_angle = $this->input->post('rotate_angle2');
+						$xaxis = $this->input->post('x2');
+						$yaxis = $this->input->post('y2');
+						$height = $this->input->post('h2');
+						$width = $this->input->post('w2');
+					} else if($key == 'photo3'){
+						$rotate_angle = $this->input->post('rotate_angle3');
+						$xaxis = $this->input->post('x3');
+						$yaxis = $this->input->post('y3');
+						$height = $this->input->post('h3');
+						$width = $this->input->post('w3');
+					} else if($key == 'photo4'){
+						$rotate_angle = $this->input->post('rotate_angle4');
+						$xaxis = $this->input->post('x4');
+						$yaxis = $this->input->post('y4');
+						$height = $this->input->post('h4');
+						$width = $this->input->post('w4');
+					}
+					
+					$config['file_name'] = $row;
+					
+					if($rotate_angle < 0 )
+					{
+						$rotate_angle	=	360+$rotate_angle;
+					}
+					
+					//rotate image if 90 or 270 deg rotation 
+					//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+					if($rotate_angle > 0 )
+					{
+						if($rotate_angle == 90)
+						{
+							$rotate_angle = 270;
+						}
+						else if($rotate_angle == 270){
+							$rotate_angle = 90;
+						}
+						
+						$config['image_library'] = 'gd2';
+						$config['source_image']	= $this->config->item('upload').'animal_images/'.$config['file_name'];
+						$config['rotation_angle'] = $rotate_angle;
+						
+						$this->image_lib->initialize($config);
+						if ( ! $this->image_lib->rotate()) {
+							echo $this->image_lib->display_errors();
+						}
+					}
+					$this->image_lib->clear();
+					
+								
+					
+						
+					
+					foreach($thumb as $key => $value) {
+						$exp_value = explode('X',$value);
+						
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'animal_images/cropped_images/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'animal_images/'.$key.'/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= $exp_value[0];
+						$config['height']			= $exp_value[1];
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+					}
+					//echo $last_id;die;
+					
+				}
+			}
+				
+				
+				$get_lat_long = $this->common_model->get_lattitude_longitude($zipcode);
+			
+				
+				
+				$pet_details = array(	"in_user_id"  					=> $this->session->userdata('userid'),	
+										"dt_lostfound"  				=> isset($data['pet']['dt_lostfound'])? date('Y-m-d h:i:s',strtotime($data['pet']['dt_lostfound'])) : '',
+										"st_location_specific"  		=> isset($data['pet']['location_specific'])?$data['pet']['location_specific']:'',
+										"in_report_type"  				=> isset($data['pet']['report_type'])?$data['pet']['report_type']:'0',
+										"st_pet_image"  				=> '',
+										"st_location"  					=> isset($data['pet']['location'])?$data['pet']['location']:'',
+										"in_pet_type"  					=> isset($data['pet']['pet_type'])? $data['pet']['pet_type']:'',
+										"st_gender"  					=> isset($data['pet']['gender'])?$data['pet']['gender']:'',
+										"st_petname"  					=> isset($data['pet']['petname'])?$data['pet']['petname']:'',
+										"st_height"  					=> isset($data['pet']['height'])?$data['pet']['height']:'',
+										"st_coat_type"  				=> isset($data['pet']['coattype'])?$data['pet']['coattype']:'',
+										"st_coat_length"  				=> isset($data['pet']['coatlength'])?$data['pet']['coatlength']:'',
+										"st_breed"  					=> isset($data['pet']['breed'])?$data['pet']['breed']:'',
+										"st_weight"  					=> isset($data['pet']['weight'])?$data['pet']['weight']:'',
+										"st_collar_color"  				=> isset($data['pet']['collarcolor'])?$data['pet']['collarcolor']:'',
+										"st_color"  					=> isset($data['pet']['color'])?$data['pet']['color']:'',
+										"in_age"  						=> isset($data['pet']['age'])?$data['pet']['age']:'',
+										"st_identity_mark"  			=> isset($data['pet']['identitymark'])?$data['pet']['identitymark']:'',
+										"st_comment"  					=> isset($data['pet']['comment'])?$data['pet']['comment']:'',	
+										"lat"							=> $get_lat_long['lat'],
+										"lon"							=> $get_lat_long['lon'],
+										"st_location_state"				=> $get_lat_long['state_prefix'],
+										"st_location_zipcode"			=> $get_lat_long['zip_code'],										
+										"dt_created"         			=> date('Y-m-d H:i:s'),
+										"dt_modified"           		=> date('Y-m-d H:i:s')									
+										);	
+										
+					//echo '<pre>'; print_r($pet_details); die;
+									
+						$insert_id = $this->lost_found_model->insertpet($pet_details);
+						
+						$data['pet_images'] = array('st_pet_image'	=>	$config['file_name']);
+											  
+					    $data['add_campaign_images']	=	$this->lost_found_model->update_pet_profile($data['pet_images'],$insert_id);
+						
+						$get_pet_info = $this->lost_found_model->get_pet_info($insert_id);
+						
+					
+						$url='https://api.petfbi.org/dev/reports';
+				//$url='https://api.petfbi.org/doobert/reports';
+				//$url=str_replace ( ' ', '%20', $url);
+
+				$cSession = curl_init($url); 
+				$header = array();				
+				$header[] = 'Content-type: application/json';
+				$header[] = 'Authorization: doobert';
+				//$header[] = 'x-api-key: 5alcZwaorP84XGUyS0wtg3vxGCaP4cVm6URQiwEl';
+				
+				$arrData = array();
+				/*
+				$arrData = array(
+							'report_type'		=> $get_pet_info[0]['in_report_type'],
+							'species'			=> $get_pet_info[0]['in_pet_type'],
+							'gender'			=> $get_pet_info[0]['st_gender'],
+							'color1'			=> $get_pet_info[0]['st_color'],
+							'height'			=> $get_pet_info[0]['st_height'],
+							'weight'			=> $get_pet_info[0]['st_weight'],
+							'age'				=> $get_pet_info[0]['in_age'],
+							'coat_type'			=> $get_pet_info[0]['st_coat_type'],
+							'hair_length'		=> $get_pet_info[0]['st_coat_length'],
+							'location'			=> $get_pet_info[0]['st_location'],
+							'location_comments'	=> $get_pet_info[0]['st_comment'],
+							'file_name'			=> $get_pet_info[0]['st_pet_image']				
+							);
+							
+							
+					*/	
+				
+				$arrData['report'] = array("report_date"			=> $get_pet_info[0]['dt_lostfound'],
+											"species"				=> $get_pet_info[0]['in_pet_type'],
+											"gender"				=> $get_pet_info[0]['st_gender'],
+											"color1"				=> $get_pet_info[0]['st_color'],								
+											"height"				=> $get_pet_info[0]['st_height'],
+											"weight"				=> $get_pet_info[0]['st_weight'],
+											"age"					=> $get_pet_info[0]['in_age'],
+											"coat_type"				=> $get_pet_info[0]['st_coat_type'],
+											"hair_length"			=> $get_pet_info[0]['st_coat_length'],
+											"report_type"			=> $get_pet_info[0]['in_report_type'],
+											"contact_optout"		=> false,
+											"status"				=> 0,
+											"email"					=> $get_pet_info[0]['st_email'],								
+											"coppa"					=> true,
+											"tos"					=> true,
+											"contact_name"			=> $get_pet_info[0]['st_display_name'],
+											"contact_phone1_1"		=> $get_pet_info[0]['st_primary_phone'],								
+											"location"				=> $get_pet_info[0]['st_location'],
+											"location_comments"		=> $get_pet_info[0]['st_comment'],
+											"breed"				    => $get_pet_info[0]['st_breed'],
+											"breed1"				=> $get_pet_info[0]['st_breed'],
+											"breed2"				=> 0,
+											//"breedlabel1"           => $get_pet_info[0]['st_breed'],
+											"contact_phone1"		=> $get_pet_info[0]['st_primary_phone'],
+											"animal_name"			=> $get_pet_info[0]['st_petname'],
+											"entry_date"			=> $get_pet_info[0]['dt_created'],
+											"event_date"			=> $get_pet_info[0]['dt_lostfound'],
+											"contact_email"			=> $get_pet_info[0]['st_email'],
+											"contact_username"		=> $get_pet_info[0]['st_email'],								
+											"geo_latitude"  		=> $get_pet_info[0]['lat'],								
+											"geo_longitude" 		=> $get_pet_info[0]['lon'],	
+											"location_zipcode"		=> $get_pet_info[0]['zipcode'],
+											"location_state"		=> $get_pet_info[0]['state'],									
+											"picture_file"			=> $get_pet_info[0]['st_pet_image'],
+											"system_id"				=> "3000"
+											
+								);		
+											
+					
+				$jsonDataEncoded = json_encode($arrData);
+				//echo '<pre>'; print_r($jsonDataEncoded); die;
+				curl_setopt($cSession, CURLOPT_POSTFIELDS, $jsonDataEncoded);
+				//curl_setopt($cSession, CURLOPT_POSTFIELDS, $jsonData);
+				curl_setopt($cSession,CURLOPT_RETURNTRANSFER,1); 
+				curl_setopt($cSession, CURLOPT_HTTPHEADER, $header);
+				curl_setopt($cSession,CURLOPT_HEADER, false);
+				curl_setopt($cSession, CURLOPT_SSL_VERIFYHOST, false);
+				curl_setopt($cSession, CURLOPT_SSL_VERIFYPEER, false);
+				curl_setopt($cSession, CURLINFO_HEADER_OUT, true);
+				//step3
+				$result=curl_exec($cSession);
+				//$info = curl_getinfo($cSession);
+				//echo '<pre/>';
+				//print_r($info);
+				/*
+				var_dump($result);
+				
+				$info = curl_getinfo($cSession);
+				echo '<pre/>';
+				print_r($info['request_header']);
+				
+				print_r($info);			
+				exit;
+				*/
+				
+
+				if ($result === false)
+				{
+					// throw new Exception('Curl error: ' . curl_error($cSession));
+					print_r('Curl error: ' . curl_error($cSession));
+				}
+
+				//step4
+				$result1=json_decode($result);
+				
+				//echo '<pre>'; print_r($result1); die;
+				
+				curl_close($cSession);
+				
+				
+				//step5
+				//echo $result;die;
+				
+				//echo '<pre>'; print_r($result1->report_id);die;				
+				
+				
+				
+				$data['pet_info'] = array('in_report_id' => $result1->report_id);
+				
+                $data['add_pet_info'] = $this->lost_found_model->update_pet_profile($data['pet_info'],$insert_id);
+				
+				
+			 
+			 
+		   $this->session->set_flashdata('success', 'Pet details added successfully.'); 				
+		   redirect($this->config->item('base_url') . "lost_found/add_pet_detail"); 
+		 }
+		   
+		 }
+	   
+	   else{	
+		
+		$this->load->view('add-pet',$data);
+		
+	   }
+	}
+	
+	
+	
+	
+	function get_pet_breed(){
+		
+		$data['get_animal_breed']  = $this->common_model->get_breed_by_pet_id($this->input->post('animal_type'));
+		echo json_encode($data);
+		
+	}
+	
+	
+	
+	public function pet_profile_detail($id=false)
+	{
+		
+		$this->load->model('lost_found_model');
+		$data=array();
+		$data['pet_details'] = $this->lost_found_model->get_pet_info($id);
+		//echo '<pre>'; print_r($data['pet_details']); die;
+		
+		
+		$this->load->view('pet-profile-detail',$data);
+		//$this->load->view('pet-profile-detail_29-5-2019',$data);
+	}
+	
+	
+	
+	public function myreport()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}		
+		
+		//$this->session->unset_userdata('searchadmin1');
+		//$this->session->unset_userdata('searchadmin2');
+		//$this->session->unset_userdata('searchadmin3');
+		$this->page();
+	}
+	
+	
+	public function page($sort=false,$order=false,$limit=false)
+	{
+		$this->load->model('lost_found_model');
+		$data=array();
+		
+		
+		
+		if($this->uri->segment(3))
+			$limit = $this->uri->segment(3);
+		else	
+			$limit = '0'; 		
+		
+			
+		$rec_per_page =	 12; 	
+			
+		
+        $total_record = $this->lost_found_model->get_total_myreports();
+		
+		$all_pet = $this->lost_found_model->get_myreports($rec_per_page,$limit,$sort,$order);	
+		
+		//echo '<pre>'; print_r($all_pet); die;
+		
+		$data['all_pet']       = $all_pet;
+		
+		$config 				  = array();
+		$config['base_url'] 	  = base_url().'user/page/';
+		$config['base_url']	  	  = $config['base_url'].'/'.$sort.'/'.$order.'/';
+		$config['total_rows'] 	  = $total_record;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['cur_page'] 	  = $limit;
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';
+		
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  
+		$this->load->library('pagination');	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();	
+		$data['limit']	=	$limit;	
+		$data['total_rows']	=	$config['total_rows'];
+		$this->load->view('myreport-view',$data);
+		
+	}
+	
+	
+	//_SESSION
+	//http://crystal99/doobertv4/lost_found/pet_search/
+	//http://crystal99/doobertv4/lost_found/pet_profile_search_detail/
+	//$search_pet_data
+}
+
+/* End of file organization.php */
+/* Location: ./application/controllers/welcome.php */

@@ -1,0 +1,1658 @@
+ <?php 
+ $base_url = $this->config->item('base_url');
+ $fb_user_email = $this->common_model->get_user_email();	
+if(empty($fb_user_email['st_email']))
+{   
+	$this->session->set_userdata('emailfbuser', 'Your Facebook profile does not contain an email address. Doobert requires an email to notify you for animal rescue activities. Please enter one below.');	
+}
+ $CI =& get_instance();
+$count_feedback = $this->common_model->get_feedback_count($this->session->userdata('userid'));	
+$invitation_count = $this->common_function->pending_invitation_cnt($this->session->userdata('userid'));	
+$invitation_name = $this->common_function->pending_invitation_name($this->session->userdata('userid'));	
+
+//My Notification Count
+if($this->router->class == 'user_settings_and_notification' && $this->router->method == 'my_notifications') {
+	$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+									 'st_visit_type'		=>	'MYNOTIFICATIONS',
+									 'st_ip_address'		=>	$this->input->ip_address(),
+									 'dt_created'			=>	date('Y-m-d H:i:s')
+									);
+	$data['visit_created'] = $this->common_model->insert_last_visit_date($data['user_visit_data']);
+}
+$data['created_date_user'] = $this->common_model->last_visit_date_front($this->session->userdata('userid'),'MYNOTIFICATIONS');
+//print_r($data['created_date_user']);die;
+
+if(!empty($data['created_date_user'])) {  
+	$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'),$data['created_date_user']['dt_created']);
+	//print_r($pending_notifications_front);die;
+	
+} else { 
+	$pending_notifications_front = $this->common_function->pending_notifications_message($this->session->userdata('userid'));
+}
+$org_list = $this->common_model->get_organization_list();
+$make_array_user = array();
+$check_per_flag = '';
+if(!isset($owner_id))
+	{
+		$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	}
+		
+	$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+	if(isset($user_permission) && !empty($user_permission)) {
+		$make_array_user = unserialize($user_permission);
+	}
+	
+if ($owner_id != $this->session->userdata('userid')) {
+ if (isset($make_array_user['vendor_manager'])) { 
+	   if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_cr',$make_array_user['vendor_manager']) == true) {
+				$vd_cr = '1';
+	   } else {
+				$vd_cr = '0';
+	  }
+	 if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_ed',$make_array_user['vendor_manager']) == true) {
+				$vd_ed = '1';
+	 } else {
+				$vd_ed = '0';
+	}
+		$vd_del = '0';
+ 	} 
+ } 
+		 
+if ($owner_id == $this->session->userdata('userid')) {
+	$vd_cr = '1';
+	$vd_ed = '1';
+	$vd_del = '1';
+}
+
+	$web_url = $this->config->item('web_url');		 	
+	$check_org_arpa  = $this->common_model->get_single_org_details($this->session->userdata('org_id'));	
+	$check_paypal_id = $this->common_model->check_paypal_id($this->session->userdata('org_id')); 
+	
+	
+		 
+			if($owner_id != $this->session->userdata('userid')) {			
+				if(isset($make_array_user['vendor_manager'])) {
+					$prod_per_flag = '1';
+				} else {
+					$prod_per_flag = '0';
+				}
+			} else if($owner_id == $this->session->userdata('userid'))
+			{
+				$prod_per_flag = '1';
+				/*if(!empty($check_paypal_id))
+				{	
+					$prod_per_flag = '1';
+				} else {
+					$prod_per_flag = '2';
+				}*/	
+			}	
+		
+			
+		$picture = $this->common_function->get_picture($this->session->userdata('org_id'));
+		$profile_image = '';
+		if(trim($picture) != '' && file_exists($this->config->item('upload').'org_doc/thumb/'.$picture)) 
+		{
+			$profile_image = $picture;
+			$org_profile_src = $this->config->item('upload_url').'org_doc/thumb/'.$profile_image; 
+		} else {
+			$profile_image = 'temp-logo.jpg';
+			$org_profile_src = $this->config->item('upload_url').'org_doc/thumb/'.$profile_image; 
+		}
+		
+		$animal_file_share = '';
+		$UrlTopass_t = base_url()."org_animal/animal_profile_details/".$row['animal_id'];
+		
+
+		if(!empty($get_animals['animal_list']))
+		{
+				foreach($get_animals['animal_list'] as $row) {
+					
+					if($row['st_file_type'] == 'P' && $row['st_file_name']!='' && file_exists($this->config->item('upload')."animal_images/140x140/".$row['st_file_name']) && $animal_file_share=='')			 			{
+						$animal_file_share = $this->config->item('upload_url')."animal_images/140x140/".$row['st_file_name'];
+						
+					}
+				}
+		}
+		else
+		{
+			$animal_file_share = $base_url.'assets/img/fb-doobert-logo.jpg';
+		}
+		
+			
+	?>
+
+<!DOCTYPE html>
+<!--[if IE 8]> <html lang="en" class="ie8 no-js"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie9 no-js"> <![endif]-->
+<!--[if !IE]><!-->
+<html lang="en" class="no-js">
+    <!--<![endif]-->
+    <!-- BEGIN HEAD --><head>
+        <meta charset="utf-8"/>
+        <title>Org Dashboard</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+        <meta content="" name="description"/>
+        <meta content="" name="author"/>
+        <meta property="fb:app_id" content="316015238585967" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Doobert" />
+        <meta property="og:site_name" content="Check out this Doobert.com Animal " />
+        <meta property="og:image" content="<?php echo ($animal_file_share!='')?$animal_file_share:$base_url.'assets/img/fb-doobert-logo.jpg';?>" />
+        <meta property="og:url" content="<?php echo $UrlTopass_t; ?>" />
+        <meta property="og:description" content="Check out this Doobert.com Animal " />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+        <meta content="" name="description"/>
+        <meta content="" name="author"/>
+		<?php include APPPATH."views/inc/header-css-js.php";?>
+        <!-- BEGIN PAGE LEVEL STYLES -->
+        <link href="<?php echo $base_url; ?>assets/plugins/fullcalendar/fullcalendar/fullcalendar.css" rel="stylesheet" type="text/css"/>
+        <link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.css"/>
+        <!-- END PAGE LEVEL STYLES -->
+        <!-- Drage Div Start -->
+        <style type="text/css">
+            .draggable { width:310px; padding: 0.5em; float: left; margin: 0 10px 10px 0; }
+            #draggable { margin-bottom:20px; }
+            tr.processing{display:none}
+        </style>
+        <!-- Drage Div End -->
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.8.0/css/bootstrap-slider.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+        <!-- BEGIN PAGE LEVEL STYLES -->
+        <link rel="stylesheet" type="text/css" href="<?php echo $base_url; ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.css"/>
+        <link rel="stylesheet" type="text/css" href="<?php echo $base_url; ?>assets/plugins/bootstrap-datepicker/css/datepicker.css"/>
+        <!-- Multiple file upload start -->
+        <!-- Generic page styles -->
+        <link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/style.css">
+        <!-- CSS to style the file input field as button and adjust the Bootstrap progress bars -->
+        <link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload.css">
+        <link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload-ui.css">
+        <!-- CSS adjustments for browsers with JavaScript disabled -->
+        
+	<noscript>
+        <link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload-noscript.css">
+        </noscript>
+        <noscript>
+        <link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload-ui-noscript.css">
+        </noscript>
+        <!-- Multiple file upload end -->  
+        <link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/css/tablescroll.css" />
+    </head>
+    <!-- BEGIN BODY -->
+<body class="page-header-fixed">
+	<div id="orgdashboard">
+<?PHP include APPPATH."views/inc/header-myaccount.php" ?>
+
+<section class="">
+	<div class="container">
+            <div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12">
+	                
+					<article>
+						<div class="entry-content" style="background-color:#fff">
+							<div class="volunteer-detail org-volunteer clearfix">
+								<div class="col-md-12 col-sm-12 col-xs-12 no-space">
+									<div class="col-md-6 col-sm-6 col-xs-6 no-space">
+										<div class="org-dashb-volunteer-pic">
+                                        <?php if($owner_id == $this->session->userdata('userid')) { ?>
+                                        <img src="<?php echo $org_profile_src; ?>" alt="<?php echo $this->session->userdata('org_name'); ?>" title="<?php echo $this->session->userdata('org_name'); ?>" id="org_fileupload">
+                                            <form  method="post" enctype="multipart/form-data" action="<?php echo base_url().'org_dashboard/update_org_profile_pic'; ?>" name="org_photo_frm" id="org_photo_frm">
+                                              <?php /*?>  <label class="fileContainer" for="org_photo_1"><i class="fa fa-file-picture-o"></i><span class="picture-text">Change Org Profile Picture</span><?php */?>
+                                                <input type="file" name="org_photo_1" id="org_photo_1" onChange="profile_readURL(this)" style="display:none;">
+                                                </label>
+                                                <input type="hidden" id="org_rotate_angle1" name="org_rotate_angle1" value="0"/>
+                                                <input type="hidden" id="org_crop_x1" name="org_x1"/>
+                                                <input type="hidden" id="org_crop_y1" name="org_y1"/>
+                                                <input type="hidden" id="org_crop_w1" name="org_w1"/>
+                                                <input type="hidden" id="org_crop_h1" name="org_h1"/>
+                                                <input type="hidden" id="org_uploaded_photo1" name="org_uploaded_photo1" value="" />
+                                                <input type="hidden" id="org_crop_upload_path" name="org_crop_upload_path" value="<?php echo base_url(); ?>org_dashboard/org_profile_pic_upload" />
+                                            </form>
+                                            <div class="camera-icon foobox" id="fileupload_camera"></div>
+                                            <!--<div class="foobox" id="fileupload_camera"><i class="material-icons">file_upload</i>Upload Image</div>-->
+                                       <?php }else { ?>       
+                                       <img src="<?php echo $org_profile_src; ?>" alt="<?php echo $this->session->userdata('org_name'); ?>" title="<?php echo $this->session->userdata('org_name'); ?>">
+                                       <?php } ?>
+                                         
+                                        </div>
+										<div class="col-md-8 col-sm-8 col-xs-8 no-space-left no-space-right org-volunteer-info">
+											<p class="heading"><?php echo $this->session->userdata('org_name'); ?></p>
+											<?php /*?><p class="guide"><a href="http://dev.doobert.com/wp/doobert-101/" target="_blank"><img src="<?php echo base_url();?>assets/img/book.png">Getting Started Guide</a></p>
+												<div class="volunteer-animal-info clearfix">
+												<div class="block-animal">
+													<div class="icon-info"><i class="material-icons font-67">directions_car</i></div>
+													<div class="number-info"><p class="animal-numbers">21</p>
+														<p>Completed Transports</p></div>
+												</div>
+												<div class="block-animal">
+													<div class="icon-info"><i class="material-icons font-58">monetization_on</i></div>
+													<div class="number-info"><p class="animal-numbers">14</p>
+														<p>Successful Fundraisers</p></div>
+												</div>
+												<div class="block-animal">
+													<div class="icon-info"><i class="material-icons font-58">favorite</i></div>
+													<div class="number-info"><p class="animal-numbers">247</p>
+														<p>Doobert Favorites</p></div>
+												</div>
+												
+											</div><?php */?>
+										</div>
+									</div>
+								<?php /*?><p class="guidemobo"><a href="http://dev.doobert.com/wp/getting-started-with-doobert/" target="_blank"><img src="<?php echo base_url();?>assets/img/book.png">Getting Started Guide</a></p><?php */?>
+									<div class="col-md-6 col-sm-6 col-xs-6 no-space-right text-right">
+										<div class="volunteer-right-info">
+<div class="vol-contact">
+<?php $bubblecount='';$bubblecount =  $pending_notifications_front['count'] + $invitation_count; 
+if($bubblecount<=9 ) { $style='style="padding-left:7px;padding-right:7px;"';}
+else if($bubblecount>9 && $bubblecount<=99) { $style='style="padding-left:5px;padding-right:5px;"';}
+else if($bubblecount>99) { $style='style="padding-left:5px;padding-right:5px;"';}
+?>
+<p class="guide"><a href="https://www.doobert.com/getting-started-with-doobert/" target="_blank"><img src="<?php echo base_url();?>assets/img/book-orange.png">Getting Started Guide</a></p><?php /*?><a href="https://www.doobert.com/videos" target="_blank" title="Help"><i class="material-icons font-27">help</i></a><?php */?><a href="<?php echo $base_url; ?>doobert_non_member/" title="Invite Users" class="invite"><i class="material-icons font-39">group_add</i></a><a href="#" class="notification-info dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true" title="Notification"><i class="material-icons font-30">notifications</i><?php if($bubblecount > 0){?><span class="red-circle" <?php echo $style;?>><?php echo $bubblecount;?></span><?php } ?></a><ul class="dropdown-menu notification-menu"><li class="notification-heading">You have <?php echo $invitation_count;?> <span style="font-weight:600;font-style:italic;">PENDING INVITATIONS</span></li>
+<?php if(isset($invitation_count) && $invitation_count > 0)	{ ?>
+<?php  foreach($invitation_name as $key => $value) { ?>
+<li class="pending-invet"><i class="material-icons">keyboard_arrow_right</i><?php echo $value['st_org_name']; ?></li>			
+<?php } }?>
+<li class="view-all"><a href="<?php echo base_url().'pending_invitation'; ?>">View All<i class="material-icons">keyboard_arrow_right</i></a></li>
+<li class="other-notification-heading">You have <?php echo $pending_notifications_front['count']; ?> <span style="font-weight:600;font-style:italic;">OTHER NOTIFICATIONS</span></li>
+<?php if((count($pending_notifications_front['notification_msg'])>0) AND is_array($pending_notifications_front['notification_msg'])) { ?>
+<?php foreach($pending_notifications_front['notification_msg'] as $key => $value) { ?>	
+<li class="pending-notification"><span><?php echo $value;   ?> <?php //echo "<pre>"; print_r($value); echo "</pre>"; ?></span></li>
+<?php }} ?>
+<li class="view-all"><a href="<?php echo base_url(); ?>notification/">View All<i class="material-icons">keyboard_arrow_right</i></a></li>
+<?php if($bubblecount > 0){?>
+<li class="view-all"><a href="javascript:void(0);" class="markallread">Mark All Read</a></li>
+<?php } ?>
+</ul><a href="#search-info-box" data-toggle="modal" title="Search" class="search"><i class="material-icons font-31" >search</i></a><?php /*?><a href="https://www.doobert.com/contact-us/" title="Email"><i class="material-icons font-30">email</i></a><?php */?></div><div class="select-style">
+												<?php /*?><select id="type-org">
+													<option value="">My Favorite Organizations</option> 
+                                                    <option value="" disabled></option>                                                 
+                                                    <optgroup label="Organizations I Manage">
+                                                    <?php if(!empty($org_list)) { ?>
+                                                    <?php for($i=0;$i<count($org_list);$i++) { ?> 
+                                                    <option value="<?php echo base_url()."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><?php echo $org_list[$i]['st_org_name']; ?></option>
+                                                    <?php } } ?>
+                                                    </optgroup>
+                                                    <option value="" disabled></option>
+                                                    <option value="<?php echo base_url(); ?>rescue-organization/" style="font-weight:500;">Request Doobert Organization</option>
+												</select><?php */?>
+                                                <div class="desktop-device">
+													<select id="type-org">
+														<option value="">My Organizations</option>            
+														<option value="" disabled></option>            
+														<optgroup class="mart10" label="ORGANIZATIONS I MANAGE" style="margin-top: 10px !important;font-weight:600;">
+														<?php if(!empty($org_list)) { ?>
+														<?php for($i=0;$i<count($org_list);$i++) { ?> 
+														<option value="<?php echo base_url()."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><?php echo $org_list[$i]['st_org_name']; ?></option>
+														<?php } } ?>
+														</optgroup>
+														<option value="" class="dashed" disabled style="font-weight:500;">________________________________________________</option>
+														<option value="" disabled></option>
+														<option value="<?php echo base_url(); ?>rescue-organization/" style="font-weight:600;font-style: italic;">Apply for an Organization account</option>
+														<option value="" disabled></option>
+													</select>
+												</div>
+												<div class="android" style="display: none;">
+													<select id="type-org2">
+														<option value="">My Organizations</option>
+														<?php /*?><option style="margin-top: 10px !important;font-weight:600;"><strong>ORGANIZATIONS I MANAGE</strong></option><?php */?>
+														<?php if(!empty($org_list)) { ?>
+														<?php for($i=0;$i<count($org_list);$i++) { ?> 
+														<option value="<?php echo base_url()."org-dashboard/".$org_list[$i]['in_organization_id']."/"; ?>"><?php echo $org_list[$i]['st_org_name']; ?></option>
+														<?php } } ?>
+														<option value="<?php echo base_url(); ?>rescue-organization/" style="font-weight:600;font-style: italic;">Apply for an Organization account</option>
+													</select>
+												</div>
+												
+											</div>
+											<div class="clearfix"></div>
+										</div>
+										<div class="changeview">
+										<div class="switch-container clearfix"><span class="mv">Modern View</span><label class="switch float-r-custom"><input type="checkbox" name="allow_pics" id="allow_pics" checked><span class="slider round margin-tb0"></span></label><span class="cv selected">Classic View</span></div>
+										<div>
+										<?php if(isset($pending_invitation) && $pending_invitation > 0){  ?>
+										<a href="<?php echo base_url();?>org_dashboard/pending_transport" class="lift"><i class="material-icons">error</i>NEW TRANSPORT INVITATIONS</a><div class="br"></div><?php } ?>
+										
+									<?php if(isset($all_pending_reservation) && $all_pending_reservation > 0){ ?>
+									<a href="<?php echo base_url();?>org_dashboard/pending_reservation" class="pending"><i class="material-icons">error</i>PENDING RESERVATIONS</a>
+									<?php } ?>									
+									</div></div><div class="clearfix"></div>
+								</div>	
+							</div>
+						</div><!-- .entry-content -->
+					</article><!-- #post-## -->
+                </div>
+            </div>
+        </div>
+</section>
+
+<section class="main-content-wrapper">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12">
+	                
+					<article>
+						<div class="entry-content">
+							<div class="main-container org-dashboard clearfix">
+								<div class="col-md-12 col-sm-12 col-xs-12 no-space">
+									<div class="col-md-9 col-sm-12 no-space-left org-dashboard-transport">
+									
+									  <ul class="nav nav-tabs part1" id = "partner_tab">
+									    <li class="active first"><a data-toggle="tab" href="#transport" onClick="tansportshow()" data-toggle="tab"><span>Transport</span></a></li>  
+									  
+									  <?php if($this->session->userdata('storgtype') !='CT'){  ?>
+									  <li><a data-toggle="tab" href="#animals"  onClick="animalshow()" ><span>Animals</span></a></li>
+									   <li><a data-toggle="tab" href="#partners" onClick="partnershow()" ><span>Partners</span></a></li>
+									  <?php } ?>
+									   
+									   <li><a data-toggle="tab" href="#resources" onClick="resourceshow()" ><span>Resources</span></a></li>									   
+									    <!--<li><a href="#our-app" data-toggle="tab"><span>Our App</span></a></li>-->
+									  </ul>
+									  <div class="tab-content">
+									    <div class="tab-pane active" id="transport">
+									      <div class="panel panel-default">
+										      <div class="panel-heading">
+										          <h4 class="panel-title">
+										            <a data-toggle="collapse" data-parent=".tab-pane" href="#transport1" onClick="tansportshow()">
+										              Transport
+										            </a>
+										          </h4>
+										       </div>
+									      <div id="transport1" class="panel-collapse collapse in">
+									          <div class="panel-body padb0">
+									            <h1 class="pull-left">Transport Summary</h1>
+									            
+												<div class="tbl-right-btn mart5 center"><a class="btn btn-white paw" href="<?php echo base_url(); ?>organization-transportation/"><i class="fa fa-paw orange"></i> Manage Transports</a><a href="javascript:void(0);" id="list-view" class="btn btn-white active"><i class="material-icons font-18">format_list_bulleted</i> List view</a><a href="javascript:void(0);" id="calendar-view" class="btn btn-white last"><i class="material-icons font-18">date_range</i> Calendar View</a></div>
+													<div class="br"></div>
+											<div class="section">
+													<div class="containerbox">
+		                                         <table id="card-table" class="table list-animal-profile">
+		                                            <thead>
+		                                              <tr id="heading">
+		                                                <th>ID <div>ID</div></th>
+		                                                <th>Date <div>Date</div></th>
+		                                                <th>Pickup / Drop off <div>Pickup / Drop off</div></th>
+														<th># of Legs <div># of Legs</div></th>
+		                                                <th>Coordinator <div>Coordinator</div></th>                                                
+		                                              </tr>
+		                                            </thead>
+		                                            <tbody>
+                                            <?php
+											$transport_list = $transport_data['transport_list'];
+                                            if(!empty($transport_list))
+                                            {
+                                            for($a=0;$a<count($transport_list);$a++)
+                                            {
+												$all_legs_count = 0;
+												$transport_all_legs 	= $this->common_model->get_all_legs_count($transport_list[$a]['in_transportation_id']);
+												
+												if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+												{
+													$all_legs_count	= $transport_all_legs['total_count'];
+												}
+												
+												$rou_tc_user = $this->common_model->get_user_profile($transport_list[$a]['accTcid']);
+												
+												if($transport_list[$a]['dt_target'] == '0000-00-00'||$transport_list[$a]['dt_target'] == '1969-12-31' || empty($transport_list[$a]['dt_target'])  )
+												{
+													$transport_date = date('Y-m-d', strtotime("+7 day"));
+												} else {	
+													$transport_date = date('Y-m-d', strtotime($transport_list[$a]['dt_target']."+7 day"));
+												}
+												
+												//$transport_date = date('Y-m-d', strtotime($transport_list[$a]['dt_target']."+7 day"));
+												$today_date= date('Y-m-d');
+												$today_dt = new DateTime($today_date);
+												$expire_dt = new DateTime($transport_date);	
+												if(	($expire_dt  >= $today_dt) && (isset($rou_tc_user) && count($rou_tc_user)>0))
+												{	
+													$coordinator_name = $rou_tc_user[0]['st_display_name'].' '.$rou_tc_user[0]['st_last_name'];
+													$email_address    = $rou_tc_user[0]['st_email'];
+												} else 
+												{
+													$coordinator_name = $transport_list[$a]['co_name'];
+													//$telephone_number = $transport_details['st_primary_phone'];
+													$email_address    = $transport_list[$a]['st_email'];
+												}
+                                                
+                                                $miles_covered='';
+                                                $total_legs = $this->common_model->get_total_legs_count($transport_list[$a]['in_transportation_id']);
+                                                $transport_filled_data 	= $this->common_model->get_transport_filled_status($transport_list[$a]['in_transportation_id']);
+												$total_legs_created = 0;
+												//die;
+                                                    if(isset($transport_filled_data['filled_legs_count']) && !empty($transport_filled_data['filled_legs_count']))
+                                                    {
+                                                        $legs_covered = count($transport_filled_data['filled_legs_count']);
+                                                    } else {
+                                                        $legs_covered = '0';
+                                                    }
+													
+                                                    if(isset($total_legs) && !empty($total_legs))
+                                                    {
+														if(isset($transport_filled_data['filled_legs_count']) && !empty($transport_filled_data['filled_legs_count']))
+														{
+															$total_legs_created	= count($transport_filled_data['filled_legs_count']);
+														}
+                     
+                                                    } else {
+                                                        $total_legs_created = '0';
+                                                    }	
+                                                    
+                                
+                                                
+                                                    if($transport_list[$a]['st_trans_type']== 'P'){
+                                                        $total_filled_legs = 0;
+                                                        if(isset($transport_filled_data['filled_legs_count']) && !empty($transport_filled_data['filled_legs_count']))
+                                                        {
+                                                            $total_filled_legs	= count($transport_filled_data['filled_legs_count']);
+                                                            $legs_filled =  ($total_filled_legs/$total_legs)*100;
+                                                            $miles_covered = number_format($legs_filled,"2",".","");
+                                                        } else {
+                                                            $miles_covered='0';
+                                                        }
+                                                    } else {
+                                                    if($transport_list[$a]['perc']>0){
+                                                        if($transport_list[$a]['perc']<100){
+                                                                $miles_covered = $transport_list[$a]['perc'];
+                                                        } 
+                                                        else
+                                                        {
+                                                            $miles_covered= "100";
+                                                        }
+                                                    } else{ 
+                                                        $miles_covered= "0";
+                                                    }	
+                                                }
+
+												$transport_type = '';
+												$img_tag= '';
+												$trip ='';
+												if($transport_list[$a]['st_trans_type'] == 'D')
+												{
+															if($transport_list[$a]['in_airline_transport'] == 1)
+															{
+																$img_tag = '<img src="'.base_url().'assets/img/icon-airline.png" />';
+																$transport_type = 'Airline';
+															} else {
+																$img_tag = '<img src="'.base_url().'assets/img/icon-assisted.png" />';
+																$transport_type = 'Assisted';
+															}	
+												} else if($transport_list[$a]['st_trans_type'] == 'R') {
+																$transport_type = 'Ride';
+																$img_tag = '<i class="fa fa-automobile" style="font-size:17px;color:#f25613" aria-hidden="true"></i>';
+																if($transport_list[$a]['in_round']==1){
+																	$trip = '(Round Trip)';
+																}
+												} else if($transport_list[$a]['st_trans_type'] == 'RO') {
+																$transport_type = 'Route';
+																//$img_tag = '<i class="material-icons" aria-hidden="true" style="color:#f25613;vertical-align: middle;padding-bottom: 3px;">swap_calls</i>';
+																$img_tag = '<img src="'.base_url().'assets/img/car.png" />';
+												}else {
+																$img_tag = '<img src="'.base_url().'assets/img/prespecifylegs.png" />';
+																$transport_type = 'Pre-defined';
+												}		
+                                                
+                                            ?>
+                                            <tr>
+                                                <td class="w120"><a href="<?php echo base_url()."org-transportation-scheduled/".$transport_list[$a]['in_transportation_id']."/";?>" class="id"><?php echo ($transport_list[$a]['st_org_code'])? $transport_list[$a]['st_org_code'] : 'DBT';?><?php echo $transport_list[$a]['in_transportation_id'];?></a>
+												<br><?php echo $img_tag.' '.$transport_type.'<br>'.$trip; ?>
+							                    </td>
+                                                 <?php if(isset($transport_list[$a]['dt_pickup_date']) && $transport_list[$a]['dt_pickup_date']!='1969-12-31' && $transport_list[$a]['dt_pickup_date']!='0000-00-00' &&
+														 isset($transport_list[$a]['dt_target']) && $transport_list[$a]['dt_target']!='1969-12-31' && $transport_list[$a]['dt_target']!='0000-00-00'){ ?>
+														<td><?php echo date("D M d",strtotime($transport_list[$a]['dt_pickup_date'])); ?>  - <?php echo '<br>'.date("D M d",strtotime($transport_list[$a]['dt_target'])); ?></td>
+												<?php } else { ?>
+														<td>TBD - TBD</td>
+												<?php } ?>
+												<?php if(isset($transport_list[$a]['st_trans_type']) &&$transport_list[$a]['st_trans_type'] == 'D' && $transport_list[$a]['in_airline_transport']=='1') {?>
+													<td><?php echo $transport_list[$a]['st_from_city'].' ('.$transport_list[$a]['st_from_street'].')'; ?> <i class="material-icons backspace">keyboard_backspace</i> <?php echo '<br>'.$transport_list[$a]['st_to_city'].' ('.$transport_list[$a]['st_to_street'].')'; ?> 
+														<?php if(isset($all_trasport[$a]['st_trans_name']) && $all_trasport[$a]['st_trans_name'] != '') { ?>
+															<a href="<?php echo base_url()."org-transportation-scheduled/".$all_trasport[$a]['in_transportation_id']."/";?>" class="link-orange"><?php echo '<br>'.$all_trasport[$a]['st_trans_name']; ?></a>
+														<?php } ?>
+													</td>
+												<?php } else { ?>
+                                                <td class="twoway"><span><?php echo $transport_list[$a]['st_from_city'].', '.$transport_list[$a]['st_from_state'];?></span>
+                                                <?php if($transport_list[$a]['in_round']==1){?><i class="material-icons">swap_horiz</i><?php } else {?>
+                                                <i class="material-icons backspace">keyboard_backspace</i> <?php } echo '<br>'.$transport_list[$a]['st_to_city'].', '.$transport_list[$a]['st_to_state']; ?>
+                                                <?php if(isset($transport_list[$a]['st_trans_name']) && $transport_list[$a]['st_trans_name'] != '') { ?>
+                                                <a href="<?php echo base_url()."org-transportation-scheduled/".$transport_list[$a]['in_transportation_id']."/";?>" class="link-orange"><?php echo '<br>'.$transport_list[$a]['st_trans_name']; ?></a>
+                                                <?php } ?>
+                                                </td>
+												<?php } ?>
+												<?php if($transport_list[$a]['st_trans_type'] == 'RO') { ?>
+												<td><?php echo $all_legs_count; ?> legs<br><small><?php echo ($transport_list[$a]['in_tot_distance']!=''?$transport_list[$a]['in_tot_distance']:"0");?> miles</small></td>
+												<?php } else { ?>
+                                                <td><?php echo $total_legs_created; ?> of <?php echo $all_legs_count; ?> legs filled<br><small>
+                                                <?php if($transport_list[$a]['st_trans_type'] == 'P' && $all_legs_count > 0)
+													{
+														$legs_filled =  ($total_filled_legs/$all_legs_count)*100;
+														echo number_format($legs_filled,"2",".","")."%";
+													} else {
+														if($transport_list[$a]['perc']>0)
+														{
+															echo (($transport_list[$a]['perc']>100)? "100%":$transport_list[$a]['perc']."%");
+														}
+														else
+														{
+																echo "0%";
+														} 
+													} ?> of <?php echo ($transport_list[$a]['in_tot_distance']!=''?$transport_list[$a]['in_tot_distance']:"0");?> miles covered</small></td>
+												<?php } ?>
+												<td class="text-break"><?php echo $coordinator_name; ?><br><a href="mailto:<?php echo $email_address; ?>"><?php echo $email_address; ?></a></td>                                              
+											</tr>
+                                           <?php }
+                                            }
+                                            else
+                                            {
+                                            ?>
+                                            <tr>
+                                            <td colspan="7">No Record found.</td>
+                                            </tr>
+                                            <?php	
+                                            }
+                                            ?>
+                                            </tbody>
+                                          </table>
+										  <div class="clear"></div>
+															<div class="dobt-pagination f1" id="dobt-pagination">
+						                                        <?php echo $transport_data['pagination']; ?>
+						                                    </div>
+                                        </div></div>
+                                        </div>
+                                        
+                                        <div class="portlet box calendar" id="dashboard-calendar" style="display: none;">
+                                            <div class="portlet-title no-space">
+                                                <div class="title-patch padb0"><i class="fa fa-calendar"></i> Calendar 
+                                                <?php 
+                                                $check_event_permission = '';
+                                                if($owner_id != $this->session->userdata('userid')) {
+                                                    $get_permission = isset($get_user_permission['st_permission'])?unserialize($get_user_permission['st_permission']):'';
+                                                    if(isset($get_permission['transport']) || isset($get_permission['fundraiser']) || isset($get_permission['profile_manager'])) {
+                                                        $check_event_permission = 1;	
+                                                    }
+                                                }
+                                                //echo "<pre>";print_r($get_permission);echo "</pre>";die;
+                                                if($owner_id == $this->session->userdata('userid') || $check_event_permission == 1) { 
+                                                
+                                                ?>
+                                                <a href="<?php echo base_url().'add-organization-event'; ?>" class="add-event" title="Add Event">Add Event</a>
+                                                <?php } ?>
+                                                <?php /*?><!--<a href="javascript:void(0);" title="iCal" id="ical"><img src="<?php echo base_url(); ?>assets/img/ical.png" alt="iCal">iCal</a>--><?php */?>
+                                                </div>
+                                            </div>
+                                            <div class="portlet-body light-grey">
+                                                <div id="calendar">
+                                                </div>
+                                            </div>
+                                        </div><div class="clear"></div>
+											  <div class="col-md-12 col-sm-12 col-xs-12 padt34 get-involved" id="transport-footer">
+											<div class="col-md-4 col-sm-12 no-space-left">
+												<h1>Create...</h1>
+												<ul class="block-listing">
+												<?php if($this->session->userdata('storgtype') !='CT'){  ?>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>publish-new-transport/"><i class="fa fa-code-fork"></i>Rescue Relay Transport</a></li>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>publish-new-ride"><i class="material-icons">directions_car</i> Local Ride</a></li>
+													<?php if($this->session->userdata('org_country') =='USA' || $this->session->userdata('org_country') =='US'){  ?>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>create-airline-transport"><i class="airline"></i>Airline Transport (U.S Only)</a></li>
+													<?php } ?>
+												<?php } ?>
+													<?php /*<li class="two-line-text"><a class="orange-block" data-toggle="modal" href="<?php echo (isset($check_paypal_id) && !empty($check_paypal_id))?base_url().'publish-new-route/':'#infoproductpopup'; ?>"><i class="material-icons">swap_calls</i> <span>Route to take Reservations </span></a></li>*/ ?>
+													<li class="two-line-text"><a class="orange-block" data-toggle="modal" href="<?php echo base_url().'publish-new-route/'; ?>"><i class="material-icons routesall"></i>Routes for All</a></li>	
+												</ul>
+											</div>
+											<div class="col-md-4 col-sm-4 col-xs-4">
+												<h1>Manage...</h1>
+												<ul class="block-listing">
+													<li><a class="orange-block open-legs-view" href="<?php echo base_url(); ?>organization-transportation/">Transports & Rides</a></li>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>space-reservation"><i class="material-icons">swap_calls</i>  Route Reservations</a></li>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>transport_summary/route_reservation"><i class="material-icons">swap_calls</i>  Route Reservations BFHVT</a></li>
+													<?php if($this->session->userdata('storgtype') !='CT'){  ?>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>manage-location-favorite"><i class="material-icons">add_location</i> Locations & Favorites </a></li>	
+													<?php } ?>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>org_dashboard/pending_transport/"><i class="material-icons font-39">group_add</i>Invitations</a></li>
+													<?php /*  ?><li><a class="orange-block" href="<?php echo base_url(); ?>org_animal/animals_in_my_organization"><i class="material-icons">assignment</i> Animal Profiles</a></li><?php */ ?>
+                                                
+												</ul>
+											</div>
+											
+											<div class="col-md-4 col-sm-4 col-xs-4 right-coln no-space-right">											
+											   <?php /*  ?>
+												<ul class="block-listing myanimals-listing text-center">                                               	
+													<li class="two-line-text"><a class="orange-block" data-toggle="modal" href="<?php echo (isset($check_paypal_id) && !empty($check_paypal_id))?base_url().'transportation_search/':'#infoproductpopup'; ?>"><span>Existing transports (reserve a spot) </span></a></li>	
+													<li><a class="orange-block" href="<?php echo base_url(); ?>foster-home-volunteer-search">Volunteers (foster, photographer, etc.)</a></li>
+													<li><a class="orange-block" href="<?php echo base_url(); ?>shop/">Rescue store (products, auctions)</a></li>
+													<li><a class="orange-block" href="https://www.doobert.com/state-resources-map"> U.S. State Animal Rules</a></li>
+												</ul>
+												<?php  */ ?>
+												<?php include 'inc/org-tiles.php';?>
+											</div>
+										</div><div class="clear"></div>
+                                       </div>
+									    </div>
+									      </div>
+										  <?php if($this->session->userdata('storgtype') !='CT'){  ?>
+									      <div class="tab-pane" id="animals">
+										      <div class="panel panel-default">
+										      <div class="panel-heading">
+									          <h4 class="panel-title">
+									            <a data-toggle="collapse" data-parent=".tab-pane" href="#animals1" onClick="animalshow()">
+									              Animals
+									            </a>
+									          </h4>
+									        </div>
+									      	<div id="animals1" class="panel-collapse collapse">
+										          <div class="panel-body">
+										          <?php $CI->load->view('animals_dashboard');?>
+													  <div class="clear"></div>
+													  <!---Animal tab-->	
+										<div class="col-md-12 col-sm-12 col-xs-12 padt34 get-involved" id="animal-footer">
+											<div class="col-md-4 col-sm-12 no-space-left">
+												<h1 class="padl0">Find/Add...</h1>
+												<ul class="block-listing">
+													<li><a class="orange-block" href="<?php echo base_url().'org_animal/find_partner_animals/'; ?>"><i class="material-icons">search</i>Animal by Search</a></li>
+													<li><a class="orange-block" href="<?php echo base_url().'org_animal_notify';?>"><i class="material-icons">email</i>Animal by Email</a></li>
+													<li><a class="orange-block" href="<?php echo base_url().'org-animal/quick-add-animal';?>"><i class="material-icons">group</i>New Animal (Quick)</a></li>
+													<li><a class="orange-block" href="<?php echo base_url().'org-animal/';?>"><i class="material-icons">place</i>New Animal (Full)</a></li>
+												</ul>
+											</div>
+											<div class="col-md-4 col-sm-4 col-xs-4">
+												<h1 class="padl0">Manage...</h1>
+												<ul class="block-listing">
+													<li><a class="orange-block" href="<?php echo base_url().'org_animal/animals_in_my_organization';?>"><i class="material-icons">assignment</i>Animal Profiles</a></li> 
+													<li><a class="orange-block" href="<?php echo base_url().'org-animal/manage-animal-transfer';?>"><i class="material-icons">list</i>Animal Transfer Settings</a></li>
+													<li><a class="orange-block" href="<?php echo base_url().'org_animal/animal_transefer_request';?>"><i class="material-icons">list</i>Animal Transfer Request</a></li>							
+													<li><a class="orange-block" href="<?php echo base_url().'organization-account-settings/';?>"><i class="material-icons">list</i>Import Animal Profiles</a></li>													
+													<li><a class="orange-block" href="<?php echo base_url().'org_dashboard/adoption_request/';?>"><i class="material-icons">list</i>Manage Adoption Request</a></li>
+												</ul>
+											</div>
+											
+											<div class="col-md-4 col-sm-4 col-xs-4 right-coln no-space-right">											
+											<?php /*  ?>
+											<h1>Lost/Found Pets...</h1>
+												<ul class="block-listing myanimals-listing">                                              	
+													<li><a class="orange-block" href="javascript:void(0)"><i class="material-icons">swap_horiz</i>Search Lost/Found Pets </a></li>
+												</ul>												
+											<?php */ ?>
+											<?php include 'inc/org-tiles.php';?>
+											</div>
+										</div><div class="clear"></div>
+										<!---End of Animal tab-->
+										          </div>
+										          </div>
+										      </div>
+										    </div>
+										  <?php } ?>
+											
+											<?php if($this->session->userdata('storgtype') !='CT'){  ?>
+										    <div class="tab-pane" id="partners">
+										      <div class="panel panel-default">
+										      <div class="panel-heading">
+									          <h4 class="panel-title">
+									            <a data-toggle="collapse" data-parent=".tab-pane" href="#partners1" onClick="partnershow()">
+									              Partners
+									            </a>
+									          </h4>
+									        </div>
+								      		<div id="partners1" class="panel-collapse collapse">
+										        <div class="panel-body">
+										          	<?php $CI->load->view('partner_dashboard');?>
+													<div class="clear"></div>
+													<!---Partner tab-->	
+													<div class="col-md-12 col-sm-12 col-xs-12 no-space padt34 get-involved" id="partner-footer">
+													<div class="col-md-4 col-sm-12 no-space-left">
+														<h1 class="padl0">Find / Manage...</h1>
+														<ul class="block-listing">
+															<li><a class="orange-block" href="<?php echo base_url().'partner/manage_partner';?>"><i class="material-icons">list</i>Our partners</a></li> 
+															<li><a class="orange-block" href="<?php echo base_url().'find-partner-organization';?>"><i class="material-icons">group</i>New Partners</a></li>
+															<li><a class="orange-block open-legs-view" href="<?php echo base_url();?>search/search_animal">Animals to transfer</a></li>
+															<li><a class="orange-block" href="<?php echo base_url().'doobert-org-map-search';?>"><i class="material-icons">place</i>Non-Doobert Organizations</a></li>													
+														</ul>
+													</div>											
+
+													<div class="col-md-4 col-sm-4 col-xs-4 right-coln no-space-right">
+													<h1 class="padl0">Trading Post...</h1>
+														<ul class="block-listing myanimals-listing">                                              	
+															<li><a class="orange-block" href="<?php echo base_url();?>org_dashboard/items_offer_list/"><i class="material-icons">swap_horiz</i>List Items We Need or Can offer</a></li>													
+															<li><a class="orange-block" href="<?php echo base_url();?>org_dashboard/items_searched_needed/"><i class="material-icons">playlist_add_check</i>Search Items needed or available</a></li>
+															<li><a class="orange-block" href="<?php echo base_url();?>org_info/org_item_notify/"><i class="material-icons">speaker_notes</i>Manage Item notifications</a></li>
+														</ul>
+													</div>
+
+													<div class="col-md-4 col-sm-4 col-xs-4">
+														<?php /* ?><h1>Manage...</h1>
+														<ul class="block-listing">
+															<li><a class="orange-block" href="<?php echo base_url().'partner/manage_partner';?>"><i class="material-icons">list</i>Our partners</a></li>
+														</ul>
+														<?php */ ?>
+														<?php include 'inc/org-tiles.php';?>
+													</div>
+												</div><div class="clear"></div>
+												<!--end of partner tab-->
+										          </div>
+										    	</div>
+										      </div>
+										    </div>
+											
+											<?php } ?>
+											
+											
+											  <div class="tab-pane" id="resources">
+										      <div class="panel panel-default">
+										      <div class="panel-heading">
+									          <h4 class="panel-title">
+									            <a data-toggle="collapse" data-parent=".tab-pane" href="#resources1" onClick="resourceshow()">
+									              Resources
+									            </a>
+									          </h4>
+									        </div>
+								      		<div id="resources1" class="panel-collapse collapse">
+										        <div class="panel-body">
+										          	<?php /*?><?php $CI->load->view('resources_dashboard');?><?php */?>
+													<!---Resource tab-->	<div class="clearfix"></div>
+										<div class="col-md-12 col-sm-12 col-xs-12 no-space  get-involved" id="resource-footer">
+											<div class="col-md-4 col-sm-12 no-space-left">
+												<h1 class="padl0">Maps...</h1>
+												<ul class="block-listing">
+													<li><a class="orange-block" href="https://www.doobert.com/transports-map/" target="_blank"><i class="material-icons">place</i>Upcoming Transports</a></li>
+													<li><a class="orange-block" href="<?php echo base_url().'Supply_demand/';?>"><i class="material-icons">place</i>Supply/Demand Map</a></li>
+													<li><a class="orange-block" href="https://www.doobert.com/doobert-users-map/" target="_blank"><i class="material-icons">person_pin_circle</i>Volunteers Map</a></li>
+													<li><a class="orange-block" href="https://www.doobert.com/state-resources-map" target="_blank"><i class="material-icons">place</i>State Rules Map</a></li>
+													<li><a class="orange-block" href="https://bestfriends.org/2025-goal" target="_blank"><i class="material-icons">place</i>Best Friends Map</a></li>
+												</ul>
+											</div>
+											<div class="col-md-4 col-sm-4 col-xs-4">
+												<h1 class="padl0">Search Tools...</h1>
+												<ul class="block-listing">
+													<li><a class="orange-block" data-toggle="modal" href="<?php echo (isset($check_paypal_id) && !empty($check_paypal_id))?base_url().'transportation_search/':'#infoproductpopup'; ?>"><i class="material-icons">place</i>Reserve a spot</a></li> 
+													
+													<?php if($this->session->userdata('storgtype') !='CT'){  ?>
+													<li><a class="orange-block" href="javascript:void(0)"><i class="material-icons">swap_horiz</i>Lost/Found Pets <span class="cs">(Coming Soon)</span></a></li>
+													<?php } ?>
+													
+													<li><a class="orange-block" href="<?php echo base_url().'foster-home-volunteer-search/';?>"><i class="material-icons">group</i>Volunteers</a></li>
+													<li><a class="orange-block" href="https://www.aspca.org/pet-care/general-pet-care/low-cost-spayneuter-programs" target="_blank"><i class="material-icons">place</i>Low cost Spay/Neuter</a></li>
+												<a class="w-inline-block social-share-btn pin" title="Pin it" target="_blank" href='javascript:void((function()%7Bvar%20e=document.createElement(&apos;script&apos;); e.setAttribute(&apos;type&apos;,&apos;text/javascript&apos;); e.setAttribute(&apos;charset&apos;,&apos;UTF-8&apos;); e.setAttribute(&apos;src&apos;,&apos; http://assets.pinterest.com/js/pinmarklet.js?r=&apos;+Math.random()*99999999);document.body.appendChild(e)%7D)());'><i class="fa fa-pinterest" style="font-size:48px;color:red"></i></a>
+												</ul>
+											</div>											
+											<div class="col-md-4 col-sm-4 col-xs-4 right-coln no-space-right">
+											<?php /*  ?>
+											<h1>Lost/Found Pets...</h1>
+												<ul class="block-listing myanimals-listing">                                              	
+													<li><a class="orange-block" href="javascript:void(0)"><i class="material-icons">swap_horiz</i>Search Lost/Found Pets </a></li>	
+												</ul>												
+											<?php */ ?>
+												<?php include 'inc/org-tiles.php';?>
+											</div>
+										</div><div class="clearfix"></div>
+										<!---End of Resource tab-->
+										          </div>
+										    	</div>
+										      </div>
+										    </div>											
+											
+										   
+									  </div>
+										
+                                        
+										<div class="clearfix"></div>					
+										
+										
+										
+										
+										
+										
+									</div>
+									<div class="col-md-3 col-sm-3 col-xs-3 dboard-right-info no-space-right">
+									<?php include 'inc/org-management.php';?>
+									</div>
+								</div>
+							</div>
+						</div><!-- .entry-content -->
+					</article><!-- #post-## -->
+                </div>
+            </div>
+        </div>
+</section>
+	
+	
+	
+<div class="modal fade" id="fb_user_email" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header none">
+					<?php /* ?><button aria-hidden="true" data-dismiss="modal" class="close" type="button"  title="Close"></button><?php */ ?>
+					<h4 class="modal-title marb0">Email Address</h4>
+				</div>
+				<div class="modal-body">
+					<p><?php echo $this->session->userdata('emailfbuser');?></p>
+					 <div class="form-group col-md-12 padl0 padr0">
+                            <input type='email' id="fb_emailid" name="fb_emailid"  class="form-control" Placeholder="Enter email address" />
+                    </div>
+					<div class="modal-footer text-center no-margin lesser">
+						<a class="btn black" href="<?php echo base_url();?>user/logout/">CANCEL</a>
+						<a class="btn orange" style='opacity: .65;' id='submit-fbuser-email-unchecked' onClick='alert("Please enter email address.");' href="javascript:void(0);">Save</a>
+						<a class="btn orange" style='display:none' id='submit-fbuser-email' href="javascript:void(0);">Save</a>  
+					</div>		
+				</div> 
+			</div>
+		</div>
+	</div>
+	
+  
+	
+		<div class="modal fade" id="fb_user_email_thankyou" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <!--<button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>-->
+            <h4 class="modal-title">THANK YOU</h4>
+          </div>
+          <div class="modal-body"><p class="text16">Email address updated successfully.</p></div>
+          <div class="modal-footer text-center no-margin"> 
+          	<button class="btn orange" data-dismiss="modal"  type="button">OK</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+	
+<div class="modal fade" id="infoproductpopup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" title="Close" data-dismiss="modal" class="close close_modal1" type="button"></button>
+        <h4 class="modal-title">Alert</h4>
+		</div>
+        <div class="modal-body">
+          <!--<div class="scroller" style="height:110px" data-always-visible="1" data-rail-visible1="1">-->
+            <p>Please enter your organization's PayPal email address in your organization profile.  This is where payment for items and auctions will be sent.  We will take you to your organization profile so you can update that now.</p>
+          <!--</div>-->
+        </div>
+        <div class="modal-footer text-center">
+			<?php	if($owner_id == $this->session->userdata('userid')){ ?>
+			<a href="<?php echo base_url(); ?>org_info/edit_organization_profile" class="btn orange">OK</a>
+			<?php } else { ?>
+			<button class="btn black" data-dismiss="modal" onClick="javascript:void(0);" type="button">Cancel</button>
+			<?php } ?>	
+          <!--<button class="btn pink" title="Close" data-dismiss="modal" type="button">Close</button>-->
+        </div>
+      </div>
+      <!-- /.modal-content --> 
+    </div>
+    <!-- /.modal-dialog --> 
+  </div>
+  
+  <div class="modal fade" id="org_crop_img_popup1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <button aria-hidden="true" data-dismiss="modal" class="close cancel_close1" title="Close" type="button"></button>
+            <h4 class="modal-title">Profile Picture</h4>
+          </div>
+          <div class="modal-body">
+          <div class="scroller crop-scroller" data-always-visible="1" data-rail-visible1="1" style="height:100%;overflow-y: scroll; overflow-x: scroll;">
+
+          	<p>Select an area of an image and then click on Save Photo button to save photo.<img id="org-ajax-loader-bar-rotate1" src="<?php echo base_url(); ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/></p>
+            <div class="org-crop-img-here1">
+            	<img id="org-ajax-loader-bar1" src="<?php echo base_url(); ?>assets/img/ajax-loader-bar.gif" alt="image" style="display:none;"/>
+            </div>
+            </div>
+          </div>
+          <div class="modal-footer text-center no-margin"> 
+          <button class="btn orange org_save_popup1" style="display:none;" data-dismiss="modal" onClick="javascript:void(0);" type="button">Save Photo</button>
+          
+          
+          <button class="btn black cancel_popup1" data-dismiss="modal" onClick="javascript:void(0);" type="button">Cancel</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+	</div>
+	
+	
+	
+	
+	<div class="modal fade" id="notrated" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" title="Close" data-dismiss="modal" class="close" type="button"></button>
+        <h4 class="modal-title">Get your ARPA Rating</h4>
+		</div>
+        <div class="modal-body">         
+            <p>Doobert is proud to partner with the <strong><u>A</u></strong>nimal <strong><u>R</u></strong>escue <strong><u>P</u></strong>rofessionals  
+			 <br><strong><u>A</u></strong>ssociation which is <strong>THE</strong> Association for Animal Rescue. ARPA Silver, Gold or Platinum ratings will be displayed on your Doobert Organization profile and you can login to the ARPA site with your Doobert credentials. <br>For more information please visit their website at <a href="https://www.animalrescueprofessionals.org/organizations" target="_blank">https://www.animalrescueprofessionals.org/organizations</a></p>
+          <!--</div>-->
+        </div>
+        <div class="modal-footer text-center">		
+        </div>
+      </div>
+      <!-- /.modal-content --> 
+    </div>
+    <!-- /.modal-dialog --> 
+  </div>
+  
+  <div class="modal fade" id="markallread" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+            <h4 class="modal-title">Information</h4>
+          </div>
+          <div class="modal-body"><p>All notifications marked as read.</p></div>
+          <div class="modal-footer text-center no-margin"> 
+          	<button class="btn orange" data-dismiss="modal" type="button" onclick="javascript:window.location='<?php echo base_url().'org-dashboard/'.$this->session->userdata('org_id').'/'; ?>'">OK</button>
+          </div>
+         </div>
+        <!-- /.modal-content --> 
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+
+<?php if(!isset($_COOKIE['appuser'])):?>
+            <!-- BEGIN THANK YOU MODAL POPUP-->
+<div class="modal fade" id="message_app" style="display:none;" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog message-modal appbox">
+        <div class="modal-content">
+          <!--<div class="modal-header"></div>-->
+          <div class="modal-body">
+<div class="applogo"><img src="<?php echo $base_url; ?>/img/app-logo.jpg" alt="Doobert - animal rescue made simple" title="Doobert - animal rescue made simple"></div><div class="didyou">Did you know that Doobert has a mobile app?</div><div class="br"></div>
+<div class="app-detail">
+	<div class="dash-app-info"><a href="https://play.google.com/store/apps/details?id=app.doobert" target="_blank"><img src="<?php echo $base_url; ?>/img/google-play-small.jpg" class="marr24" alt="Google Play" title="Google Play"></a><a href="https://itunes.apple.com/us/app/doobert-user-app/id1047733391" target="_blank"><img src="<?php echo $base_url; ?>/img/app-store-small.jpg" alt="App Store" title="App Store"></a></div>
+	<a href="javascript:void(0);" class="continue" data-dismiss="modal">Continue with mobile web</a>
+	<div class="custom-checkbox"><input type="checkbox" name="dontshow" value="1" id="dontshow"/><label for="dontshow">Don’t show this again</label></div><div class="br"></div>
+</div>
+</div></div>
+        <!-- /.modal-content --> <?php /*  ?><div class="modal-footer text-center no-margin"><button class="btn orange" data-dismiss="modal" type="button" onclick="javascript:window.location='<?php echo base_url();?>user/setdownloadcookie'">Skip and proceed</button></div><button class="btn orange" data-dismiss="modal" type="button">Skip and continue</button><?php */ ?>
+      </div>
+      <!-- /.modal-dialog --> 
+</div>
+<!-- END THANK YOU MODAL POPUP-->
+<?php endif; ?>
+	
+	
+</div>
+<form action="<?php echo base_url().'org-dashboard/'.$this->session->userdata('org_id').'/'; ?>" id="submit_pagination" method="post">
+<input type="hidden" id="pagination_limit" name="pagination_limit"  value="">
+<input type="hidden" id="pagination_type" name="pagination_type"  value="">
+</form>
+
+<form action="<?php echo base_url().'org-dashboard/'.$this->session->userdata('org_id').'/'; ?>" id="submit_board_view_type" method="post">
+<input type="hidden" id="dashboard_view_type" name="dashboard_view_type"  value="N">
+</form>
+<?php include APPPATH.'views/inc/footer-dashboard.php';?>
+
+<script src="<?php echo $base_url; ?>assets/plugins/fullcalendar/fullcalendar/fullcalendar.min.js" type="text/javascript"></script>
+<?php /*<script src="<?php echo $base_url; ?>assets/plugins/fullcalendar/fullcalendar/fullcalendar.js?v=1.2" type="text/javascript"></script>*/ ?>
+
+<script src="<?php echo $base_url; ?>assets/scripts/index.js" type="text/javascript"></script> 
+
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/ajaxfileupload.js"></script>
+<script src="<?php echo base_url(); ?>assets/cropper.js" type="text/javascript" ></script>
+<script src="<?php echo base_url(); ?>assets/custom_jquery/profile_photo_new.js" type="text/javascript" ></script>
+<script src="<?php echo base_url(); ?>js/css_browser_selector.js" type="text/javascript" ></script>
+<script src="<?php echo base_url(); ?>assets/plugins/bootstrap-hover-dropdown/bootstrap-hover-dropdown.min.js" type="text/javascript"></script>
+
+<script src="<?php echo $base_url; ?>assets/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+<script src="<?php echo $base_url; ?>assets/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+<script src="<?php echo $base_url; ?>assets/plugins/jquery.cokie.min.js" type="text/javascript"></script>
+<script src="<?php echo $base_url; ?>assets/plugins/uniform/jquery.uniform.min.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?php echo base_url();?>assets/custom_jquery/animals.js?v=29.6"></script>
+
+<script>
+$(document).on('keyup','#fb_emailid',function(){
+	
+	if($('#fb_emailid').val()!='')
+	{
+		
+		$('#submit-fbuser-email-unchecked').hide();
+		$('#submit-fbuser-email').show();
+	} else {
+		//$('#submit-term-condition').addClass('disabled');
+		$('#submit-fbuser-email-unchecked').show();
+		$('#submit-fbuser-email').hide();
+	}	
+	
+});
+
+
+
+
+$(document).on('click','#submit-fbuser-email',function()
+{
+		if($('#fb_emailid').val()!='')
+		{
+			var emailReg = /^([\w-\.\+]+@([\w-]+\.)+[\w-]{2,4})?$/;
+			var useremail = $("#fb_emailid").val();
+			var error_message = '';			
+			if(emailReg.test(useremail))
+			{
+				$.ajax({
+						type:'POST',
+						 url: "<?php echo base_url(); ?>user/update_email/",
+						 dataType: "json",
+						 async:false,
+						 data:{
+							fb_emailid:useremail,
+						 },
+						 success:function(data) 
+						 {
+							if(data==0)
+							{
+									alert('Email already exist, please specify other one.');
+							} else {
+								$('#fb_user_email').modal('hide');
+								$('#fb_user_email_thankyou').modal('show');
+							}
+						 }
+					});	
+			} else 
+			{				
+				error_message = 'Please enter valid email address. \n';
+				alert(error_message);
+			}										
+		} else {
+			alert('Please enter email address.');
+		}	
+});
+</script>
+<script type="text/javascript">
+$(function(){
+  // bind change event to select
+  $('#type-org').on('change', function () { 
+	  var url = $(this).val(); // get selected value
+	  if (url) { // require a URL
+		  window.location = url; // redirect
+	  }
+	  return false;
+  });
+});
+$('#partners-table').cardtable();
+$('#animals-table').cardtable();
+$('#list-view').click(function() {
+$('#list-view').addClass('active');
+$('#calendar-view').removeClass('active');
+$('.section').show();
+        $('#dashboard-calendar').hide();
+        $('#card-table').show();
+		if($( window ).width() <= 767)
+		{
+			$('#card-table').hide();
+			$('.small-only').show();
+		}
+    });
+    $('#calendar-view').click(function() {
+	$('#calendar-view').addClass('active');
+	$('#list-view').removeClass('active');
+	$('.section').hide();
+		$('#calendar').html('');
+        $('#card-table').hide();
+        $('#dashboard-calendar').show();
+		$('.small-only').hide();
+		
+		var date = new Date();
+		var d = date.getDate();
+		var m = date.getMonth();
+		var y = date.getFullYear();
+		
+		var h = {};
+
+            if ($('#calendar').width() <= 400) {
+                $('#calendar').addClass("mobile");
+                h = {
+                    left: 'title, prev, next',
+                    center: '',
+                    right: 'today,month,agendaWeek,agendaDay'
+                };
+            } else {
+                $('#calendar').removeClass("mobile");
+                if (App.isRTL()) {
+                    h = {
+                        right: 'title',
+                        center: '',
+                        left: 'prev,next,today,month,agendaWeek,agendaDay'
+                    };
+                } else {
+                    h = {
+                        left: 'title',
+                        center: '',
+                        right: 'prev,next,today,month,agendaWeek,agendaDay'
+                    };
+                }               
+            }
+		
+		$('#calendar').fullCalendar({
+				height:350,
+				disableDragging: false,
+                header: h,
+                editable: false,
+                events: [
+				<?php  $replace_array = array(",","'","\n");$replace_with = array("");
+					if(isset($event_data) && !empty($event_data)) {
+						foreach($event_data as $row) { 
+							if($row['start_date']!='0000-00-00 00:00:00' && $row['end_date']!='0000-00-00 00:00:00') {
+								$y = date('Y',strtotime($row['start_date']));
+								$m = date('m',strtotime($row['start_date']));
+								$j = date('j',strtotime($row['start_date']));
+								$h = date('g',strtotime($row['start_date']));
+								$i = date('i',strtotime($row['start_date']));
+								
+								$ye = date('Y',strtotime($row['end_date']));
+								$me = date('m',strtotime($row['end_date']));
+								$je = date('j',strtotime($row['end_date']));
+								
+								$he = date('g',strtotime($row['end_date']));
+								$ie = date('i',strtotime($row['end_date']));
+								
+				?>							{
+								<?php if(isset($row['tr_title'])) {									
+									$transport_type = '';
+									$img_tag= '';
+									
+									if($row['transport_type'] == "Pre-defined")
+									{
+										$img_tag = '<img src="'.base_url().'assets/img/prespecifylegs.png" />';
+										$transport_type = 'Pre-defined';
+									} 
+									elseif($row['transport_type'] =="Routing"){
+										$img_tag = '<img src="'.base_url().'assets/img/icon-assisted.png" />';
+										$transport_type = 'Assisted';
+									}	
+									else if($row['transport_type'] == "Ride") {
+											$transport_type = 'Ride';
+											$img_tag = '<i class="fa fa-automobile" style="font-size:17px;color:#f25613" aria-hidden="true"></i>';
+									}
+									else if($row['transport_type'] == "Route") {
+											$transport_type = 'Route';
+											//$img_tag = '<i class="material-icons" aria-hidden="true" style="color:#f25613;vertical-align: middle;padding-bottom: 3px;">swap_calls</i>';
+											$img_tag = '<img src="'.base_url().'assets/img/car.png" />';
+									}else if($row['transport_type']=="Airline"){
+										$img_tag = '<img src="'.base_url().'assets/img/icon-airline.png" />';
+										$transport_type = 'Airline';
+									}
+									?>
+								title: '<?php echo $row['tr_title']; ?>'+'<br><?php echo $img_tag;?><?php echo $transport_type;?>',
+								
+								<?php } else { ?>
+								//title: "<php echo ($this->common_function->get_filtered_name_ucfirst(strip_tags( ($row['title'])))); ?>",
+								title: "<?php echo (strip_tags(addslashes($row['title']))); ?>",
+								<?php } ?>
+								start: new Date(<?php echo $y; ?>,<?php echo $m-1; ?>, <?php echo $j; ?>, <?php echo $h; ?>, <?php echo $i; ?>),
+								<?php if(!isset($row['tr_title'])) { ?>
+								end: new Date(<?php echo $ye; ?>,<?php echo $me-1; ?>, <?php echo $je; ?>,<?php echo $he; ?>, <?php echo $ie; ?>),
+								<?php } ?>
+								<?php 
+									if(isset($row['tr_title'])) {
+										if($row['in_status'] == 1) {
+										$tr_url = base_url().'org-transportation-scheduled/'.$row['transportation_id'];
+										} else if($row['in_status'] == 2) {
+										$tr_url = base_url().'org-confirm-transport/'.$row['transportation_id'];
+										} else if($row['in_status'] == 3) {
+										$tr_url = base_url().'org-cancel-transport/'.$row['transportation_id'];
+										}
+								?>
+								url  : '<?php echo $tr_url; ?>',
+								color:'09F'
+								<?php } else { ?>
+								url  : '<?php echo base_url().'organization-event-detail/'.$row['in_event_id'] ?>',
+								color:'#378006'
+								<?php } ?>
+							},
+				<?php
+						}
+					}
+				}
+				?>  
+            ],
+			eventAfterAllRender: function() {
+				$( '.fc-event-inner span.fc-event-title' ).each(function( index ) {
+					$(this).html($(this).text());
+				});
+			},
+			eventRender: function(event, element) {
+				 console.log(element);
+  			}
+		});
+
+    });
+
+
+   
+	</script>
+    <script>
+jQuery('.title-tipso').tipso();
+$(document).ready(function() {
+
+
+    //animal hover details
+        $('.preview').hover(function(){
+        
+            var get_color_code = $(this).attr('data-color');
+            
+            if(get_color_code == "tip-dem-green") {
+                $(this).find('span').addClass('tip-animal-green');
+            }
+            
+            if(get_color_code == "tip-dem-orange") {
+                $(this).find('span').addClass('tip-animal-orange');
+            }
+            
+            if(get_color_code == "tip-dem-purple") {
+                $(this).find('span').addClass('tip-animal-purple');
+            }
+            
+            if($(this).hasClass('spon_preview')) {
+                $(this).find('span').addClass('tips tip-animal-sponsorship');
+            }
+            
+            if($(this).hasClass('transport_preview')) {
+                $(this).find('span').addClass('tips tip-animal-transport');
+            }
+            
+            $(this).find('span').toggle();
+            
+            //Removing top height
+            var tableheight = $('.list-animal-profile').height();
+            var tipsspanheight = $(this).find('span').height() - 27;
+            var tipsspan = $(this).find('span');
+
+            if(tipsspan.length)
+            {
+            var tipofset = tipsspan.offset().top;
+                    
+            var overflowtips = tipofset - 106;
+            
+            if(tableheight < overflowtips){
+                $(this).find('span').css('top', - tipsspanheight);
+                $(this).find('.arrow').css('top', tipsspanheight+5);
+            }
+            }
+            //End removing top height
+        
+        });
+   
+        //
+	    $( '<a href="javascript:void(0);" title="iCal" id="ical"><img src="<?php echo $base_url; ?>assets/img/ical.png" alt="iCal">iCal</a>' ).insertAfter( $( ".fc-button-agendaDay" ) );
+		  
+		$('#ical').click(function(){
+			  $('#subscribe_ical').modal('show');
+		});
+		$('#list-view').addClass('active');
+	
+		if ( $(window).width() < 800) {      
+	  			//Add your javascript for large screens here 
+			 $(".dashed").remove();
+		} 
+		else {
+		  //Add your javascript for small screens here 
+			 $(".dashed").remove();
+		}
+		
+		if($(window).width() < 1024)
+		{    
+			$(".dashed").remove();
+		}
+
+
+
+	$("#transport-footer").show();
+	$("#partner-footer").hide();
+	$("#animal-footer").hide();
+	$('#type-org').val('');
+	$('#type-org[value=""]').prop("selected", true);
+ 
+    if(navigator.userAgent.match(/Android/i)){  
+		   $('.android').css("display", "block");
+		   $('.desktop-device').remove();
+	   }
+	   else
+	   {
+		   $('.android').remove();
+		   $('.desktop-device').css("display", "block");
+	   }
+	   
+	   
+	   $('#type-org2').on('change', function () { 
+          var url = $(this).val(); // get selected value
+          if (url) { // require a URL
+              window.location = url; // redirect
+          }
+          return false;
+      }); 
+
+
+
+	$('a[data-toggle="tab"]').on('show.bs.tab', function(e) {
+
+		localStorage.setItem('activeTab', $(e.target).attr('href'));
+	});
+	
+	var activeTab = localStorage.getItem('activeTab');
+	
+	if(activeTab){
+		
+		if(activeTab == "#partners"){ 
+			$("#partner-footer").show();
+			$("#transport-footer").hide();
+			$("#animal-footer").hide();
+			$("#resource-footer").hide();
+		}
+		
+		if(activeTab == "#transport"){
+			$("#transport-footer").show();
+			$("#partner-footer").hide();
+			$("#animal-footer").hide();
+			$("#resource-footer").hide();	
+		}else if(activeTab == "#animals"){
+			$("#animal-footer").show();
+			$("#partner-footer").hide();
+			$("#transport-footer").hide();		
+			$("#resource-footer").hide();	
+		}
+		
+		else if(activeTab == "#resources"){
+			$("#animal-footer").hide();
+			$("#partner-footer").hide();
+			$("#transport-footer").hide();	
+			$("#resource-footer").show();	
+		}
+		
+		$('#partner_tab a[href="' + activeTab + '"]').tab('show');
+	}
+		//$("#transport-footer").show();
+		//$("#animal-footer").hide();
+		//$("#partner-footer").hide();
+
+	if ($('.check_all_checked:checked').length == $('.check_all_checked').length) 
+	{
+        $('.checked_all').prop('checked',true);
+    }
+    //all animals check
+    $(".checked_all").change(function(){		
+		var verifyChecked = $('.checked_all').prop('checked');
+		if(verifyChecked === true)
+		{		
+			$('.custom-checkbox').find('input[type=checkbox]').prop('checked',true);
+			
+		} else {
+			$('.custom-checkbox').find('input[type=checkbox]').prop('checked',false);
+			 
+		}  
+		 		
+	});
+	
+    //single animal check
+    $(".check_all_checked").change(function(){				
+		var id = $(this).attr('id');
+		var verifyChecked = $(this).prop('checked');
+		if(verifyChecked === true) {
+			$('.custom-checkbox').find('#'+id).prop('checked',true);
+		} else {
+			$('.custom-checkbox').find('#'+id).prop('checked',false);
+		}
+		
+		if ($('.check_all_checked:checked').length == $('.check_all_checked').length) {
+			$('.checked_all').prop('checked',true);
+		}else {
+			$('.checked_all').prop('checked',false);
+		}
+	});
+		
+  });
+
+
+
+function check_paypal_id(id)
+	{
+		$.ajax({
+          url: "<?php echo base_url(); ?>products/woocommerce_check_paypal_id",
+        type: 'POST',
+        data: {org_id: id},  
+        success: function(data) 
+        {
+       		if(data =="")
+       		{
+       			$('#infoproductpopup').modal('show');
+       		}
+       		else
+       		{
+       			window.location.href = "<?php echo base_url(); ?>products/woocommerce_product_add/";
+       		}	
+        }
+    });
+		
+	}
+
+function tansportshow(){
+	$("#transport-footer").show();
+	$("#partner-footer").hide();	
+	$("#animal-footer").hide();
+	$("#resource-footer").hide();
+}
+
+function partnershow(){ 
+	$("#partner-footer").show();
+	$("#transport-footer").hide();
+	$("#animal-footer").hide();
+	$("#resource-footer").hide();
+}
+
+function animalshow(){
+	$("#animal-footer").show();
+	$("#partner-footer").hide();
+	$("#transport-footer").hide();
+	$("#resource-footer").hide();
+	
+}
+
+function resourceshow(){ 
+	$("#resource-footer").show();
+	$("#transport-footer").hide();
+	$("#animal-footer").hide();
+	$("#partner-footer").hide();
+}
+$(document).ready(function() {  
+		   //Index.initCalendar(); // init index page's custom scripts
+		   
+		     $('#tell_a_friend').validate({
+					errorElement: 'span', //default input error message container
+					errorClass: 'help-block', // default input error message class
+					focusInvalid: true, // do not focus the last invalid input
+					rules: {
+						txttoname: {
+							required: true
+						},
+						txtemail: {
+							required: true,
+							email:true
+						},
+						txtMessage: {
+							required: true
+						}
+					},
+			
+					messages: {
+						txttoname: {
+							required: 'Please enter receiver name.'
+						},
+						txtemail: {
+							required: 'Please enter receiver email.',
+							emauil: 'Please enter valid receiver email.'
+						},
+						txtMessage: {
+							required: 'Please enter message.'
+						}
+						
+					},
+			
+					invalidHandler: function (event, validator) { //display error alert on form submit   
+						$('#tell_a_friend').show();
+						
+						var errors = validator.numberOfInvalids();
+						if (errors) {
+						  var message = errors == 1
+							? 'You missed 1 field. It has been highlighted'
+							: 'You missed ' + errors + ' fields. They have been highlighted';
+						  alert(message);
+						}
+					},
+			
+					highlight: function (element) { // hightlight error inputs
+						$(element)
+							.closest('.form-group').addClass('has-error'); // set error class to the control group
+					},
+			
+					success: function (label) { //alert(label);
+						label.closest('.form-group').removeClass('has-error');
+						label.remove();
+					},
+			
+					errorPlacement: function (error, element) { 
+						error.addClass('help-block').insertAfter(element.closest('.form-control'));
+					}
+			
+				});
+        });   
+		
+$(document).on('click', '#send_mail', function(){ 		
+	if($('#tell_a_friend').valid() == false) {
+		return false;
+	} else {
+		$('#send_mail').hide();
+		if($.browser.msie) {
+				$('.display_loader').html('<img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" />');
+			}
+		$('.display_loader').show();
+		$('#loadimg_mail').show();
+		$('#email-config').modal('hide');
+		
+		if($.browser.msie) {
+			$('.display_loader').html('<div id="loader" style="display: none;"><img src="<?php echo base_url(); ?>assets/img/ajax-modal-loading.gif" width="32" height="32" align="absmiddle">&nbsp;<span id="loadertext">Loading...</span></div>');
+		}		
+		$('.display_loader').show();
+		$('#loader').show();
+	}
+}); 
+
+
+</script>
+<script>
+$(document).ready(function()
+{
+	
+	   <?php if($this->session->userdata('emailfbuser')){ ?>
+		$('#fb_user_email').modal('show');
+
+		<?php  $this->session->unset_userdata('emailfbuser');
+		 } ?>
+		$('.transport_pagination a').on('click',function(){
+			var transport_pagination = $(this).attr('href').replace('/','');
+			$('#pagination_type').val('transport');
+			$('#pagination_limit').val(transport_pagination);
+			$('#submit_pagination').submit();
+			return false;
+		});
+		$('.animal_pagination a').on('click',function(){
+			var animal_pagination = $(this).attr('href').replace('/','');
+			$('#pagination_type').val('animal');
+			$('#pagination_limit').val(animal_pagination);
+			$('#submit_pagination').submit();
+			return false;
+		});
+		$('.favorite_pagination a').on('click',function(){
+			var favorite_pagination = $(this).attr('href').replace('/','');
+			$('#pagination_type').val('favorite');
+			$('#pagination_limit').val(favorite_pagination);
+			$('#submit_pagination').submit();
+			return false;
+		});
+});
+
+
+$(document).on('click', '#closemodel2', function(){ 
+   $('.art_yt iframe').attr('src', '');
+});
+
+$(document).on('click', '#learmore-video-info-animal', function(){ 	
+$('.art_yt iframe').attr('src', 'https://www.youtube.com/embed/<?php echo $signup_video[20]; ?>?rel=0');
+});
+</script>
+  <script src="<?php echo $base_url; ?>assets/plugins/bootstrap/js/bootstrap.js" type="text/javascript"></script>
+  <link href="<?php echo base_url(); ?>assets/css/tipso.css" rel="stylesheet" type="text/css">
+    <script>$(document).ready(function() {
+	$(".addimport").click(function(event) {
+		$(".filterlist").slideToggle("slow");
+		event.stopPropagation();
+	});
+});
+
+$('.markallread').on('click',function() 
+{  					
+	
+	$.ajax({
+		type: "POST",
+		url: '<?php echo base_url(); ?>user/markallread', 
+		
+		success:function(data) 
+		{   
+			$('#markallread').modal('show');
+			
+		}
+	});
+	
+});
+</script>
+<script>
+$(document).ready(function(){
+$('#allow_pics').on('change',function(){
+
+	$('#submit_board_view_type').submit();
+	//window.location.href= "<?php echo base_url().'org_dashboard_modern/'; ?>";
+	//window.location.href= "<?php echo base_url().'org-modern-dashboard/'.$this->session->userdata('org_id').'/'; ?>";	
+});
+});
+</script>
+<script>
+var isMobile = {
+    Android: function() {
+        return navigator.userAgent.match(/Android/i);
+    },
+    BlackBerry: function() {
+        return navigator.userAgent.match(/BlackBerry/i);
+    },
+    iOS: function() {
+        return navigator.userAgent.match(/iPhone|iPad|iPod/i);
+    },
+    Opera: function() {
+        return navigator.userAgent.match(/Opera Mini/i);
+    },
+    Windows: function() {
+        return navigator.userAgent.match(/IEMobile/i);
+    },
+    any: function() {
+        return (isMobile.Android() || isMobile.BlackBerry() || isMobile.iOS() || isMobile.Opera() || isMobile.Windows());
+    }
+};
+if( isMobile.any() ){
+	jQuery('#message_app').modal('show');
+}	
+
+
+  	$('#dontshow').on('click',function() 
+               	{  						
+               		
+               		$.ajax({
+               			type: "POST",
+               			url: '<?php echo base_url(); ?>user/setdownloadappcookie',               									
+               			success:function(data) 
+               			{   
+               				jQuery('#message_app').modal('hide');							
+               			}
+               		});
+               		
+               	});
+</script>
+</body>
+<!-- END BODY -->
+</html>

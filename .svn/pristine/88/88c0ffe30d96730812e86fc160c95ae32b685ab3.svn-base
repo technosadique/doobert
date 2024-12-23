@@ -1,0 +1,390 @@
+function contactUser(tr_id,email_address,name)
+{
+	$('#transport_id').val(tr_id);
+    $('#contact_email1').val(email_address);
+	$('#contact_name1').val(name);
+	$('.modal-title').html('Contact Request to ' + name + '');
+	$('#user-contact').modal('toggle');
+}
+	
+$(document).on('click', '#close_button', function(){
+		$('#contactmessage1').val('');
+});
+
+$(document).on('click', '#send_request_btn', function()
+{	
+	var message = $('#contactmessage1').val();
+	var emailReg = /^([\w-\.]+@([\w-]+\.)+[\w-]{2,4})?$/;
+	var flag = 1;
+	if(message == '')
+	{
+		flag =0;
+		alert('Please enter your message');
+	}
+	if(flag == 1)
+	{
+		var email_address = $('#user_email').val();
+		var user_name = $('#user_name').val();
+		var transport_id 	= $('#transport_id').val();
+		var contact_email    = $('#contact_email1').val();
+		var contact_name	= $('#contact_name1').val();
+		
+			 $.ajax({
+					type: "POST",
+					url: base_url+'open_leg/send_mail_to_tc',
+					beforeSend: function()
+					{
+						$('#user-contact').modal('toggle');	
+						$('#loader').show();
+					},
+					data:{
+						user_name :user_name, 
+						email_address :email_address ,
+						contactmessage :message,
+						transport_id :transport_id,
+						contact_email :contact_email,
+						contact_name : contact_name,	
+					},
+					dataType:'json',
+			  		complete: function()
+					{
+						$('#loader').hide();
+				    },
+					success:function(data)
+					{
+						if(data.success == 1)
+							$('.modal-title').html('<h4>Thank You</h4>')	
+						$('#contactmessage1').val('');
+						$('#thankyou-config').modal('show');
+					}, 
+                        //return true;
+						 });
+		
+	}	
+});
+
+$(document).ready(function(){
+		$.validator.addMethod("telephone_number", function (value, element) {
+					var a = /^(1\s|1|)?((\(\d{3}\))|\d{3})(\-|\s)?(\d{3})(\-|\s)?(\d{4})$/.test(value);
+					return a;
+				},'Please enter valid telephone number');
+		
+		 $('#verify_user_profile').validate({
+					errorElement: 'span', //default input error message container
+					errorClass: 'help-block', // default input error message class
+					focusInvalid: true, // do not focus the last invalid input
+					rules: {
+						verify_first_name: {
+							required: true
+						},
+						verify_last_name: {
+							required: true
+						},
+						verify_phone_no: {
+							required: true,
+							telephone_number:true
+						},
+						verify_email_address: {
+							required: true,
+							email:true
+						},											
+					},
+			
+					messages: {
+						verify_first_name: {
+							required: 'Please Enter First Name.'
+						},
+						verify_last_name: {
+							required: 'Please Enter Last Name.'
+						},
+						verify_phone_no: {
+							required: 'Please Enter Mobile Number.'
+						},
+						verify_email_address: {
+							required: 'Please Enter Email.',
+							email: 'Please Enter Valid Email.'
+						},
+						
+					},
+			
+					invalidHandler: function (event, validator) { //display error alert on form submit   
+						$('#verify_user_profile').show();
+						
+						var errors = validator.numberOfInvalids();
+						if (errors) {
+						  var message = errors == 1
+							? 'You missed 1 field. It has been highlighted'
+							: 'You missed ' + errors + ' fields. They have been highlighted';
+						  alert(message);
+						}
+					},
+			
+					highlight: function (element) { // hightlight error inputs
+						$(element)
+							.closest('.form-group').addClass('has-error'); // set error class to the control group
+					},
+			
+					success: function (label) { //alert(label);
+						label.closest('.form-group').removeClass('has-error');
+						label.remove();
+					},
+			
+					errorPlacement: function (error, element) { 
+						
+						if($(element).attr('id')=='verify_user_vehicle_type')
+						{
+							error.addClass('help-block').insertAfter('#vehicle_select');
+						}	else {
+							error.addClass('help-block').insertAfter(element.closest('.form-control'));
+						}
+					}
+			
+			});
+});
+
+$(document).ready(function(){
+		$(document).on('click','#correct_info,#save_verify_form',function(event) {
+			if($('#verify_user_profile').valid() == false) 
+			{
+				return false;
+			} else {
+				$('#correct_info,#save_verify_form,#make_changes,#cancel_verify_form').prop('disabled', true);
+				var current_url = window.location.pathname;
+				var route_type = $('#leg_type').val();
+				var first_name = $('#verify_first_name').val();
+				var last_name  = $('#verify_last_name').val();
+				var email_address = $('#verify_email_address').val();
+				var phone_no = 	$('#verify_phone_no').val();
+				var vehicle_id = $('#vehicle_id').val();
+				var user_vehicle_type = $('#verify_user_vehicle_type').val();
+				var user_vehicle_color = $('#verify_user_vehicle_color').val();
+				var user_vehicle_license_plate = $('#verify_user_vehicle_license_plate').val();
+				
+				//document.getElementById("send_code").disabled = true;		
+					$.ajax({
+							type: "POST",
+							url: base_url+"user/update_general_profile/" ,
+							//async:false,
+							beforeSend:function(){
+									$('#loader').show();
+							},
+							data:
+							{
+								first_name:first_name,
+								last_name:last_name,
+								email_address:email_address,
+								phone_no:phone_no,
+								vehicle_id:vehicle_id,
+								user_vehicle_type:user_vehicle_type,
+								user_vehicle_color:user_vehicle_color,
+								user_vehicle_license_plate:user_vehicle_license_plate,
+								route_type:route_type,
+							},
+							complete: function() {
+								$('#loader').hide();
+							},
+							success:function(data)
+							{
+									
+									if(data == 1)
+									{    
+										$('#verify-user-profile').modal('hide');
+										jQuery('#number_verification').modal('show');  
+										$("#SendCode").hide(); 
+										$("#VerifyCode").show();
+											
+								    }else if(data == "Invalid"){
+									   $('#correct_info,#save_verify_form,#correct_info,#cancel_verify_form').prop('disabled',false);
+										alert("Unable to send the code please check mobile number you entered.");
+									    //window.location = current_url;
+									} else if(data == "join_leg")
+									{
+										 $('#verify-user-profile').modal('hide');
+										 $('#legs_select').submit();	
+									} else if(data == '3'){
+										alert('Email already exist, please specify other one.');
+										$('#correct_info,#save_verify_form,#make_changes,#cancel_verify_form').prop('disabled', false);
+										//window.location = current_url;
+									}else if(data == 	false){
+										$('#correct_info,#save_verify_form,#correct_info,#cancel_verify_form').prop('disabled',false);
+										alert("Unable to send the code please check the DND is inactive.");
+										//window.location = current_url;
+									}			
+							}
+					});
+			}
+		});	
+});
+
+$(document).ready(function(){
+	$(".signup_leg").on("click",function(){
+		var transport_id = $('#transportation_id').val();
+		//$('.loder_cancel').show();
+		var show_loader =  $(this).attr('data-val');
+		$('.'+show_loader).show();
+		$('.signup_leg').hide();
+		$('.contact_us').hide();
+		$.ajax({
+			type: "POST",
+			url: base_url+'open_leg/verify_meeting_loc',
+			data: {
+				transport_id:transport_id
+			},
+			beforeSend: function(){
+				$('#loader').show();
+			},
+			dataType:"json",
+			complete: function(){
+				$('#loader').hide();
+			},
+			success:function(data)
+			{
+				console.log(data);
+				console.log(data.accept_condition);
+				if(data.accept_condition==1)
+				{
+					$('#st_term_condition').html(data.terms_condition);
+					$('#accept-term-condition').modal('show');	
+				} else if(data.accept_condition==0) {
+					verify_user_profile();
+				}		
+			}
+		});
+
+	});
+
+	$(document).on('click','#accept_term',function()
+	{
+	
+		if($('#accept_term:checked').length>0)
+		{
+			$('#submit-term-condition-unchecked').hide();
+			$('#submit-term-condition').show();
+		} else 
+		{
+			$('#submit-term-condition-unchecked').show();
+			$('#submit-term-condition').hide();
+		}	
+	
+	});
+
+	$(document).on('click','#submit-term-condition',function()
+	{
+		var accept_condition = 1;
+		if($('#accept_term:checked').length>0)
+		{
+			$('#accepted_term_condition').val('1');
+			$('#accept-term-condition').modal('hide');
+			verify_user_profile();
+			return false;	
+			
+		} else {
+			alert("Pls accept term and condition");
+		}		
+	});
+	
+});
+
+function verify_user_profile()
+{
+		var route_type = $('#leg_type').val();
+		$.ajax({
+			type: "POST",
+            url: base_url+"org_transportation/retrive_user_profile_data/" ,
+			//async:false,
+			beforeSend: function() {
+							$('#loader').show();
+			},
+			data:{
+				route_type:route_type,
+			},
+			complete: function() {
+					 $('#loader').hide();
+			},
+            success:function(data)
+			{
+				$('#aviation_popup').modal('hide');
+				var profile_data = jQuery.parseJSON(data);
+				$('#verify_first_name').val(profile_data['user_detail']['st_display_name']);
+				$('#verify_last_name').val(profile_data['user_detail']['st_last_name']);
+				$('#verify_email_address').val(profile_data['user_detail']['st_email']);
+				$('#verify_phone_no').val(profile_data['user_detail']['st_phone_number']);
+				$('#verified_num_status').val(profile_data['user_detail']['number_verified']);
+				var select_type_html = '';
+				if(route_type==0)
+				{
+					if(profile_data['user_vehicle']== undefined)
+					{
+						$('#transport-profile-alert .modal-content .modal-body').html('<h5>Please complete the Driver section of your Transporter Profile.</h5>');
+						$('#transport-profile-alert').modal('show');
+						$('.signup_leg').show();
+						$('.contact_us').show();
+						$('.loder_cancel').hide();
+					} else {
+					var veh_type = profile_data['vehicle_type'];
+					
+					select_type_html += "<option value=''>Select Vehicle</option>";
+					for(var j=0;j<veh_type.length; j++)
+					{	
+						if(profile_data['user_vehicle']['vehicle_type'] == veh_type[j]['st_vehicle_type'])
+							select_type_html += "<option value='"+veh_type[j]['st_vehicle_type']+"' selected>"+veh_type[j]['st_vehicle_type']+"</option>";
+						else
+							select_type_html += "<option value='"+veh_type[j]['st_vehicle_type']+"'>"+veh_type[j]['st_vehicle_type']+"</option>";
+					}
+					$('#verify_user_vehicle_type').html(select_type_html);
+					$('#vehicle_id').val(profile_data['user_vehicle']['in_vehicle_id']);
+					$('#verify_user_vehicle_color').val(profile_data['user_vehicle']['vehicle_color']);
+					$('#verify_user_vehicle_license_plate').val(profile_data['user_vehicle']['license_plate']);
+					$('#veh_info').html('Vehicle Profile Info');
+					$('#verify_user_vehicle_type').rules('add',{
+						required : true,
+						messages:{
+							required: 'Please Select Vehicle Type.'	
+						}
+					});
+					$('#verify-user-profile').modal('show');
+					}
+				} else if(route_type==1)
+				{
+					if(profile_data['user_plane']== undefined)
+					{
+						$('#transport-profile-alert .modal-content .modal-body').html('<h5>Please complete the Pilot section of your Transporter Profile.</h5>');
+						$('#transport-profile-alert').modal('show');
+						$('.signup_leg').show();
+						$('.contact_us').show();
+						$('.loder_cancel').hide();
+					} else {
+					var plane_type = profile_data['plane_type'];
+					select_type_html += "<option value=''>Select Airplane</option>";
+					for(var j=0;j<plane_type.length; j++)
+					{	
+						if(profile_data['user_plane']['vehicle_type'] == plane_type[j]['st_plane_type'])
+							select_type_html += "<option value='"+plane_type[j]['st_plane_type']+"' selected>"+plane_type[j]['st_plane_type']+"</option>";
+						else
+							select_type_html += "<option value='"+plane_type[j]['st_plane_type']+"'>"+plane_type[j]['st_plane_type']+"</option>";
+					}
+					$('#verify_user_vehicle_type').html(select_type_html);
+					$('#vehicle_id').val(profile_data['user_plane']['in_vehicle_id']);
+					$('#verify_user_vehicle_color').val(profile_data['user_plane']['plane_color']);
+					$('#verify_user_vehicle_license_plate').val(profile_data['user_plane']['license_plate']);
+					$('#veh_info').html('Airplane Info');
+					$('.vehicle_type').html('Airplane Type');
+					$('.vehicle_plate').html('N-Number');
+					$('#verify_user_vehicle_type').rules('add',{
+						required : true,
+						messages:{
+							required: 'Please Select Airplane Type.'	
+						}
+					});
+					$('#verify-user-profile').modal('show');
+					}
+				} else if(route_type==2 || route_type==4)
+				{
+					$('.vehicle_display').hide();
+					$('#verify-user-profile').modal('show');
+				}		
+				
+					
+            }
+        });
+}			

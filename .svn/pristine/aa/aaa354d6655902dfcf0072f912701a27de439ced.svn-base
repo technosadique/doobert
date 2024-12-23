@@ -1,0 +1,1412 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 04-Aug-2014
+# File description		: cron_setting_doobert controller 
+# Special- notes		: 
+# Tables used			:  
+# Stored procedures		: none  
+# Triggers used			: none
+# --------------------------------------------------------------------------------------
+
+class Cron_setting_doobert extends CI_Controller {
+
+	public function __construct() { 
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->library('email');  
+		$this->load->model('common_model');
+		$this->load->model('cron_setting_doobert_model');
+		$this->load->helper('cookie');
+	}	
+	
+	#=========================================================
+	#	Function : index
+	#	Purpose  : Executing cron
+	#---------------------------------------------------------
+	
+	public function index() {
+		
+	}
+	
+	
+	public function cron_app_newsletter()
+	{
+		exit;
+		$this->load->library('email');
+		$alluserDetails = $this->common_model->get_all_active_user_details();
+		
+		//echo '<pre>'; print_r($alluserDetails); die;
+		$receiver_users = '';
+		$data = array();
+		if(sizeof($alluserDetails) > 0){
+			foreach($alluserDetails as $key => $userDetail){				
+				$to   =    $userDetail['email'];		
+                //$to   =   'rupesh@pulsesolutions.net'; 				
+				//$subject = 'Doobert.com is getting a makeover!';           
+				$subject = 'Doobert Special Announcement - Coming Monday January 2';
+				$data['user_name'] =  $userDetail['user_name'];
+				//$message = $this->load->view('email/doobert-marketing-email_new',$data,true);
+				$message = $this->load->view('email/doobert-daily-digest-email',$data,true);
+				//echo $message;die;
+				//$category  	=  "Doobert.com is getting a makeover!";
+				$category  	=  "Doobert Special Announcement - Coming Monday January 2";
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+				//echo $this->email->print_debugger();	
+				$this->common_model->update_user($userDetail['in_user_id']);				
+			}			 
+			echo '=============email sent==========';
+		}
+		
+	}
+	
+	public function fb_access_token_notification()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'cron_setting_doobert/fb_access_token_notification',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+		
+		$last_cron_inserted_id = $this->db->insert_id();
+		
+		$fb_token_detail = $this->common_model->get_facebook_access_token();
+		//print_r($fb_token_detail);
+		if(isset($fb_token_detail) && !empty($fb_token_detail))
+		{
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$from_date = new DateTime(date('Y-m-d',strtotime($fb_token_detail['dt_expiry'])));
+			$to_date	= new DateTime(date('Y-m-d'));
+			$interval = date_diff($to_date, $from_date);
+			$interval_days = $interval->format('%R%a');
+			if($interval_days <= 7)
+			{
+				$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+				
+				//echo 'send email notification';
+				$email_details = $this->common_model->get_email_containt('56');
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+					if(isset($q) && !empty($q)){					   		
+							foreach($q as $qr)
+							{		 
+								  
+								if(!empty($qr['st_image']))
+								{
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+										$imgtitle   =   $qr['st_banner_name']; 				
+										$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+										alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+									  
+									  
+								}
+								else
+								{
+									   $donation='';								 
+								}							  
+									
+							}
+						}			
+						   
+					   else
+					   {
+						  $donation='';
+					   }
+				$this->load->library('email');
+				if (isset($email_details[0]['st_email_body'])) {
+					$subject = $email_details[0]['st_email_subject'];
+					//$to = 'ghanshyam.maurya@pulsesolutions.net';
+					//$admin_list = $this->common_model->get_admin_list();
+					
+					//for($a=0;$a<count($admin_list);$a++)
+					//{
+						//$to			= $admin_list[$a]['email_address'];
+						//$to = 'ghanshyam.maurya@pulsesolutions.net';
+						//$admin_name = $admin_list[$a]['name'];
+						$to			= 'Chris@doobert.com';
+						$admin_name = 'Chris Roy';
+						$templete 	= $email_details[0]['st_email_body'];
+						$templete 	= str_replace("##admin_name##",	$admin_name, $templete);
+						$templete 	= str_replace("##DONATION##",	$donation, $templete);
+						$templete 	= str_replace("##expiry_date##", date('d-M-Y',strtotime($fb_token_detail['dt_expiry'])), $templete);
+						$templete 	= str_replace("##fb_token_manage_url##", $this->config->item('admin_base_url').'sysmanage/manage_facebook_token/', $templete);
+						$message 	= $templete;
+						
+						$category  	=  $email_details[0]['st_category'];
+						$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);					
+					
+					//}		
+				}
+				$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			}
+			
+			$cron_email_array = array("cron_step"=>'4',
+							"cron_step_detail"=>'step4',
+							"cron_updated_date"=>date("Y-m-d H:i:s")
+							);
+	
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+		}else {
+				$cron_email_array = array("cron_step"=>'4',
+									"cron_step_detail"=>'step4',
+									"cron_updated_date"=>date("Y-m-d H:i:s")
+									);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		}
+		
+	}
+	//Added by Nirav 25-May-2016
+	function autoreply_status()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'cron_setting_doobert/autoreply_status',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+
+		$last_cron_inserted_id = $this->db->insert_id();
+
+		$volunteers_email = $this->common_model->get_volunteers_email();
+		if($volunteers_email['success'] == false)
+		{
+				$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+				//$lastest_date = $volunteers_email['latest_data'][0]['dt_date'];
+				$data['lastest_date'] = $volunteers_email['latest_data'][0]['dt_date'];
+				$to   =   'chris@doobert.com';				
+				$subject = 'Doobert.com - No autorespond sent in last 12 hours';           				
+				$message = $this->load->view('email/autoreply_status-email',$data,true);
+				
+				$category  	=  'Doobert.com - No autorespond sent in last 12 hours';
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);					
+				
+				$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+		}else {
+				$cron_email_array = array("cron_step"=>'3',
+									"cron_step_detail"=>'step3',
+									"cron_updated_date"=>date("Y-m-d H:i:s")
+									);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+
+		}		
+	}
+	
+	public function incomplete_doobert_verified_app()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'cron_setting_doobert/incomplete_doobert_verified_app',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+
+		$last_cron_inserted_id = $this->db->insert_id();
+
+		$incomplete_apps = $this->cron_setting_doobert_model->incomplete_doobert_verified_app();
+		
+		//print_r($incomplete_apps);exit;
+		
+		if(isset($incomplete_apps) && !empty($incomplete_apps))
+		{
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			
+			foreach($incomplete_apps as $app_val)
+			{
+				$email_details = $this->common_model->get_email_containt('65');
+				$this->load->library('email');
+				if (isset($email_details[0]['st_email_body'])) {
+					$subject = $email_details[0]['st_email_subject'];
+					//$to = 'ghanshyam.maurya@pulsesolutions.net';
+					$to = $app_val['st_email'];
+					
+					$templete 	= $email_details[0]['st_email_body'];
+					$message 	= $templete;
+					
+					$category  	=  'Doobert.com Incomplete Doobert Verified Application';
+					$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+					$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+					$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+					$message = str_replace("##DONATION##",$donation,$message);
+					
+					$send_email = 1;							
+					$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+					if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+					{
+						$send_email = 0;										
+					}
+					
+					$email_template_id = $email_details[0]['in_email_id'];
+					$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+					if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+					{
+						$send_email = 1;
+					}
+					
+					if($send_email == '1')
+					{
+						$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+					}	
+				}	
+			}
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+		}else {
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		}
+	}
+	
+	public function incomplete_doobert_org_app()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'cron_setting_doobert/incomplete_doobert_org_app',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+
+		$last_cron_inserted_id = $this->db->insert_id();
+
+		$incomplete_apps = $this->cron_setting_doobert_model->incomplete_doobert_org_app();
+		
+		//print_r($incomplete_apps);exit;
+		
+		if(isset($incomplete_apps) && !empty($incomplete_apps))
+		{
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			foreach($incomplete_apps as $app_val)
+			{
+				$email_details = $this->common_model->get_email_containt('66');
+				$this->load->library('email');
+				if (isset($email_details[0]['st_email_body'])) {
+					$subject = $email_details[0]['st_email_subject'];
+					//$to = 'ghanshyam.maurya@pulsesolutions.net';
+					$to = $app_val['st_email'];
+					
+					$templete 	= $email_details[0]['st_email_body'];
+					$message 	= $templete;
+					
+					$category = 'Doobert.com Incomplete Doobert Organization Application';
+					$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+					$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+					$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+					$message = str_replace("##DONATION##",$donation,$message);
+					
+					$send_email = 1;							
+					$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+					if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+					{
+						$send_email = 0;										
+					}
+					
+					$email_template_id = $email_details[0]['in_email_id'];
+					$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+					if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+					{
+						$send_email = 1;
+					}
+					
+					if($send_email == '1')
+					{
+						$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+					}	
+				}	
+			}
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		}else{
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		}
+	}
+	
+	public function incomplete_volunteer_profile()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'cron_setting_doobert/incomplete_volunteer_profile',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+		
+		$last_cron_inserted_id = $this->db->insert_id();
+		
+		$incomplete_volunteers = $this->cron_setting_doobert_model->incomplete_doobert_voluteers();		
+		//print_r($incomplete_volunteers);exit;
+		
+		if(isset($incomplete_volunteers) && !empty($incomplete_volunteers))
+		{
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			$email_details = $this->common_model->get_email_containt('64');
+			$this->load->library('email');
+			foreach($incomplete_volunteers as $app_val)
+			{
+				if (isset($email_details[0]['st_email_body'])) {
+					$subject = $email_details[0]['st_email_subject'];
+					//$to = 'ghanshyam.maurya@pulsesolutions.net';
+					$to = $app_val['st_email'];					
+					$templete 	= $email_details[0]['st_email_body'];
+					$message 	= $templete;
+					
+					$category = 'Doobert.com Incomplete Profile';
+					$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+					$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+					$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+					$message = str_replace("##DONATION##",$donation,$message);		
+					
+					$send_email = 1;							
+					$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+					if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+					{
+						$send_email = 0;										
+					}
+					
+					$email_template_id = $email_details[0]['in_email_id'];
+					$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+					if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+					{
+						$send_email = 1;
+					}
+					
+					if($send_email == '1')
+					{
+						$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+					}	
+				}	
+			}
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		}else{
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		}
+	}
+	
+	public function transport_reminder()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'cron_setting_doobert/transport_reminder',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+		$last_cron_inserted_id = $this->db->insert_id();
+		
+		$transport_reminder_details = $this->cron_setting_doobert_model->get_transport_for_reminder();
+		//echo '<pre>'; print_r($transport_reminder_details); die; 
+		if(isset($transport_reminder_details) && !empty($transport_reminder_details))
+		{
+			
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$this->load->library('email');
+			foreach($transport_reminder_details as $trans_val)
+			{ 
+				$orgcode = ($trans_val['st_org_code'] != '')? '#'.$trans_val['st_org_code'] : '#DBT';
+				if($trans_val['st_trans_type'] == 'P')
+				{	
+					$email_details = $this->common_model->get_email_containt('69');
+					$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+					if(isset($email_details[0]['st_email_body'])) {
+						$subject = $email_details[0]['st_email_subject'];
+						//$to = 'ghanshyam.maurya@pulsesolutions.net';
+						//$to = 'sadique.mohammed@pulsesolutions.net';
+						$to = $trans_val['st_email'];					
+						$templete 	= $email_details[0]['st_email_body'];
+						$category 	= $email_details[0]['st_category'];
+						$templete 	= str_replace("##user_display_name##", $trans_val['st_display_name'], $templete);
+						$templete 	= str_replace("##transport_id##", $orgcode.$trans_val['in_transportation_id'], $templete);
+						$templete 	= str_replace("##transport_perc##", $trans_val['perc'], $templete);
+						$templete 	= str_replace("##filled_legs##", $trans_val['leg_filled'], $templete);
+						$templete 	= str_replace("##total_legs##", $trans_val['total_legs'], $templete);
+						$templete =  str_replace("##organization_name##",$trans_val['st_org_name'],$templete);
+						$templete   = str_replace("##coordinator_details##",$trans_val['st_display_name'].' ('.$trans_val['st_email'].')',$templete);
+						$templete 	= str_replace("##transport_url##", base_url() . 'org-transportation-scheduled/' . $trans_val['in_transportation_id'], $templete);
+						
+						$templete =  str_replace("##DONATION##",$donation,$templete);
+						$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$trans_val['in_transportation_id'].'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$trans_val['in_transportation_id'].'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}
+						
+						
+						$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+						
+						$additional_info_str = ''; 				
+						$transport_files = $this->cron_setting_doobert_model->get_transport_files($trans_val['in_transportation_id']);
+						
+						if((isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '') || (isset($transport_files) && !empty($transport_files)))
+						{
+						$additional_info_str .='<div style="background-color:#383838; font:bold 16px Arial, Helvetica, sans-serif;color:#fff; padding:0 18px; line-height:40px; text-transform:uppercase; margin-top:30px; margin-bottom:10px;">Additional Information:</div>';
+						
+						$additional_info_str .='<p style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0;">'.$transport_details['st_add_comments'].'</p>';
+						
+						if(isset($transport_files) && !empty($transport_files))
+						{
+						$additional_info_str .='<ul style="margin:15px 0px 0px 0px; padding:0px;">';
+						foreach($transport_files as $key=>$value)
+						{
+							$additional_info_str .='<li style="font:14px/20px Arial, Helvetica, sans-serif; color:#575757; list-style-type:none; text-decoration:none;"><a href="'.base_url().'org_transportation/generate_download/'.$this->common_function->encode_base64($value['st_file_name']).'" style="color:#0073b5; color: #0073b5; padding: 2px 8px; border: 1px solid #D6D4D4; background: #F5F9F8; margin-bottom: 5px; display: inline-block;"><img alt="" title="" src="'.base_url().'assets/img/icon-download.png"  style="border:none; max-width:100%; height:auto;" /> '.$value['st_file_name'].'</a></li>';					
+						}
+						$additional_info_str .='</ul>';
+						}
+						}
+						
+						$templete = str_replace("##additional_details##", $additional_info_str, $templete);
+						
+						 $message 	= $templete;
+						
+						$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+						$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+						$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+
+						$send_email = 1;							
+						$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+						if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+						{
+							$send_email = 0;										
+						}
+						
+						$email_template_id = $email_details[0]['in_email_id'];
+						$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+						if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+						{
+							$send_email = 1;
+						}
+						
+						if($send_email == '1')
+						{
+							$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+						}
+						
+						$this->cron_setting_doobert_model->update_transport_reminder_status($trans_val['in_transportation_id']);
+							
+					}
+				}else{
+					$email_details = $this->common_model->get_email_containt('70');
+					$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+					if(isset($email_details[0]['st_email_body'])) {
+						$subject = $email_details[0]['st_email_subject'];
+						//$to = 'ghanshyam.maurya@pulsesolutions.net';
+						//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+						$to = $trans_val['st_email'];					
+						$templete 	= $email_details[0]['st_email_body'];
+						$category 	= $email_details[0]['st_category'];
+						$templete 	= str_replace("##user_display_name##", $trans_val['st_display_name'], $templete);
+						$templete 	= str_replace("##transport_id##", $orgcode.$trans_val['in_transportation_id'], $templete);
+						$templete 	= str_replace("##transport_perc##", $trans_val['perc'], $templete);
+						$templete 	= str_replace("##filled_legs##", $trans_val['leg_filled'], $templete);
+						$templete 	= str_replace("##total_legs##", $trans_val['total_legs'], $templete);
+						$templete =  str_replace("##organization_name##",$trans_val['st_org_name'],$templete);
+						$templete   = str_replace("##coordinator_details##",$trans_val['st_display_name'].' ('.$trans_val['st_email'].')',$templete);
+						$templete 	= str_replace("##transport_url##", base_url() . 'org-transportation-scheduled/' . $trans_val['in_transportation_id'], $templete);
+						$templete 	= str_replace("##DONATION##", $donation, $templete);
+						
+						$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$trans_val['in_transportation_id'].'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$trans_val['in_transportation_id'].'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}
+						
+						
+						$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+						
+						$message 	= $templete;
+						
+						$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+						$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+						$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+
+						$send_email = 1;							
+						$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+						if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+						{
+							$send_email = 0;										
+						}
+						
+						$email_template_id = $email_details[0]['in_email_id'];
+						$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+						if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+						{
+							$send_email = 1;
+						}
+						
+						if($send_email == '1')
+						{
+							$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+						}
+						
+						$this->cron_setting_doobert_model->update_transport_reminder_status($trans_val['in_transportation_id']);
+							
+					}
+				}
+			}
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			echo 'Email sent successfully.';
+		}else{
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			echo 'No Records Found.';
+		}
+	}
+	
+	public function feedback_reminder()
+	{
+		//echo 'stopped on 02jan2017'; //need to stop above cron for feedback reminder as from now it will send under daily digest email
+		//exit;
+		$cron_email_array = array("cron_url"=> base_url().'cron_setting_doobert/feedback_reminder',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+		$last_cron_inserted_id = $this->db->insert_id();
+		
+		$users_feedback = $this->cron_setting_doobert_model->get_users_feedback();
+		//print_r($users_feedback);die;	
+		if(isset($users_feedback) && !empty($users_feedback) && count($users_feedback) > 0)
+		{
+			
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			$this->load->library('email');
+			foreach($users_feedback as $key => $value)
+			{
+				$orgcode = ($value['st_org_code'] != '')? '#'.$value['st_org_code'] : '#DBT';
+				if($value['is_coordinator'] == '1')
+				{	
+					$email_details = $this->common_model->get_email_containt('76');
+					if(isset($email_details[0]['st_email_body'])) {
+						$baseurl = base_url().'feedback/direct_login/'.$this->common_function->encode_base64($value['user_id']).'/'.$this->common_function->encode_base64($value['email_address']);	
+						$subject = $email_details[0]['st_email_subject'];
+						$subject 	= str_replace("##XXX##",$orgcode.$value['transport_id'], $subject);
+						//$to 		= 'sadique.mohammed@pulsesolutions.net';
+						$to 		= $value['email_address'];					
+						$templete 	= $email_details[0]['st_email_body'];
+						$category 	= $email_details[0]['st_category'];
+						$templete 	= str_replace("##XXX##",$orgcode.$value['transport_id'], $templete);
+						$templete 	= str_replace("##hreflink##",$baseurl, $templete);
+						$message 	= $templete;
+						
+						$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($value['user_id']).'/'.$this->common_function->encode_base64($to),$message);		
+						$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($value['user_id']).'/'.$this->common_function->encode_base64($to),$message);
+						
+						$send_email = 1;							
+						$sub_data = $this->common_model->check_user_unsub_emails($value['user_id']);
+						if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+						{
+							$send_email = 0;										
+						}
+						
+						$email_template_id = $email_details[0]['in_email_id'];
+						$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+						if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+						{
+							$send_email = 1;
+						}
+						
+						if($send_email == '1')
+						{   
+						
+							// LRC Banner added				
+								$q1			=	$this->common_model->get_affiliate_detail('76','C');	
+							    $q2			=	$this->common_model->get_affiliate_detail('76','L');	
+							    $q3			=	$this->common_model->get_affiliate_detail('76','R');
+											   		
+									if(isset($q1) && !empty($q1)){	
+										
+										foreach($q1 as $qr)
+										{
+											 
+											  if(!empty($qr['st_code']))
+											{    
+												    $affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];										
+													$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';					
+												  
+											}
+											else
+											{
+												   $affiliate_content='';								 
+											}
+											  
+												
+										}
+									}			
+									   
+								   else
+								   {
+									  $affiliate_content='';
+								   }
+				
+							//LEFT BANNER
+									if(isset($q2) && !empty($q2)){					   		
+										foreach($q2 as $qr)
+										{								 
+											 if(!empty($qr['st_code']))
+											{    
+												   $leftbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+													$imgtitle   =   $qr['st_banner_name'];
+													$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+												  
+											}
+											else
+											{
+												   $leftbanner='';								 
+											} 	
+										}
+									}
+									else
+									{
+										   $leftbanner='';								 
+									}
+									
+							//RIGHT BANNER
+									if(isset($q3) && !empty($q3)){					   		
+										foreach($q3 as $qr)
+										{
+											 
+											if(!empty($qr['st_code']))
+											{    
+												   $rightbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{	
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];
+													$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" /></a>';	
+												  
+											}
+											else
+											{
+												   $rightbanner='';								 
+											}								  
+												
+										}
+									}
+									else
+									{
+										   $rightbanner='';								 
+									}
+				
+				
+						$message = str_replace("##affiliate_content##",$affiliate_content,$message);	
+						$message = str_replace("##leftbanner##",$leftbanner,$message);
+						$message = str_replace("##rightbanner##",$rightbanner,$message);
+				// LRC Banner added
+						
+						
+							$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+						}
+						
+					}
+				}else if($value['is_coordinator'] == '0'){ 
+					$email_details = $this->common_model->get_email_containt('77');
+					if(isset($email_details[0]['st_email_body'])) {
+						$baseurl = base_url().'feedback/direct_login/'.$this->common_function->encode_base64($value['user_id']).'/'.$this->common_function->encode_base64($value['email_address']);	
+						$subject = $email_details[0]['st_email_subject'];
+						$subject 	= str_replace("##XXX##",$orgcode.$value['transport_id'], $subject);
+						//$to 		= 'nirav.motta@pulsesolutions.net';
+						//$to = 'ghanshyam.maurya@pulsesolutions.net';
+						$to 		= $value['email_address'];					
+						$templete 	= $email_details[0]['st_email_body'];
+						$category 	= $email_details[0]['st_category'];
+						$templete 	= str_replace("##XXX##",$orgcode.$value['transport_id'], $templete);
+						$templete 	= str_replace("##hreflink##",$baseurl, $templete);
+						$message 	= $templete;
+						
+						$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($value['user_id']).'/'.$this->common_function->encode_base64($to),$message);		
+						$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($value['user_id']).'/'.$this->common_function->encode_base64($to),$message);
+						
+						$send_email = 1;							
+						$sub_data = $this->common_model->check_user_unsub_emails($value['user_id']);
+						if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+						{
+							$send_email = 0;										
+						}
+						
+						$email_template_id = $email_details[0]['in_email_id'];
+						$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+						if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+						{
+							$send_email = 1;
+						}
+						
+						if($send_email == '1')
+						{	
+						
+						
+						// LRC Banner added				
+								$q1			=	$this->common_model->get_affiliate_detail('77','C');	
+							    $q2			=	$this->common_model->get_affiliate_detail('77','L');	
+							    $q3			=	$this->common_model->get_affiliate_detail('77','R');
+											   		
+									if(isset($q1) && !empty($q1)){	
+										
+										foreach($q1 as $qr)
+										{
+											 
+											  if(!empty($qr['st_code']))
+											{    
+												    $affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];										
+													$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';					
+												  
+											}
+											else
+											{
+												   $affiliate_content='';								 
+											}
+											  
+												
+										}
+									}			
+									   
+								   else
+								   {
+									  $affiliate_content='';
+								   }
+				
+							//LEFT BANNER
+									if(isset($q2) && !empty($q2)){					   		
+										foreach($q2 as $qr)
+										{								 
+											 if(!empty($qr['st_code']))
+											{    
+												   $leftbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+													$imgtitle   =   $qr['st_banner_name'];
+													$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+												  
+											}
+											else
+											{
+												   $leftbanner='';								 
+											} 	
+										}
+									}
+									else
+									{
+										   $leftbanner='';								 
+									}
+									
+							//RIGHT BANNER
+									if(isset($q3) && !empty($q3)){					   		
+										foreach($q3 as $qr)
+										{
+											 
+											if(!empty($qr['st_code']))
+											{    
+												   $rightbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{	
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];
+													$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" /></a>';	
+												  
+											}
+											else
+											{
+												   $rightbanner='';								 
+											}								  
+												
+										}
+									}
+									else
+									{
+										   $rightbanner='';								 
+									}
+				
+				
+						$message = str_replace("##affiliate_content##",$affiliate_content,$message);	
+						$message = str_replace("##leftbanner##",$leftbanner,$message);
+						$message = str_replace("##rightbanner##",$rightbanner,$message);
+				// LRC Banner added
+						
+						
+							$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+						}
+					}
+				} else if($value['is_coordinator'] == '2'){
+					$email_details = $this->common_model->get_email_containt('78');
+					if(isset($email_details[0]['st_email_body'])) {
+						$baseurl = base_url().'sign-up/';	
+						$subject = $email_details[0]['st_email_subject'];
+						$subject 	= str_replace("##XXX##",$orgcode.$value['transport_id'], $subject);
+						//$to = 'ghanshyam.maurya@pulsesolutions.net';
+						$to 		= $value['email_address'];					
+						$templete 	= $email_details[0]['st_email_body'];
+						$category 	= $email_details[0]['st_category'];
+						$templete 	= str_replace("##XXX##",$orgcode.$value['transport_id'], $templete);
+						$templete 	= str_replace("##hreflink##",$baseurl, $templete);
+						$templete 	= str_replace("##DONATION##",$donation, $templete);
+						$message 	= $templete;
+						
+						$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$category);
+					}
+				}
+			}
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			echo 'Email sent successfully.';
+		}else{
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			echo 'No Records Found.';
+		}
+	}
+	
+	public function notify_tc_users()
+	{
+		$this->load->library('email');
+		$transport_details = $this->cron_setting_doobert_model->get_submitted_routing_transport();
+		$alluserDetails = $this->cron_setting_doobert_model->get_tc_users();
+		$receiver_users = '';
+		$data = array();
+		$email_details = $this->common_model->get_email_containt('107');
+		if(isset($transport_details))
+		{
+		if(sizeof($alluserDetails) > 0){
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			foreach($alluserDetails as $key => $userDetail){
+
+				
+				if(isset($email_details[0]['st_email_body'])) {
+					
+				/*if($transport_details['in_trans_coods_id']!=$userDetail['in_user_id'])
+				{*/		
+					$orgcode = ($transport_details['st_org_code'] != '')? '#'.$transport_details['st_org_code'] : '#DBT';
+					$to   =    $userDetail['st_email'];					 				
+                      
+					$subject = $email_details[0]['st_email_subject'];
+					$data['user_name'] =  $userDetail['user_name'];
+					
+					$user_link_name  =  '';
+					$first_name_link = str_replace(' ', '',$transport_details['st_display_name']);
+					$last_name_link = str_replace(' ', '',$transport_details['st_last_name']);
+					$user_link_name	.=	"<a href='".base_url()."user-".$transport_details['in_user_id']."-".$first_name_link."-".$last_name_link."' target='_blank'>";
+					$user_link_name	.=	$transport_details['st_display_name'].' '.$transport_details['st_last_name'];
+					$user_link_name	.=	"</a>";
+					
+					//$message = $this->load->view('email/doobert-daily-digest-email',$data,true);
+				
+					$templete 	= $email_details[0]['st_email_body'];
+					$category 	= $email_details[0]['st_category'];
+					$routing_link = "#<a href='".base_url()."user/login_as_routing_volunteer/".$this->common_function->encode_base64($userDetail['in_user_id'])."/".$this->common_function->encode_base64($transport_details['in_transportation_id'])."' target='_blank'>".$orgcode.$transport_details['in_transportation_id']."</a>";
+					$templete 	= str_replace("##transport_number##",$routing_link, $templete);
+					$templete 	= str_replace("##DONATION##",$donation, $templete);
+					$templete   = str_replace("##user##",$userDetail['st_display_name']." ".$userDetail['st_last_name'],$templete);
+					$templete   = str_replace("##transport_coordinator_display_name##",$user_link_name,$templete);
+					$templete   = str_replace("##submitting_organization##",$transport_details['stRecOrgNm'],$templete);
+					$templete   = str_replace("##user##",$userDetail['st_display_name']." ".$userDetail['u.st_last_name'],$templete);
+					$message 	= $templete;
+					$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($userDetail['in_user_id']).'/'.$this->common_function->encode_base64($to),$message);
+					$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($userDetail['in_user_id']).'/'.$this->common_function->encode_base64($to),$message);
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+			  /*}*/		
+			
+			}
+			}			 
+			
+		}
+		$this->db->where('in_transportation_id',$transport_details['in_transportation_id']);
+		$this->db->update('tbl_transportation',array('in_notify_tc_users'=>0));
+		echo '=============email sent==========';
+		} else {
+			echo '=============email not sent==========';
+		}
+	}
+	
+	public function notify_reassgined_tcusers()
+	{
+		$this->load->library('email');
+		$transport_details = $this->cron_setting_doobert_model->get_reassigned_routing_transport();
+		//print_r($transport_details);die;
+		$alluserDetails = $this->cron_setting_doobert_model->get_tc_users();
+		$receiver_users = '';
+		$data = array();
+		$email_details = $this->common_model->get_email_containt('123');
+		if(isset($transport_details))
+		{
+		if(sizeof($alluserDetails) > 0){
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			foreach($alluserDetails as $key => $userDetail){
+
+				
+				if(isset($email_details[0]['st_email_body'])) {
+					
+				/*if($transport_details['in_trans_coods_id']!=$userDetail['in_user_id'])
+				{*/		
+			        $orgcode = ($transport_details['st_org_code'] != '')? '#'.$transport_details['st_org_code'] : '#DBT';
+					$to   =    $userDetail['st_email'];	
+					$subject = $email_details[0]['st_email_subject'];
+					$subject = str_replace("##transport_id##",$orgcode.$transport_details['in_transportation_id'], $subject);
+					
+					$data['user_name'] =  $userDetail['user_name'];
+					
+					$user_link_name  =  '';
+					$first_name_link = str_replace(' ', '',$transport_details['st_display_name']);
+					$last_name_link = str_replace(' ', '',$transport_details['st_last_name']);
+					$user_link_name	.=	"<a href='".base_url()."user-".$transport_details['in_user_id']."-".$first_name_link."-".$last_name_link."' target='_blank'>";
+					$user_link_name	.=	$transport_details['st_display_name'].' '.$transport_details['st_last_name'];
+					$user_link_name	.=	"</a>";
+					
+					//$message = $this->load->view('email/doobert-daily-digest-email',$data,true);
+				
+					$templete 	= $email_details[0]['st_email_body'];
+					$category 	= $email_details[0]['st_category'];
+					$url_link = base_url()."user/assigned_volunteer/".$this->common_function->encode_base64($userDetail['in_user_id'])."/".$this->common_function->encode_base64($transport_details['in_transportation_id']);
+					$routing_link = "<a href='".$url_link."' target='_blank'>".$orgcode.$transport_details['in_transportation_id']."</a>";
+					$templete 	= str_replace("##transport_number##",$routing_link, $templete);
+					$templete   = str_replace("##user##",$userDetail['st_display_name']." ".$userDetail['st_last_name'],$templete);
+					//$templete   = str_replace("##transport coordinator display name##",$user_link_name,$templete);
+					$templete   = str_replace("##submitting_organization##",$transport_details['stRecOrgNm'],$templete);
+					$templete   = str_replace("##url_link##",$url_link,$templete);
+					
+					//$fbtransportshare = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg';
+					
+					$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg?'.rand();
+					if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg'))
+					{
+						$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+					} else {
+						$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+					}
+					
+					
+					
+					$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+					$templete	=	str_replace("##DONATION##",$donation,$templete);
+					
+					$message 	= $templete;
+					
+					$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($userDetail['in_user_id']).'/'.$this->common_function->encode_base64($to),$message);
+					$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($userDetail['in_user_id']).'/'.$this->common_function->encode_base64($to),$message);
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+			  //}		
+			
+			}
+			}			 
+			
+		}
+		$this->db->where('in_transportation_id',$transport_details['in_transportation_id']);
+		$this->db->update('tbl_transportation',array('in_revised_routing_notification'=>0));
+		echo '=============email sent==========';
+		} else {
+			echo '=============email not sent==========';
+		}
+	}
+	
+	public function delete_fb_share_images()
+	{
+		$dir    = $this->config->item('upload').'fb_transport_share';
+		$files = scandir($dir,1);
+		$previous_date = date("Y-m-d",strtotime("-3 Months"));
+		echo date("Y-m-d",strtotime("-3 Months"));
+		
+		echo "<br>";
+		$expire_date = new DateTime($previous_date);
+		foreach($files as $key=>$value)
+		{
+			if($value!='doobert_fb_post_option1.jpg' && $value!='doobert_fb_post_option2.jpg' && $value!='doobert_fb_post_option3.jpg' 
+			  && $value!='doobert_fb_post_option4.jpg' && $value!='facebook-bg-new1.jpg' && $value!='facebook-bg-new1-assisted.jpg' )
+			{	
+				$filename = $this->config->item('upload').'fb_transport_share/'.$value;
+				$file_time = date("Y-m-d",filemtime($filename));
+				$date_modified = new DateTime($file_time);
+				if($expire_date > $date_modified)
+				{		
+					echo $filename;
+					echo "&nbsp;&nbsp;";
+					echo $file_time;
+					echo "<br>";
+					//unlink($filename);
+				}
+			}	
+		}
+	}
+
+	/*
+    public function cron_win_bid()
+	{
+		$data	=	array();
+		$user_list	=	$this->cron_setting_doobert_model->get_win_bid_user();	
+		
+		if(isset($user_list) && count($user_list)>0){
+		   
+			foreach($user_list as $user){	    
+			 	 $username	= $user['st_display_name']. ' '.$user['st_last_name'];
+			 	 $url=base_url().'prod/'.$user['in_prod_id'].'-'.$this->common_function->get_filtered_name($user['st_product']);
+				 $to      = $user['st_email'];			
+				 $subject = "Auction Winning Bid";
+				 $headers = "MIME-Version: 1.0" . "\r\n";
+				 $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+				 $message = "Hi ".$username. ",<br>You have won the product: "."<b><a href='".$url."'>".$user['st_product']."</a></b>";
+				 mail($to, $subject, $message, $headers);				 
+				 $this->common_model->update_product($user['in_user_id']);							
+			}
+		}
+	}*/
+}
+	
+/* End of file cron_setting_doobert.php */
+/* Location: ./application/controllers/cron_setting_doobert.php */
+?>

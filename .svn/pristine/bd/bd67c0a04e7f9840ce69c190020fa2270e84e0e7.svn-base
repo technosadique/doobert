@@ -1,0 +1,1914 @@
+<?php $base_url = $this->config->item('base_url'); 
+$orgcode = ($transport_details['st_org_code'] != '')? '#'.$transport_details['st_org_code'] : '#DBT';
+
+$org_list = $this->common_model->get_organization_list($this->session->userdata('org_id'));
+		
+	if(empty($org_list))
+	{
+		$transport_url = 'manage-my-transports/1';
+	} else {
+		$transport_url	= 'organization-transportation';		
+	}
+	if($transport_details['st_trans_type']=='RO')
+	{
+		$sample_file_name = 'sample-route.xlsx';
+	} else {
+		$sample_file_name = 'sample.xlsx';
+	}
+
+	$rou_tc_user = $this->common_model->get_user_profile($transport_details['accTcid']);
+	if($transport_details['dt_target'] == '0000-00-00'||$transport_details['dt_target'] == '1969-12-31' || empty($transport_details['dt_target'])  )
+	{
+		$transport_date = date('Y-m-d', strtotime("+7 day"));
+	} else {	
+		$transport_date = date('Y-m-d', strtotime($transport_details['dt_target']."+7 day"));
+	}
+
+	$today_date= date('Y-m-d');
+	$today_dt = new DateTime($today_date);
+	$expire_dt = new DateTime($transport_date);	
+	if(	($expire_dt  >= $today_dt) && (isset($rou_tc_user) && count($rou_tc_user)>0))
+	{	
+		$coordinator_name = $rou_tc_user[0]['st_display_name'].' '.$rou_tc_user[0]['st_last_name'];
+		$telephone_number = $rou_tc_user[0]['st_primary_phone'];
+		$email_address    = $rou_tc_user[0]['st_email'];
+	} else 
+	{
+		$coordinator_name = $transport_details['st_display_name'];
+		$telephone_number = $transport_details['st_primary_phone'];
+		$email_address    = $transport_details['st_email'];
+	}
+
+	if($transport_details['st_trans_type']=='P')
+	{
+		$trans_class_name = 'Pretype';
+	} else if($transport_details['st_trans_type']=='D' && $transport_details['in_airline_transport']=='0')
+	{
+		$trans_class_name = 'assistype';
+	} else if($transport_details['st_trans_type']=='D' && $transport_details['in_airline_transport']=='1')
+	{
+		$trans_class_name = 'airlinetype';
+	} else if($transport_details['st_trans_type']=='R')
+	{
+		$trans_class_name = 'ridetype';
+	}  else if($transport_details['st_trans_type']=='RO')
+	{
+		$trans_class_name = 'routetype';
+	} else 
+		$trans_class_name = '';	
+
+?>
+<!DOCTYPE html>
+<!--[if IE 8]> <html lang="en" class="ie8 no-js"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie9 no-js"> <![endif]-->
+<!--[if !IE]><!-->
+<html lang="en" class="no-js">
+<!--<![endif]-->
+<!-- BEGIN HEAD -->
+<head>
+<meta charset="utf-8"/>
+<title>Create Legs - Transportation Details - <?php echo $transport_details['st_org_name']; ?>'s Transportations - Transportation - Doobert</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="" name="description"/>
+<meta content="" name="author"/>
+<?PHP //include APPPATH. "views/includes/head-links-inside.php"; ?>
+<?php include APPPATH."views/inc/header-css-js.php";?>
+<!-- BEGIN PAGE LEVEL STYLES -->
+<link rel="stylesheet" type="text/css" href="<?php echo base_url();  ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/clockface/css/clockface.css"/>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-timepicker/css/bootstrap-timepicker.min.css"/>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-datetimepicker/css/datetimepicker.css"/>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.css"/>
+<link href="<?php echo base_url(); ?>assets/css/pages/timeline.css" rel="stylesheet" type="text/css"/>
+<link href="<?php echo base_url(); ?>assets/css/animalvcard.css" rel="stylesheet" type="text/css"/>
+<link href="<?php echo base_url(); ?>assets/css/tipso.css" rel="stylesheet" type="text/css">
+<script type="text/javascript">
+var page_id = "<?php echo isset($legs_page)?$legs_page:"1"; ?>";
+</script>
+<style type="text/css">
+.ui-autocomplete {
+    overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overflow-y: scroll;
+}
+</style>
+</head>
+<!-- BEGIN BODY -->
+<body class="page-header-fixed">
+<?PHP include APPPATH."views/inc/header-myaccount.php" ?>
+<?php //include 'inc/header-myaccount.php';?>
+<section class="breadcrumb inner-breadcrumb">
+  <div class="container">
+    <div class="text-left">
+      <?php /*<a href="<?php echo base_url(); ?>dashboard">My Account</a><i class="material-icons">chevron_right</i><a href="<?php echo base_url(); ?>publish-new-transport">Transportation</a><i class="material-icons">chevron_right</i>Create Legs*/ ?>
+	  <a href="<?php echo base_url().'dashboard'; ?>">My Dashboard</a><i class="material-icons">chevron_right</i>
+	  <?php if(!empty($org_list)) { ?>
+	  <a href="<?php echo $base_url;?>org-dashboard/<?php echo $this->session->userdata('org_id'); ?>">Org Dashboard</a><i class="material-icons">chevron_right</i>
+	  <?php } ?>
+	  <a href="javascript:window.history.go(-1);">Transportation</a><i class="material-icons">chevron_right</i>Create Legs
+    </div>
+  </div>
+</section>
+<section class="main-content-wrapper inner-wrapper create-leg">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-12 col-sm-12 col-xs-12">
+        <article>
+          <div class="entry-content">
+            <div class="sub-content main-container clearfix">
+			  <form class="horizontal-form" role="form" id="addlegs" name="addlegs" enctype="multipart/form-data" action="" method="post">
+              <div class="col-md-12 col-sm-12 col-xs-12 no-space">
+                <div class="row">
+                  <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                    <h1 class="text-center">Create Legs</h1>
+                    <p class="text-center sub_text">Add the legs for each stop of the transport.</p>
+                  </div>
+                </div>
+                <div class="row">
+
+                  
+                  <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                  <div class="detail_box clearfix">
+                  <div class="row">
+                  <div class="col-lg-8 col-md-7 col-sm-7 col-xs-12">
+                    <h2 class="text-center"><?php echo isset($transport_details['st_trans_name']) && $transport_details['st_trans_name']!= '' ? $transport_details['st_trans_name'] : $orgcode.$transport_details['in_transportation_id']; ?></h2>
+                    <p class="cont"><strong><?php echo $orgcode;?><?php echo $transport_details['in_transportation_id']; ?>:</strong> <?php echo date("D, M d",strtotime($transport_details['dt_pickup_date'])).' - '.date("D, M d",strtotime($transport_details['dt_target']));?> – From <?php echo ($transport_details['st_from_city']?$transport_details['st_from_city'].", ":"").($transport_details['st_from_state']?$transport_details['st_from_state']:""); ?> to <?php echo ($transport_details['st_to_city']?$transport_details['st_to_city'].", ":"").($transport_details['st_to_state']?$transport_details['st_to_state']:""); ?></p>
+					  <p class="cont"><strong>Coordinator:</strong> <span><?php echo $coordinator_name;?>&nbsp;  | &nbsp;</span><span class="in-block"><i class="material-icons">phone</i><?php echo $telephone_number;?>&nbsp; | &nbsp;</span><span class="in-block text-break"><i class="material-icons">mail_outline</i><?php echo $email_address; ?></span></p>
+                  </div>															    				
+                  <div class="col-lg-4 col-md-5 col-sm-5 col-xs-12 right <?php echo $trans_class_name; ?>">
+<div class="top_btn pull-right"><a class="btn orange-small waves-effect waves-light"id="save_legs" href="javascript:void(0);"><i class="material-icons top0">send</i> Publish Transport</a><?php if($transport_details['in_status']=='4') { ?><a class="gray-btn large" id="save_draft" href="javascript:void(0);">Save to Draft &amp; Exit</a><?php } ?></div>
+<div class="bot_btn pull-right"><!--<a class="gray-btn add_info" href="javascript:void(0);"><i class="material-icons">add_circle</i> Add Additional Info</a>--><?php if((isset($transport_files) && !empty($transport_files)) || (isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '')){ ?><a href="#edit-additional-info" data-toggle="modal" class="gray-btn add_info"><i class="material-icons">add_circle</i> Edit Additional Info</a><?php }else{ ?><a href="#add-additional-info" data-toggle="modal" class="gray-btn add_info"><i class="material-icons">add_circle</i> Add Additional Info</a><?php } ?><?php if($transport_details['st_trans_type']=='P' || $transport_details['st_trans_type']=='RO'){ ?><a class="gray-btn upload_img" id="upload_leg_excel"onClick="$('#upload_leg_div').modal('show');" href="javascript:void(0);"><i class="material-icons">file_upload</i> Upload legs</a><?php } ?><a class="gray-btn view_map transport-view-map1 map" href="#main-transportation-route"><i class="material-icons">map</i> View Map</a><?php if($transport_details['st_trans_type']=='P' ) { ?><a href="<?php echo base_url(); ?>transport-create-legs/" class="btn btn-white bed">Refresh</a><?php } ?><?php if($transport_details['st_trans_type']=='P' || $transport_details['st_trans_type']=='RO' || $transport_details['st_trans_type']=='R' || ($transport_details['st_trans_type']=='D' && $transport_details['in_airline_transport']=='0') ){ ?><a class="btn btn-white bed autosplit" id="auto_split_leg" onClick="" href="javascript:void(0);">Auto-split</a><?php } ?></div>
+                  </div>
+
+                  </div>
+                  </div>
+                  </div>
+                </div>
+				<?php if($transport_details['st_trans_type']=='P' || ($transport_details['st_trans_type']=='D' && $transport_details['in_airline_transport']=='0'  ) || $transport_details['st_trans_type']=='RO'){ ?>
+                <div class="row address_box">
+                 <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                    <div class="rght_div pull-right">                      
+                      <a href="javascript:void(0);" class="btn primary btn-white car" id="add_leg_g"> <i class="material-icons">directions_car</i>Add ground leg</a>
+					  <?php if($this->session->userdata('org_country') =='USA' || $this->session->userdata('org_country') =='US'){  ?>
+                      <a href="javascript:void(0);" class="btn btn-white plane" style="padding: 0px 9px;" id="add_leg_a"><i class="material-icons">airplanemode_active</i> Add aviation leg</a>
+					 <?php } ?>
+					 <?php //if($transport_details['st_trans_type']!='RO'){ ?> 
+                      <a href="javascript:void(0);" class="btn btn-white bed" style="padding: 0px 9px;" id="add_leg_o"><i class="material-icons">hotel</i> Add overnight leg</a>
+					 <?php //} ?>
+					</div>
+                  </div>
+                </div>
+				<?php } ?>
+                  <input type="hidden" id="leg_id" name="leg_id" maxlength="50" value="" >
+                  <input type="hidden" id="update_leg" name="update_leg" maxlength="50" value="">
+				  <input type="hidden" name="route_type" id="route_type" value="" />
+                    <input type="hidden" name="route_type_id" id="route_type_id" value="" />
+				  
+				  
+				  <div class="modal fade" id="address_display" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close close-ground-leg"  aria-hidden="true">×</button>
+                 <h4 class="modal-title">Create ground leg</h4>
+
+            </div>
+            <div class="modal-body">
+			 <div class="scroller crop-scroller" style="height:110px; overflow:auto;" data-always-visible="1" data-rail-visible1="1">
+			<div id="form">
+			<?php if( $transport_details['st_trans_type']!='RO') { ?>
+				<div class="row dobt-form no-margin">
+				   <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 form-inline driver_box padlr0">
+				   <input type="hidden" name="multiple_drivers_txt" id="multiple_drivers_txt" value="">	
+                  <div class="custom-checkbox form-group in-block marb0 mart5">
+                    <input type="checkbox" id="multiple_drivers" name="multiple_drivers"/>
+                    <label for="multiple_drivers">Multiple Drivers</label>
+                  </div>
+                  <div class="form-group in-block" id="no_of_drivers_div" style="display:none;">
+                    <label class="med" for="no_of_drivers"><span class="desktop">|&nbsp;</span> Number of Drivers needed:</label>
+                    <div class="select-style form-control">
+                      <select  name="no_of_drivers" id="no_of_drivers">
+                         <option value="" selected="selected">Select</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                      </select>
+                    </div>
+                    
+                  </div>
+
+                  </div>
+                     </div>
+				<?php } ?>	 
+                     <div class="row dobt-form no-margin">
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 padr20 from-airport">
+                        <p class="head martb7">Pick Up Address</p>
+                        <div class="box">
+						
+						 <div class='col-md-12 no-left-space no-right-space smaller'>
+							<div class="form-group">
+								<label class="control-label"  for="meeting_location">Meeting Location:</label>
+								<input type="text" tabindex="9" id="meeting_location_from_driver" name="meeting_location_from_driver" class="form-control" placeholder="Enter your meeting location" maxlength="50">
+							</div>
+						</div>
+						
+						
+                          <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_street">Street:</label>
+                              <input type="text" tabindex="1" class="form-control" id="pickup_street" name="pickup_street" maxlength="50" placeholder="Enter Street Address">
+                            </div>
+                          </div>
+						  
+						  <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_Location">City State Location:</label>
+                              <input type="text" tabindex="3" class="form-control" id="pickup_location" name="pickup_location" maxlength="250" placeholder="Enter From City, State or Zip" value="<?php //echo $P_location; ?>">
+								<input type="hidden" id="pickup_city" name="pickup_city" maxlength="50" > 
+								<input type="hidden"   id="pickup_state" name="pickup_state" maxlength="50" >
+								<input type="hidden" id="pickup_country"   name="pickup_country" >
+								<input type="hidden" id="pickup_zip"   name="pickup_zip" >   	
+                            </div>
+                          </div>
+						  
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column  marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="clockface_2_modal">Start Time:</label>
+                              <div class="input-group date from_date">
+                                <input type="text" <?php if(count($leg_details)<=0){ ?> value="<?php echo ($transport_details['dt_pickup_date'])?date("D M d",strtotime($transport_details['dt_pickup_date']))." - 06:00 AM":"";?>" <?php } ?> size="16" name="clockface_2_modal" id="clockface_2_modal" readonly  	 style="padding-left:6px;">
+								<input type="hidden" name='clockface_2_modal_year' <?php if(count($leg_details)<=0){ ?> value="<?php echo ($transport_details['dt_pickup_date'])?date("Y",strtotime($transport_details['dt_pickup_date'])):"";?>" <?php } ?> id='clockface_2_modal_year'>
+                                <span class="input-group-btn">
+                                <button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+                                </span> <span class="input-group-btn">
+                                <button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+                                </span> </div>
+                            </div>
+                          </div>
+						  <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="pickup_zone" tabindex="7" name="pickup_zone" class="form-control">
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select>
+								</div>
+                            </div>
+                          </div>
+
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 to-airport">
+                        <p class="head martb7">Drop Off Address</p>
+                        <div class="box">
+						
+						 <div class='col-md-12 no-left-space no-right-space smaller'>
+							<div class="form-group">
+								<label class="control-label"  for="meeting_location_to_driver">Meeting Location:</label>
+								<input type="text" tabindex="9" id="meeting_location_to_driver" name="meeting_location_to_driver" class="form-control" placeholder="Enter your meeting location" maxlength="50">
+							</div>
+						</div>
+						
+                          <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_street">Street:</label>
+                              <input type="text" tabindex="2" class="form-control"  id="dropoff_street"  maxlength="50" placeholder="Enter Street Address">
+                            </div>
+                          </div>
+						  
+						  <div class="col-md-12 no-left-space no-right-space smaller">
+                            <div class="form-group" >
+                              <label class="control-label" for="dropoff_location">City State Location:</label>
+                              <input type="text" tabindex="4" class="form-control" id="dropoff_location" name="dropoff_location" maxlength="50" placeholder="Enter To City, State or Zip">
+                            </div>
+                          </div>
+                            <input type="hidden" value="" id="dropoff_city" name="dropoff_city" maxlength="50">
+						   <input type="hidden"  value="" id="dropoff_state" name="dropoff_state" maxlength="50">
+						   <input type="hidden" id="dropoff_country"  value="" name="dropoff_country">
+						    <input type="hidden" id="dropoff_zip"  value="" name="dropoff_zip">
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="clockface_3_modal">End Time:</label>
+                              <div class="input-group date to_date">
+                                <input type="text"  id="clockface_3_modal" name="clockface_3_modal" size="16" readonly style="padding-left:6px;">
+                                 <input type="hidden" name='clockface_3_modal_year' id='clockface_3_modal_year'>
+								<span class="input-group-btn">
+                                <button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+                                </span> <span class="input-group-btn">
+                                <button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+                                </span> </div>
+
+
+                            </div>
+                          </div>
+						   <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="dropoff_zone" name="dropoff_zone" tabindex="8" class="form-control">
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select> 
+								</div>
+                         </div>
+                          </div>
+                          <div class="clearfix"></div>
+						    </div>
+                      </div>
+					 </div> 
+					 <div class="gr-wrap col-lg-12 col-md-12 col-sm-12 padr20 from-airport">
+					 <p class="head martb7">Optional Features</p>
+					 <div class="box">
+					 <?php if( $transport_details['st_trans_type']!='RO') { ?>
+						<div class="row dobt-form no-margin">
+							<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 padlr0 assign_volunteer-driver">
+								<div class="form-group"><!--in-block-->
+									<label class="control-label" for="assign-to">Pre-assign leg to a user:(Assign by User Name/Email)<!--</label><label class="mart22">--> <a href="javascript:void(0);" style='margin-top:0px;' class="title-tipso question" title="When you pre-assign a user, we will mark this leg as filled and NOT notify relevant volunteers for this leg only."></a></label>
+									<input type="text" tabindex="10" class="form-control" value="" name="pre-assign_volunteer-driver" maxlength="50" id ='pre-assign_volunteer-driver' placeholder="Type email or name to select Doobert user to pre-assign">
+									<input type='hidden' id='pre-assign_volunteer-driver-id' name='pre-assign_volunteer-driver-id' value='0' >
+									<input type='hidden' id='deleteuid-driver1' name='deleteuid-driver1' value='0' >
+									<input type='hidden' id='non-doobert-userid' name='non-doobert-userid' value='0' >
+								</div>
+							</div>
+						</div>
+					 <?php } ?>
+						<div class="row dobt-form no-margin">
+							<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 padlr0">
+								<div class="form-group clearfix location_box marpop"> 
+								<label class="control-label mart22" for="meeting_location">Add specific leg instructions: <a href="javascript:void(0);" style='margin-top:0px;' class="title-tipso question" title="These instructions will be shown to people reserving a spot on this portion of the route."></a></label>                        
+								<textarea class="form-control in-block" rows="3" name="leg_instructions" placeholder="Type any specific instructions for this leg"  maxlength="500" id="leg_instructions" ></textarea> <?php /*?>meeting_loc<?php */?>
+								</div>
+							</div>
+							<div class="clearfix"></div>
+						</div>
+					</div>
+					</div>
+                      <div class="clearfix"></div>
+						<div align="center">
+							<button aria-hidden="true"  name="cancel_g" id="cancel_g" class="btn black" type="button">Cancel</button>
+							<button aria-hidden="true" name="submit" id="submit" class="btn orange marr5" type="button" title="+ Add Leg" style="padding:7px 19px !important;"><i class="fa fa-plus"></i> Add Leg</button>
+							<?php /*?><a  id="add_legs" class="btn orange dobt-btn button" title="+ Add a Leg"><i class="fa fa-plus"></i> Add a Leg</a><?php */?>
+						</div>     		
+            </div>
+            <!--<div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>-->
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+	</div>
+	</div>
+	
+				<div class="modal fade" id="aviation_display" data-backdrop="static">
+				<div class="modal-dialog">
+					<div class="modal-content">
+						<div class="modal-header">
+							<button type="button" class="close close-aviation-leg"  aria-hidden="true">×</button>
+							<h4 class="modal-title">Create Aviation Leg</h4>
+						</div>
+					<div class="modal-body">
+					 <div class="scroller crop-scroller" style="height:110px; overflow:auto;" data-always-visible="1" data-rail-visible1="1">
+						<div id="form" class="created-leg-list">
+			   <div class="row dobt-form no-margin">
+				  <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 padlr0">
+                    <h3 class="text20">Type address into below inputs.</h3>
+                  </div>
+				</div>
+				<?php if( $transport_details['st_trans_type']!='RO') { ?>
+                <div class="row dobt-form no-margin">
+                 <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 form-inline driver_box padlr0">
+					 <input type="hidden" name="multiple_pilots_txt" id="multiple_pilots_txt" value="">
+                  <div class="custom-checkbox form-group in-block mart5">
+                    <input type="checkbox" id="multiple_pilots" name="multiple_pilots" />
+                    <label for="multiple_pilots">Multiple Pilots</label>
+                  </div>
+                  <div class="form-group in-block" id="no_of_pilots_div" style="display:none;">
+                    <label class="med" for="no_of_pilots"><span class="desktop">|&nbsp;</span> Number of Pilots needed:</label>
+                    <div class="select-style form-control">
+                      <select  name="no_of_pilots" id="no_of_pilots">
+                        <option value="" selected="selected">Select</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+						<option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                      </select>
+                    </div>
+                    
+                  </div>
+
+                  </div>
+				</div>
+				<?php } ?>	
+                  <div class="row dobt-form no-margin">   
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 padr20 from-airport">
+                        <p class="head martb7">From Airport</p>
+                        <div class="box">
+						 <div class='col-md-12 no-left-space no-right-space smaller'>
+											<div class="form-group">
+												<label class="control-label"  for="meeting_location">Meeting Location:</label>
+												<input type="text" tabindex="9" id="meeting_location_from_pilot" name="meeting_location_from_pilot" class="form-control" placeholder="Enter your meeting location" maxlength="50">
+											</div>
+						</div>
+                          <div class="col-md-12 no-space smaller column marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_airport">City State/Airport ID:</label>
+                              <input type="text" class="form-control" tabindex="1"  placeholder="Enter From City, State or Zip/Airport ID" id="pickup_airport" name="pickup_airport" maxlength="50">	<!-- autocomplete="off" -->
+                               <input type="hidden" id="pickup_airport_city" name="pickup_airport_city" maxlength="50">
+                              <input type="hidden" id="pickup_airport_state" name="pickup_airport_state" maxlength="50">
+                            </div>
+                          </div>
+                          <div class="clearfix"></div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column  marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_airport_clock">Start Time:</label>
+								<div class="clearfix"></div>
+                              <div class="input-group date from_date <?php /*?>form_meridian_datetime<?php */?>" data-date="">
+                                <input type="text"   <?php if(count($leg_details)<=0){ ?> value="<?php echo ($transport_details['dt_pickup_date'])?date("D M d",strtotime($transport_details['dt_pickup_date']))." - 06:00 AM":"";?>" <?php } ?> size="16" name="pickup_airport_clock" id="pickup_airport_clock" readonly style="padding-left:0px;">
+                                <input type="hidden" name='pickup_airport_clock_year' <?php if(count($leg_details)<=0){ ?> value="<?php echo ($transport_details['dt_pickup_date'])?date("Y",strtotime($transport_details['dt_pickup_date'])):"";?>" <?php } ?> id='pickup_airport_clock_year'>
+								<span class="input-group-btn">
+                                <button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+                                </span> <span class="input-group-btn">
+                                <button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+                                </span> </div>
+
+                            </div>
+                          </div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label"  for="pickup_airport_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="pickup_airport_zone" tabindex="5" name="pickup_airport_zone" class="form-control">
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select>
+								</div>
+                            </div>
+                          </div>
+                          <div class="clearfix"></div>
+                       </div>
+                      </div>
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12  to-airport">
+                        <p class="head martb7">To Airport</p>
+                        <div class="box">
+						<div class='col-md-12 no-left-space no-right-space smaller'>
+											<div class="form-group">
+												<label class="control-label"  for="meeting_location">Meeting Location:</label>
+												<input type="text" tabindex="9" id="meeting_location_to_pilot" name="meeting_location_to_pilot" class="form-control" placeholder="Enter your meeting location" maxlength="50">
+											</div>
+						</div>
+                          <div class="col-md-12 no-space smaller column  marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport">City State/Airport ID:</label>
+                              <input type="text" tabindex="2" class="form-control" placeholder="Enter To City, State or Zip/Airport ID" id="dropoff_airport" name="dropoff_airport" maxlength="50">
+                              <input type="hidden" id="dropoff_airport_city1" name="dropoff_airport_city" maxlength="50">
+                              <input type="hidden" id="dropoff_airport_state1" name="dropoff_airport_state" maxlength="50">
+                            </div>
+                          </div>
+                          
+                          <div class="clearfix"></div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column marr18">
+                            <div class="form-group">
+                            <label class="control-label" for="dropoff_airport_clock">End Time:</label>
+                            <div class="clearfix"></div>
+                            <div class="input-group date to_date <?php /*?>form_meridian_datetime<?php */?>" data-date="">
+									<input type="text"   name="dropoff_airport_clock" id="dropoff_airport_clock" size="16" readonly style="padding-left:0px;">
+									<input type="hidden" name='dropoff_airport_clock_year' id='dropoff_airport_clock_year'>
+									<span class="input-group-btn">
+									<button class="btn default date-reset" type="button"><i class="material-icons">close</i></button>
+									</span> <span class="input-group-btn">
+									<button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button>
+									</span> 
+							</div>
+
+
+                            </div>
+                          </div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="dropoff_airport_zone" tabindex="6"  name="dropoff_airport_zone" >
+                                <option value="">Select</option>
+                                <?php 
+							   foreach($time_zone as $key=>$value)
+							   {
+								?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php   
+							   }
+								?>
+                              </select>
+								</div>
+                                </div>
+                          </div>
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+                      <div class="clearfix"></div>
+				</div>
+				<div class="gr-wrap col-lg-12 col-md-12 col-sm-12 padr20 from-airport">
+					 <p class="head martb7">Optional Features</p>	
+					 <div class="box">
+					 <?php if( $transport_details['st_trans_type']!='RO') { ?>
+					 <div class="row dobt-form no-margin">
+						<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 padlr0 assign_volunteer-pilot"><!--form-inline driver_box-->	
+							<div class="form-group"><!--in-block-->
+								<label class="control-label" for="assign-to">Pre-assign leg to a user:(Assign by User Name/Email) <a href="javascript:void(0);" style='margin-top:0px;' class="title-tipso question" title="When you pre-assign a user, we will mark this leg as filled and NOT notify relevant volunteers for this leg only."></a></label><!--med-->
+								<input type="text" tabindex="10" class="form-control" value="" name="pre-assign_volunteer-pilot" maxlength="50" id ='pre-assign_volunteer-pilot' placeholder="Type email or name to select Doobert user to pre-assign">
+								<input type='hidden' id='pre-assign_volunteer-pilot-id' name='pre-assign_volunteer-pilot-id' value='0' >
+								<input type='hidden' id='deleteuid-pilot' name='deleteuid-pilot' value='0' >
+								<input type='hidden' id='non-doobertpilot-userid' name='non-doobertpilot-userid' value='0' >
+							</div>
+						</div>
+                    </div>
+					 <?php } ?>
+				  <div class="row dobt-form no-margin">
+					  <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 padlr0">
+						<div class="form-group clearfix location_box marpop"> 
+						<label class="control-label" for="meeting_location">Add specific leg instructions: <a href="javascript:void(0);" style='margin-top:0px;' class="title-tipso question" title="These instructions will be shown to people reserving a spot on this portion of the route."></a></label>                        
+						<textarea class="form-control in-block" rows="3" name="leg_instructions_aviation" placeholder="Type any specific instructions for this leg"  maxlength="500" id="leg_instructions_aviation"></textarea> <?php /*?>meeting_loc<?php */?>
+						</div>
+					</div>
+                    </div>
+                 </div>
+                </div>           
+					
+                    
+                    <div align="center">
+                      <button aria-hidden="true" name="cancel_a" id="cancel_a" class="btn black" type="button">Cancel</button>
+					  <button aria-hidden="true" name="airport_submit" id="airport_submit" class="btn orange marr10" type="button" title="+ Add Leg"><i class="fa fa-plus"></i> Add Leg</button>
+                    </div>
+					
+			  </div>
+            </div>
+            <!--<div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>-->
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+	</div>
+				  
+<div class="modal fade" id="airline_transport_display" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close close-airline-leg"  aria-hidden="true">×</button>
+                 <h4 class="modal-title">Create Airline Transportation</h4>
+            </div>
+            <div class="modal-body">
+			<div class="scroller crop-scroller" style="height:110px; overflow:auto;" data-always-visible="1" data-rail-visible1="1">
+              <div id="form">
+			 
+			   <div class="row dobt-form no-margin">
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 padr20 from-airport">
+                        <p class="head martb7">From Airport</p>
+                        <div class="box">
+                          <div class="col-md-12 no-space smaller column marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_airport">City State/Airport ID:</label>
+                              <input type="text" tabindex="1" class="form-control"  placeholder="Select Airline Hub Cities" id="pick_base_airport" name="pick_base_airport" maxlength="50">	<!-- autocomplete="off" -->
+                               <input type="hidden" id="pickup_airport_identifer" name="pickup_airport_identifer" maxlength="50">
+                              
+                            </div>
+                          </div>
+                          <div class="clearfix"></div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column  marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="pickup_airport_clock">Start Time:</label>
+								<div class="clearfix"></div>
+                              <div class="input-group date from_date <?php /*?>form_meridian_datetime<?php */?>" data-date="">
+                               <input type='text' name="pickup_airline_clock" id="pickup_airline_clock" size="16" readonly style="padding-left:0px;">
+                               <input type="hidden" name='pickup_airline_clock_year' value='' id='pickup_airline_clock_year'>
+							   <span class="input-group-btn"><button class="btn default date-reset" type="button"><i class="material-icons">close</i></button></span>
+								<span class="input-group-btn"><button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button></span>
+								<?php /*?><a href="javascript:void(0);"><i class="material-icons font-18">close</i></a>
+								<span class="input-group-addon btn default date-set"><i class="material-icons font-18">date_range</i></span><?php */?>
+                            </div>
+
+                            </div>
+                          </div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <input type="hidden" id="user_time_zone1" name="user_time_zone1" value="<?php echo $user_time_zone; ?>">
+                              <label class="control-label" for="pickup_airport_zone">Time Zone:</label>
+                              <div class="select-style">
+								<select id="pickup_airline_zone" name="pickup_airline_zone">
+									<option value="">Select</option>
+									<?php foreach($time_zone as $key=>$value){?>
+										<option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+									<?php  }?>
+								</select>
+								</div>
+                            </div>
+                          </div>
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12  to-airport">
+                        <p class="head martb7">To Airport</p>
+                        <div class="box">
+                          <div class="col-md-12 no-space smaller column  marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport">City State/Airport ID:</label>
+                              <input type="text" tabindex="2" class="form-control" placeholder="Select Airline Hub Cities" id="drop_base_airport" name="drop_base_airport" maxlength="50">
+                               <input type="hidden" id="dropoff_airport_identifer" name="dropoff_airport_identifer" maxlength="50">
+                            </div>
+                          </div>
+                          
+                          <div class="clearfix"></div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column marr18">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport_clock">End Time:</label>
+                              <div class="clearfix"></div>
+                              <div class="input-group date to_date <?php /*?>form_meridian_datetime<?php */?>" data-date="">
+                                <input type='text' name="dropoff_airline_clock" id="dropoff_airline_clock" size="16" readonly style="padding-left:0px;">
+                                 <input type="hidden" name='dropoff_airline_clock_year' value='' id='dropoff_airline_clock_year'>
+								 <span class="input-group-btn"><button class="btn default date-reset" type="button"><i class="material-icons">close</i></button></span>
+								<span class="input-group-btn"><button class="btn default date-set" type="button"><i class="material-icons to-date-icon">date_range</i></button></span>
+								<?php /*?><a href="javascript:void(0);"><i class="material-icons font-18">close</i></a>
+								<span class="input-group-addon btn default date-set"><i class="material-icons font-18">date_range</i></span><?php */?>								
+								</div>
+                            </div>
+                          </div>
+                          <div class="col-lg-12 col-md-12 col-sm-12 no-left-space no-right-space smaller column">
+                            <div class="form-group">
+                              <label class="control-label" for="dropoff_airport_zone">Time Zone:</label>
+                              <div class="select-style">
+                              <select id="dropoff_airline_zone" name="dropoff_airline_zone">
+								<option value="">Select</option>
+								<?php foreach($time_zone as $key=>$value) { ?>
+                                <option <?php if($user_time_zone==$key){ ?>selected <?php } ?> value="<?php echo $key;?>"><?php echo $value;?></option>
+                                <?php } ?>
+							  </select>
+								</div>
+                                </div>
+                          </div>
+                          <div class="clearfix"></div>
+                        </div>
+                      </div>
+                      <div class="clearfix"></div>
+                    </div>
+					
+					<div class="row dobt-form no-margin">
+						<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 padlr0"><!--form-inline driver_box-->	
+							<div class="form-group"><!--in-block-->
+								<label class="control-label" for="assign-to">Pre-assign leg to a user:(Assign by User Name/Email)<a href="javascript:void(0);" style='margin-top:0px;' class="title-tipso question" title="When you pre-assign a user, we will mark this leg as filled and NOT notify relevant volunteers for this leg only."></a></label><!--med-->
+								<input type="text" tabindex="10" class="form-control" value="" name="pre-assign_volunteer-airline" maxlength="50" id ='pre-assign_volunteer-airline' placeholder="Type email or name to select Doobert user to pre-assign">
+								<input type='hidden' id='pre-assign_volunteer-airline-id' name='pre-assign_volunteer-airline-id' value='0' >
+								<input type='hidden' id='deleteuid-airline' name='deleteuid-airline' value='0' >
+								<input type='hidden' id='non-doobertairline-userid' name='non-doobertairline-userid' value='0' >
+							</div>
+						</div>
+                    </div>
+                             <div id="pilot_meeting_location_div" style="display:block;">
+                       <div class="gr-wrap col-md-12 no-space meeting-location-info padlr0">
+                        <!--<div class="col-md-6 padl0 padr20">-->
+                          <div class="form-group">
+                             <label class="control-label" for="airline_meeting_location">Meeting Location:</label>
+                              <input type="text" tabindex="7" id="airline_meeting_location" name="airline_meeting_location" class="form-control" placeholder="Enter your meeting location here..." maxlength="500">
+                            </div>
+                          <!--</div> -->
+						   <?php //if(isset($covering_leg) && $transport_details['st_trans_type']=='D'){ if(count($covering_leg)>0){  ?>		  
+						</div>                
+                    </div>
+                    
+                    <div align="center">
+                      <button aria-hidden="true" name="cancel_airline" id="cancel_airline" class="btn black" type="button">Cancel</button>
+					  <button aria-hidden="true" name="airline_submit" id="airline_submit" class="btn orange marr10" type="button" title="+ Add Leg"><i class="fa fa-plus"></i> Add Leg</button>
+                    </div>
+			  </div>
+            </div>
+            <!--<div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>-->
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+	</div>
+				
+				
+		<div class="modal fade" id="overnight_display" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close close-overnight-leg"  aria-hidden="true">×</button>
+                 <h4 class="modal-title">Create Overnight Leg</h4>
+            </div>
+            <div class="modal-body">
+              <div id="form">
+			   <div class="row dobt-form no-margin">
+						<input type="hidden" id="cover_overnight_leg" name="cover_overnight_leg" value='0' maxlength="50">
+                      <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 padr20 from-airport">
+                        <p class="head"></p>
+						
+                          <div class="col-md-12 no-space smaller column marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="o_pickup_street">Street:</label>
+							    <input type="text" tabindex="1"  class="form-control in-block street" id="o_pickup_street" name="o_pickup_street" maxlength="50" placeholder="Type email or name to select Doobert user to pre-assign">
+							</div>
+                          </div>
+                          <div class="clearfix"></div>
+                      </div>
+					   <div class="gr-wrap col-lg-6 col-md-6 col-sm-12 to-airport">
+                        <p class="head"></p>
+                          <div class="col-md-12 no-space smaller column  marr18 airport-id">
+                            <div class="form-group">
+                              <label class="control-label" for="o_pickup_location">Overnight Location:</label>
+                               <input type="text" tabindex="2" class="form-control in-block form-city-state" id="o_pickup_location" name="o_pickup_location" maxlength="50" placeholder="Enter From City, State or Zip">
+								<input type="hidden" class="form-control" id="o_pickup_city" name="o_pickup_city" value='' maxlength="50">
+								<input type="hidden" class="form-control" id="o_pickup_state" name="o_pickup_state" value='' maxlength="50">
+								<input type="hidden" class="form-control" id="o_pickup_country" name="o_pickup_country" value='' maxlength="50">
+								<input type="hidden" class="form-control" id="o_pickup_zip" name="o_pickup_zip" value='' maxlength="50">
+							   </div>
+                          </div>
+                      </div>
+					 
+                    </div>
+					<?php if( $transport_details['st_trans_type']!='RO') { ?>
+					<div class="row dobt-form no-margin">
+						<div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 padlr0 assign_volunteer-overnight"><!--form-inline driver_box-->	
+							<div class="form-group"><!--in-block-->
+								<label class="control-label" for="assign-to">Pre-assign leg to a user:(Assign by User Name/Email) <a href="javascript:void(0);" style='margin-top:0px;' class="title-tipso question" title="When you pre-assign a user, we will mark this leg as filled and NOT notify relevant volunteers for this leg only."></a></label><!--med-->
+								<input type="text" tabindex="10" class="form-control" value="" name="pre-assign_volunteer-overnight" maxlength="50" id ='pre-assign_volunteer-overnight' placeholder="Type email or name to select Doobert user to pre-assign">
+								<input type='hidden' id='pre-assign_volunteer-overnight-id' name='pre-assign_volunteer-overnight-id' value='0' >
+								<input type='hidden' id='deleteuid-overnight' name='deleteuid-overnight' value='0' >
+								<input type='hidden' id='non-doobertovernight-userid' name='non-doobertovernight-userid' value='0' >
+							</div>
+						</div>
+                    </div>
+					<?php } ?>
+                 <div id="pilot_meeting_location_div" style="display:block;">
+                       <div class="gr-wrap col-md-12 no-space meeting-location-info">
+                          <div class="form-group">
+                             <label class="control-label" for="pilot_meeting_location">Meeting Location:</label>
+                              <textarea id="overnight_comments" rows="3" tabindex="3" name="overnight_comments" class="form-control" placeholder="Enter your meeting location here..."></textarea>
+                            </div>
+                          </div> 
+						   <?php //if(isset($covering_leg) && $transport_details['st_trans_type']=='D'){ if(count($covering_leg)>0){  ?>
+                    </div>
+                    <div align="center">
+                      <button aria-hidden="true" name="cancel_o" id="cancel_o" class="btn black" type="button">Cancel</button>
+					  <button aria-hidden="true" name="overnight_submit" id="overnight_submit" class="btn orange marr10" type="button" title="+ Add Leg"><i class="fa fa-plus"></i> Add Leg</button>
+                    </div>
+					
+			  </div>
+            </div>
+            <!--<div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>-->
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+    </div>
+                
+               
+
+                
+                <div class="row">
+                  <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 created-leg-list">
+				    <script type="text/javascript">
+						var q 		= 0;
+						var flag 	= '';
+						var edit_q	= '';
+						var tr_cnt	= '';
+						var myArray = new Array();
+						var way = new Array();
+					</script>
+                    <h3 class="padb15">Transport Legs</h3>
+                    <table id="card-table" class="table gray-table">
+                      <thead>
+                        <tr>
+                          <th class="w66">#leg</th>
+                          <th class="w220">date/time</th>
+                          <th>pickup/drop off</th>
+                          <th>action</th>
+                        </tr>
+                      </thead>
+                      <tbody id="leg_table_body" class="ui-sortable">
+     						
+					
+                        
+                       <?php if(isset($leg_details) && !empty($leg_details)) { ?>
+                       <?php 
+					   		 $id = 0;
+					   		 $base_date = '';;	
+					    	 foreach($leg_details as $key=>$value)
+						  	 { 
+							  $id++;
+							  if(isset($value['meeting_location']) && $value['meeting_location'] != '')
+							  {
+							  	  $meeting_location1 = '';
+								  $meeting_location = $value['meeting_location'];
+								  $meeting_location_length = strlen($meeting_location);
+								  
+								  $meeting_location1 = substr($meeting_location,0,9);
+								 
+								  if($meeting_location_length > 10)							  
+								  {
+									$meeting_location1 .= '...'; 
+								  }
+							  }
+							  
+							   if(isset($value['to_meeting_location']) && $value['to_meeting_location'] != '')
+							  {
+							  	  $meeting_location2 = '';
+								  $meeting_location = $value['to_meeting_location'];
+								  $meeting_location_length = strlen($meeting_location);
+								  
+								  $meeting_location2 = substr($meeting_location,0,9);
+								 
+								  if($meeting_location_length > 10)							  
+								  {
+									$meeting_location2 .= '...'; 
+								  }
+							  }
+							  
+							  if($value['route_type_id']=='1' || $value['route_type_id']=='0' || $value['route_type_id']=='3') {
+							  if(isset($value['pick_start_time']) && $value['pick_start_time'] != '')
+							  {
+								  
+							  	//$pick_date = date("D d M  - h:i A",strtotime($value['pick_start_time']));
+								$display_start_date = date("D, M d  - h:i A",strtotime($value['pick_start_time']));
+								$pick_date = date("D M d - h:i A",strtotime($value['pick_start_time']));
+								$pick_year = date("Y",strtotime($value['pick_start_time']));
+							  }
+							  if(isset($value['drop_start_time']) && $value['drop_start_time'] != '')
+							  {
+								  //$drop_date = date('D d M - h:i A', strtotime($value['drop_start_time']));
+								  $display_end_date = date("D, M d  - h:i A",strtotime($value['drop_start_time']));
+								  $drop_date = date('D M d - h:i A', strtotime($value['drop_start_time']));
+								  $drop_year = date("Y",strtotime($value['drop_start_time']));
+							  }
+							  
+							  if(isset($value['pick_start_time']) && $value['pick_start_time'] != '' && isset($value['drop_start_time']) && $value['drop_start_time'] != '')
+							  if(strtotime($value['drop_start_time'])>strtotime($value['pick_start_time']) && strtotime($value['drop_start_time'])>strtotime($base_date)){$base_date =  date('D M d h:i A',strtotime($value['drop_start_time'])); }
+							  ?>
+							  
+								<tr id="tr_<?php echo $id; ?>" data-leg-id="<?php echo $value['leg_id']; ?>" data-sort-order="<?php echo (isset($value['in_sort_order']) && $value['in_sort_order'] > 0 ) ? $value['in_sort_order'] : $id; ?>">
+								<td class="priority leg">
+								<i class="material-icons">zoom_out_map</i>
+								<?php echo (isset($value['in_sort_order']) && $value['in_sort_order'] > 0) ? $value['in_sort_order'] : $id; ?> 
+                                <?php if($value['no_of_drivers_pilots'] >= 2){ ?>
+                                <span class="leg-fa-users"><i class="fa fa-users"></i></span>
+                                <?php } ?>
+                                </td>
+								<td><?php
+								$pick_timezone = isset($value['pick_timezone']) && $value['pick_timezone'] != '' ? $value['pick_timezone'] : '';
+								 echo $display_start_date." - ".$pick_timezone; ?><br><?php
+								$drop_timezone  = isset($value['drop_timezone']) && $value['drop_timezone'] != '' ? $value['drop_timezone'] : '';
+								 echo $display_end_date." - ".$drop_timezone ; ?>	</td>
+								 <?php if($value['route_type_id']=='3'){ ?>
+								 
+									 <td class="pickdrop"><p><span class="pick-address"><?php echo (isset($value['meeting_location']) && $value['meeting_location'] != '') ? stripslashes($value['meeting_location']).'<br>' : ''; ?><?php echo "From : ".(isset($value['pick_city']) && $value['pick_city'] != '' ? stripslashes($value['pick_city'])." ":"").(isset($value['pick_street']) && $value['pick_street'] != '' ?" (". stripslashes($value['pick_street']).") ":""); ?></span><span class="pick-arrow"><i class="material-icons">keyboard_backspace</i></span>
+															 <span class="pick-address"><?php echo " To : ".(isset($value['drop_city']) && $value['drop_city'] != '' ? stripslashes($value['drop_city'])." ":"").(isset($value['drop_street']) && $value['drop_street'] != '' ?" (". stripslashes($value['drop_street']).") ":""); ?></span></p>
+									 </td>
+								 <?php } else{  ?>
+									<td class="pickdrop"><p><span class="pick-address"><?php echo (isset($value['meeting_location']) && $value['meeting_location'] != '') ? stripslashes($value['meeting_location']).'<br>' : ''; ?><?php echo (($value['route_type_id']==1)?"Zip Code/Airport Id: ":"").(isset($value['pick_street']) && $value['pick_street'] != '' ? stripslashes($value['pick_street']).", ":"").(isset($value['pick_city']) && $value['pick_city'] != '' ? stripslashes($value['pick_city']).", ":"").(isset($value['pick_state']) && $value['pick_state'] != '' ? stripslashes($value['pick_state']):"").(isset($value['pick_zip']) && $value['pick_zip'] != '' ? ", ".stripslashes($value['pick_zip']):""); ?></span><span class="pick-arrow"><i class="material-icons">keyboard_backspace</i></span> 
+								<span class="pick-address"><?php echo (isset($value['to_meeting_location']) && $value['to_meeting_location'] != '') ? stripslashes($value['to_meeting_location']).'<br>' : ''; ?>
+									<?php echo (($value['route_type_id']==1)?"Zip Code/Airport Id: ":"").(isset($value['drop_street']) && $value['drop_street'] != '' ? stripslashes($value['drop_street']).", ":"").(isset($value['drop_city']) && $value['drop_city'] != '' ? stripslashes($value['drop_city']).", ":"").(isset($value['drop_state']) && $value['drop_state'] != '' ? stripslashes($value['drop_state']):"").(isset($value['drop_zip']) && $value['drop_zip'] != '' ? ", ".stripslashes($value['drop_zip']):""); ?></span></p></td>
+                                <?php } ?>
+								
+							    <?php //if($transport_details['st_trans_type']=='P'){ ?> 
+                                <td class="action text-center w115">                                
+					  			<?php if($value['mark_completed']=='0'){ ?>
+								<?php if($value['route_type_id']=='3') {?>
+								<a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Edit" onClick="edit_airline_legs('<?php echo $id; ?>',$(this));"><i class="material-icons font-14">mode_edit</i></a>
+                      			<a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Delete" onClick="delete_airline_legs('<?php echo $id; ?>',$(this));"><i class="material-icons">delete</i></a> 			
+								<?php } else { ?>
+                                <a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Edit" onClick="edit_leges('<?php echo $id; ?>',$(this));"><i class="material-icons font-14">mode_edit</i></a>
+                      			<a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Delete" onClick="delete_leges('<?php echo $id; ?>',$(this));"><i class="material-icons">delete</i></a> 			
+								<?php }}else { echo "Leg Completed";} ?>
+                                <div class="clearfix"></div>
+                                </td> 
+					  
+					  			<?php //} ?>
+                      		  
+							    <script type="text/javascript">
+									var q = '<?php echo $id; ?>';
+									myArray.push({"pickup_street":'<?php echo addslashes($value['pick_street']);?>',"pickup_city":'<?php echo addslashes($value['pick_city']);?>',"pickup_state":'<?php echo addslashes($value['pick_state']);?>',"pickup_zip":'<?php echo addslashes($value['pick_zip']);?>',"pickup_country":'<?php echo addslashes($value['pick_country']);?>',"clockface_2_modal":'<?php echo $pick_date;?>','pick_year':'<?php echo $pick_year;  ?>',"pickup_zone":'<?php echo $value['pick_timezone'];?>',"dropoff_street":'<?php echo addslashes($value['drop_street']); ?>',"dropoff_city":'<?php echo addslashes($value['drop_city']); ?>',"dropoff_state":'<?php echo addslashes($value['drop_state']); ?>',"dropoff_zip":'<?php echo addslashes($value['drop_zip']); ?>',"dropoff_country":'<?php echo addslashes($value['drop_country']);?>',"clockface_3_modal":'<?php echo $drop_date; ?>','drop_year':'<?php echo $drop_year; ?>',"dropoff_zone":'<?php echo $value['drop_timezone']; ?>',"leg_id":'<?php echo $value['leg_id']; ?>',"route_type":'<?php echo $value['route_type']; ?>',"route_type_id":'<?php echo $value['route_type_id']; ?>' ,"pickup_airport":'<?php echo (($value['route_type_id']=='1')?addslashes($value['pick_street']):"");?>',"pickup_airport_clock":'<?php echo (($value['route_type_id']=='1')?$pick_date:"");?>',"pickup_airport_zone":'<?php echo (($value['route_type_id']=='1')?$value['pick_timezone']:"");?>',"dropoff_airport":'<?php echo (($value['route_type_id']=='1')?addslashes($value['drop_street']):"");?>',"dropoff_airport_clock":'<?php echo (($value['route_type_id']=='1')?$drop_date:"");?>',"dropoff_airport_zone":'<?php echo (($value['route_type_id']=='1')?$value['drop_timezone']:"");?>',"dropoff_airport_state":'<?php echo (($value['route_type_id']=='1')?$value['drop_state']:"");?>',"dropoff_airport_city":'<?php echo (($value['route_type_id']=='1')?addslashes($value['drop_city']):"");?>',"pickup_airport_state":'<?php echo (($value['route_type_id']=='1')?addslashes($value['pick_state']):"");?>',"pickup_airport_city":'<?php echo (($value['route_type_id']=='1')?addslashes($value['pick_city']):"");?>',"update_leg":'added',"meeting_location":'<?php echo addslashes($value['meeting_location']);?>',"no_of_drivers":'<?php echo addslashes($value['no_of_drivers_pilots']);?>',"multiple_drivers_pilots":'<?php echo addslashes($value['multiple_drivers_pilots']);?>',"no_of_pilots":'<?php echo addslashes($value['no_of_drivers_pilots']);?>',"pilot_meeting_location":'<?php echo addslashes($value['meeting_location']);?>',"in_sort_order":'<?php echo isset($value['in_sort_order']) ? addslashes($value['in_sort_order']) : $id; ?>','leg_instruction':'<?php echo addslashes(preg_replace('/\s+/', ' ', $value['leg_instruction'])) ; ?>','to_meeting_location':'<?php echo $value['to_meeting_location']; ?>','in_user_id':'<?php echo $value['leg_participant_details']['in_user_id']; ?>','in_user_id':'<?php echo $value['leg_participant_details']['in_user_id']; ?>','st_user_name':'<?php echo $value['leg_participant_details']['display_name']; ?>','non_doobert_userid':'<?php echo $value['non_doobert_leg_participant_details']['in_nondoobert_user_id']; ?>','nondoobert_user_name':'<?php echo $value['non_doobert_leg_participant_details']['nondoobert_user_name']; ?>'});
+									way.push({"location":"<?php echo $value['pick_street'];?>,<?php echo trim($value['pick_city']);?>,<?php echo $value['pick_state'];?><?php echo $value['pick_zip'];?> <?php echo $value['pick_country'];?>"});
+							   </script>
+							   </tr>    
+                               <?php } ?>
+                               
+                               <?php if($value['route_type_id']=='2'){ ?>
+                               <?php $overnight_comments = trim(preg_replace('/\s\s+/', ' ', str_replace("\n", " ", $value['overnight_comments'])));  ?>
+                               <tr id="tr_<?php echo $id; ?>" data-leg-id="<?php echo $value['leg_id']; ?>" data-sort-order="<?php echo (isset($value['in_sort_order']) && $value['in_sort_order'] > 0 ) ? $value['in_sort_order'] : $id; ?>">
+									<td class="priority leg">
+										<i class="material-icons">zoom_out_map</i>
+										<?php echo (isset($value['in_sort_order']) && $value['in_sort_order'] > 0 ) ? $value['in_sort_order'] : $id; ?> 
+									</td>
+									<td colspan="2"><strong>Overnight Leg: </strong><?php echo ((isset($value['o_pick_street']) && $value['o_pick_street'] != '' ?stripslashes($value['o_pick_street']).", ":"").($value['o_pick_city']?stripslashes($value['o_pick_city']).", ":"").($value['o_pick_state']?stripslashes($value['o_pick_state']).", ":"").($value['o_pick_zip']? stripslashes($value['o_pick_zip']):"")); ?>
+										<p><?php echo (isset($value['overnight_comments']) && $value['overnight_comments'] != '') ? stripslashes($value['overnight_comments']) : '-'; ?>	</p>
+									</td>
+										<?php //if($transport_details['st_trans_type']=='P'){ ?> 
+									<td class="action text-center w115">                                
+										<?php if($value['mark_completed']=='0'){ ?>
+										<?php if($value['route_type_id']=='3') { ?>
+										<a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Edit" onClick="edit_airline_legs('<?php echo $id; ?>',$(this));"><i class="material-icons font-14">mode_edit</i></a>
+										<a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Delete" onClick="delete_airline_legs('<?php echo $id; ?>',$(this));"><i class="material-icons">delete</i></a> 			
+										<?php } else { ?>
+										<a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Edit" onClick="edit_leges('<?php echo $id; ?>',$(this));"><i class="material-icons font-14">mode_edit</i></a>
+										<a class="btn primary black-btn btn-action" href="javascript:void(0);" title="Delete" onClick="delete_leges('<?php echo $id; ?>',$(this));"><i class="material-icons">delete</i></a> 			
+										<?php } }else { echo "Leg Completed";} ?>
+									</td> 
+					  
+					  			<?php //} ?>
+							    <script type="text/javascript">
+									var q = '<?php echo $id; ?>';
+									myArray.push({"o_pickup_street":'<?php echo addslashes($value['o_pick_street']);?>',"o_pickup_city":'<?php echo addslashes($value['o_pick_city']);?>',"o_pickup_state":'<?php echo addslashes($value['o_pick_state']);?>',"o_pickup_country":'<?php echo addslashes($value['o_pick_country']);?>',"o_pickup_zip":'<?php echo addslashes($value['o_pick_zip']);?>',"leg_id":'<?php echo addslashes($value['leg_id']); ?>',"route_type":'<?php echo addslashes($value['route_type']); ?>',"route_type_id":'<?php echo addslashes($value['route_type_id']); ?>',"overnight_comments":"<?php echo addslashes($overnight_comments);?>","update_leg":'added',"in_sort_order":'<?php echo isset($value['in_sort_order']) ? addslashes($value['in_sort_order']) : $id; ?>','in_user_id':'<?php echo $value['leg_participant_details']['in_user_id']; ?>','in_user_id':'<?php echo $value['leg_participant_details']['in_user_id']; ?>','st_user_name':'<?php echo $value['leg_participant_details']['display_name']; ?>','non_doobert_userid':'<?php echo $value['non_doobert_leg_participant_details']['in_nondoobert_user_id']; ?>','nondoobert_user_name':'<?php echo $value['non_doobert_leg_participant_details']['nondoobert_user_name']; ?>'});
+								</script>
+							   </tr> 
+                               <?php }  ?>                         
+							   <?php  }	?>			
+								<?php } ?>
+                        
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="row">
+                <div class="col-md-12 col-sm-12 col-xs-12 text-center trans-bottom-button">
+				<?php if($transport_details['in_status']=='1') { ?>
+					<a href="<?php echo  base_url().'org-dashboard/'.$this->session->userdata('org_id') ?>" id="cancel_only"  class="btn black waves-effect waves-light savecontinue"   >CANCEL</a>	
+					<a href="javascript:void(0);" id="save_only" class="btn orange-small waves-effect waves-light savecontinue" ><i class="material-icons top0">save</i>SAVE</a>
+					<?php } ?>
+                    <?php if($transport_details['in_status']!='1') { ?> <a class="gray-btn" href="javascript:void(0);" id="save_draft"> save to draft &amp; Exit</a> <?php } ?>
+                    <a class="btn orange-small waves-effect waves-light savecontinue" id="save_legs" href="javascript:void(0);"> <i class="material-icons top0">send</i> SAVE & PUBLISH</a>
+				</div>
+
+
+                  <div class="col-md-12 col-sm-12 col-xs-12 text-center">
+                      <ul class="progress-dots">
+                        <li class="current"><i class="material-icons">fiber_manual_record</i></li>
+                        <li class="current"><i class="material-icons">fiber_manual_record</i></li>
+                        <li class="current"><i class="material-icons">fiber_manual_record</i></li>
+                      </ul>
+                    </div>	
+                </div>
+				<div class="row">
+					 <div id="main-transportation-route">                          
+                  <div id="my-leg" style="display:none">
+                    <div id="origin-address"  >
+                      <input id="origin-address1" placeholder="Pick Up Address"  />
+                    </div>
+                    <div id="destination-address">
+                      <input id="destination-address1" placeholder="Drop Off Address" />
+                    </div>       
+                    <div id="distance">Distance:&nbsp;<b><span id="miles">0</span>&nbsp;miles</b></div>
+                  </div>
+                  <div data-current-user-can-join="false" data-destination-address="<?php echo $transport_details['st_to_street'].",".$transport_details['st_to_city'].",".$transport_details['st_to_state'].",".$transport_details['st_to_zip'].",".$transport_details['st_to_country']; ?>" data-origin-address="<?php echo $transport_details['st_from_city'].",".$transport_details['st_from_state'].",".$transport_details['st_from_zip'].",".$transport_details['st_from_country']; ?>" id="route-map"  style="height:620px">
+				  </div>
+                          <div class="transport_legend"> 
+                          <div id="leg-legend">
+                            <div id="legend-data"> <span class="legend-text">Legend:</span>
+                              <ul>
+                                <li><span>Driver</span></li>
+                                <li class="pilot active"><span>Pilot</span></li>
+                                <li class="multi-role-user"><span>Multi Role User</span></li>
+                                <li class="yellow-pins"><span>Zoom to View</span></li>
+                                <li class="blue-pins"><span>Zoom to View</span></li>
+                                <li class="red-pins"><span>Zoom to View</span></li>
+                              </ul>
+                            </div>
+                          </div>
+                          </div>
+                </div>
+				</div>
+              </div>
+			  </form>
+            </div>
+            <!-- .entry-content -->
+          </div>
+        </article>
+        <!-- #post-## -->
+      </div>
+    </div>
+  </div>
+</section>
+<div class="modal fade legs_reorder" id="legs_reorder" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content" style="width:450px;">
+										<?php /*?><div class="modal-header no-border">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+										</div><?php */?>
+										<div class="modal-body">
+                                        
+										<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32"  style="margin-left:40%;">&nbsp;<br><span style="color: #4b7276; font: normal 27px 'Open Sans',Helvetica,Arial,sans-serif;">Doobert is re-ordering the legs</span>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div>
+<div class="modal fade transport-created_save_only" id="transport_loader_save_only" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<div class="modal-body">
+                                        
+										<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin:0 auto">&nbsp;<span id="tran-loadertext">Doobert is updating the information</span>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+</div>
+
+  <div class="modal fade" id="portlet-config" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+                  <div class="modal-dialog" id="edit-tranp-date">
+                    <form class="horizontal-form" role="form" id="edit_date" name="edit_date" enctype="multipart/form-data" action="" method="post">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <button aria-hidden="true" data-dismiss="modal" class="close empty_dates" type="button" title="Close" onClick="resetdropdown();"></button>
+                          <h4 class="modal-title">Information</h4>
+                        </div>
+                        <div class="modal-body">
+                          <div class="form-group">
+                            <label class="control-label col-md-12" style="text-align:center;">We have saved your transport to your draft list.</label>
+                          </div>
+                          <div class="clearfix"></div>
+                        </div>
+                        <div class="modal-footer no-margin">
+                          <button class="btn orange-small waves-effect waves-light" title="OK" type="button" name="c_date1" id="c_date1">OK</button>
+                          <button class="btn black waves-effect waves-light" title="Cancel" type="button"  name="c_date" id="c_date">Cancel</button>
+                        </div>
+                      </div>
+                    </form>
+                    <!-- /.modal-content --> 
+                  </div>
+                  <!-- /.modal-dialog --> 
+                </div>
+				
+				<div class="modal fade transport-created" id="transport_loader" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<?php /*?><div class="modal-header no-border">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+										</div><?php */?>
+										<div class="modal-body">
+											<?php if( $transport_details['st_trans_type']=='RO') { ?>
+												<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin:0 auto">&nbsp;<span id="tran-loadertext">Please wait Doobert is publishing your transport</span>
+											<?php } else { ?>
+												<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin:0 auto">&nbsp;<span id="tran-loadertext">Doobert is e-mailing the drivers and pilots</span>
+											<?php } ?>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+				</div>
+	<div class="modal fade upload_leg_div" id="upload_leg_div" tabindex="-1" role="basic" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-body">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true" id="popup_leg_upload_close" title="Close"></button>
+                    <form name="upload_legs_by_file" id="upload_legs_by_file" action="<?php echo base_url(); ?>transport-create-legs" method="post" enctype="multipart/form-data">     
+                    <div class="form-group">
+                      <div class="col-md-12 no-space">
+                      <label for="drop_info" class="control-label">Upload Legs:</label>
+                      <div class="clearfix"></div>
+                        <span class="upload-des-text in-block marb5">(Upload a .xls, .xlsx, .csv(comma delimited) file, 1MB Maximum) <a href="<?php echo base_url(); ?>upload/legupload/<?php echo $sample_file_name; ?>">Sample file</a></span>
+                        <div id="browse-info" class="fileinput fileinput-new" data-provides="fileinput">
+                          <div class="input-group margin-bottom10 w100p">
+                            <div class="form-control uneditable-input span3" data-trigger="fileinput"> <i class="fa fa-file fileinput-exists"></i>&nbsp; <span class="fileinput-filename"> </span> </div>
+                            <div class="file-upload-btn">
+                            <span class="input-group-addon btn default btn-file orange-small"> <span class="fileinput-new"> Browse... </span> <span class="fileinput-exists"> Change </span>
+                            <input type="file" name="leg_upload" id="leg_upload">
+                            </span> <a href="#" class="input-group-addon btn default fileinput-exists black remove-btn hidden-480" data-dismiss="fileinput"><i class="material-icons">delete</i></a> </div>
+							</div>
+                            <div class="text-center mart20">
+                             <span><a href="javascript:void(0);" class="btn orange-small waves-effect waves-light marr5"  id="upload_leg_file" name="upload_leg_file"> Upload File </a> </span>
+                    
+                            <span style="display:inline-block"><a href="javascript:void(0);" class="btn black waves-effect waves-light" onClick="$('#upload_leg_div').modal('hide');" id="popup_leg_upload_cancel"> Cancel</a> </span>
+                            
+                            <input type="hidden" name="upload_leg_f" id="upload_leg_f" value="">
+							</div>
+                            
+                           </div>
+                           
+                      </div>                  
+                    </div>
+                    </form>
+                </div>
+            </div>
+            <!-- /.modal-content -->
+        </div>
+        <!-- /.modal-dialog -->
+    </div>
+
+		<div class="modal fade" id="error_popup" tabindex="-1" role="dialog" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<div class="modal-header">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"  title="Close"></button>                               
+										</div>
+										<div class="modal-body">
+                                        
+											<?php echo $this->session->flashdata('leg_upload_error'); ?>
+										</div>                                         									 
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div> 
+	
+
+<div id="add-additional-info" class="modal fade" tabindex="-1" aria-hidden="true">
+<form class="horizontal-form" role="form" id="transport_add_info" name="transport_add_info" enctype="multipart/form-data" action="<?php echo base_url().'org_transportation/add_transport_info' ?>" method="post">
+  <input type="hidden" class="form-control" id="transport_id_add_info" name="transport_id_add_info" value="<?php echo $this->session->userdata('transport_id'); ?>">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true" title="Close"></button>
+<h4 class="modal-title">Additional Information</h4>
+        <div class="form-group">
+          <label for="additional-comments">Comments:</label>
+          <textarea class="form-control" id="additional-comments" name="additional-comments" rows="4" ></textarea>
+        </div>
+        <div class="form-group">
+          <label for="attach-documents">Attach Documents:</label>
+          <div class="attach-doc-box">
+          
+		   <div class="custom-file-input btn waves-effect waves-light">
+								<input type="file" name="files" multiple>
+                            </div>
+                            <div class="clearfix"></div>
+		  <?php /*?><button type="submit" class="btn btn-primary start" title="Start upload"> <i class="glyphicon glyphicon-upload"></i> <span>Start upload</span> </button><?php */?>
+		  <span class="small-text mart5 in-block">(Upload a .jpg, .jpe, .jpeg, .doc, .docx, .xls, .xlsx, .pdf file, 5MB Maximum)</span>
+          
+		  <input type="hidden"  class="form-control" id="image_file" name="image_file" value="" >
+		  
+		  <!-- The global progress state -->
+            <div class="col-lg-12 fileupload-progress fade">
+              <!-- The global progress bar -->
+              <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar progress-bar-success" style="width:0%;"></div>
+              </div>
+              <!-- The extended global progress state -->
+              <div class="progress-extended">&nbsp;</div>
+            </div>
+			<table role="presentation" class="table table-striped">
+				<tbody class="files">
+				</tbody>
+			  </table>			
+			<!-- The template to display files available for upload -->
+        <script id="template-upload" type="text/x-tmpl">
+                    {% for (var i=0, file; file=o.files[i]; i++) { %}
+                        <tr class="template-upload fade">
+                            <td>
+                                <span class="preview"></span>
+                            </td>
+                            <td>
+                                <p class="name word-break">{%=file.name%}</p>
+                                <strong class="error text-danger"></strong>
+                            </td>
+                            <td>
+                                <p class="size">Processing...</p>
+                                <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar progress-bar-success" style="width:0%;"></div></div>
+                            </td>
+                            <td>
+                                {% if (!i && !o.options.autoUpload) { %}
+                                    <button class="btn btn-primary start" title="Start" disabled>
+                                        <i class="glyphicon glyphicon-upload"></i>
+                                        <span>Start</span>
+                                    </button>
+                                {% } %}
+                                {% if (!i) { %}
+                                    <button class="btn cancel black" title="Cancel">
+                                        <i class="glyphicon glyphicon-ban-circle"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                {% } %}
+                            </td>
+                        </tr>
+                    {% } %}
+                    </script>
+					
+					<!-- The template to display files available for download -->
+        <script id="template-download" type="text/x-tmpl">
+                    {% for (var i=0, file; file=o.files[i]; i++) { %}
+                        <tr class="template-download fade">
+                            <td>
+                                <span class="preview">
+                                    {% if (file.thumbnailUrl) { %}
+                                        <a href="{%=file.url%}" title="{%=file.name%}" download="{%=file.name%}" data-gallery><img src="{%=file.thumbnailUrl%}"></a>
+                                    {% } %}
+                                </span>
+                            </td>
+                            <td>
+                                <p class="name word-break">
+                                    {% if (file.url) { %}
+                                        <a href="{%=file.url%}" title="{%=file.name%}" download="{%=file.name%}" {%=file.thumbnailUrl?'data-gallery':''%}>{%=file.name%}</a>
+                                    {% } else { %}
+                                        <span>{%=file.name%}</span>
+                                    {% } %}
+                                </p>
+                                {% if (file.error) { %}
+                                    <div><span class="label label-danger">Error</span> {%=file.error%}</div>
+                                {% } %}
+                            </td>
+                            <td>
+                                <span class="size">{%=o.formatFileSize(file.size)%}</span>
+                            </td>
+                            <td>
+                                {% if (file.deleteUrl) { %}
+                                    <button class="btn cancel black" title="Delete" data-type="{%=file.deleteType%}" data-url="{%=file.deleteUrl%}"{% if (file.deleteWithCredentials) { %} data-xhr-fields='{"withCredentials":true}'{% } %}>
+                                        <i class="glyphicon glyphicon-ban-circle"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                    <input type="checkbox" name="delete" value="1" class="toggle">
+                                {% } else { %}
+                                    <button class="btn cancel black" title="Cancel">
+                                        <i class="glyphicon glyphicon-ban-circle"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                {% } %}
+                            </td>
+                        </tr>
+                    {% } %}
+                    </script>
+			
+		  </div>
+        </div>
+      </div>
+      <div class="modal-footer text-center">
+        <button type="button" class="btn orange-small waves-effect waves-light" id="add_transport_info">Add Info</button>
+      </div>
+    </div>
+    <div class="clearfix"></div>
+    <img id="loadimg_upload" style="display:none" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /> </div>
+</form>
+  </div>
+  
+  
+<div id="edit-additional-info" class="modal fade" tabindex="-1" aria-hidden="true">
+<form class="horizontal-form" role="form" id="transport_update_info" name="transport_update_info" enctype="multipart/form-data" action="<?php echo base_url().'org_transportation/update_transport_info' ?>" method="post">
+  <input type="hidden" class="form-control" id="transport_id_update_info" name="transport_id_update_info" value="<?php echo $this->session->userdata('transport_id'); ?>">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true" title="Close"></button>
+<h4 class="modal-title">Additional Information</h4>
+        <div class="form-group">
+          <label for="additional-comments">Comments:</label>
+          <textarea class="form-control" id="additional-comments-update" name="additional-comments-update" rows="4" ><?php echo isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '' ? $transport_details['st_add_comments'] : '';   ?></textarea>
+        </div>
+        <div class="form-group">
+          <label for="attach-documents">Attach Documents:</label>
+          <div class="attach-doc-box">
+          
+		  <div class="custom-file-input btn waves-effect waves-light">
+								<input type="file" name="files" multiple>
+                            </div>
+                            <div class="clearfix"></div>
+		  <?php /*?><button type="submit" class="btn btn-primary start" style="display:none;"> <i class="glyphicon glyphicon-upload"></i> <span>Start upload</span> </button><?php */?>
+		  <span class="small-text mart5 in-block">(Upload a .jpg, .jpe, .jpeg, .doc, .docx, .xls, .xlsx, .pdf file, 5MB Maximum)</span>
+          
+		  <input type="hidden"  class="form-control" id="image_file_update" name="image_file_update" value="" >
+		  
+		  <!-- The global progress state -->
+            <div class="col-lg-12 fileupload-progress fade">
+              <!-- The global progress bar -->
+              <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar progress-bar-success" style="width:0%;"></div>
+              </div>
+              <!-- The extended global progress state -->
+              <div class="progress-extended">&nbsp;</div>
+            </div>
+			
+			<table role="presentation" class="table table-striped">
+				<tbody class="files">
+				</tbody>
+			  </table>
+			
+			<!-- The template to display files available for upload -->
+        <script id="template-upload" type="text/x-tmpl">
+                    {% for (var i=0, file; file=o.files[i]; i++) { %}
+                        <tr class="template-upload fade">
+                            <td>
+                                <span class="preview"></span>
+                            </td>
+                            <td>
+                                <p class="name word-break">{%=file.name%}</p>
+                                <strong class="error text-danger"></strong>
+                            </td>
+                            <td>
+                                <p class="size">Processing...</p>
+                                <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar progress-bar-success" style="width:0%;"></div></div>
+                            </td>
+                            <td>
+                                {% if (!i && !o.options.autoUpload) { %}
+                                    <button class="btn btn-primary start" disabled>
+                                        <i class="glyphicon glyphicon-upload"></i>
+                                        <span>Start</span>
+                                    </button>
+                                {% } %}
+                                {% if (!i) { %}
+                                    <button class="btn cancel black">
+                                        <i class="glyphicon glyphicon-ban-circle"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                {% } %}
+                            </td>
+                        </tr>
+                    {% } %}
+                    </script>
+					
+					<!-- The template to display files available for download -->
+        <script id="template-download" type="text/x-tmpl">
+                    {% for (var i=0, file; file=o.files[i]; i++) { %}
+                        <tr class="template-download fade">
+                            <td>
+                                <span class="preview">
+                                    {% if (file.thumbnailUrl) { %}
+                                        <a href="{%=file.url%}" title="{%=file.name%}" download="{%=file.name%}" data-gallery><img src="{%=file.thumbnailUrl%}"></a>
+                                    {% } %}
+                                </span>
+                            </td>
+                            <td>
+                                <p class="name word-break">
+                                    {% if (file.url) { %}
+                                        <a href="{%=file.url%}" title="{%=file.name%}" download="{%=file.name%}" {%=file.thumbnailUrl?'data-gallery':''%}>{%=file.name%}</a>
+                                    {% } else { %}
+                                        <span>{%=file.name%}</span>
+                                    {% } %}
+                                </p>
+                                {% if (file.error) { %}
+                                    <div><span class="label label-danger">Error</span> {%=file.error%}</div>
+                                {% } %}
+                            </td>
+                            <td>
+                                <span class="size">{%=o.formatFileSize(file.size)%}</span>
+                            </td>
+                            <td>
+                                {% if (file.deleteUrl) { %}
+                                    <button class="btn btn-danger black delete" data-type="{%=file.deleteType%}" data-url="{%=file.deleteUrl%}"{% if (file.deleteWithCredentials) { %} data-xhr-fields='{"withCredentials":true}'{% } %}>
+                                        <i class="glyphicon glyphicon-trash"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                    <input type="checkbox" name="delete" value="1" class="toggle">
+                                {% } else { %}
+                                    <button class="btn cancel black">
+                                        <i class="glyphicon glyphicon-ban-circle"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                {% } %}
+                            </td>
+                        </tr>
+                    {% } %}
+                    </script>
+			
+		  </div>
+        </div>
+		
+		<div class="attachments">
+		<input type="hidden" class="form-control" id="transport_info_files_cnt" name="transport_info_files_cnt" value="<?php echo count($transport_files); ?>">
+		  <p class="info">Attachments (<?php echo count($transport_files); ?>)</p>
+		  <?php if(isset($transport_files) && !empty($transport_files)) { ?>
+		  <div class="attached-file">
+			<?php foreach($transport_files as $key=>$value) { ?>
+			<span class="del-icon"> <i class="fa fa-file"></i> <a href="<?php echo base_url().'org_transportation/generate_download/'?><?php echo $this->common_function->encode_base64($value['st_file_name']); ?>/" title="<?php echo $value['st_file_name']; ?>"><?php echo $value['st_file_name']; ?></a>
+			<?php if($this->session->userdata('userid')==$transport_details['in_trans_coods_id']) { ?>
+			<a id="<?php echo $value['in_transport_file_id']; ?>" href="<?php echo base_url().'org_transportation/delete_transport_add_files/'?><?php echo $value['in_transport_file_id']; ?>/<?php echo $transport_details['in_transportation_id'];?>" onClick="javascript:return confirm('Are you sure you want to delete it?');"  title="Delete"> <i class="fa fa-times close-attach-file"></i> </a>
+			<?php } ?>
+			</span>
+			<?php } ?>
+		  </div>
+		  <div class="clearfix"></div>
+		  <?php } ?>
+		</div>
+
+      </div>
+      <div class="modal-footer text-center">
+        <button type="button" class="btn orange-small waves-effect waves-light" title="Update" id="update_transport_info">Update</button>
+      </div>
+    </div>
+    <div class="clearfix"></div>
+    <img id="loadimg_upload" style="display:none" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /> </div>
+</form>
+  </div>  
+  
+<a href="#" class="crunchify-top" id="crunchify-top" title="Top">↑Top</a>
+
+<div class="modal fade" id="leg_upload_success_popup" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<div class="modal-header no-border">
+											<button type="button" class="close" onClick="javascript:window.location='<?php echo base_url(); ?>transport-create-legs/'" title="Close"></button>                                           
+										</div>
+										<div class="modal-body">                                        
+											<?php echo $this->session->flashdata('leg_upload_success'); ?>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div> 
+
+<div class="modal fade" id="success_transport_info_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"> 
+        <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+        <h4 class="modal-title">Information!</h4>
+      </div>
+      <div class="modal-body"><p class="mar0">Additional Information updated successfully.</p></div>
+	  <div class="modal-footer text-center no-margin"><a class="btn orange" data-dismiss="modal" href="javascript:void(0);">Close</a></div>
+	 </div>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+
+    <div class="modal fade transport-created" id="transportleg_loader" tabindex="-1" role="basic" aria-hidden="true">
+								<div class="modal-dialog">
+									<div class="modal-content">
+										<?php /*?><div class="modal-header no-border">
+											<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+										</div><?php */?>
+										<div class="modal-body">
+                                        
+										<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin-left: 47%;">&nbsp;<span id="tran-loadertext">Doobert is updating the transport leg information.</span>
+										</div>
+									</div>
+									<!-- /.modal-content -->
+								</div>
+								<!-- /.modal-dialog -->
+							</div>
+							
+<div class="modal fade" id="assign-nondoobert-user" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <form class="horizontal-form" role="form" id="non_doobert_user_frm" name="non_doobert_user_frm" enctype="multipart/form-data" action="<?php echo base_url() ?>org_transportation/non_doobert_transport_user" method="post">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" id="close_non_doobert_user_form"  class="close" type="button" title="Close"></button>
+          <h4 class="modal-title non-doobert_leg_srno">Assign Leg to Non-Doobert User <span class="req-field">(<span>*</span> required field)</span></h4>
+        </div>
+        <div class="modal-body">
+             <div class="non-user-info">
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_name" class="control-label">Name: <span class="required-filed">*</span></label>
+             <input type="text" id="non_doobert_user_name" name="non_doobert_user_name" class="form-control" maxlength="500"> 
+             </div>
+			  <div class="form-group col-md-4 user100p">
+             <label for="non_doobert_user_email" class="control-label">E-Mail: <span class="required-filed">*</span></label>
+             <input type="text" id="non_doobert_user_email" name="non_doobert_user_email" class="form-control"  maxlength="255"> 
+             </div>
+             <div class="form-group col-md-4 user100p">
+             <label for="non_doobert_user_phone" class="control-label">Phone: <span class="required-filed">*</span></label>
+             <input type="tel" id="non_doobert_user_phone" name="non_doobert_user_phone" class="form-control" > 
+             </div>
+			</div>
+            <div class="non-user-info">
+             <div class="form-group col-md-4 padl0 user100p clearfix">
+             <label for="non_doobert_user_vehicle_zipcode" class="control-label">Zipcode: <span class="required-filed">*</span></label>
+             <input type="text" id="non_doobert_user_vehicle_zipcode" name="non_doobert_user_vehicle_zipcode" class="form-control" maxlength="10"> 
+             </div>
+             </div>
+             <h3>Vehicle Info</h3>
+             <div class="vehicle-info">
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_vehicle_type" class="control-label">Vehicle Type: <?php /*<span class="required-filed">*</span>*/ ?></label>
+             <input type="text" id="non_doobert_user_vehicle_type" name="non_doobert_user_vehicle_type" class="form-control"  maxlength="500"> 
+             </div>
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_vehicle_color" class="control-label">Color:</label>
+             <input type="text" id="non_doobert_user_vehicle_color" name="non_doobert_user_vehicle_color" class="form-control" maxlength="50"> 
+             </div>
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_vehicle_license_plate" class="control-label">License Plate:</label>
+             <input type="text" id="non_doobert_user_vehicle_license_plate" name="non_doobert_user_vehicle_license_plate" class="form-control" maxlength="50"> 
+             </div>
+             <div class="form-group col-md-4 padl0 user100p">
+             <label for="non_doobert_user_vehicle_license_state" class="control-label">License State:</label>
+             <input type="text" id="non_doobert_user_vehicle_license_state" name="non_doobert_user_vehicle_license_state" class="form-control" maxlength="50"> 
+             </div>
+             	 <div class="clearfix"></div>
+             <div class="col-md-12 user100p text-center no-space">             
+             <input type="hidden" id="non_doobert_user_transport_id" name="non_doobert_user_transport_id" value="<?php echo $this->session->userdata('transport_id'); ?>"> 
+             <input type="hidden" id="non_doobert_user_transport_leg_id" name="non_doobert_user_transport_leg_id" value="">
+             <input type="hidden" id="non_doobert_user_assign_and_invite" name="non_doobert_user_assign_and_invite" value="0"> 
+			 <input type="hidden" id="joining_transport_mail" name="joining_transport_mail" value="1"> 
+             <button id="non_doobert_assign_leg" type="button" class="btn orange">Assign Leg</button>
+             <button id="non_doobert_assign_leg_invite" type="button" class="btn orange">Assign Leg &amp; Invite User</button>
+             <button id="non_doobert_cancel" title="Cancel" class="btn black" data-dismiss="modal" type="button">Cancel</button>
+             </div>
+             </div>
+          <div class="clearfix"></div>
+        </div>        
+      </div>
+       <input type="hidden" name="frm_non_doobert_action" id="frm_non_doobert_action" value="submit" />
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+<div class="modal fade" id="match_doobert_user_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <form class="horizontal-form" role="form" id="non_doobert_match_user_frm" name="non_doobert_match_user_frm" enctype="multipart/form-data" action="<?php echo base_url() ?>org_transportation/non_doobert_match_user" method="post">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+        <h4 class="modal-title">INFORMATION</h4>
+      </div>
+      <div class="modal-body">
+        <p>The email address <span id="match_doobert_user_popup_email_add"></span> is associated with a registered user <span id="match_doobert_user_popup_email_name"></span>.  If you CONFIRM we will link their profile to this leg and let them know you added them.</p>
+      </div>
+      <div class="modal-footer text-center no-margin">
+        <button class="btn orange" type="button" id="modal_confirm_match_user">Confirm</button>
+        <button class="btn black" data-dismiss="modal" type="button">Cancel</button>
+      </div>
+    </div>
+    <!-- /.modal-content --> 
+       <input type="hidden" name="matched_doobert_user_id" id="matched_doobert_user_id" value="" />
+       <input type="hidden" name="matched_doobert_user_email" id="matched_doobert_user_email" value="" />
+       <input type="hidden" name="matched_doobert_user_name" id="matched_doobert_user_name" value="" />
+       <input type="hidden" name="matched_doobert_transport_id" id="matched_doobert_transport_id" value="" />
+       <input type="hidden" name="matched_doobert_leg_id" id="matched_doobert_leg_id" value="" />
+	   <input type="hidden" name="matched_phone_number" id="matched_phone_number" value="" />
+	   <input type="hidden" id="matched_joining_transport_mail" name="matched_joining_transport_mail" value="1">
+	   <input type="hidden" name="matched_doobert_user_zip" id="matched_doobert_user_zip" value="" />	
+       <input type="hidden" name="frm_non_doobert_match_user_action" id="frm_non_doobert_match_user_action" value="submit" />
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+<div class="modal fade" id="noneuser_match_doobert_user_popup" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+        <h4 class="modal-title">INFORMATION</h4>
+      </div>
+      <div class="modal-body">
+		  <p>The email address <span id="match_doobert_user_popup_email_add"></span> is a registered doobert user and phone number has not been provided.Please contact user for updating phone number before participating in the transportation.</p>
+      </div>
+      <div class="modal-footer text-center no-margin">
+        <!--<button class="btn light-green" title="Confirm" type="button" id="modal_confirm_match_user">Confirm</button>-->
+        <button class="btn orange" data-dismiss="modal" type="button">Close</button>
+      </div>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+
+	<div class="modal fade" id="auto_split_modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+                  <div class="modal-dialog">
+                    <form class="horizontal-form" role="form" id="edit_date" name="edit_date" enctype="multipart/form-data" action="" method="post">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <button aria-hidden="true" data-dismiss="modal" class="close empty_dates" type="button" title="Close" onClick="resetdropdown();"></button>
+                          <h4 class="modal-title">Information</h4>
+                        </div>
+                        <div class="modal-body">
+                          <p style="text-align:center;">If you auto-split the route we will remove the existing legs. Are you sure you want to continue?</p>
+                          <div class="clearfix"></div>
+                        </div>
+                        <div class="modal-footer no-margin text-center">
+                          <button class="btn orange-small waves-effect waves-light" title="OK" onClick="$('#break-route-legs').modal('show');" data-dismiss="modal" type="button">Continue</button>
+                          <button class="btn black waves-effect waves-light" data-dismiss="modal" title="Cancel" type="button">Cancel</button>
+                        </div>
+                      </div>
+                    </form>
+                    <!-- /.modal-content --> 
+                  </div>
+                  <!-- /.modal-dialog --> 
+    </div>
+
+	<?php /*<div class="modal fade" id="break-route-legs" name="break-route-legs" tabindex="-1" role="dialog" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button aria-hidden="true" title="Close" data-dismiss="modal" class="close close_modal1" type="button" onClick="$('#auto_split').val('')"></button>
+					<h3>Let us break the route into legs</h3>
+				</div>
+				<div class="modal-body transleg_box">   
+					<div class="col-xs-12 col-sm-12">
+						<label class="control-label" for="handoff_time">Each leg distance (in miles): </label>
+						<div class="form-group"><input type="text" class="form-control numbersOnly" maxlength="3" id="distance_duration" name="distance_duration" value="60" placeholder="Each leg distance (in miles)"></div>
+					</div>
+      	
+					<div class="col-xs-12 col-sm-12">
+						<label class="control-label" for="handoff_time">Handoff time between legs (in mins): </label>	
+						<div class="form-group"><input type="text" class="form-control numbersOnly" maxlength="2" id="handoff_time" name="handoff_time" value="30" placeholder="Handoff time between legs (in mins)"></div>
+					</div>
+          
+					<div id="time_div">
+						<div class="col-xs-12 col-sm-12 no-space">  
+							<div class="col-xs-6 col-sm-6 padb15"> 
+								<label class="control-label" for="timepicker1">Earliest leg start time: <!--<span class="required">*</span>--></label>
+								<div class="input-group bootstrap-timepicker timepicker">
+									<input name="timepicker1" id="timepicker1" type="text" class="form-control" readonly>
+									<span class="input-group-addon open-timepicker1 time-pick"><i class="glyphicon glyphicon-time "></i></span>
+								</div>
+							</div>
+               
+							<div class="col-xs-6 col-sm-6"> 
+								<label class="control-label" for="timepicker2">Latest leg finish time: <!--<span class="required">*</span>--></label>
+								<div class="input-group bootstrap-timepicker timepicker">
+									<input name="timepicker2" id="timepicker2" type="text" class="form-control" readonly>
+									<span class="input-group-addon  open-timepicker2 time-pick"><i class="glyphicon glyphicon-time"></i></span>
+								</div>
+							</div>
+						</div>
+					</div>
+                              
+					<div class="clear"></div>                           
+				</div>
+				<div class="modal-footer text-center">
+					<button form="transport_locations" class="btn orange" type="submit" id="btn_continue" name="submit">Continue</button>
+				</div>
+			</div>
+		</div>
+	</div>*/ ?>
+	
+	<div class="modal fade" id="break-route-legs" name="break-route-legs" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button aria-hidden="true" title="Close" data-dismiss="modal" class="close close_modal1" type="button" onClick="$('#auto_split').val('')"></button>
+        <h3>Let's break the route into legs</h3>
+      </div>
+      <div class="modal-body transleg_box <?php echo ($date_diff>6)?'h450':''; ?>">   
+        <div class="col-xs-12 col-sm-12">
+			<label class="control-label top" for="handoff_time">Each leg distance (in miles):</label><div class="form-group inline"><input type="text" class="form-control numbersOnly" maxlength="3" id="distance_duration" name="distance_duration" value="60" placeholder="Each leg distance (in miles)"></div>
+        </div>      	
+       <div class="col-xs-12 col-sm-12">
+       		<label class="control-label top" for="handoff_time">Handoff time between legs (in mins):</label><div class="form-group inline"><input type="text" class="form-control numbersOnly" maxlength="2" id="handoff_time" name="handoff_time" value="30" placeholder="Handoff time between legs (in mins)"></div>
+        </div>
+          <div class="br"></div>
+		   
+          <div id="time_div">
+		  <?php if($date_diff >0) { ?>
+			<?php for($i=0;$i<$date_diff; $i++) { ?>
+          <div class="col-xs-12 col-sm-12 no-space <?php echo ($i>0)?'more':''; ?>">
+			<div class="col-xs-3 col-sm-3 col1">
+				<label class="control-label <?php echo ($i>0)?'first':''; ?>" for="timepicker1">Day <?php echo (strlen($i+1)<=2)?$this->common_model->n2l($i+1):$i+1;  ?></label>
+			</div>
+			<div class="col-xs-4 col-sm-4 col2">
+				<label class="control-label <?php echo ($i>0)?'middle':''; ?>" for="timepicker1">Earliest leg start time:</label>
+                <div class="input-group bootstrap-timepicker timepicker"><input name="timepicker1[]" type="text" id='start_timepicker<?php echo $i+1;  ?>' class="form-control timepicker1" readonly>
+                <span class="input-group-addon open-timepicker1 time-pick" data-dtatt='start_timepicker<?php echo $i+1;  ?>' ><i class="glyphicon glyphicon-time "></i></span>
+                </div>
+			</div>
+			<div class="col-xs-4 col-sm-4 col3">
+				<label class="control-label <?php echo ($i>0)?'middle':''; ?>" for="timepicker2">Latest leg finish time:</label>
+                <div class="input-group bootstrap-timepicker timepicker"><input name="timepicker2[]" type="text" id='finish_timepicker<?php echo $i+1;  ?>' class="form-control timepicker2" readonly>
+                <span class="input-group-addon  open-timepicker2 time-pick" data-dtatt='finish_timepicker<?php echo $i+1;  ?>'><i class="glyphicon glyphicon-time"></i></span>
+                </div>
+			</div>
+			<div class="br"></div>
+            </div>
+			<?php } } ?> 
+			<?php if($transport_details['st_trans_type']=='U') { ?>
+			<div class="col-md-12 col-sm-12 col-xs-12 switch-container msg-phone">
+				<label class="control-label" for="preferred-vol1">Publish only to our <a class="orange-block" target="_blank" href="<?php echo base_url().'manage-volunteer-users'; ?>">Preferred Volunteers</a> <a href="javascript:void(0);" class="title-tipso question " style="margin-top:0px;" title="Leave this to NO and we'll send the transport request to all relevant Doobert users. Select YES if you want us to only send to the volunteers in your preferred list."></a></label><label class="switch"><input type="checkbox" name="preferred-vol1" id="preferred-vol1"><span class="slider round"><span class="no">No</span></span></label>
+			</div>
+			<?php } ?>
+			
+          </div>
+                          
+        <div class="clear"></div>                           
+      </div>
+      <div class="modal-footer text-center">
+       <button class="btn black waves-effect waves-light" type="button" data-dismiss="modal">Cancel</button><button form="transport_locations" class="btn orange" type="submit" id="btn_continue" name="submit">Continue</button>
+      </div>
+    </div>
+    <!-- /.modal-content --> 
+  </div>
+ </div>
+
+	<div class="modal fade transport-created" id="auto_split_loader" tabindex="-1" role="basic" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-body">
+					<div align="center">
+						<img src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" width="32" height="32" align="absmiddle" style="margin:0 auto">
+					</div>
+					<span id="tran-loadertext">Doobert is breaking the route into legs</span>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+  <?php /*<div class="modal fade" id="cancel-transport-description" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+                    <div class="modal-dialog">
+                        <form class="horizontal-form" role="form" id="send-cancel-request" name="send-cancel-request" action="" method="post">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <button aria-hidden="true" data-dismiss="modal" id="close_cancel_desc"  class="close empty_dates" type="button" title="Close"></button>
+                                    <h4 class="modal-title">Cancelled Transportation Description</h4>
+                                </div>							
+                                <div class="modal-body">
+								 <label>Please explain to the volunteers why this transport was cancelled.  We will forward your message in the cancellation notice to them and direct them to you if they have questions:</label>
+                                    <div class="form-group col-md-12 padl0 padr0">
+                                       <textarea id="cancelmessage" name="cancelmessage" rows="3" class="form-control" maxlength="500" Placeholder="Enter Your Message" ></textarea>
+                                    </div>
+                                    <div class="form-group col-md-12 padl0 padr0 btm-button marb0">
+                                            <a href="javascript:void(0);" class="btn orange" id="reason-cancel-transport">Send</a>
+                                           <!-- <input type="submit" class="btn orange mart20 fr wht"  id="send_request_btn" value="Send">-->
+                                    </div>
+                                    <div class="clearfix"></div>
+                                </div>
+                            </div>
+                        </form>
+                        <!-- /.modal-content --> 
+                        </div>
+                    </div>
+
+	<form class="horizontal-form fl" role="form" action='<?php echo base_url().'org-transportation-scheduled/'.$this->session->userdata('transport_id');?>' id="cancel_transport" name="cancel_transport" enctype="multipart/form-data" action="" method="post">
+						<input type="hidden" name="cancel_trans" id="cancel_trans" value="cancel">
+						<input type="hidden" name="cancel_trans_text" id="cancel_trans_text" value="">
+	</form>*/ ?>						
+  
+<script type="text/javascript" src="//maps.googleapis.com/maps/api/js?v=3.14&key=AIzaSyBTVY78XuqiUjblLjk4pWZiFrRTePjk2Sw&sensor=false&libraries=geometry&language=en"></script>
+<script src="<?php echo base_url(); ?>map/application.js?version=1"></script>							
+<?php include APPPATH.'views/inc/footer-dashboard.php';?>
+
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/clockface/js/clockface.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datetimepicker/js/bootstrap-datetimepicker.min.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/jquery.ui.touch-punch.js"></script> 
+<script defer src="<?php echo base_url(); ?>assets/scripts/core/app.js"></script>
+<!-- The jQuery UI widget factory, can be omitted if jQuery UI is already included --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/vendor/jquery.ui.widget.js"></script> 
+<!-- The Templates plugin is included to render the upload/download listings --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/tmpl.min.js"></script> 
+<!-- The Load Image plugin is included for the preview images and image resizing functionality --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/load-image.min.js"></script> 
+<!-- The Canvas to Blob plugin is included for image resizing functionality --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/canvas-to-blob.min.js"></script> 
+<!-- Bootstrap JS is not required, but included for the responsive demo navigation --> 
+<?php /*?><script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script> <?php */?>
+<!-- blueimp Gallery script --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/jquery.blueimp-gallery.min.js"></script> 
+<!-- The Iframe Transport is required for browsers without support for XHR file uploads --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.iframe-transport.js"></script> 
+<!-- The basic File Upload plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload.js"></script> 
+<!-- The File Upload processing plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-process.js"></script> 
+<!-- The File Upload image preview & resize plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-image.js"></script> 
+<?php /*?><!-- The File Upload audio preview plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-audio.js"></script> 
+<!-- The File Upload video preview plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-video.js"></script> <?php */?>
+<!-- The File Upload validation plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-validate.js"></script> 
+<!-- The File Upload user interface plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-ui.js"></script> 
+<!-- The main application script --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/file_upload_main.js"></script> 
+<?php //include 'inc/footer-dashboard.php';?>
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.js"></script>
+
+<script src="<?php echo base_url(); ?>assets/scripts/custom/components-pickers.js"></script> 
+
+<script type="text/javascript">
+var upload_link= '<?php echo base_url(); ?>org_transportation/add_images';
+var file_divid = 'transport_add_info';
+
+var file_divid_update = 'transport_update_info';
+
+var end_date = '<?php echo ($transport_details['dt_target'] && !empty($transport_details['dt_target']) && $transport_details['dt_target']!='0000-00-00' && $transport_details['dt_target']!='1969-12-31' )? date('Y-m-d 23:59:59',strtotime($transport_details['dt_target'])):''; ?>';
+var start_date = '<?php echo ($transport_details['dt_pickup_date'] && !empty($transport_details['dt_pickup_date']) && $transport_details['dt_pickup_date']!='0000-00-00' && $transport_details['dt_pickup_date']!='1969-12-31' )? date('Y-m-d 00:00:01',strtotime($transport_details['dt_pickup_date'])):date('Y-m-d 00:00:01',strtotime(date("Y-m-d"))); ?>';
+var end_date1 = '<?php echo ($transport_details['dt_target'] && !empty($transport_details['dt_target']) && $transport_details['dt_target']!='0000-00-00' && $transport_details['dt_target']!='1969-12-31' )? date('dd/mm/yyyy 23:59:59',strtotime($transport_details['dt_target'])):''; ?>';
+var start_date1 = '<?php echo ($transport_details['dt_pickup_date'] && !empty($transport_details['dt_pickup_date']) && $transport_details['dt_pickup_date']!='0000-00-00' && $transport_details['dt_pickup_date']!='1969-12-31' )? date('dd/mm/yyyy 00:00:01',strtotime($transport_details['dt_pickup_date'])):date('Y-m-d 00:00:01',strtotime(date("Y-m-d"))); ?>';
+var transport_id = '<?php echo $transport_details['in_transportation_id'];?>';
+var org_id = '<?php echo $org_id ?>';
+var start_zip = '<?php echo $transport_details['st_from_zip']; ?>';
+var end_zip  = '<?php echo $transport_details['st_to_zip']; ?>';
+var transport_type = '<?php echo $transport_details['st_trans_type'];?>';
+var transport_status  = '<?php echo $transport_details['in_status']; ?>';
+var dt_target =  '<?php echo date("Y",strtotime($transport_details['dt_target'])).",".(date("m",strtotime($transport_details['dt_target']))-1).",".date("d",strtotime($transport_details['dt_target'])).",23,59,59,0";  ?>';
+var dt_pickup_date = '<?php echo date("Y",strtotime($transport_details['dt_pickup_date'])).",".(date("m",strtotime($transport_details['dt_pickup_date']))-1).",".date("d",strtotime($transport_details['dt_pickup_date'])).",0,0,0,0" ?>';		
+var total_diff = '<?php echo $date_diff; ?>';
+</script>
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-timepicker/js/bootstrap-timepicker.min.js"></script>
+<script>
+        jQuery(document).ready(function() 
+		{
+			ComponentsPickers.init();	
+			$('#auto_split').val('');	
+			$('.timepicker1').timepicker({
+				defaultTime:'08:00 AM',
+			});
+			$('.timepicker2').timepicker({
+				defaultTime:'08:00 PM', 
+			}); 
+		  
+			$(document).on('click', '.open-timepicker1', function(){
+				$('#'+$(this).attr('data-dtatt')).click();
+			});  
+			
+			$(document).on('click', '.open-timepicker2', function(){
+				$('#'+$(this).attr('data-dtatt')).click();
+			});  
+			
+			$('.numbersOnly').keyup(function () { 
+				this.value = this.value.replace(/[^0-9\.]/g,'');
+			});
+
+        });   
+//$('#break-route-legs').modal('show');		
+</script>
+<script>
+ <?php if($this->session->flashdata('leg_upload_error')) { ?>
+			$('#loader').hide();
+			$('#error_popup').modal('show');
+				<?php } ?>
+				
+				  <?php if($this->session->flashdata('leg_upload_success')) { ?>
+			$('#leg_upload_success_popup').modal('show');
+			
+				<?php } ?>
+					<?php  if($this->session->flashdata('success_transport_info')): ?>
+		$('#success_transport_info_popup').modal('show');		
+	<?php endif; ?>
+</script>
+<script src="<?php echo base_url(); ?>assets/custom_jquery/create_transport_legs.js?v=123.3" type="text/javascript" charset="utf-8"></script> 
+
+
+<script>
+$(document).ready(function(){
+
+$('#clockface_2_modal').change(function () {
+	$("#clockface_2_modal").closest('.form-group').removeClass('has-error');	
+	$('#clockfacemodal2').children('.help-block').remove();
+});
+
+$('#clockface_3_modal').change(function () {
+	$("#clockface_3_modal").closest('.form-group').removeClass('has-error');	
+	$('#clockfacemodal3').children('.help-block').remove();
+});
+
+});
+</script>
+<script>
+$(document).ready(function(){
+	jQuery('.title-tipso').tipso();
+});
+</script>
+<script>
+console.log(myArray);
+$(document).ready(function(){
+$.ajax({
+		type: "POST",
+		url: base_url+'org_transportation/re_calc_legs_data/',
+		success:function(data) {
+					 
+		}
+});
+});
+</script>
+</body>
+<!-- END BODY -->
+</html>
+

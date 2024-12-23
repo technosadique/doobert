@@ -1,0 +1,620 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 30-May-2017
+# File description	: non doobert org Model for admin
+# Special - notes	: none
+# Tables used		: tbl_non_doobert_org
+# Stored procedures	: NONE  
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class transport_routing_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+
+	public function get_deleted_transport_routing_count($user_name,$user_email,$transport_id)
+	{ 	
+		if(isset($transport_id) && $transport_id != '')
+		{
+			if(is_numeric($transport_id))
+			{
+				$transport_id = $transport_id;
+			}	
+			else
+			{
+				$transport_id = substr($transport_id,3,10);
+			}
+		}
+		
+		$this->db->select('trd.in_transport_id,u.st_display_name,u.st_last_name,u.st_email,u.in_user_id');
+		$this->db->from('tbl_trans_rout_deleted trd');
+		$this->db->join('tbl_users u','trd.in_user_id = u.in_user_id AND u.in_deleted = 0','INNER');
+		$this->db->join('tbl_transportation t','trd.in_transport_id = t.in_transportation_id AND t.in_deleted = 0 AND t.accTcid=0','INNER');
+		//$this->db->where('',0);
+		$this->db->where('trd.in_deleted',0);			
+		
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($transport_id!= '') { 
+			$this->db->where('trd.in_transport_id',$transport_id);
+		}
+		
+		$query = $this->db->get();	
+		
+		return $query->num_rows();
+	}
+	
+	public function get_deleted_transport_routing($sort,$order,$limit,$rec_per_page,$user_name,$user_email,$transport_id)
+	{ 	
+		if(isset($transport_id) && $transport_id != '')
+		{
+			if(is_numeric($transport_id))
+			{
+				$transport_id = $transport_id;
+			}	
+			else
+			{
+				$transport_id = substr($transport_id,3,10);
+			}
+		}
+		
+		$this->db->select('trd.in_transport_id,u.st_display_name,u.st_last_name,u.st_email,u.in_user_id,o.st_org_code');
+		$this->db->from('tbl_trans_rout_deleted trd');
+		$this->db->join('tbl_users u','trd.in_user_id = u.in_user_id AND u.in_deleted = 0','INNER');
+		$this->db->join('tbl_transportation t','trd.in_transport_id = t.in_transportation_id AND t.in_deleted = 0 AND t.accTcid=0','INNER');
+		$this->db->join('tbl_organization o','o.in_organization_id = t.in_organization_id','INNER');
+		
+		//$this->db->where('t.accTcid!',0);
+		$this->db->where('trd.in_deleted',0);
+		
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($transport_id!= '') { 
+			$this->db->where('trd.in_transport_id',$transport_id);
+		}
+		
+		switch($sort)
+			{		
+						case 'email': 							
+							$this->db->order_by('u.st_email',$order);							
+						break;
+						
+						case 'name': 							
+							$this->db->order_by('u.st_display_name',$order);
+							$this->db->order_by('u.st_last_name',$order);
+						break;	 
+						
+						case 'transport_id': 							
+							$this->db->order_by('trd.in_transport_id',$order);
+						break;	
+						
+						
+						default:						
+							$this->db->order_by('trd.in_transport_id','desc');
+						break;        
+		}
+		//$this->db->group_by('tr.in_transportation_id');
+		$this->db->limit($rec_per_page,$limit);		
+		
+		$query = $this->db->get();
+		if($query && $query->num_rows()>0)
+		{	
+			return $query->result_array();
+		} else {
+			$row_data = array();
+			return $row_data;
+		}	
+	}
+	
+	
+	public function get_submitted_transport_routing_count($user_name,$user_email,$transport_id,$transport_status='')
+	{
+			
+		if(isset($transport_id) && $transport_id != '')
+		{
+			if(is_numeric($transport_id))
+			{
+				$transport_id = $transport_id;
+			}	
+			else
+			{
+				$transport_id = substr($transport_id,3,10);
+			}
+		}
+		
+		 $this->db->select('tr.in_transportation_id,
+						    u.st_display_name,
+						    u.st_last_name,
+						    u.st_email,
+							tr.st_from_country,	
+							tr.st_from_state,							
+							tr.st_from_city,						
+							tr.st_from_zip,
+							tr.st_to_country,
+							tr.st_to_state,
+							tr.st_to_city,
+							tr.st_to_zip');
+		$this->db->from('tbl_transportation tr');
+		$this->db->join('tbl_users u','tr.accTcid = u.in_user_id AND u.in_deleted = 0','LEFT');
+		$this->db->join('tbl_organization o','o.in_organization_id = tr.in_organization_id','INNER');
+		$this->db->where('tr.st_trans_type','D');
+		$this->db->where('tr.enable_routing_status',1);
+		$this->db->where('o.in_deleted','0');
+		$this->db->where('o.in_status','1');
+		
+		switch($transport_status)
+		{		
+			case '1': 
+				 $this->db->where('tr.accTcid',0);	
+				 $this->db->where('tr.in_status',4);							
+			break;
+						
+			case '2':
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',1);
+			break;	 
+						
+			case '3':
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',2);
+			break;	
+			
+			case '4': 
+				 $this->db->where('tr.accTcid',0);
+				 $this->db->where('tr.in_status',1);							
+			break;
+
+			case '5': 
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',4);							
+			break;
+						
+			default:
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',1);
+			break;        
+		}
+		$this->db->where('tr.in_deleted',0);
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($transport_id!= '') { 
+			$this->db->where('tr.in_transportation_id',$transport_id);
+		}
+			
+		$query = $this->db->get();	
+		return $query->num_rows();
+	}
+	
+	public function get_submitted_transport_routing($sort,$order,$limit,$rec_per_page,$user_name,$user_email,$transport_id,$transport_status='')
+	{
+		if(isset($transport_id) && $transport_id != '')
+		{
+			if(is_numeric($transport_id))
+			{
+				$transport_id = $transport_id;
+			}	
+			else
+			{
+				$transport_id = substr($transport_id,3,10);
+			}
+		}
+		
+		$this->db->select('tr.in_transportation_id,
+							u.st_display_name,
+							u.st_last_name,u.st_email,
+							tr.st_from_street,
+							tr.st_from_country,	
+							tr.st_from_state,							
+							tr.st_from_city,						
+							tr.st_from_zip,
+							tr.st_to_street,
+							tr.st_to_country,
+							tr.st_to_state,
+							tr.st_to_city,
+							tr.st_to_zip,
+							o.st_org_code,
+							tr.in_airline_transport');
+		$this->db->from('tbl_transportation tr');
+		$this->db->join('tbl_users u','tr.accTcid = u.in_user_id AND u.in_deleted = 0','LEFT');
+		$this->db->join('tbl_organization o','o.in_organization_id = tr.in_organization_id','INNER');
+		$this->db->where('tr.st_trans_type','D');
+		$this->db->where('tr.enable_routing_status',1);
+		$this->db->where('tr.st_trans_type','D');
+		$this->db->where('o.in_deleted','0');
+		$this->db->where('o.in_status','1');
+		
+		switch($transport_status)
+		{		
+			case '1': 
+				 $this->db->where('tr.accTcid',0);
+				 $this->db->where('tr.in_status',4);							
+			break;
+						
+			case '2':
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',1);
+			break;	 
+						
+			case '3':
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',2);
+			break;
+
+			case '4': 
+				 $this->db->where('tr.accTcid',0);
+				 $this->db->where('tr.in_status',1);							
+			break;
+
+			case '5': 
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',4);							
+			break;	
+						
+			default:
+				$this->db->where('tr.accTcid !=',0);
+				$this->db->where('tr.in_status',1);
+			break;        
+		}
+		
+		$this->db->where('tr.in_deleted',0);
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($transport_id!= '') { 
+			$this->db->where('tr.in_transportation_id',$transport_id);
+		}
+		
+		switch($sort)
+		{		
+						case 'email': 							
+							$this->db->order_by('u.st_email',$order);							
+						break;
+						
+						case 'name': 							
+							$this->db->order_by('u.st_display_name',$order);
+							$this->db->order_by('u.st_last_name',$order);
+						break;	 
+						
+						case 'transport_id': 							
+							$this->db->order_by('tr.in_transportation_id',$order);
+						break;
+						
+						case 'type': 							
+							$this->db->order_by('tr.in_airline_transport',$order);
+						break;
+
+						case 'fromloc': 								
+								$this->db->order_by('tr.st_from_state',$order);
+						break;
+							
+						case 'toloc': 							
+								$this->db->order_by('tr.st_to_state',$order);
+						break;	
+						
+						
+						default:						
+							$this->db->order_by('tr.in_transportation_id','desc');
+						break;        
+		}
+		//$this->db->group_by('tr.in_transportation_id');
+		$this->db->limit($rec_per_page,$limit);	
+		
+		$query = $this->db->get();
+		if($query && $query->num_rows()>0)
+		{	
+			return $query->result_array();
+		} else {
+			$row_data = array();
+			return $row_data;
+		}	
+	}
+	
+	
+	public function get_enabled_user_tc_board_count($user_name,$user_email)
+	{ 			
+		$this->db->select('u.st_display_name,u.st_last_name,u.st_email,u.in_user_id,up.dt_exp_tc_date');
+		$this->db->from('tbl_users u');
+		$this->db->join('tbl_user_profile up','u.in_user_id = up.in_user_id','LEFT');
+		$this->db->where('u.in_tc_request_board','1');
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('up.in_deleted',0);
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		$query = $this->db->get();	
+		return $query->num_rows();
+	}
+	
+	public function get_enabled_user_tc_board($sort,$order,$limit,$rec_per_page,$user_name,$user_email)
+	{ 			
+		$this->db->select('u.st_display_name,u.st_last_name,u.st_email,u.in_user_id,up.dt_exp_tc_date');
+		$this->db->from('tbl_users u');
+		$this->db->join('tbl_user_profile up','u.in_user_id = up.in_user_id','LEFT');
+		$this->db->where('u.in_tc_request_board','1');
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('up.in_deleted',0);
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		
+		
+		switch($sort)
+			{		
+						case 'email': 							
+							$this->db->order_by('st_email',$order);							
+						break;
+						
+						case 'name': 							
+							$this->db->order_by('st_display_name',$order);
+							$this->db->order_by('st_last_name',$order);
+						break;
+							
+						case 'exp_date': 							
+							$this->db->order_by('up.dt_exp_tc_date ',$order);
+						break;	
+						
+						default:						
+							$this->db->order_by('st_display_name',$order);
+							$this->db->order_by('st_last_name',$order);
+						break;        
+		}
+		//$this->db->group_by('tr.in_transportation_id');
+		$this->db->limit($rec_per_page,$limit);	
+		
+		$query = $this->db->get();
+		if($query && $query->num_rows()>0)
+		{	
+			return $query->result_array();
+		} else {
+			$row_data = array();
+			return $row_data;
+		}	
+	}
+		
+
+	public function get_submitted_transport_routing_leg_count($user_name,$user_email,$transport_id,$leg_covering_status='')
+	{
+		if(isset($transport_id) && $transport_id != '')
+		{
+			if(is_numeric($transport_id))
+			{
+				$transport_id = $transport_id;
+			}	
+			else
+			{
+				$transport_id = substr($transport_id,3,10);
+			}
+		}	
+		 $this->db->select('u.st_display_name,
+						    u.st_last_name,
+						    u.st_email,
+							tc.in_id,
+							tc.in_route_type,
+							tc.in_transportation_id,	
+							tc.st_from_state,							
+							tc.st_from_city,						
+							tc.st_from_zip,
+							tc.st_from_country,
+							tc.st_from_street,
+							tc.st_to_country,
+							tc.st_to_state,
+							tc.st_to_city,
+							tc.st_to_street,
+							tc.st_to_zip');
+		$this->db->from('tbl_legs_cover tc');
+		$this->db->join('tbl_users u','tc.in_user_id = u.in_user_id','LEFT');
+		//$this->db->join('tbl_users u','tc.in_user_id = u.in_user_id AND u.in_deleted = 0','LEFT');
+		
+		switch($leg_covering_status)
+		{		
+			case '1': 
+				$this->db->where('tc.leghandle',0);
+				$this->db->where('tc.in_deleted',0);	
+				 //$this->db->where('tr.in_status',4);							
+			break;
+						
+			case '2':
+				$this->db->where('tc.leghandle',1);
+				$this->db->where('tc.in_deleted',0);	
+			break;	 
+						
+			case '3':
+				$this->db->where('tc.leghandle',0);
+				$this->db->where('tc.in_deleted',1);
+			break;	
+			
+						
+			default:
+				$this->db->where('tc.leghandle',0);
+				$this->db->where('tc.in_deleted',0);
+			break;        
+		}
+		$this->db->order_by('tc.in_id','desc');
+		//$this->db->where('tr.in_deleted',0);
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($transport_id!= '') { 
+			$this->db->where('tc.in_transportation_id',$transport_id);
+		}
+			
+			
+		$query = $this->db->get();	
+		return $query->num_rows();
+	}
+	
+	public function get_submitted_transport_routing_leg($sort,$order,$limit,$rec_per_page,$user_name,$user_email,$transport_id,$leg_covering_status='')
+	{
+		if(isset($transport_id) && $transport_id != '')
+		{
+			if(is_numeric($transport_id))
+			{
+				$transport_id = $transport_id;
+			}	
+			else
+			{
+				$transport_id = substr($transport_id,3,10);
+			}
+		}	
+		$this->db->select('u.st_display_name,
+						   u.st_last_name,
+						   u.st_email,
+						   tc.in_id,
+						   tc.in_route_type,
+						   tc.in_transportation_id,	
+						   tc.st_from_state,							
+						   tc.st_from_city,						
+						   tc.st_from_zip,
+						   tc.st_from_country,
+						   tc.st_from_street,
+						   tc.st_to_country,
+					       tc.st_to_state,
+						   tc.st_to_city,
+						   tc.st_to_street,
+						   tc.st_to_zip');
+		$this->db->from('tbl_legs_cover tc');
+		$this->db->join('tbl_users u','tc.in_user_id = u.in_user_id','LEFT');
+		//$this->db->join('tbl_users u','tc.in_user_id = u.in_user_id AND u.in_deleted = 0','LEFT');
+		//$this->db->where('tr.st_trans_type','D');
+		//$this->db->where('tr.enable_routing_status',1);
+		
+		
+		switch($leg_covering_status)
+		{		
+			case '1': 
+				$this->db->where('tc.leghandle',0);
+				$this->db->where('tc.in_deleted',0);	
+				 //$this->db->where('tr.in_status',4);							
+			break;
+						
+			case '2':
+				$this->db->where('tc.leghandle',1);
+				$this->db->where('tc.in_deleted',0);	
+			break;	 
+						
+			case '3':
+				$this->db->where('tc.leghandle',0);
+				$this->db->where('tc.in_deleted',1);
+			break;	
+			
+						
+			default:
+				$this->db->where('tc.leghandle',0);
+				$this->db->where('tc.in_deleted',0);
+			break;        
+		}
+		
+		
+		
+		if($user_name!= '') { 
+			$this->db->where("concat(u.st_display_name,' ',u.st_last_name) LIKE '%".addslashes($user_name)."%'");
+		}
+		
+		if($user_email!= '') { 
+			$this->db->where('u.st_email',$user_email);
+		}
+		
+		if($transport_id!= '') { 
+			$this->db->where('tc.in_transportation_id',$transport_id);
+		}
+		
+		switch($sort)
+		{		
+						case 'email': 							
+							$this->db->order_by('u.st_email',$order);							
+						break;
+						
+						case 'name': 							
+							$this->db->order_by('u.st_display_name',$order);
+							$this->db->order_by('u.st_last_name',$order);
+						break;	 
+						
+						case 'transport_id': 							
+							$this->db->order_by('tc.in_transportation_id',$order);
+						break;
+						
+						case 'type': 							
+							$this->db->order_by('tc.in_route_type',$order);
+						break;
+
+						case 'fromloc': 								
+								$this->db->order_by('tc.st_from_state',$order);
+						break;
+							
+						case 'toloc': 							
+								$this->db->order_by('tc.st_to_state',$order);
+						break;	
+						
+						
+						default:						
+							$this->db->order_by('tr.in_transportation_id','desc');
+						break;        
+		}
+		$this->db->order_by('tc.in_id','desc');
+		//$this->db->group_by('tr.in_transportation_id');
+		$this->db->limit($rec_per_page,$limit);	
+			
+		$query = $this->db->get();
+		
+		
+		
+		if($query && $query->num_rows()>0)
+		{	
+			return $query->result_array();
+		} else {
+			$row_data = array();
+			return $row_data;
+		}	
+	}
+	
+public function	update_transport($transid, $transportarr){
+		$this->db->where('in_transportation_id', $transid);
+		$this->db->update('tbl_transportation', $transportarr);
+		return $this->db->affected_rows();
+	}
+		
+}
+?>

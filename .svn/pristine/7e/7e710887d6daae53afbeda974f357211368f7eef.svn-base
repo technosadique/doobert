@@ -1,0 +1,1422 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique MOhammed
+# Created date		: 06-Jan-2016
+# File description	: Foster Model for User
+# Special - notes	: none
+# Tables used		: tbl_users,tbl_user_profile,tbl_foster_animal_type_detail,tbl_foster_user_detail
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+
+class foster_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+    function index() {
+        
+    }
+
+    #============================================================
+    #	Function	:	get_total_foster()
+    #   Parameter	: 	name,email
+    #	Perpose		:	to check valid foster user details
+    #------------------------------------------------------------
+
+    public function get_total_foster($zipcode = '', $radius = '', $maxnumber = '', $animaltype = '', $duration = '', $maxsize = '', $otherhouseholdanimal = '') {
+        
+		if(!empty($zipcode))
+		{
+			$lat_long1 =	$this->get_lat_long($zipcode);
+			if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+				$lat_long1 = $this->google_lat_long($zipcode);
+			}	
+		}
+		
+		$this->db->select("fa.in_foster_animal_detail_id,u.in_user_id,u.st_display_name,u.st_profile_image,u.st_email,
+		up.st_zip,zp.lat,zp.lon,at.st_animal_type_name,fu.in_user_id,fa.in_duration_type_id,
+		fa.st_maximum_foster_days,fa.st_maximum_foster_size,fa.st_household_other_animals,
+		up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,us.st_foster", false);
+        $this->db->from('tbl_foster_animal_type_detail fa');
+        $this->db->join('tbl_foster_user_detail fu', 'fu.in_foster_id=fa.in_foster_id', 'INNER');
+        $this->db->join('tbl_animal_type at', 'at.in_animal_type_id=fa.in_animal_type_id', 'LEFT');
+        $this->db->join('tbl_users u', 'u.in_user_id=fu.in_user_id', 'LEFT');
+        $this->db->join('tbl_user_profile up', 'up.in_user_id=fu.in_user_id', 'LEFT');
+        $this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+		$this->db->where('u.in_deleted',0);
+        $this->db->where('fu.in_user_id <>', ' ');
+        $this->db->where('fa.in_deleted', 0);
+        $this->db->where('fu.in_deleted', 0);
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.in_deleted',0);
+		$this->db->where('us.st_foster <>','');
+		$this->db->group_by('fu.in_user_id');
+		//$this->db->group_by('at.in_animal_type_id');
+		
+		$where = '';
+		$where .= "(((us.st_foster REGEXP '.*;s:[0-9]+:\"st_animal_type_ids\".*') && (st_animal_type_name !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"in_duration_type\".*') && (in_duration_type_id !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"st_max_foster_days\".*') && (st_maximum_foster_days !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"st_max_animal_size\".*') && (st_maximum_foster_size !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"st_household_animal_ids\".*') && (st_household_other_animals !='')))";
+		
+		
+        /* if($zipcode == ''){ 
+          $this->db->where("up.st_zip = '" . $this->session->userdata('zip'). "'", NULL, FALSE);
+          } */
+
+		$this->db->where($where);
+        //echo $zipcode;die;	
+        if ($animaltype != '') {
+            $this->db->where("fa.in_animal_type_id = '" . $animaltype . "'", NULL, FALSE);
+        }
+        if ($maxnumber != '') {
+            $this->db->where("fa.st_maximum_foster_days = '" . $maxnumber . "'", NULL, FALSE);
+        }
+        if ($maxsize != '') {
+            $this->db->where("fa.st_maximum_foster_size = '" . $maxsize . "'", NULL, FALSE);
+        }
+        if ($duration != '') {
+           
+			if($duration == 1)  // overnight
+			{ 			
+				$this->db->where('(fa.in_duration_type_id = 1 OR fa.in_duration_type_id=2 OR fa.in_duration_type_id=3)');
+			}
+			else if($duration == 2)   // shortterm
+			{  
+				
+				$this->db->where('(fa.in_duration_type_id = 2 OR fa.in_duration_type_id=3)');
+			}
+			
+			else
+			{  
+				$this->db->where("fa.in_duration_type_id = '" . $duration . "'", NULL, FALSE);
+				
+			}
+        }
+		
+       /* if ($zipcode != '') {
+            $this->db->where("up.st_zip = '" . $zipcode . "'", NULL, FALSE);
+        }*/
+        if ($otherhouseholdanimal != '') {
+            $this->db->where("fa.st_household_animal_ids LIKE '" . $otherhouseholdanimal . "'", NULL, FALSE);
+        }
+
+        if ($radius != '' && $zipcode != '') {
+
+            //$lat_long1 = $this->google_lat_long($zipcode);
+			if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) {
+				if ($lat_long1['lon'] != '' && $lat_long1['lat'] != '') {
+					$lat_long = $lat_long1;
+				}
+			}
+			if(isset($lat_long))
+			{	
+				if (sizeof($lat_long) > 0) {
+					$this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+				}
+			}
+        }
+
+        $query = $this->db->get();
+		//echo "<pre>"; print_r($query->result());
+		$final_array =array();
+				
+		 return $query->num_rows();
+    }
+
+	#============================================================
+    #	Function	:	get_total_foster_photographer()
+    #   Parameter	: 	name,email
+    #	Perpose		:	to check valid foster user details
+    #------------------------------------------------------------
+		public function get_total_foster_photographer($zipcode = '', $radius = '', $service = '', $userdays = ''){
+       
+		//$this->db->select("u.in_user_id , ph.st_photographer_availability ,us.st_photographer", false);
+		
+		if(!empty($zipcode))
+		{
+		  $lat_long1 =	$this->get_lat_long($zipcode);
+		  if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+				$lat_long1 = $this->google_lat_long($zipcode);
+			}
+		}
+		
+		$this->db->select('ph.in_photographer_id ,ph.in_user_id ,ph.st_photographer_zipcode,ph.in_distance_to_travel,ph.in_pro_bono_ser,ph.st_photographer_availability,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon , us.st_photographer');
+        $this->db->from('tbl_users u');
+		$this->db->join('tbl_photographer_detail ph', 'ph.in_user_id=u.in_user_id', 'INNER');
+      	$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+        $this->db->where('u.in_user_id <>','');
+        $this->db->where('u.in_deleted', 0);
+		$this->db->where('ph.in_deleted',0);
+		$this->db->where('us.in_deleted',0);
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.st_photographer <>','');
+		
+        $where = '';
+		$where .= "(((us.st_photographer REGEXP '.*;s:[0-9]+:\"st_photographer_zipcode\".*') && (st_photographer_zipcode !=''))";
+		
+		$where .="OR ((us.st_photographer REGEXP '.*;s:[0-9]+:\"in_distance_to_travel\".*') && (in_distance_to_travel !=''))";
+		
+		$where .="OR ((us.st_photographer REGEXP '.*;s:[0-9]+:\"in_pro_bono_ser\".*') && (in_pro_bono_ser !=''))";
+		
+		$where .="OR ((us.st_photographer REGEXP '.*;s:[0-9]+:\"st_photographer_availability\".*') && (st_photographer_availability !='')))";
+		
+		$this->db->where($where);
+	
+		if($service !='')
+		{
+			if($service == 0) { $ser = 2;}else {$ser =$service;}
+			 $this->db->where("ph.in_pro_bono_ser = '" . $ser . "'", NULL, FALSE);
+		}
+		
+        if ($radius != '' && $zipcode != '') {
+		   //$lat_long1 = $this->google_lat_long($zipcode);
+		    if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) {
+				if ($lat_long1['lon'] != '' && $lat_long1['lat'] != ''){
+					$lat_long = $lat_long1;
+				}
+			}
+			if(isset($lat_long)) {
+            if (sizeof($lat_long) > 0) {
+                $this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+            }
+			}		
+        }
+		
+		$this->db->group_by('ph.in_photographer_id');
+        $query = $this->db->get();
+		if($userdays !=''){
+		$u=0; $final_array=array();
+		if(!empty($query)){
+			foreach($query->result() as $v){
+				$array= unserialize($v->st_photographer_availability);
+					$flag=0;
+					for($i=0;$i<count($array);$i++)
+					{
+						for($j=0;$j<count($userdays);$j++)
+						{
+							if($userdays[$j]==$array[$i])
+							{
+								$flag=1;
+								$final_array[$u++]=$v;
+								break;							
+							}	
+						}
+					if($flag==1){break;}		
+					}
+				}
+		}
+		return count($final_array);
+		}//userdays
+		else {
+			return $query->num_rows();
+		}
+		
+	}
+	#============================================================
+    #	Function	:	get_total_foster_inpersonal()
+    #   Parameter	: 	zipcode ,radius, inpersonal array 
+    #	Perpose		:	to check valid foster user details
+    #------------------------------------------------------------
+	public  function get_total_foster_inpersonal($zipcode = '', $radius = '', $inspector ='',$reviewer ='',$fundraiser='', $animalcare='')
+	{
+		
+		if(!empty($zipcode))
+		{
+			$lat_long1  = $this->get_lat_long($zipcode);
+			if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+					$lat_long1 = $this->google_lat_long($zipcode);
+			}
+		}
+		
+		
+		$this->db->select("pv.in_volunteer_id , pv.in_user_id ,pv.st_volunteer_zipcode,pv.in_home_visit,pv.in_app_reviewer,pv.in_physical_fundraiser,pv.in_animal_care,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon,us.st_in_person_vol");
+		
+		$this->db->from('tbl_in_person_volunteer_detail pv');
+		$this->db->join('tbl_users u', 'pv.in_user_id=u.in_user_id', 'INNER');
+		$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+        $this->db->where('u.in_user_id <>', '');
+        $this->db->where('u.in_deleted',0);
+		$this->db->where('pv.in_deleted',0);
+		$this->db->where('us.in_deleted',0);
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.st_in_person_vol <>','');
+		
+		$where = '';
+		//$where .= "(((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"st_volunteer_zipcode\".*') && (st_volunteer_zipcode !=''))";
+		
+		//$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"st_volunteer_zipcode\".*') && (st_volunteer_zipcode !=''))";
+		
+		//$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_distance_to_drive\".*') && (in_pro_bono_ser !=''))";
+		
+		$where .="(((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_home_visit\".*') && (in_home_visit !=''))";
+		
+		$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_app_reviewer\".*') && (in_app_reviewer !=''))";
+		
+		$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_physical_fundraiser\".*') && (in_physical_fundraiser !=''))";
+	
+		$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_animal_care\".*') && (in_animal_care !='')))";
+		
+		$this->db->where($where);			
+		if($inspector != '')
+		{
+			 $this->db->where("pv.in_home_visit = '" . $inspector . "'", NULL, FALSE);
+		}
+		
+		if($reviewer != '')
+		{
+			 $this->db->where("pv.in_app_reviewer = '" . $reviewer . "'", NULL, FALSE);
+		} 
+		
+		if($fundraiser != '')
+		{
+			 $this->db->where("pv.in_physical_fundraiser = '" . $fundraiser . "'", NULL, FALSE);
+		}
+		
+		if($animalcare != '')
+		{
+			 $this->db->where("pv.in_animal_care = '" . $animalcare . "'", NULL, FALSE);
+		} 
+		if($inspector == '' && $reviewer == '' && $fundraiser == '' && $animalcare == ''){
+		
+		$this->db->where("(pv.in_home_visit != 0 or pv.in_app_reviewer != 0 or pv.in_physical_fundraiser != 0 or pv.in_animal_care != 0)");
+		}
+		if ($radius != '' && $zipcode != '') {
+			
+           //$lat_long1 = $this->google_lat_long($zipcode);
+				if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) {
+					if ($lat_long1['lon'] != '' && $lat_long1['lat'] != '') {
+						$lat_long = $lat_long1;
+					}
+				}
+			
+			if(isset($lat_long)) {
+				if (sizeof($lat_long) > 0) {
+                $this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+            }
+		  }
+        }
+		 $query = $this->db->get();
+      
+       return $query->num_rows();
+		
+	}
+	
+	#============================================================
+    #	Function	:	get_total_foster_virtual()
+    #   Parameter	: 	zipcode ,radius, virtual array 
+    #	Perpose		:	to check valid foster user details
+    #------------------------------------------------------------
+	function get_total_foster_virtual($social_media ='' ,$profile_posting ='' ,$virtual_support ='' , $profile_text='')
+	{
+		$this->db->select("v.in_virtual_support_vol_id , v.in_user_id ,v.in_manage_facebook ,v.in_manage_twitter,v.in_manage_gplus, v.in_manage_pin_board,v.in_manage_instagram,v.in_manage_video,v.in_social_media ,v.in_petfinder ,v.in_adoptapet,v.in_petharbor,v.in_petango,v.in_rescuegroups  ,v.in_shelterexchange,v.in_dogtime,v.in_petsoverstock,v.in_animal_profile,v.in_transport_monitor,v.in_adoption_application,v.in_onlinefundraiser,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon ,us.st_in_virtual_vol", false);
+        $this->db->from('tbl_users u');
+		$this->db->join('tbl_virtual_support_vol_detail v', 'v.in_user_id = u.in_user_id','INNER');
+		$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+        $this->db->where('u.in_user_id <>','');
+        $this->db->where('u.in_deleted',0);
+		$this->db->where('v.in_deleted',0);
+		$this->db->where('us.in_deleted',0);
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.st_in_virtual_vol <>','');
+		
+		
+        $where = '';
+		
+		$where .= "(((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_facebook\".*') && (v.in_manage_facebook !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_twitter\".*') && (v.in_manage_twitter !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_gplus\".*') && (v.in_manage_gplus !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_pin_board\".*') && (v.in_manage_pin_board !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_instagram\".*') && (v.in_manage_instagram !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_video\".*') && (v.in_manage_video !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_social_media\".*') && (v.in_social_media !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_petfinder\".*') && (v.in_petfinder !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_adoptapet\".*') && (v.in_adoptapet !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_petharbor\".*') && (v.in_petharbor !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_rescuegroups\".*') && (v.in_rescuegroups !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_shelterexchange\".*') && (v.in_shelterexchange !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_dogtime\".*') && (v.in_dogtime !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_petsoverstock\".*') && (v.in_petsoverstock !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_animal_profile\".*') && (v.in_animal_profile !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_transport_monitor\".*') && (v.in_transport_monitor !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_adoption_application\".*') && (v.in_adoption_application !=''))";
+
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_onlinefundraiser\".*') && (in_onlinefundraiser !='')))";
+		
+		$this->db->where($where);
+		
+		if($social_media !='')
+		{
+			foreach($social_media as $a=>$v)
+			{
+				if($v=='facebook')
+					$this->db->where("v.in_manage_facebook = 1", NULL, FALSE);
+				else if($v =='tweeter')
+					$this->db->where("v.in_manage_twitter = 1", NULL, FALSE);
+				else if($v =='google')
+					$this->db->where("v.in_manage_gplus = 1", NULL, FALSE);
+				else if($v == 'pinterest')
+					$this->db->where("v.in_manage_pin_board = 1", NULL, FALSE);
+				else if($v == 'instagram')
+					 $this->db->where("v.in_manage_instagram = 1", NULL, FALSE);
+				else if($v == 'youtube')
+					 $this->db->where("v.in_manage_video = 1", NULL, FALSE);
+				else if($v == 'social_media_other')
+					 $this->db->where("v.in_social_media = 1", NULL, FALSE);
+				 
+			}
+			
+		}	
+		
+		if($profile_posting != '')
+		{
+			foreach ($profile_posting as $a=>$v) {
+			if($v =='petfinder')
+				 $this->db->where("v.in_petfinder = 1", NULL, FALSE);
+			 else if($v =='adoptapet')
+				  $this->db->where("v.in_adoptapet = 1", NULL, FALSE);
+			 else if($v =='petharbor')
+				  $this->db->where("v.in_petharbor = 1", NULL, FALSE);
+			 else if($v == 'petango')
+				  $this->db->where("v.in_petango = 1", NULL, FALSE);
+			 else if($v == 'rescuegroup')
+				  $this->db->where("v.in_rescuegroups = 1", NULL, FALSE);
+			 else if($v == 'shelterexc')
+				  $this->db->where("v.in_shelterexchange = 1", NULL, FALSE);
+			 else if($v == 'dogtime')
+				  $this->db->where("v.in_dogtime = 1", NULL, FALSE);
+			 else if($v =='petsoverstock')
+				  $this->db->where("v.in_petsoverstock = 1", NULL, FALSE);
+			 else if($v=='other')
+				  $this->db->where("v.in_animal_profile = 1", NULL, FALSE);
+			}
+		}
+		if($profile_text!='')
+		{
+			 $this->db->where("v.st_animal_profile_other LIKE  '%" . $profile_text . "%'", NULL, FALSE);
+		}
+			  
+		if($virtual_support!='')
+		{
+			foreach($virtual_support as $a=>$v) {
+				if($v=='monitor')
+				   $this->db->where("v.in_transport_monitor = 1", NULL, FALSE);
+				else if($v == 'reviewer')
+					$this->db->where("v.in_adoption_application = 1", NULL, FALSE);
+				else if($v =='fundraiser')
+					$this->db->where("v.in_onlinefundraiser = 1", NULL, FALSE);
+		}
+		}
+		
+		$query = $this->db->get();
+        return $query->num_rows();
+		
+	}
+    #============================================================
+    #	Function	:	get_foster()
+    #   Parameter	: 	limit,rec_per_page,name,email
+    #	Perpose		:	to get user details
+    #------------------------------------------------------------
+	   public function get_foster($limit, $rec_per_page, $zipcode = '', $radius = '', $maxnumber = '', $animaltype = '', $duration = '', $maxsize = '', $otherhouseholdanimal = '',$all='') {
+		
+		if(!empty($zipcode))
+		{
+		  $lat_long1 =	$this->get_lat_long($zipcode);
+		  if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+				$lat_long1 = $this->google_lat_long($zipcode);
+			}
+		}
+		
+		$this->db->select("fa.in_foster_animal_detail_id,u.in_user_id,u.st_display_name,u.st_profile_image,u.st_email,
+		up.st_zip,zp.lat,zp.lon,at.st_animal_type_name,fu.in_user_id,fa.in_duration_type_id,
+		fa.st_maximum_foster_days,fa.st_maximum_foster_size,fa.st_household_other_animals,up.st_arpa_cert,
+		up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,us.st_foster,up.st_lost_animal_support ", false); //,v.fl_doobert_verified
+        $this->db->from('tbl_foster_animal_type_detail fa');
+        $this->db->join('tbl_foster_user_detail fu', 'fu.in_foster_id=fa.in_foster_id', 'INNER');
+        $this->db->join('tbl_animal_type at', 'at.in_animal_type_id=fa.in_animal_type_id', 'LEFT');
+        $this->db->join('tbl_users u', 'u.in_user_id=fu.in_user_id', 'LEFT');
+        $this->db->join('tbl_user_profile up', 'up.in_user_id=fu.in_user_id', 'LEFT');
+        $this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+		$this->db->where('u.in_deleted',0);
+        $this->db->where('fu.in_user_id <>','');
+        $this->db->where('fa.in_deleted', 0);
+        $this->db->where('fu.in_deleted', 0);  
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.in_deleted',0); 
+		$this->db->where('us.st_foster <>','');
+		$this->db->group_by('fu.in_user_id');
+		//$this->db->group_by('at.in_animal_type_id');
+		
+		$where = '';
+		$where .= "(((us.st_foster REGEXP '.*;s:[0-9]+:\"st_animal_type_ids\".*') && (st_animal_type_name !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"in_duration_type\".*') && (in_duration_type_id !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"st_max_foster_days\".*') && (st_maximum_foster_days !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"st_max_animal_size\".*') && (st_maximum_foster_size !=''))";
+		
+		$where .="OR ((us.st_foster REGEXP '.*;s:[0-9]+:\"st_household_animal_ids\".*') && (st_household_other_animals !='')))";
+		
+		$this->db->where($where);
+		
+        if ($animaltype != '') {
+            $this->db->where("fa.in_animal_type_id = '" . $animaltype . "'", NULL, FALSE);
+        }
+        if ($maxnumber != '') {
+            $this->db->where("fa.st_maximum_foster_days = '" . $maxnumber . "'", NULL, FALSE);
+        }
+        if ($maxsize != '') {
+            $this->db->where("fa.st_maximum_foster_size = '" . $maxsize . "'", NULL, FALSE);
+        }
+		
+         if ($duration != '') {
+            //$this->db->where("fa.in_duration_type_id = '" . $duration . "'", NULL, FALSE);
+			if($duration == 1)  // overnight
+			{  
+				//$this->db->where("fa.in_duration_type_id = '" . $duration . "' OR fa.in_duration_type_id ='2' OR fa.in_duration_type_id ='3' ", NULL, FALSE);
+				$this->db->where('(fa.in_duration_type_id = 1 OR fa.in_duration_type_id=2 OR fa.in_duration_type_id=3)');
+			}
+			else if($duration == 2)   // shortterm
+			{  
+				//$this->db->where("fa.in_duration_type_id = '" . $duration . "' OR fa.in_duration_type_id ='3'", NULL, FALSE);
+				$this->db->where('(fa.in_duration_type_id = 2 OR fa.in_duration_type_id=3)');
+			}
+			
+			else
+			{  
+				$this->db->where("fa.in_duration_type_id = '" . $duration . "'", NULL, FALSE);
+				
+			}
+        }
+      
+
+
+       if ($otherhouseholdanimal != '') {
+            $this->db->where("fa.st_household_animal_ids LIKE '" . $otherhouseholdanimal . "'", NULL, FALSE);
+        }
+
+        if ($radius != '' && $zipcode != '') {
+
+            //$lat_long1 = $this->google_lat_long($zipcode);
+			if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) {
+				if ($lat_long1['lon'] != '' && $lat_long1['lat'] != '') {
+					$lat_long = $lat_long1;
+				}
+			}
+			if(isset($lat_long)) {
+            if (sizeof($lat_long) > 0) {
+
+                $this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} )) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+            }
+		  }		
+        }
+
+
+
+		if($all==1){
+			$query = $this->db->get();
+		}
+		elseif($all == 2){
+			$query = $this->db->get();
+			$d = $query->num_rows();  	
+			return $d;
+		}
+		else{ 
+	        if (!isset($limit)) {
+	            $limit = 0;
+	        }
+	        $this->db->limit($rec_per_page, $limit);
+			$query = $this->db->get();
+		}
+		// echo "<pre>"; print_r($query->num_rows()."test"); echo "</pre>"; exit;
+        // echo $this->db->last_query();  die;					
+        $arrFoster = array();
+
+        if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+                $fosterduration = '';
+
+
+                if ($Row->in_duration_type_id == '1') {
+                    $fosterduration = 'Overnight Only (<24 hours)';
+                }
+                if ($Row->in_duration_type_id == '2') {
+                    $fosterduration = 'Short Term (24 hours to 7 days';
+                }
+                if ($Row->in_duration_type_id == '3') {
+                    $fosterduration = 'Long Term (7 days +)';
+                }
+                if ($Row->in_duration_type_id == '4') {
+                    $fosterduration = 'Weekend Only (Sat/Sun)';
+                }
+                if ($Row->in_duration_type_id == '5') {
+                    $fosterduration = 'Emergency Foster Only';
+                }
+                
+				$verified = $this->get_verified_details($Row->in_user_id);	
+			     $arrFoster[] = array(
+                    'in_foster_animal_detail_id' => $Row->in_foster_animal_detail_id,
+                    'st_animal_type_name' => $Row->st_animal_type_name,
+                    'fosterduration' => $fosterduration,
+                    //'st_maximum_foster_days' => isset($Row->st_maximum_foster_days) ? $Row->st_maximum_foster_days : '',
+                    'st_maximum_foster_size' => isset($Row->st_maximum_foster_size) ? $Row->st_maximum_foster_size : '',
+                    'st_household_other_animals' => isset($Row->st_household_other_animals) ? $Row->st_household_other_animals : '',
+                    'st_display_name' => $Row->st_display_name,
+                    'st_profile_image' => $Row->st_profile_image,
+                    'user_id' => $Row->in_user_id,
+                    'st_email' => $Row->st_email,
+                    'st_foster_home' => $Row->st_foster_home,
+                    'st_photographer' => $Row->st_photographer,
+                    'st_pilot' => $Row->st_pilot,
+                    'st_driver' => $Row->st_driver,
+                    'st_in_person_volunteer' => $Row->st_in_person_volunteer,
+                    'st_virtual_support_volunteer' => $Row->st_virtual_support_volunteer,
+					'st_lost_animal_support' => $Row->st_lost_animal_support,
+					 'lat' => $Row->lat,
+					 'lon' => $Row->lon,
+					 'st_foster' => unserialize($Row->st_foster),
+					 'verified'  => $verified,
+					 'arpa_cert'  => $Row->st_arpa_cert,	
+                );
+            //   return $arrFoster;
+		//}
+		//}
+		}
+		return $arrFoster;
+    }
+	}
+	
+	function get_verified_details($user_id)
+	{
+		  $this->db->select('in_user_id,dt_doobert_verified');
+        $this->db->from('tbl_verification');
+        $this->db->where('in_user_id', $user_id);
+        $this->db->where('fl_doobert_verified', 1);
+        $this->db->where('in_deleted', 0);
+
+        $query = $this->db->get();
+        //return $query->row_array();
+		
+		/*$this->db->select('in_user_id , fl_doobert_verified');
+		$this->db->from('tbl_verification');
+		$this->db->where('in_user_id' , $user_id);
+		$query = $this->db->get();*/
+		$res=0;
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $v)
+			{
+				$res = $v->dt_doobert_verified;
+			}
+		}
+		return $res;
+	}
+	#============================================================
+    #	Function	:	get_foster_photographer()
+    #   Parameter	: 	limit,rec_per_page,name,email
+    #	Perpose		:	to get user details
+    #------------------------------------------------------------
+	public function get_foster_photographer($limit, $rec_per_page , $zipcode = '', $radius = '', $service = '', $userdays = '', $all='')
+	{
+		if(!empty($zipcode))
+		{	
+		  $lat_long1 =	$this->get_lat_long($zipcode);
+		  if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+				$lat_long1 = $this->google_lat_long($zipcode);
+			}
+		}
+		
+		$this->db->select("ph.in_photographer_id ,ph.in_user_id ,ph.st_photographer_zipcode,ph.in_distance_to_travel,ph.in_pro_bono_ser,ph.st_photographer_availability,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon , us.st_photographer,up.st_arpa_cert,up.st_lost_animal_support");
+        $this->db->from('tbl_users u');
+		$this->db->join('tbl_photographer_detail ph', 'ph.in_user_id=u.in_user_id', 'INNER');
+      	$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'LEFT');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+        $this->db->where('u.in_user_id <>','');
+        $this->db->where('u.in_deleted', 0);
+		$this->db->where('ph.in_deleted',0);
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.in_deleted',0);
+		$this->db->where('us.st_photographer <>','');
+		
+		$where = '';
+		$where .= "(((us.st_photographer REGEXP '.*;s:[0-9]+:\"st_photographer_zipcode\".*') && (st_photographer_zipcode !=''))";
+		
+		$where .="OR ((us.st_photographer REGEXP '.*;s:[0-9]+:\"in_distance_to_travel\".*') && (in_distance_to_travel !=''))";
+		
+		$where .="OR ((us.st_photographer REGEXP '.*;s:[0-9]+:\"in_pro_bono_ser\".*') && (in_pro_bono_ser !=''))";
+		
+		$where .="OR ((us.st_photographer REGEXP '.*;s:[0-9]+:\"st_photographer_availability\".*') && (st_photographer_availability !='')))";
+		
+		$this->db->where($where);
+				
+       	if($service !='')
+		{
+			if($service == 0) { $ser = 2;}else {$ser =$service;}
+			 $this->db->where("ph.in_pro_bono_ser = '" . $ser . "'", NULL, FALSE);
+		}
+		
+        if ($radius != '' && $zipcode != '') {
+
+            //$lat_long1 = $this->google_lat_long($zipcode);
+			if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) {  
+				if ($lat_long1['lon'] != '' && $lat_long1['lat'] != '') {
+					$lat_long = $lat_long1;
+				}
+			}	
+			if(isset($lat_long)) {	
+				if (sizeof($lat_long) > 0) {
+						$this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+				}
+			}	
+        }
+		if($all==1){
+		$query = $this->db->get();
+		}else {
+        if (!isset($limit)) {
+            $limit = 0;
+        }
+		$this->db->group_by('ph.in_photographer_id');
+        $this->db->limit($rec_per_page, $limit);
+		
+        $query = $this->db->get();
+		}
+        //echo $this->db->last_query();  die;					
+        $arrFoster = array();
+		
+		if($userdays !=''){
+		$u=0; $final_array=array();
+		if(!empty($query)){
+			foreach($query->result() as $v){
+				$verified = $this->get_verified_details($v->in_user_id);	
+				$array= unserialize($v->st_photographer_availability);
+					$flag=0;
+					for($i=0;$i<count($array);$i++)
+					{
+						for($j=0;$j<count($userdays);$j++)
+						{
+							if($userdays[$j]==$array[$i])
+							{
+								$flag=1;
+								$final_array[]=array(
+								'user_id' => $v->in_user_id,
+								'in_photographer_id' => $v->in_photographer_id,
+								'st_photographer_zipcode' => $v->st_photographer_zipcode,
+								'in_distance_to_travel' => $v->in_distance_to_travel,
+								'in_pro_bono_ser' => $v->in_pro_bono_ser,
+								'st_photographer_availability' => $v->st_photographer_availability,
+								'st_profile_image' => $v->st_profile_image,
+								'st_email' => $v->st_email,
+								'st_display_name' =>$v->st_display_name,
+								'st_foster_home' => $v->st_foster_home,
+								'st_photographer' => $v->st_photographer,
+								'st_pilot' => $v->st_pilot,
+								'st_driver' => $v->st_driver,
+								'st_in_person_volunteer' => $v->st_in_person_volunteer,
+								'st_virtual_support_volunteer' => $v->st_virtual_support_volunteer,
+								'st_lost_animal_support' => $v->st_lost_animal_support,
+								'lat' => $v->lat,
+								'lon' => $v->lon,
+								'photograph' =>unserialize($v->st_photographer),
+								'verified'  => $verified
+								);
+								break;							
+							}	
+						}
+					if($flag==1){break;}		
+					}
+				}
+		}
+		return $final_array;
+		}//userdays
+		else {
+        if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+                $fosterduration = '';
+
+		$verified = $this->get_verified_details($Row->in_user_id);	
+			$arrFoster[] = array(
+                    'user_id' => $Row->in_user_id,
+                    'in_photographer_id' => $Row->in_photographer_id,
+                    'st_photographer_zipcode' => $Row->st_photographer_zipcode,
+                    'in_distance_to_travel' => $Row->in_distance_to_travel,
+                    'in_pro_bono_ser' => $Row->in_pro_bono_ser,
+                    'st_photographer_availability' => $Row->st_photographer_availability,
+                    'st_profile_image' => $Row->st_profile_image,
+                    'st_email' => $Row->st_email,
+					'st_display_name' =>$Row->st_display_name,
+                    'st_foster_home' => $Row->st_foster_home,
+                    'st_photographer' => $Row->st_photographer,
+                    'st_pilot' => $Row->st_pilot,
+                    'st_driver' => $Row->st_driver,
+                    'st_in_person_volunteer' => $Row->st_in_person_volunteer,
+                    'st_virtual_support_volunteer' => $Row->st_virtual_support_volunteer,
+					'st_lost_animal_support' => $Row->st_lost_animal_support,				
+					'lat' => $Row->lat,
+					'lon' => $Row->lon,
+					'photograph' =>unserialize($Row->st_photographer),
+					'verified'  => $verified,
+					'arpa_cert'  => $Row->st_arpa_cert
+                );
+            }
+            return $arrFoster;
+        }
+	}
+		
+	}
+	#============================================================
+    #	Function	:	get_foster_inpersonal
+    #   Parameter	: 	limit,rec_per_page,zipcode ,radius 
+    #	Perpose		:	to get user details
+    #------------------------------------------------------------
+	public function get_foster_inpersonal( $limit='',$rec_per_page='',$zipcode = '', $radius = '', $inspector ='',$reviewer ='',$fundraiser='', $animalcare='')
+	{
+		if(!empty($zipcode))
+		{
+			$lat_long1  = $this->get_lat_long($zipcode);
+			if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+					$lat_long1 = $this->google_lat_long($zipcode);
+			}
+		}
+		
+		$this->db->select("pv.in_volunteer_id , pv.in_user_id ,pv.st_volunteer_zipcode,pv.in_home_visit,pv.in_app_reviewer,pv.in_physical_fundraiser,pv.in_animal_care,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon, us.st_in_person_vol,up.st_arpa_cert,up.st_arpa_cert,up.st_lost_animal_support");
+		
+		$this->db->from('tbl_in_person_volunteer_detail pv');
+		$this->db->join('tbl_users u', 'pv.in_user_id=u.in_user_id', 'INNER');
+		$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+        $this->db->where('u.in_user_id <>', '');
+        $this->db->where('u.in_deleted',0);
+		$this->db->where('pv.in_deleted',0);
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.in_deleted',0);
+		$this->db->where('us.st_in_person_vol <>','');
+		
+		$where = '';
+		//$where .= "(((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"st_volunteer_zipcode\".*') && (st_volunteer_zipcode !=''))";
+		
+		//$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"st_volunteer_zipcode\".*') && (st_volunteer_zipcode !=''))";
+		
+		//$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_distance_to_drive\".*') && (in_pro_bono_ser !=''))";
+		
+		$where .="(((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_home_visit\".*') && (in_home_visit !=''))";
+		
+		$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_app_reviewer\".*') && (in_app_reviewer !=''))";
+		
+		$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_physical_fundraiser\".*') && (in_physical_fundraiser !=''))";
+	
+		$where .="OR ((us.st_in_person_vol REGEXP '.*;s:[0-9]+:\"in_animal_care\".*') && (in_animal_care !='')))";
+		
+		$this->db->where($where);
+		
+				
+		if($inspector != '')
+		{
+			 $this->db->where("pv.in_home_visit = '" . $inspector . "'", NULL, FALSE);
+		}
+		
+		if($reviewer != '')
+		{
+			 $this->db->where("pv.in_app_reviewer = '" . $reviewer . "'", NULL, FALSE);
+		} 
+		
+		if($fundraiser != '')
+		{
+			 $this->db->where("pv.in_physical_fundraiser = '" . $fundraiser . "'", NULL, FALSE);
+		}
+		
+		if($animalcare != '')
+		{
+			 $this->db->where("pv.in_animal_care = '" . $animalcare . "'", NULL, FALSE);
+		} 
+		if($inspector == '' && $reviewer == '' && $fundraiser == '' && $animalcare == ''){
+		
+		$this->db->where("(pv.in_home_visit != 0 or pv.in_app_reviewer != 0 or pv.in_physical_fundraiser != 0 or pv.in_animal_care != 0)");
+		}
+		if ($radius != '' && $zipcode != '') {
+
+           //$lat_long1 = $this->google_lat_long($zipcode);
+		   if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) {   
+				if ($lat_long1['lon'] != '' && $lat_long1['lat'] != '') {
+					$lat_long = $lat_long1;
+				}
+		   }	
+			if(isset($lat_long)) {
+            if (sizeof($lat_long) > 0) {
+                $this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+            }
+			}	
+        }
+			
+		if (!isset($limit)) {
+            $limit = 0;
+        }
+        $this->db->limit($rec_per_page, $limit);
+        $query = $this->db->get();
+      //  echo $this->db->last_query();  die;					
+        $arrFoster = array();
+		
+		if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+                $fosterduration = '';
+			$verified = $this->get_verified_details($Row->in_user_id);
+			
+			$arrFoster[] = array(
+                    'user_id' => $Row->in_user_id,
+                    'in_volunteer_id' => $Row->in_volunteer_id,
+                    'st_volunteer_zipcode' => $Row->st_volunteer_zipcode,
+                    'in_home_visit' => $Row->in_home_visit,
+                    'in_app_reviewer' => $Row->in_app_reviewer,
+                    'in_physical_fundraiser' => $Row->in_physical_fundraiser,
+					'in_animal_care' => $Row->in_animal_care, 	
+					'st_profile_image' => $Row->st_profile_image,
+                    'st_email' => $Row->st_email,
+					'st_display_name' =>$Row->st_display_name,
+                    'st_foster_home' => $Row->st_foster_home,
+                    'st_photographer' => $Row->st_photographer,
+                    'st_pilot' => $Row->st_pilot,
+                    'st_driver' => $Row->st_driver,
+                    'st_in_person_volunteer' => $Row->st_in_person_volunteer,
+                    'st_virtual_support_volunteer' => $Row->st_virtual_support_volunteer,
+					'st_lost_animal_support' => $Row->st_lost_animal_support,
+		     		'lat' => $Row->lat,
+					'lon' => $Row->lon,
+					'inpersonal' => unserialize($Row->st_in_person_vol),
+					'verified'  => $verified,
+					'arpa_cert'  => $Row->st_arpa_cert
+                );
+            }
+            return $arrFoster;
+        }
+	}
+
+#============================================================
+    #	Function	:	get_foster_virtual
+    #   Parameter	: 	limit,rec_per_page 
+    #	Perpose		:	to get user details
+    #------------------------------------------------------------
+	public function get_foster_virtual( $limit='',$rec_per_page='',$social_media ='' ,$profile_posting ='' ,$virtual_support ='', $profile_text='')
+	{	
+		$this->db->select("v.in_virtual_support_vol_id , v.in_user_id ,v.in_manage_facebook ,v.in_manage_twitter,v.in_manage_gplus, v.in_manage_pin_board,v.in_manage_instagram,v.in_manage_video,v.in_social_media ,v.in_petfinder ,v.in_adoptapet,v.in_petharbor,v.in_petango,v.in_rescuegroups  ,v.in_shelterexchange,v.in_dogtime,v.in_petsoverstock,v.in_animal_profile,v.in_transport_monitor,v.in_adoption_application,v.in_onlinefundraiser,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon ,us.st_in_virtual_vol,up.st_arpa_cert,up.st_lost_animal_support");
+        $this->db->from('tbl_users u');
+		$this->db->join('tbl_virtual_support_vol_detail v', 'v.in_user_id = u.in_user_id','INNER');
+		$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		
+        $this->db->where('u.in_user_id <>','');
+        $this->db->where('u.in_deleted', 0);
+		$this->db->where('v.in_deleted',0);
+		$this->db->where('us.in_public',1);
+		$this->db->where('us.in_deleted',0);
+		$this->db->where('us.st_in_virtual_vol <>','');
+	
+	
+		$where = '';
+		
+		$where .= "(((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_facebook\".*') && (v.in_manage_facebook !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_twitter\".*') && (v.in_manage_twitter !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_gplus\".*') && (v.in_manage_gplus !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_pin_board\".*') && (v.in_manage_pin_board !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_instagram\".*') && (v.in_manage_instagram !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_manage_video\".*') && (v.in_manage_video !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_social_media\".*') && (v.in_social_media !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_petfinder\".*') && (v.in_petfinder !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_adoptapet\".*') && (v.in_adoptapet !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_petharbor\".*') && (v.in_petharbor !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_rescuegroups\".*') && (v.in_rescuegroups !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_shelterexchange\".*') && (v.in_shelterexchange !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_dogtime\".*') && (v.in_dogtime !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_petsoverstock\".*') && (v.in_petsoverstock !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_animal_profile\".*') && (v.in_animal_profile !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_transport_monitor\".*') && (v.in_transport_monitor !=''))";
+		
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_adoption_application\".*') && (v.in_adoption_application !=''))";
+
+		$where .="OR ((us.st_in_virtual_vol REGEXP '.*;s:[0-9]+:\"in_onlinefundraiser\".*') && (in_onlinefundraiser !='')))";
+		
+		$this->db->where($where);
+		
+		if($social_media !='')
+		{
+			foreach($social_media as $a=>$v)
+			{
+				if($v=='facebook')
+					$this->db->where("v.in_manage_facebook = 1", NULL, FALSE);
+				else if($v =='tweeter')
+					$this->db->where("v.in_manage_twitter = 1", NULL, FALSE);
+				else if($v =='google')
+					$this->db->where("v.in_manage_gplus = 1", NULL, FALSE);
+				else if($v == 'pinterest')
+					$this->db->where("v.in_manage_pin_board = 1", NULL, FALSE);
+				else if($v == 'instagram')
+					 $this->db->where("v.in_manage_instagram = 1", NULL, FALSE);
+				else if($v == 'youtube')
+					 $this->db->where("v.in_manage_video = 1", NULL, FALSE);
+				else if($v == 'social_media_other')
+					 $this->db->where("v.in_social_media = 1", NULL, FALSE);
+				 
+			}
+			
+		}	
+		
+		if($profile_posting != '')
+		{
+			foreach ($profile_posting as $a=>$v) {
+			if($v =='petfinder')
+				 $this->db->where("v.in_petfinder = 1", NULL, FALSE);
+			 else if($v =='adoptapet')
+				  $this->db->where("v.in_adoptapet = 1", NULL, FALSE);
+			 else if($v =='petharbor')
+				  $this->db->where("v.in_petharbor = 1", NULL, FALSE);
+			 else if($v == 'petango')
+				  $this->db->where("v.in_petango = 1", NULL, FALSE);
+			 else if($v == 'rescuegroup')
+				  $this->db->where("v.in_rescuegroups = 1", NULL, FALSE);
+			 else if($v == 'shelterexc')
+				  $this->db->where("v.in_shelterexchange = 1", NULL, FALSE);
+			 else if($v == 'dogtime')
+				  $this->db->where("v.in_dogtime = 1", NULL, FALSE);
+			 else if($v =='petsoverstock')
+				  $this->db->where("v.in_petsoverstock = 1", NULL, FALSE);
+			 else if($v=='other')
+				  $this->db->where("v.in_animal_profile = 1", NULL, FALSE);
+			}
+		}
+		if($profile_text!='')
+		{
+			 $this->db->where("v.st_animal_profile_other LIKE  '%" . $profile_text . "%'", NULL, FALSE);
+		}
+			  
+		if($virtual_support!='')
+		{
+			foreach($virtual_support as $a=>$v) {
+				if($v=='monitor')
+				   $this->db->where("v.in_transport_monitor = 1", NULL, FALSE);
+				else if($v == 'reviewer')
+					$this->db->where("v.in_adoption_application = 1", NULL, FALSE);
+				else if($v =='fundraiser')
+					$this->db->where("v.in_onlinefundraiser = 1", NULL, FALSE);
+		}
+		}
+	
+		if (!isset($limit)) {
+            $limit = 0;
+        }
+        $this->db->limit($rec_per_page, $limit);
+        $query = $this->db->get();
+        //echo $this->db->last_query(); die;					
+        $arrFoster = array();
+		
+		if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+				$verified = $this->get_verified_details($Row->in_user_id);
+                $fosterduration = '';
+					$arrFoster[] = array(
+                    'user_id' => $Row->in_user_id,
+                    'in_virtual_support_vol_id' => $Row->in_virtual_support_vol_id,
+					'in_manage_facebook' =>$Row->in_manage_facebook,
+					'in_manage_twitter' =>$Row->in_manage_twitter,
+					'in_manage_gplus' =>$Row->in_manage_gplus,
+					'in_manage_pin_board' =>$Row->in_manage_pin_board,
+					'in_manage_instagram' =>$Row->in_manage_instagram,
+					'in_manage_video' =>$Row->in_manage_video,
+					'in_social_media' =>$Row->in_social_media,
+					'in_petfinder' =>$Row->in_petfinder,
+					'in_adoptapet' =>$Row->in_adoptapet,
+					'in_petharbor' =>$Row->in_petharbor,
+					'in_petango' =>$Row->in_petango,
+					'in_rescuegroups' =>$Row->in_rescuegroups,
+					'in_shelterexchange' =>$Row->in_shelterexchange,
+					'in_dogtime' =>$Row->in_dogtime,
+					'in_petsoverstock' =>$Row->in_petsoverstock,
+					'in_animal_profile' =>$Row->in_animal_profile,
+					'in_transport_monitor' =>$Row->in_transport_monitor,
+					'in_adoption_application' =>$Row->in_adoption_application,
+					'in_onlinefundraiser' =>$Row->in_onlinefundraiser,
+					'st_profile_image' => $Row->st_profile_image,
+                    'st_email' => $Row->st_email,
+					'st_display_name' =>$Row->st_display_name,
+                    'st_foster_home' => $Row->st_foster_home,
+                    'st_photographer' => $Row->st_photographer,
+                    'st_pilot' => $Row->st_pilot,
+                    'st_driver' => $Row->st_driver,
+                    'st_in_person_volunteer' => $Row->st_in_person_volunteer,
+                    'st_virtual_support_volunteer' => $Row->st_virtual_support_volunteer,
+					 'st_lost_animal_support' => $Row->st_lost_animal_support,
+					 'lat' => $Row->lat,
+					 'lon' => $Row->lon,
+					 'virtual' =>($Row->st_in_virtual_vol!='')?unserialize($Row->st_in_virtual_vol):'',
+					 'verified'  => $verified,
+					 'arpa_cert'  => $Row->st_arpa_cert
+                );
+            }
+            return $arrFoster;
+			}
+		}
+	//}
+	
+    function google_lat_long($address) {
+        $latlon['lat'] = '';
+        $latlon['lon'] = '';
+
+       
+		
+		if($address)
+		{
+			$url ="http://maps.googleapis.com/maps/api/geocode/json?address=" .urlencode(@$address)."&sensor=false";
+			
+			// create curl resource
+			$ch = curl_init();
+			// set url
+			curl_setopt($ch, CURLOPT_URL, $url);
+			//return the transfer as a string
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+			// $output contains the output string
+			$output = curl_exec($ch);
+			// close curl resource to free up system resources
+			curl_close($ch);
+			//echo $output;die;
+			$response_array = json_decode($output, TRUE);
+			if($response_array['status'] == 'OK')
+			{
+				$arrAxis = json_decode($output)->results[0]->geometry->location;
+                $lat = $arrAxis->lat;
+                $lan = $arrAxis->lng;
+                $latlon['lat'] = $lat;
+                $latlon['lon'] = $lan;
+			}
+		}
+		return $latlon;
+    }
+	
+	function get_all_records($tblname ,$id , $cname)
+	{
+		$this->db->select($id.','.$cname);
+        $this->db->from($tblname);
+		$query = $this->db->get()->result();
+		return $query;
+	}
+	
+	
+	
+	#============================================================
+    #	Function	:	get_total_lost_animal()
+    #   Parameter	: 	zipcode ,radius, lostanimal array 
+    #	Perpose		:	to check valid foster user details
+    #------------------------------------------------------------
+	public  function get_total_lost_animal($zipcode = '', $radius = '', $caseworker ='',$monitor ='',$networker='', $admin='', $matcher='', $volunteer='')
+	{
+		if(!empty($zipcode))
+		{
+		  $lat_long1 =	$this->get_lat_long($zipcode);
+		  if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+				$lat_long1 = $this->google_lat_long($zipcode);
+			}
+		}
+
+		$this->db->select("la.in_id,la.in_user_id ,la.in_caseworker,la.in_monitor,la.in_networker,la.in_admin,la.in_matcher,la.in_volunteer,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon,up.st_arpa_cert,up.st_lost_animal_support,us.st_lost_animal");
+		$this->db->from('tbl_user_lost_animal_support la');
+		$this->db->join('tbl_users u', 'la.in_user_id=u.in_user_id', 'INNER');
+		$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');	
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		$this->db->where('us.in_public',1);			
+        $this->db->where('u.in_user_id <>', '');
+        $this->db->where('u.in_deleted',0);
+		$this->db->where('la.in_deleted',0);
+		$this->db->where('us.st_lost_animal <>','');
+		$this->db->group_by('u.in_user_id');
+		
+		
+		
+		$where = '';		
+		
+		$where .="(((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_caseworker\".*') && (in_caseworker !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_monitor\".*') && (in_monitor !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_networker\".*') && (in_networker !=''))";
+	
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_admin\".*') && (in_admin !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_matcher\".*') && (in_matcher !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_volunteer\".*') && (in_volunteer !='')))";
+		
+		$this->db->where($where);
+		
+		if($caseworker != '')
+		{
+			 $this->db->where("la.in_caseworker = '" . $caseworker . "'", NULL, FALSE);
+		}
+		
+		if($monitor != '')
+		{
+			 $this->db->where("la.in_monitor = '" . $monitor . "'", NULL, FALSE);
+		} 
+		
+		if($networker != '')
+		{
+			 $this->db->where("la.in_networker = '" . $networker . "'", NULL, FALSE);
+		}
+		
+		if($admin != '')
+		{
+			 $this->db->where("la.in_admin = '" . $admin . "'", NULL, FALSE);
+		} 
+		
+		if($matcher != '')
+		{
+			 $this->db->where("la.in_matcher = '" . $matcher . "'", NULL, FALSE);
+		} 
+		
+		if($volunteer != '')
+		{
+			 $this->db->where("la.in_volunteer = '" . $volunteer . "'", NULL, FALSE);
+		}
+		
+		
+		
+		
+		
+		if($caseworker == '' && $monitor == '' && $networker == '' && $admin == '' && $matcher == '' && $volunteer ==''){
+		
+		$this->db->where("(la.in_caseworker != 0 or la.in_monitor != 0 or la.in_networker != 0 or la.in_admin != 0 or la.in_matcher!=0 or la.in_volunteer!=0 )");
+		}
+		if ($radius != '' && $zipcode != '') {
+
+           //$lat_long1 = $this->google_lat_long($zipcode);
+			if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) {  
+				if ($lat_long1['lon'] != '' && $lat_long1['lat'] != '') {
+					$lat_long = $lat_long1;
+				}
+			}	
+			if(isset($lat_long)) {
+            if (sizeof($lat_long) > 0) {
+                $this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+            }
+		  }		
+        }
+		
+		 $query = $this->db->get();
+		 //echo $this->db->last_query();die;
+       
+       return $query->num_rows();
+		
+	}
+	
+	
+	
+	
+	#============================================================
+    #	Function	:	get_lost_animal
+    #   Parameter	: 	limit,rec_per_page,zipcode ,radius 
+    #	Perpose		:	to get user details
+    #------------------------------------------------------------
+	public function get_lost_animal($limit, $rec_per_page, $zipcode, $radius, $caseworker, $monitor,$networker, $admin, $matcher, $volunteer)
+	{	
+
+		if(!empty($zipcode))
+		{
+		  $lat_long1 =	$this->get_lat_long($zipcode);
+		  if(!(isset($lat_long1['lon'])) && !(isset($lat_long1['lat']))) {
+				$lat_long1 = $this->google_lat_long($zipcode);
+			}
+		}
+		
+		$this->db->select("la.in_id,la.in_user_id ,la.in_caseworker,la.in_monitor,la.in_networker,la.in_admin,la.in_matcher,la.in_volunteer,up.st_driver,up.st_pilot,up.st_foster_home,up.st_photographer,up.st_virtual_support_volunteer,up.st_in_person_volunteer,u.st_profile_image,u.st_email,u.st_display_name,zp.lat,zp.lon,up.st_arpa_cert,up.st_lost_animal_support,us.st_lost_animal");
+		
+		$this->db->from('tbl_user_lost_animal_support la');
+		$this->db->join('tbl_users u', 'la.in_user_id=u.in_user_id', 'INNER');
+		$this->db->join('tbl_user_profile up', 'up.in_user_id= u.in_user_id' ,'INNER');
+		$this->db->join('tbl_zip_code zp', 'zp.zip_code=up.st_zip', 'LEFT');
+		$this->db->join('tbl_user_profile_setting us','us.in_user_id = u.in_user_id','LEFT');
+		$this->db->where('us.in_public',1);	
+        $this->db->where('u.in_user_id <>', '');
+        $this->db->where('u.in_deleted',0);
+		$this->db->where('la.in_deleted',0);
+		$this->db->where('us.st_lost_animal <>','');			
+		$this->db->group_by('u.in_user_id');
+		
+		$where = '';		
+		
+		$where .="(((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_caseworker\".*') && (in_caseworker !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_monitor\".*') && (in_monitor !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_networker\".*') && (in_networker !=''))";
+	
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_admin\".*') && (in_admin !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_matcher\".*') && (in_matcher !=''))";
+		
+		$where .="OR ((us.st_lost_animal REGEXP '.*;s:[0-9]+:\"in_volunteer\".*') && (in_volunteer !='')))";
+		
+		$this->db->where($where);
+		
+		if($caseworker != '')
+		{
+			 $this->db->where("la.in_caseworker = '" . $caseworker . "'", NULL, FALSE);
+		}
+		
+		if($monitor != '')
+		{
+			 $this->db->where("la.in_monitor = '" . $monitor . "'", NULL, FALSE);
+		} 
+		
+		if($networker != '')
+		{
+			 $this->db->where("la.in_networker = '" . $networker . "'", NULL, FALSE);
+		}
+		
+		if($admin != '')
+		{
+			 $this->db->where("la.in_admin = '" . $admin . "'", NULL, FALSE);
+		} 
+		
+		if($matcher != '')
+		{
+			 $this->db->where("la.in_matcher = '" . $matcher . "'", NULL, FALSE);
+		} 
+		
+		if($volunteer != '')
+		{
+			 $this->db->where("la.in_volunteer = '" . $volunteer . "'", NULL, FALSE);
+		}
+		
+		
+		
+		
+		
+		if($caseworker == '' && $monitor == '' && $networker == '' && $admin == '' && $matcher == '' && $volunteer ==''){
+		
+		$this->db->where("(la.in_caseworker != 0 or la.in_monitor != 0 or la.in_networker != 0 or la.in_admin != 0 or la.in_matcher!=0 or la.in_volunteer!=0 )");
+		}
+		
+		
+		if ($radius != '' && $zipcode != '') {
+
+           //$lat_long1 = $this->google_lat_long($zipcode);
+		   if(isset($lat_long1['lon']) && isset($lat_long1['lat'])) { 
+				if ($lat_long1['lon'] != '' && $lat_long1['lat'] != '') {
+					$lat_long = $lat_long1;
+				}
+		    }	
+			if(isset($lat_long)) {
+				if (sizeof($lat_long) > 0) {
+                $this->db->where("((3959 * acos( cos( radians( {$lat_long['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long['lon']} ) ) + sin( radians( {$lat_long['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $radius . "')");
+            }
+		  }	
+        }
+		
+			
+		if (!isset($limit)) {
+            $limit = 0;
+        }
+        $this->db->limit($rec_per_page, $limit);
+        $query = $this->db->get();
+        //echo $this->db->last_query();  die;					
+        $arrFoster = array();
+		
+		if ($query->num_rows() > 0) {
+            foreach ($query->result() as $Row) {
+                $fosterduration = '';
+			$verified = $this->get_verified_details($Row->in_user_id);
+			
+			$arrFoster[] = array(
+                    'user_id' 			=> $Row->in_user_id,
+                    'in_id' 	 		=> $Row->in_id,                   
+                    'in_caseworker' 	=> $Row->in_caseworker,
+                    'in_monitor' 		=> $Row->in_monitor,
+                    'in_networker' 		=> $Row->in_networker,
+					'in_admin' 			=> $Row->in_admin, 
+					'in_matcher' 		=> $Row->in_matcher, 
+					'in_volunteer' 		=> $Row->in_volunteer, 					
+					'st_profile_image'  => $Row->st_profile_image,
+                    'st_email' 		    => $Row->st_email,
+					'st_display_name'   => $Row->st_display_name,
+					'st_driver' 	    => $Row->st_driver,
+					'st_pilot' 		    => $Row->st_pilot,
+                    'st_foster_home'    => $Row->st_foster_home,
+                    'st_photographer'   => $Row->st_photographer,    
+					'st_virtual_support_volunteer' => $Row->st_virtual_support_volunteer,                
+                    'st_in_person_volunteer' => $Row->st_in_person_volunteer,  
+					'st_lost_animal_support' => $Row->st_lost_animal_support,  	
+					'lost_animal'		=> unserialize($Row->st_lost_animal),				                 
+		     		'lat' 				=> $Row->lat,
+					'lon' 				=> $Row->lon,					
+					'verified'  		=> $verified,
+					'arpa_cert'  		=> $Row->st_arpa_cert
+                );
+            }
+            return $arrFoster;
+        }
+	}
+
+	public function get_lat_long($zipcode)
+    {
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get()->row_array();
+		return $query;	
+	}	
+	
+}

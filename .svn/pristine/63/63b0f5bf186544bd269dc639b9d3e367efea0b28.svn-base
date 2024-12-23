@@ -1,0 +1,103 @@
+<?php 
+ 
+//require( dirname(__FILE__) . '/wp-includes' );
+
+define('WP_USE_THEMES', true);
+require('./wp-load.php');
+
+global $wpdb;
+$result_array = array();
+$page_listing  = array();
+$offset = $_GET['offset'];
+$module_name = ($_GET['module_name'])?$_GET['module_name']:'';
+$module_phrase = ($_GET['module_phrase'])?$_GET['module_phrase']:'';
+$module_any_word = ($_GET['module_any_word'])?$_GET['module_any_word']:'';
+$dates_from = ($_GET['dates_from'])?$_GET['dates_from']:'';
+$dates_to 	= ($_GET['dates_to'])?$_GET['dates_to']:'';
+
+$post_content = '';
+$querystr = '';
+$querystr .= " SELECT * FROM wp_posts WHERE post_status ='publish'  AND post_type IN('page','post')";
+if($module_name!='' || $module_phrase!='' || $module_any_word!='')
+{
+	$querystr .= ' AND (';
+	$module_name_html = '';
+	$module_phrase_html = '';
+	$module_any_word_html = '';
+	if($module_name!='')
+	{
+		$module_name_html .= " post_content LIKE '%".$module_name."%' ";	
+	}
+	
+	if(($module_phrase!='' || $module_any_word!='') && $module_name_html!='')
+	{
+			$module_name_html .= ' OR ';
+	}	
+	if($module_phrase!='')
+	{
+		$module_phrase_html = " post_content LIKE '%".$module_phrase."%' ";	
+	}
+	
+	if($module_phrase_html!='' && $module_any_word!='')
+	{
+			$module_phrase_html .= ' OR ';
+	}
+
+	if($module_any_word!='')
+	{
+		$module_any_word_html = " post_content LIKE '%".$module_any_word."%'";	
+	}
+	
+	if($module_name_html!='')	
+		$querystr .=  $module_name_html;
+
+	if($module_phrase_html!='')	
+		$querystr .=  $module_phrase_html;
+
+	if($module_any_word!='')	
+		$querystr .=  $module_any_word;
+
+	$querystr .= ' )';	
+}
+
+if($dates_from!='')
+{
+	$querystr .= " AND DATE_FORMAT(post_date,'%Y-%m-%d') >='".date('Y-m-d',strtotime($dates_from))."'";
+}
+
+if($dates_to!='')
+{
+	$querystr .= " AND DATE_FORMAT(post_date,'%Y-%m-%d') <='".date('Y-m-d',strtotime($dates_to))."'";
+}		
+
+
+$querystr1 = $querystr." LIMIT ".$offset.",10";
+
+$pageposts = $wpdb->get_results($querystr1, OBJECT);
+$pageposts_count = $wpdb->get_results($querystr, OBJECT);
+
+
+
+if(count($pageposts)>0)
+{
+	foreach($pageposts as $key=>$post)
+	{
+		//$data['posttitle'] = explode(" ",$post->post_title);
+		$data['posttitle'] = $post->post_title;
+		$data['link'] = get_permalink($post->ID);
+		$content=strip_tags($post->post_content);
+		$content = preg_replace("/\[caption.*\[\/caption\]/", '', $content);
+		$content = preg_replace("/\[(\/*)?vc_(.*?)\]/", '', $content);
+		$data['content'] = wp_trim_words($content,30);
+		array_push($page_listing,$data);	
+	}	
+}	
+
+$result_array['total_cnt']=  (count($pageposts_count)>0)?count($pageposts_count):'0';
+$result_array['post_listing'] = $page_listing; 
+
+echo json_encode($result_array);
+
+
+
+?>

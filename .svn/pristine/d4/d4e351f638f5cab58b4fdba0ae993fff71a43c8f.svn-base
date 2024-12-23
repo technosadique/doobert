@@ -1,0 +1,202 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 31-July-2014
+# File description		: org_feed controller 
+# Special- notes		: 
+# Tables used			: 
+# Stored procedures		: none 
+# Triggers used			: none
+# --------------------------------------------------------------------------------------
+
+class Org_review extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->model('org_review_model');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');		
+		$this->load->library('pagination');
+// 		error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+	}	
+	
+	#=========================================================
+	#	Function : index
+	#	Purpose  : Display Org Feed
+	#=========================================================
+	
+	public function index() {
+// 				error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+		$data = array();
+		$org_id = $this->input->post('in_org_id');
+		$st_org_name = $this->input->post('st_org_name');
+		$ajax = $this->input->post('ajax');
+		$coordinates= $this->input->post('coordinates');
+		$data['org_id'] = $org_id;
+		$data['st_org_name'] = $st_org_name;
+		$data['coordinates'] = $coordinates;
+		// echo "<pre>"; print_r($this->session->userdata('email')); echo "</pre>"; exit;
+		$data['reviewCntInfo'] = $this->org_review_model->get_organization_review_count($org_id);
+		$config = array();
+		
+		if ($this->uri->segment(3))
+            $limit = $this->uri->segment(3);
+        else
+            $limit = '0';
+		$config["base_url"] 		= base_url().'org_review/index/';
+		
+		$config["per_page"]	 	= $this->config->item('records_per_page');
+               // $config["per_page"]	 	= 3;
+		// $config["uri_segment"] 		= $this->uri->segment(1);
+        $config['cur_page'] 		= $limit;
+                
+                
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = $limit;
+		$totalReviews = $this->org_review_model->get_organization_review($org_id,'','');
+		
+		$data['reviewInfo'] = $this->org_review_model->get_organization_review($org_id,$config["per_page"],$page);
+		//Getting total rows
+		$config["total_rows"] = $totalReviews;
+		// echo "<pre>"; print_r($data); echo "</pre>"; exit;
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		$data['total_rows'] = $config['total_rows'];
+        $data['currrent_page'] = floor(($config['cur_page'] / $config['per_page']) + 1);
+        $data['total_no_page'] = ceil($config['total_rows'] / $config['per_page']);
+        $data['per_page'] = $config['per_page'];
+		$data["links"] = $this->pagination->create_links();
+                
+		$data["limit"]          =   $limit;
+		// echo "<pre>"; print_r($data); echo "</pre>"; exit;
+		if($ajax == 1)
+		{
+			$this->load->view('organization-ajax-review',$data);
+		}
+		else
+		{
+			$this->load->view('organization-review',$data);
+		}
+		
+	}
+		
+	# *******************************************************************************************	
+	#	Function	:	saveReview	
+	#	Purpose		:	save review against current organization
+	# *******************************************************************************************
+	
+	public function saveReview()
+	{
+		$insertArray = array();
+		$insertedId = "";
+		if($this->input->post('in_org_id') != "")
+		{
+			$insertArray['in_org_id'] = $this->input->post('in_org_id');
+			$insertArray['st_fname'] = trim($this->input->post('st_fname'));
+			$insertArray['st_email'] = trim($this->input->post('st_email'));
+			$insertArray['in_ratings'] = $this->input->post('in_ratings');
+			$insertArray['st_reviews'] = $this->input->post('st_reviews');
+			$insertArray['dt_created'] = date('Y-m-d H:i:s');
+			$insertArray['flg_deleted'] = 0;
+			$insertArray['in_status'] = 0;
+			$st_org_name = $this->input->post('st_org_name');
+
+			$insertedId	= $this->org_review_model->insert_data($insertArray,'tbl_org_reviews');
+
+			$this->load->library('email');
+			$email_details = $this->common_model->get_email_containt("149");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			
+			//echo $this->session->userdata('user_name');die;
+			if(isset($email_details[0]['st_email_body']))
+			{
+				$templete 	= 	$email_details[0]['st_email_body'];
+				$subject	=	$email_details[0]['st_email_subject'];
+				// $to = 'avdhut.chavan@pulsesolutions.net';
+				$templete = str_replace("##full-name##",$insertArray['st_fname'],$templete);
+				$templete = str_replace("##email##",$insertArray['st_email'],$templete);
+				$templete = str_replace("##ratings##",$insertArray['in_ratings'].' Rating(s)',$templete);
+				$templete = str_replace("##review##",$insertArray['st_reviews'],$templete);
+				$templete = str_replace("##org_name##",$st_org_name,$templete);
+				$templete = str_replace("##DONATION##",$donation,$templete);
+
+				// print_r($templete); exit;
+				$permission = 'ARPA_ORG_Email';		
+				$email_info = $this->org_review_model->getArpa_org_emails($permission);
+				if(!empty($email_info))
+				{
+					foreach ($email_info as $key => $value) {
+						$this->common_function->send_mail($this->email, $value['st_email_address'], $subject, $templete, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+					}
+				}
+			}
+		}
+		else
+		{
+			echo "Organization not found.";
+		}
+		if($insertedId != "")
+		{
+			echo '1';
+		}
+		else
+		{
+			echo "Unable to Submit Review.";
+		}
+	}
+	
+}
+
+/* End of file org_feed.php */
+/* Location: ./application/controllers/org_feed.php */

@@ -1,0 +1,394 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: 
+# Created date: 
+# File description: 
+# Special instructions-notes: none
+# Tables used: 
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class admin extends CI_Controller {
+
+    public function __construct() {
+        parent::__construct();
+		$this->load->library('common_function');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		//$this->load->model('common_model');
+		$this->load->model('admin_model');
+		$this->load->helper('cookie');	
+		$this->load->helper('custom_helper');
+		$this->load->helper('libchart');		
+		$this->load->library('pagination');	
+		$this->load->model('dashboard_model');
+		
+	 }
+
+    public function index(){	
+				
+			
+			$data				=	array();
+			$data['Err_Msg']	=	'';			
+			$form_field	=	array('email_admin'	 => "",								 
+								  'password_admin'	=> ""														  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['login'][$key] = $value;	
+			}	
+			
+			if($this->input->post('action')=='Login')
+			{ 		 
+				$this->form_validation->set_rules('email_admin', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password_admin', 'Password', 'trim|required');
+				if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$this->load->view('admin-login-view',$data);
+				}
+				else
+				{			
+					$username	= 	$this->input->post('email_admin');
+					$password	= 	$this->input->post('password_admin'); 				
+					$data		=	$this->admin_model->isAdminValid($username,$password);				
+					
+					
+					if(isset($data['admin_id']) && $data['admin_id']!='')
+					{ 														
+						
+						$this->session->set_userdata('sess_admin_id',$data['admin_id']);								
+						$this->session->set_userdata('sess_admin_email',$data['admin_email']);											
+						
+						if($this->session->userdata('redirect_url'))
+						{ 
+							redirect($this->session->userdata('redirect_url'));
+						}
+						else
+						{ 
+							redirect($this->config->item('base_url').'admin/get_org_filter');
+						}									
+						
+					}
+					else
+					{
+						if(isset($data['error']) && $data['error']!='')
+						{
+							$data['Err_Msg']	=	$data['error'];
+							$this->load->view('admin-login-view',$data);
+						}
+					}
+				
+				}
+			}
+		
+			else
+			{  
+					 $this->load->view('admin-login-view',$data);
+					 
+			}
+	}	
+	public function get_org_filter()
+	{
+		$data['country_list']=get_location_list();
+		//print_r($data['country_list']); die;
+		$this->load->view('admin-dashboard-view',$data);
+	}
+	
+
+	
+	public function dashboard()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		{   
+			redirect(base_url().'admin/');
+		}
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('searchadmin5');
+		$this->page();	
+				
+		
+	}
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$txtfromdate				=	'';			
+		$txttodate				=	'';			
+		$txtstate				=	'';			
+		$txttype				=	'';			
+		$txtorgname				=	'';			
+		
+		if(!$sort)
+			$sort='code';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtfromdate'))
+			{
+				if($this->session->userdata('searchadmin1'))
+					$this->session->unset_userdata('searchadmin1');						
+					
+				$txtfromdate = date('Y-m-d',strtotime($this->input->post('txtfromdate'))); 				
+				$this->session->set_userdata('searchadmin1',$txtfromdate);					
+			}
+			
+			if($this->input->post('txttodate'))
+			{
+				if($this->session->userdata('searchadmin2'))
+					$this->session->unset_userdata('searchadmin2');						
+					
+				$txttodate = date('Y-m-d',strtotime($this->input->post('txttodate'))); 			
+				$this->session->set_userdata('searchadmin2',$txttodate);					
+			}
+			
+			if($this->input->post('txtstate'))
+			{
+				if($this->session->userdata('searchadmin3'))
+					$this->session->unset_userdata('searchadmin3');						
+					
+				$txtstate = trim($this->input->post('txtstate'));				
+				$this->session->set_userdata('searchadmin3',$this->common_function->custom_htmlentities($txtstate));					
+			}
+			
+			if($this->input->post('txttype'))
+			{
+				if($this->session->userdata('searchadmin4'))
+					$this->session->unset_userdata('searchadmin4');						
+					
+				$txttype = trim($this->input->post('txttype'));				
+				$this->session->set_userdata('searchadmin4',$this->common_function->custom_htmlentities($txttype));					
+			}
+			
+			if($this->input->post('txtorgname'))
+			{
+				if($this->session->userdata('searchadmin5'))
+					$this->session->unset_userdata('searchadmin5');						
+					
+				$txtorgname = trim($this->input->post('txtorgname'));
+				$this->session->set_userdata('searchadmin5',$this->common_function->custom_htmlentities($txtorgname));					
+			}
+		
+		
+		$rec_per_page =	 20;		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->admin_model->get_total_organization($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		
+		$data['org_list']	= $this->admin_model->get_organization($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		$data['survey_list']=$this->admin_model->get_organization_list();
+		//echo '<pre>'; print_r($data['org_list']); die;
+		$total_org= $this->admin_model->get_total_organization_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		foreach($total_org as $key=>$org)
+		{
+		   $total_sry=$this->admin_model->get_surverey_count($org['in_id'],$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'));
+			$count_surey=$count_surey+$total_sry['value_count'];
+			
+			$user_id[]=$total_sry['in_user_id'];
+			//$count_arr=array_unique($user_id);
+			
+			
+			
+		}
+		$count_arr=array_unique($user_id);
+		
+		$data['user_id_count']=$count_arr;
+		$data['count_surey']=$count_surey;
+		
+		//echo '<pre>'; print_r($data['count_surey']); die;
+		
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('base_url').'admin/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+	
+		
+		$config['cur_tag_open'] = '&nbsp;&nbsp;<a class="current">';
+
+		
+		$config['cur_tag_close'] = '</a>&nbsp;&nbsp;';
+
+	
+		$config['next_link'] = 'NEXT';
+
+		// By clicking on performing PREVIOUS pagination.
+		$config['prev_link'] = 'PRE';
+				
+		
+		
+		
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;			
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Record(s) Found.';
+		}
+		
+		
+		 $this->load->view('admin-dashboard',$data);
+	}
+	
+	
+	
+	public function view_report()
+	{
+		$userid = $this->session->userdata('sess_admin_id');
+		
+		if(isset($userid) && $userid != '')
+		{
+		
+		
+		if($this->uri->segment(3))
+		{
+			$survey_id = $this->uri->segment(3);
+		}
+		else
+		{			
+			$survey_id='';
+		}
+	    
+		//print_r($survey_id); die;
+		
+		  $data['pdf_user_id']=$survey_id;
+		 $data['survey_details']=$this->dashboard_model->get_servey_detail($survey_id);
+		 
+		$data['currently_active']=$this->dashboard_model->get_currently_active($survey_id);
+		$data['currently_inactive']=$this->dashboard_model->get_currently_inactive($survey_id);
+		$data['taking_break']=$this->dashboard_model->get_taking_break($survey_id);
+		
+		$where="st_foster_ques2 = 'a little of the time (1 to 20%)'";
+		$data['little_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'some of the time (21 to 40%)'";
+		$data['some_of_the_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'majority of the time (41 to 60%)'";
+		$data['some_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'majority of the time (61 to 80%)'";
+		$data['majority_time_41_60']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'most of the time (81-100%)'";
+		$data['majority_time_61_80']=$this->dashboard_model->question2_response($survey_id,$where);
+		
+		$where="st_foster_ques3 = 'Less than 1 year'";
+		$data['less_than1']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '1-3 year'";
+		$data['year13']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '4-6 year'";
+		$data['year46']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '7-9 year'";
+		$data['year79']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '10+ year'";
+		$data['year10']=$this->dashboard_model->question2_response($survey_id,$where);
+		$this->load->view('report',$data);
+		}
+		else {
+			redirect(base_url().'admin');
+			
+		
+		}
+		
+	}
+	
+	
+	public function download_view_report()
+	{
+	    $survey_id=$_GET['id'];
+		//print_r($id); die;
+		
+		
+		 $data['survey_details']=$this->dashboard_model->get_servey_detail($survey_id);
+		 
+		$data['currently_active']=$this->dashboard_model->get_currently_active($survey_id);
+		$data['currently_inactive']=$this->dashboard_model->get_currently_inactive($survey_id);
+		$data['taking_break']=$this->dashboard_model->get_taking_break($survey_id);
+		
+		$where="st_foster_ques2 = 'a little of the time (1 to 20%)'";
+		$data['little_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'some of the time (21 to 40%)'";
+		$data['some_of_the_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'some of the time (21 to 40%)'";
+		$data['some_time']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'majority of the time (41 to 60%)'";
+		$data['majority_time_41_60']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques2 = 'majority of the time (61 to 80%)'";
+		$data['majority_time_61_80']=$this->dashboard_model->question2_response($survey_id,$where);
+		
+		$where="st_foster_ques3 = 'Less than 1 year'";
+		$data['less_than1']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '1-3 year'";
+		$data['year13']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '4-6 year'";
+		$data['year46']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '7-9 year'";
+		$data['year79']=$this->dashboard_model->question2_response($survey_id,$where);
+		$where="st_foster_ques3 = '10+ year'";
+		$data['year10']=$this->dashboard_model->question2_response($survey_id,$where);
+		
+		$html=$this->load->view('include/pdf',$data, true);
+		//$html=$this->load->view('include/BasicTerms.html',$data, true);
+			
+		$this->load->library('m_pdf'); 
+		$pdf = $this->m_pdf->load();
+		$stylesheet = '<style>'.file_get_contents('asset/css/pdf.css').'</style>';
+		//print_r($html); die;
+		$pdfFilePath ="survey_details-".time().".pdf";		
+		//$stylesheet = '<style>'.file_get_contents('asset/css/pdf.css').file_get_contents('asset/js/css_browser_selector.js').file_get_contents('../stylesheet.css').'</style>';
+		$pdf->WriteHTML($stylesheet,1);
+		$pdf->WriteHTML($html,2);
+		//offer it to user via browser download! (The PDF won't be saved on your server HDD)
+		$pdf->Output($pdfFilePath, "D");
+		exit;
+		
+	}
+	
+	function logout()
+	{
+		$this->session->sess_destroy();
+		redirect(base_url().'admin/');
+	}
+	
+	
+	
+	
+}	
+
+/* End of file admin.php */
+/* Location: ./application/controllers/welcome.php */

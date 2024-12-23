@@ -1,0 +1,217 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 24-Jun-2014
+# File description	: Plane Model for admin
+# Special - notes	: none
+# Tables used		: tbl_plane_type,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class plane_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_plane_types()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of plane types from tbl_plane_type
+	#------------------------------------------------------------
+	public function get_total_plane_types($name='')
+	{ 				
+					$this->db->select("tbl_plane_type.in_plane_type_id", false);						   	
+					$this->db->from('tbl_plane_type');					
+					$this->db->where('tbl_plane_type.in_deleted','0');
+					
+		//if($name!='')
+//		{	 
+//		  $this->db->where("tbl_plane_type.st_plane_type LIKE '%".$name."%'", NULL, FALSE);
+//		}
+		
+		if(trim($name) != '') {
+							if($name=='%'){ 
+							$this->db->where("tbl_plane_type.st_plane_type RLIKE '%".$name."%'", NULL, FALSE);
+							}
+						else{
+							$this->db->where("tbl_plane_type.st_plane_type LIKE '%".$name."%'", NULL, FALSE);
+						    }
+					}	
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_plane_types()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to get plane types details
+	#------------------------------------------------------------
+	public function get_plane_types($sort,$order,$limit,$rec_per_page,$name)
+	{	  
+				   $this->db->select("tbl_plane_type.in_plane_type_id,
+									  tbl_plane_type.st_plane_type,
+									  tbl_plane_type.in_status,
+									  tbl_plane_type.dt_created,
+									  tbl_plane_type.dt_modified", false);						   	
+					$this->db->from('tbl_plane_type');					
+					$this->db->where('tbl_plane_type.in_deleted','0');
+					  
+		//if($name!='')
+//		{	 
+//		  $this->db->where("tbl_plane_type.st_plane_type LIKE '%".$name."%'", NULL, FALSE);
+//		}
+
+			if(trim($name) != '') {
+							if($name=='%'){ 
+							$this->db->where("tbl_plane_type.st_plane_type RLIKE '%".$name."%'", NULL, FALSE);
+							}
+						else{
+							$this->db->where("tbl_plane_type.st_plane_type LIKE '%".$name."%'", NULL, FALSE);
+						    }
+					}	
+					
+					switch($sort)
+					{
+						case 'type': 						
+							$this->db->order_by('tbl_plane_type.st_plane_type',$order);
+						break;							
+						
+						case 'status': 						
+							$this->db->order_by('tbl_plane_type.in_status',$order);
+						break;						
+							
+						case 'createddate': 							
+							$this->db->order_by('tbl_plane_type.dt_created',$order);
+						break;
+						
+						case 'modifieddate': 							
+							$this->db->order_by('tbl_plane_type.dt_modified',$order);
+						break;						
+							 
+						default:
+						   $this->db->order_by('tbl_plane_type.dt_created',$order);
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					//echo $this->db->last_query();  die;					
+					$arrPlane = array();
+					//print_r($query->result());die;
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrPlane[$Row->in_plane_type_id]	=	array('in_plane_type_id'	=> $Row->in_plane_type_id,
+											'st_plane_type'								       	=> $Row->st_plane_type,
+											'status'								       	    => ($Row->in_status==1) ? 'Active' : 'Inactive',
+											'dt_created'										=> $Row->dt_created,
+											'dt_modified'										=> $Row->dt_modified																				
+											);
+						}
+						return $arrPlane;						
+					}
+					
+	}
+	
+	
+	#====================================================================================
+	#	Function	:	delete_plane_types()
+	#   Parameter	: 	planetypeId
+	#	Perpose		:	to delete single plane type details from tbl_plane_type table
+	#------------------------------------------------------------------------------------
+	public function delete_plane_types($planetypeId)
+	{
+				$arrPlane = 	array('in_deleted' 	=> '1' );		
+				$this->db->where('in_plane_type_id', $planetypeId);
+				$this->db->update('tbl_plane_type', $arrPlane);		
+	}
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	delete_multiple_plane_types()
+	#   Parameter	: 	planetypeIds
+	#	Perpose		:	to delete multiple plane types details from tbl_plane_type table
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_plane_types($planetypeIds)
+	{			
+				$arrPlane = 	array('in_deleted' 	=> '1' );
+				$this->db->where_in('in_plane_type_id', $planetypeIds);
+				$this->db->update('tbl_plane_type', $arrPlane);		
+				return $this->db->affected_rows();
+	}
+
+	
+	
+	#============================================================================
+	#	Function	:	get_plane_types_profile()
+	#   Parameter	: 	planetypeIds
+	#	Perpose		:	to get plane types details from tbl_plane_type table
+	#----------------------------------------------------------------------------
+	public function get_plane_types_profile($planetypeId)
+	{
+				$this->db->select('v.in_plane_type_id,v.st_plane_type,v.in_status');
+				$this->db->from('tbl_plane_type as v');		
+				$this->db->where('v.in_plane_type_id',$planetypeId);
+				$query = $this->db->get();
+				return $query->row_array();	
+	}
+	
+	#============================================================================
+	#	Function	:	update_plane_type_info()
+	#   Parameter	: 	data,planetypeId,table
+	#	Perpose		:	to update plane types details tbl_plane_type table
+	#----------------------------------------------------------------------------
+	public function update_plane_type_info($data,$planetypeId,$table) {
+				$this->db->where('in_plane_type_id',$planetypeId);
+				$this->db->update($table,$data);
+				return $this->db->affected_rows();	
+	}
+	
+    #============================================================================
+	#	Function	:	insertplaneTypes()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert plane types details in tbl_plane_type table
+	#----------------------------------------------------------------------------
+	public function insertPlaneTypes($post)
+	{
+				 $arrPlaneTypes = 	  array(
+										'st_plane_type'		=>	preg_replace('!\s+!', ' ',$post['planetype']),								
+										'in_status'				=>	$post['active'],															
+										'dt_created'			=>  date("Y-m-d H:i:s"),	
+										'in_deleted'		    =>  '0'																				
+										);	
+										$this->db->insert('tbl_plane_type', $arrPlaneTypes);												
+	}
+	
+	
+	function is_planetype_exists($planetype)
+	{ 
+				$this->db->select('in_plane_type_id');
+				$this->db->from('tbl_plane_type');							
+				$this->db->where("st_plane_type",$planetype);
+				$this->db->where("in_deleted",0);
+				$query = $this->db->get();		
+				//echo $this->db->last_query(); die;	
+				
+				if($query->num_rows()>0)
+					return true;
+				else
+					return false;				
+			}
+			
+	
+}
+?>

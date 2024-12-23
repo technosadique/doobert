@@ -1,0 +1,304 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 23-Dec-2014
+# File description	: Facebookapp Model for admin
+# Special - notes	: none
+# Tables used		:  
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class facebookapp_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_total_fundraiser	
+	#	Purpose		:	Getting fundraiser count
+	# *******************************************************************************************
+	
+	
+	public function get_total_fundraiser()
+	{
+		
+		
+					$this->db->select("camp.in_campaign_id", false);					   	
+					$this->db->from('tbl_campaign camp');
+					$this->db->join("tbl_animal a", "a.in_animal_id = camp.in_animal_id AND a.in_deleted='0'","LEFT");	
+					$this->db->join("tbl_animal_file af", "af.in_animal_id = camp.in_animal_id AND af.in_deleted='0'  AND af.st_file_type='P' ","LEFT");					
+					$this->db->join("tbl_campaign_file cf", "cf.in_campaign_id = camp.in_campaign_id AND cf.in_deleted='0' AND cf.st_file_type='P' ","LEFT");										
+					
+					$this->db->where("camp.dt_campaign_start <=", date('Y-m-d'));
+					$this->db->where("camp.dt_campaign_end >=", date('Y-m-d'));
+					$this->db->where('camp.in_deleted','0');
+					$this->db->where('camp.in_status','1');					
+					$this->db->group_by("camp.in_campaign_id"); 
+					$query = $this->db->get();	
+					// echo $this->db->last_query(); echo "<br>"; die;								
+					return $query->num_rows();
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_all_fundraiser	
+	#	Purpose		:	Getting fundraiser list
+	# *******************************************************************************************
+	public function get_fundraiser($sort,$order,$limit,$rec_per_page) {
+		$data= array();
+		
+		$this->db->select("camp.in_campaign_id,	
+						   camp.st_page_title,	  
+						   camp.st_profile_story,
+						   camp.st_campaign_type,
+						   camp.in_goal_fund,
+						   camp.st_custom_url,
+						   a.st_animal_name,
+						   af.st_file_name as animal_file, cf.st_file_name as campaign_file", false);					   	
+					$this->db->from('tbl_campaign camp');
+					$this->db->join("tbl_animal a", "a.in_animal_id = camp.in_animal_id AND a.in_deleted='0'","LEFT");	
+					$this->db->join("tbl_animal_file af", "af.in_animal_id = camp.in_animal_id AND af.in_deleted='0'  AND af.st_file_type='P' ","LEFT");					
+					$this->db->join("tbl_campaign_file cf", "cf.in_campaign_id = camp.in_campaign_id AND cf.in_deleted='0' AND cf.st_file_type='P' ","LEFT");										
+					
+					$this->db->where("camp.dt_campaign_start <=", date('Y-m-d'));
+					$this->db->where("camp.dt_campaign_end >=", date('Y-m-d'));
+					$this->db->where('camp.in_deleted','0');
+					$this->db->where('camp.in_status','1');					
+					$this->db->group_by("camp.in_campaign_id"); 
+					//$query = $this->db->get();
+					
+					if(!isset($limit))
+					{
+						$limit=0;
+					}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					// echo $this->db->last_query();die; 					
+					$arrAnimal = array();
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{						
+							$this->db->select('SUM(in_donation_amount) as total_donation, count(in_donation_id) as c_in_donation_id');
+							$this->db->from('tbl_campaign_donation');
+							$this->db->where('in_campaign_id',$Row->in_campaign_id);
+							$this->db->where('in_deleted',0);
+							$this->db->where('st_donation_type',$Row->st_campaign_type);
+							$this->db->where_in('in_status',array('1','2'));
+							$query = $this->db->get();
+							$donation_sum=$query->row_array();
+							
+							$image_file1	=	'';
+							
+							if(isset($Row->animal_file) && $Row->animal_file != '')
+								$image_file1	=	$Row->animal_file;
+							else
+								$image_file1	=	$Row->campaign_file;	
+							
+															  
+							if($image_file1 != '' && file_exists($this->config->item('upload').'animal_images/315x315/'.$image_file1)){
+								$image_file = $this->config->item('upload_url').'animal_images/315x315/'.$image_file1;			
+							}else{
+								$image_file = $this->config->item('upload_url').'animal_images/315x315/no_photo_icon.png';
+							}
+									
+							$arrAnimal[]	= array('in_campaign_id'	=> $Row->in_campaign_id,																						
+													'raised'					=> $donation_sum['total_donation'],	
+													'goal'						=> $Row->in_goal_fund,														
+													'st_file_name' 				=> $image_file,
+													'st_custom_url' 			=> $Row->st_custom_url,
+													'st_page_title' 			=> $Row->st_page_title,																																									
+													'st_profile_story'			=> $Row->st_profile_story,
+													'st_animal_name'			=> $Row->st_animal_name
+											);
+						}
+						return $arrAnimal;						
+					}	
+	}
+	
+	//============================================================
+	//	Function	:	is_fb_user_exists()
+	//  Parameter	: 	$email , $memberId
+	//	Perpose		:	to check if member Email Id is already exists 
+	//------------------------------------------------------------
+	function get_user_id_by_fbid_email($fbemail,$fbid='')
+	{
+		mail('ghanshyam.maurya@pulsesolutions.net','facebook email and id','email: '.$fbemail.' id is'.$fbid);
+		$row_data = array();
+		$this->db->select('in_user_id,st_facebook_uid');
+		$this->db->from('tbl_users');							
+		 
+		$this->db->where("in_deleted",0);
+		$this->db->where("(st_email='".addslashes($fbemail)."' OR st_facebook_uid='".$fbid."')"); 
+		//$this->db->where("(st_email='".addslashes($fbemail)."')"); 
+		#$this->db->or_where("st_facebook_uid",$fbid);
+		$query = $this->db->get();			
+		//echo $this->db->last_query();die;
+		//if($query->num_rows()>0)
+		//{
+			$row_data = $query->row_array();
+			return $row_data;
+		//}
+		//else
+		//{
+			//return false;	
+		//}
+	}//EN is_fb_user_exists	
+	
+	function is_fb_user_exists($fbemail,$fbid='')
+	{
+		$this->db->select('in_user_id,st_facebook_uid');
+		$this->db->from('tbl_users');							
+		 
+		$this->db->where("in_deleted",0);
+		$this->db->where("(st_email='".addslashes($fbemail)."' OR st_facebook_uid='".$fbid."')"); 
+		//$this->db->where("(st_email='".addslashes($fbemail)."')"); 
+		#$this->db->or_where("st_facebook_uid",$fbid);
+		$query = $this->db->get();			
+		//echo $this->db->last_query();die;
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;	
+			
+	}
+	
+
+	//function get_fbuser_details_id($userid)
+	function get_fbuser_details_id($email)
+	{
+		$this->db->select("in_user_id,st_display_name,st_email,in_status,st_last_name");
+		//$this->db->where(array("in_deleted"=>'0',"st_facebook_uid"=>addslashes($userid)));
+		$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($email)));
+		$query = $this->db->get("tbl_users");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array("userid"	=> $Row->in_user_id,
+									"user_name"	=> $Row->st_display_name,
+									"last_name"	=> $Row->st_last_name,
+									"email"		=> $Row->st_email,
+									"status"	=> $Row->in_status,
+									);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	function get_zipcode_by_city_state($city,$state)
+	{
+		//mail('ghanshyam.maurya@pulsesolutions.net','Post state key','state_key in model: '.$state);
+		
+		$this->db->select("zip_code,lat,lon");
+		$this->db->where(array("city"=>$city,"state_prefix"=>$state));
+		$this->db->limit('1');
+		$query = $this->db->get("tbl_zip_code");
+		//echo "<pre>".$this->db->last_query();	
+		$row_data = $query->row_array();
+		return $row_data;
+	}
+	
+	public function update_user_info($data,$id,$table) {
+		$this->db->where('in_user_id',$id);
+		$this->db->update($table,$data);
+		//echo "<pre>".$this->db->last_query();		
+		return $this->db->affected_rows();
+	}
+	
+	public function update_vehicle_details($post,$id,$zipcode,$availability,$ziplat,$ziplon,$table)
+	{  
+		//echo '<pre>'; print_r($post); die;	
+		mail('ghanshyam.maurya@pulsesolutions.net','update_vehicle_details','userid'.$id.'ziplat'.$ziplat.'ziplon'.$ziplon.'update_vehicle_details: '.$post);
+				
+		$insert_id = '';
+		$data = array();
+		
+		for($val=0;$val<sizeof($post['vehicletype']);$val++)
+		{
+			if($post['vehicletype'][$val]!='')
+			{
+				$arrVehicle	 = 	  array('in_user_id'				    => $id,
+										'st_zip_vehicle'				=> $zipcode,
+										'st_driver_availability'		=> $availability,										
+										'zip_lat'						=> $ziplat, 
+										'zip_lon'						=> $ziplon,	
+										'st_vehicle_type'				=> $post['vehicletype'][$val],
+										'st_vehicle_color'				=> $post['color'][$val],
+										'st_vehicle_license_plate'		=> $post['license'][$val],										
+										'st_vehicle_license_state'		=> $post['license_state'][$val],
+										'in_distance_to_drive'			=> $post['distance'][$val],
+										'dt_created'					=> date('Y-m-d H:i:s'),
+										'dt_modified'					=> date('Y-m-d H:i:s'),
+										'in_status'						=> '1', 
+										'in_deleted'					=> '0'
+										);
+				//echo "<pre>";print_r($arrVehicle);die;
+				if($post['vehicle_ids'][$val]!='')
+				{															
+					$this->db->where('in_vehicle_id', $post['vehicle_ids'][$val]);
+					$this->db->update($table, $arrVehicle);	
+					$insert_id = $post['vehicle_ids'][$val];
+				}
+				else
+				{
+					$this->db->insert($table, $arrVehicle);	
+					$insert_id = $this->db->insert_id();
+				}
+			}
+		
+		}
+	
+	}	
+	
+	public function match_nondoobert_email_id($email_id)
+	{
+		$this->db->select('in_non_doobert_user_id,st_phone,st_zipcode,st_vehicle_type,st_vehicle_color,st_license_plate,st_license_state,in_transportation_id,in_leg_id');
+		$this->db->from('tbl_non_doobert_transport_users');
+		$this->db->where('st_email',$email_id);
+		$this->db->where('in_deleted','0');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->result_array());die;
+		return $query->result_array();
+	}	
+	
+	public function get_leg_type_by_id($id) {
+		$this->db->select('in_route_type');
+		$this->db->from('tbl_transportation_leg');
+		$this->db->where('in_transportation_leg_id',$id);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+
+	public function get_transport_coordinator_detail($transport_id)
+	{
+		$transport_details = array();
+		$this->db->select("tr.in_transportation_id,
+						   tr.in_trans_coods_id,
+						   u.st_email as coordinatoremail,
+						   concat(u.st_display_name,' ',u.st_last_name) as coordinatorname",FALSE);
+		$where = array("tr.in_deleted"=>"0","tr.in_transportation_id"=>$transport_id);
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_users u","u.in_user_id = tr.in_trans_coods_id","INNER");
+		$this->db->where($where);
+		$query =	$this->db->get();
+		if($query->num_rows()>0)
+		{
+			$transport_co_details = $query->row_array();
+		}
+		//echo "<pre>";print_r($transport_co_details);die;
+		return $transport_co_details;
+	}
+		
+}
+?>

@@ -1,0 +1,808 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 17-May-2018
+# File description	: Partner Model
+# Special - notes	: none
+# Tables used		: tbl_partner, tbl_organization, tbl_org_item
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class partner_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+    public function add_partner($partnerarr){
+      $this->db->insert('tbl_partner',$partnerarr);
+      $id =  $this->db->insert_id();  
+      return $id;
+    }
+
+    public function check_availablity($id){ 
+      $userid = $this->session->userdata('userid');   
+      $user_org_id = $this->session->userdata('org_id');  
+      $this->db->select('in_partner_id, in_organization_id, in_user_id, in_favorite');
+      $this->db->from('tbl_partner');
+      $this->db->where('in_organization_id', $id);
+      $this->db->where('in_user_id', $userid);
+      $this->db->where('in_user_organization_id',$user_org_id);
+      $this->db->where('in_deleted', 0);
+      $query = $this->db->get();
+      return $query->row_array();
+
+    }
+
+    public function get_all_partner($sort,$order,$limit,$rec_per_page,$orgname=''){
+        $userid = $this->session->userdata('userid'); 
+        $user_org_id = $this->session->userdata('org_id');
+        $arrData = array();
+        $this->db->select('p.in_partner_id, p.in_organization_id, o.in_user_id, p.in_favorite, o.st_org_name, o.st_primary_phone, u.st_display_name, u.st_last_name, u.st_email,o.st_zip');
+        $this->db->from('tbl_partner p');
+        $this->db->join('tbl_organization o' , 'p.in_organization_id = o.in_organization_id');
+        $this->db->join('tbl_users u' , 'o.in_user_id = u.in_user_id');
+        $this->db->where('p.in_deleted', 0);
+        $this->db->where('u.in_deleted', 0);
+        $this->db->where('o.in_deleted', 0);
+        $this->db->where('p.in_user_id', $userid);
+         $this->db->where('p.in_user_organization_id',$user_org_id);
+        if(!empty($orgname)){
+          $this->db->where('o.st_org_name LIKE "%'.$orgname.'%"');
+        }
+        switch($sort){
+            case 'st_org_name':
+                $this->db->order_by('o.st_org_name',$order);
+            break;
+            case 'st_display_name':                          
+                $this->db->order_by("u.st_display_name", $order);
+            break;
+            case 'st_email':                          
+                $this->db->order_by("u.st_email", $order);
+            break;
+            case 'st_primary_phone':                          
+                $this->db->order_by("o.st_primary_phone", $order);
+            break;       
+            default:                            
+            $this->db->order_by('p.in_favorite',$order);
+            break;                       
+        }             
+        if(!isset($limit))
+        {
+            $limit=0;
+        }
+        $this->db->limit($rec_per_page,$limit);  
+        $query = $this->db->get();        
+        return $query->result_array();      
+    }
+
+
+    public function update_partner($partnerarr , $org_id){
+        $userid = $this->session->userdata('userid'); 
+        $user_org_id = $this->session->userdata('org_id');
+        $this->db->where('in_organization_id',$org_id);
+        $this->db->where('in_user_organization_id',$user_org_id);
+        $this->db->where('in_user_id',$userid);
+        $this->db->update('tbl_partner',$partnerarr); 
+        return $this->db->affected_rows();
+    }
+
+
+     public function get_favorite_partner($user_id,$limit='',$rec_per_page,$search_partner=''){
+     	
+     	$user_org_id = $this->session->userdata('org_id');
+        $userid = $this->session->userdata('userid'); 
+        $this->db->select('p.in_partner_id, p.in_organization_id, o.in_user_id, p.in_favorite, o.st_org_name, o.st_primary_phone, u.st_display_name, u.st_last_name, u.st_email, o.st_zip');
+        $this->db->from('tbl_partner p');
+        $this->db->join('tbl_organization o' , 'p.in_organization_id = o.in_organization_id');
+        $this->db->join('tbl_users u' , 'o.in_user_id = u.in_user_id');
+        $this->db->where('p.in_user_id',$user_id);
+        $this->db->where('p.in_favorite',1);
+        $this->db->where('p.in_deleted', 0);
+        $this->db->where('u.in_deleted', 0);
+        $this->db->where('o.in_deleted', 0);
+        $this->db->where('p.in_user_id',$userid); 
+        $this->db->where('p.in_user_organization_id',$user_org_id);
+		if($search_partner!='')
+		{
+			/*$where = "(o.st_org_name = '".$search_partner."'
+						OR REPLACE(o.st_org_name , '\'', '' ) = '".$search_partner."'
+					)";*/
+			$where = "(o.st_org_name LIKE '%".$search_partner."%')";		
+			$this->db->where($where);
+		}		
+		if($limit!='')
+			 $this->db->limit($rec_per_page, $limit);	
+		else
+			$this->db->limit(10);
+        $query = $this->db->get();
+        return $query->result_array();      
+    }
+	
+	   public function get_favorite_partner_count($user_id,$search_partner=''){
+     	
+     	$user_org_id = $this->session->userdata('org_id');
+        $userid = $this->session->userdata('userid'); 
+        $this->db->select('p.in_partner_id');
+        $this->db->from('tbl_partner p');
+        $this->db->join('tbl_organization o' , 'p.in_organization_id = o.in_organization_id');
+        $this->db->join('tbl_users u' , 'o.in_user_id = u.in_user_id');
+        $this->db->where('p.in_user_id',$user_id);
+        $this->db->where('p.in_favorite',1);
+        $this->db->where('p.in_deleted', 0);
+        $this->db->where('u.in_deleted', 0);
+        $this->db->where('o.in_deleted', 0);
+        $this->db->where('p.in_user_id',$userid); 
+        $this->db->where('p.in_user_organization_id',$user_org_id);
+		if($search_partner!='')
+		{
+			/*$where = "(o.st_org_name = '".$search_partner."'
+						OR REPLACE(o.st_org_name , '\'', '' ) = '".$search_partner."'
+					)";*/
+			$where = "(o.st_org_name LIKE '%".$search_partner."%')";		
+			$this->db->where($where);
+		}	
+        $query = $this->db->get();            
+        return $query->num_rows();      
+    }
+
+
+    public function get_partner_count($orgname=''){
+        $user_org_id = $this->session->userdata('org_id');
+        $userid = $this->session->userdata('userid'); 
+       	$this->db->select('p.in_partner_id, p.in_organization_id, o.in_user_id, p.in_favorite, o.st_org_name, o.st_primary_phone, u.st_display_name, u.st_last_name, u.st_email');
+        $this->db->from('tbl_partner p');
+        $this->db->join('tbl_organization o' , 'p.in_organization_id = o.in_organization_id');
+        $this->db->join('tbl_users u' , 'o.in_user_id = u.in_user_id');
+        $this->db->where('p.in_deleted', 0);
+        $this->db->where('u.in_deleted', 0);
+        $this->db->where('o.in_deleted', 0);
+        $this->db->where('p.in_user_id',$userid); 
+        $this->db->where('p.in_user_organization_id',$user_org_id);
+        if(!empty($orgname)){
+          $this->db->where('o.st_org_name LIKE "%'.$orgname.'%"');
+        }
+        $query = $this->db->get();        
+        return $query->num_rows();
+    }
+	
+
+    public function get_org_partner($org_id){                
+        $arrData = array();
+        $this->db->select('p.in_partner_id, p.in_organization_id, o.in_user_id, p.in_favorite, o.st_org_name, o.st_primary_phone, u.st_display_name, u.st_last_name, u.st_email');
+        $this->db->from('tbl_partner p');
+        $this->db->join('tbl_organization o' , 'p.in_organization_id = o.in_organization_id');
+        $this->db->join('tbl_users u' , 'o.in_user_id = u.in_user_id');
+        $this->db->where('p.in_deleted', 0);
+        $this->db->where('u.in_deleted', 0);
+        $this->db->where('o.in_deleted', 0);        
+        $this->db->where('p.in_user_organization_id',$org_id);
+        $query = $this->db->get();        
+        return $query->result_array();
+     }
+
+	// added by sadique on 29-05-18
+	function get_item_list_all_data($txtname,$txtcat,$txttype)
+	{		
+		$this->db->select("tbl_org_items.in_item_id", false);						   	
+		$this->db->from('tbl_org_items');	
+		$this->db->join('tbl_product_category', 'tbl_product_category.in_cat_id=tbl_org_items.in_item_cat','LEFT');	
+		$this->db->where('tbl_org_items.in_deleted','0');
+		$this->db->where('tbl_org_items.in_status','1');
+		$this->db->where('tbl_org_items.in_org_id',$this->session->userdata('org_id'));
+		if($txtname != '') {
+							if($txtname=='%'){
+							$this->db->where("tbl_org_items.st_item_name RLIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_org_items.st_item_name LIKE '%".$txtname."%'", NULL, FALSE);
+						}
+					}
+
+
+						if($txtcat != '') {							
+							$this->db->where("tbl_org_items.in_item_cat = '".$txtcat."'", NULL, FALSE);
+					    }
+						
+						if($txttype != '') {							
+							$this->db->where("tbl_org_items.st_item_type = '".$txttype."'", NULL, FALSE);
+					    }
+						
+					
+		
+		$query = $this->db->get();	
+		//echo $this->db->last_query();  die;							
+		return $query->num_rows();				
+	}	
+	
+	
+	// added by sadique on 29-05-18
+	function get_item_list_data($rec_per_page,$limit,$sort,$order,$txtname,$txtcat,$txttype)
+	{		
+		
+		$this->db->select("tbl_org_items.in_item_id,
+						   tbl_org_items.st_item_name,
+						   tbl_org_items.in_item_qty,
+						   tbl_org_items.in_item_cat,
+						   tbl_org_items.st_item_type,						   
+						   tbl_org_items.st_item_desc,
+						   tbl_product_category.st_category,o.st_org_name,o.st_email_address,o.st_director
+						   ", false);						   	
+				$this->db->from('tbl_org_items');
+				$this->db->join('tbl_product_category', 'tbl_product_category.in_cat_id=tbl_org_items.in_item_cat','LEFT');	
+				$this->db->join('tbl_organization o', 'o.in_organization_id=tbl_org_items.in_org_id','LEFT');
+				
+				$this->db->where('tbl_org_items.in_deleted',0);
+				$this->db->where('tbl_org_items.in_status',1);
+				$this->db->where('tbl_org_items.in_org_id',$this->session->userdata('org_id'));
+				
+				if($txtname != '') {
+							if($txtname=='%'){
+							$this->db->where("tbl_org_items.st_item_name RLIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_org_items.st_item_name LIKE '%".$txtname."%'", NULL, FALSE);
+						}
+					}
+
+					if($txtcat != '') {							
+							$this->db->where("tbl_org_items.in_item_cat = '".$txtcat."'", NULL, FALSE);
+					    }
+						
+					if($txttype != '') {							
+							$this->db->where("tbl_org_items.st_item_type = '".$txttype."'", NULL, FALSE);
+					    }
+				
+						
+						
+						switch($sort)
+						{							
+														
+							case 'name': 								
+								$this->db->order_by('tbl_org_items.st_item_name',$order);
+							break;
+								
+							case 'qty': 								
+								$this->db->order_by('tbl_org_items.in_item_qty',$order);
+							break;	
+							
+							case 'cat': 								
+								$this->db->order_by('tbl_product_category.st_category',$order);
+							break;
+							
+							case 'type': 								
+								$this->db->order_by('tbl_org_items.st_item_type',$order);
+							break;       
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 					
+					//echo $this->db->last_query();  die;											
+					$arrItem = array();
+					
+					
+					if($query->num_rows()>0)
+					{   $type = '';	
+						foreach($query->result() as $Row)
+						{	
+
+						$sqlcountcomment  = "SELECT count(*) as cnt FROM tbl_org_need where in_item_id = '".$Row->in_item_id."' AND in_deleted=0";
+										$sqlcomment	=	$this->db->query($sqlcountcomment);
+										$numrowprostat		=	$sqlcomment->num_rows($sqlcomment);	
+										$comment			=	$sqlcomment->result();
+										$commentcount		=	$comment[0]->cnt;
+						
+						
+							
+							
+							
+							if($Row->st_item_type == 'N'){ $type='Needed';}
+							if($Row->st_item_type == 'O'){ $type='Offering';}
+							$arrItem[]	=	array('id'	 => $Row->in_item_id,
+											      'name' => $Row->st_item_name,	
+											      'qty'	 => $Row->in_item_qty,
+											      'cat'	 => $Row->st_category,
+											      'desc' => $Row->st_item_desc,
+												  'type' => $type,
+												  'commentcount' => $commentcount,
+												  'orgname' => $Row->st_org_name,
+												  'orgemail' => $Row->st_email_address,
+												  'director' => $Row->st_director
+											);
+						}
+						return $arrItem;						
+					}	
+	}
+	function item_delete($Id)
+	{
+		$arrItem = 	array('in_deleted'=> '1');		
+		$this->db->where('in_item_id', $Id);
+		$this->db->update('tbl_org_items', $arrItem);		
+	}
+	
+	function add_item_details($data)
+	{
+	  $this->db->insert('tbl_org_items',$data);
+      $id =  $this->db->insert_id();  
+      return $id;	
+	}
+	
+	function update_item_details($data,$Id)
+	{
+		$this->db->where('in_item_id', $Id);
+		$this->db->update('tbl_org_items', $data);
+		return $this->db->affected_rows();
+	}
+	
+	function get_item($id)
+	{
+		$this->db->select("tbl_org_items.in_item_id,
+						   tbl_org_items.st_item_name,
+						   tbl_org_items.in_item_qty,
+						   tbl_org_items.in_item_cat,								   
+						   tbl_org_items.st_item_desc,
+						   tbl_org_items.st_item_type", false);						   	
+				$this->db->from('tbl_org_items');				
+				$this->db->where('tbl_org_items.in_deleted',0);	
+				$this->db->where('tbl_org_items.in_item_id',$id);
+				$query = $this->db->get();
+				//echo $this->db->last_query();die;
+				return $query->row_array();		
+	}
+	
+	function get_ajax_item($id)
+	{   
+		$this->db->select("tbl_org_items.in_item_id,
+						   tbl_org_items.st_item_name,
+						   tbl_org_items.in_item_qty,
+						   tbl_org_items.in_item_cat,								   
+						   tbl_org_items.st_item_desc,						  
+						   tbl_product_category.st_category,o.st_email_address,o.st_director", false);						   	
+				$this->db->from('tbl_org_items');
+				$this->db->join('tbl_product_category', 'tbl_product_category.in_cat_id=tbl_org_items.in_item_cat','LEFT');	
+				
+				$this->db->join('tbl_organization o', 'o.in_organization_id=tbl_org_items.in_org_id','LEFT');	
+				
+				$this->db->where('tbl_org_items.in_deleted',0);	
+				$this->db->where('tbl_org_items.in_item_id',$id);
+				$query = $this->db->get();
+				//echo $this->db->last_query();die;
+				//return $query->row_array();	
+				$arrItem = array();
+				if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{
+							$arrItem[]	=	array('in_item_id'	 => $Row->in_item_id,
+											      'st_item_name' => $Row->st_item_name,	
+											      'in_item_qty'	 => $Row->in_item_qty,
+											      'st_category'	 => $Row->st_category,
+											      'st_item_desc' => $Row->st_item_desc,
+												  'st_email_address' => $Row->st_email_address,
+												  'st_director'    => $Row->st_director,
+												  
+												  //'st_item_type' => $Row->st_item_type,
+												  'comment'		=>	$this->get_comment($Row->in_item_id),
+											);
+						}
+						return $arrItem;
+						
+					}
+	}
+	
+	public function get_comment($id)
+	{
+		$data = array();		
+		$this->db->select('o.st_org_name,o.in_organization_id,n.st_item_type,n.st_comments,n.dt_created');
+		$this->db->from('tbl_org_need n');
+		$this->db->join('tbl_organization o', 'o.in_organization_id=n.in_org_id','LEFT');	
+		$this->db->where('n.in_item_id',$id);
+		$this->db->where('n.in_deleted',0);		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		if($query->num_rows() > 0) {				
+			foreach($query->result_array() as $row) {
+				
+				if($row['st_item_type'] == 'N'){ $type = 'Needed'; }
+				if($row['st_item_type'] == 'O'){ $type = 'Offered'; }
+					$data[] = array('st_comments'=>  $row['st_comments'],
+									'st_org_name'=> $row['st_org_name'],
+									'st_item_type'=>$type,
+									'orgurl'     =>base_url()."organization-".$row['in_organization_id']."-".$this->common_function->get_filtered_name($row['st_org_name']),
+									'dt_created'=> date('M d, Y',strtotime($row['dt_created']))
+									);
+			}			
+			return $data;
+		}	
+		
+	}
+	
+	function get_item_searched_needed_list_all_data($txtname,$txtcat,$txttype,$txtpartner)
+	{		
+		$this->db->select("tbl_org_items.in_item_id", false);						   	
+		$this->db->from('tbl_org_items');
+		$this->db->join('tbl_partner', 'tbl_partner.in_organization_id=tbl_org_items.in_org_id','LEFT');			
+		$this->db->join('tbl_product_category', 'tbl_product_category.in_cat_id=tbl_org_items.in_item_cat','LEFT');	
+		$this->db->where('tbl_partner.in_deleted','0');
+		$this->db->where('tbl_org_items.in_deleted','0');		
+		$this->db->where('tbl_org_items.in_status','1');
+		//$this->db->where('tbl_partner.in_user_id',$this->session->userdata('userid'));
+		$this->db->where('tbl_partner.in_user_organization_id',$this->session->userdata('org_id'));
+						if($txtname != '') {
+							if($txtname=='%'){
+							$this->db->where("tbl_org_items.st_item_name RLIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_org_items.st_item_name LIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						}
+
+
+						if($txtcat != '') {							
+							$this->db->where("tbl_org_items.in_item_cat = '".$txtcat."'", NULL, FALSE);
+					    }
+						
+						if($txttype != '') {							
+							$this->db->where("tbl_org_items.st_item_type = '".$txttype."'", NULL, FALSE);
+					    }
+						if($txtpartner != '') {							
+							$this->db->where("tbl_partner.in_organization_id = '".$txtpartner."'", NULL, FALSE);
+					    }
+		$query = $this->db->get();	
+		//echo $this->db->last_query();  die;							
+		return $query->num_rows();				
+	}
+	
+	
+	function  get_item_searched_needed_list_data($rec_per_page,$limit,$sort,$order,$txtname,$txtcat,$txttype,$txtpartner)
+	{
+		$this->db->select("tbl_org_items.in_item_id,
+							tbl_org_items.st_item_name,
+							tbl_org_items.in_item_qty,
+							tbl_org_items.in_item_cat,
+							tbl_org_items.st_item_desc,
+							tbl_org_items.st_item_type,tbl_product_category.st_category,
+							o.st_org_name,o.in_organization_id,o.st_email_address", false);						   	
+		$this->db->from('tbl_org_items');
+		$this->db->join('tbl_partner', 'tbl_partner.in_organization_id=tbl_org_items.in_org_id','LEFT');
+		$this->db->join("tbl_organization o","o.in_organization_id = tbl_org_items.in_org_id","LEFT");
+		$this->db->join('tbl_product_category', 'tbl_product_category.in_cat_id=tbl_org_items.in_item_cat','LEFT');	
+		$this->db->where('tbl_partner.in_deleted','0');
+		$this->db->where('tbl_org_items.in_deleted','0');		
+		$this->db->where('tbl_org_items.in_status','1');
+		//$this->db->where('tbl_partner.in_user_id',$this->session->userdata('userid'));
+		$this->db->where('tbl_partner.in_user_organization_id',$this->session->userdata('org_id'));
+		
+		
+		if($txtname != '') {
+							if($txtname=='%'){
+							$this->db->where("tbl_org_items.st_item_name RLIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_org_items.st_item_name LIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						}
+
+
+						if($txtcat != '') {							
+							$this->db->where("tbl_org_items.in_item_cat = '".$txtcat."'", NULL, FALSE);
+					    }
+						
+						if($txttype != '') {							
+							$this->db->where("tbl_org_items.st_item_type = '".$txttype."'", NULL, FALSE);
+					    }
+						if($txtpartner != '') {							
+							$this->db->where("tbl_partner.in_organization_id = '".$txtpartner."'", NULL, FALSE);
+					    }
+						
+						
+						switch($sort)
+						{							
+														
+							case 'name': 								
+								$this->db->order_by('tbl_org_items.st_item_name',$order);
+							break;
+								
+							case 'qty': 								
+								$this->db->order_by('tbl_org_items.in_item_qty',$order);
+							break;	
+							
+							case 'cat': 								
+								$this->db->order_by('tbl_product_category.st_category',$order);
+							break;
+							
+							case 'type': 								
+								$this->db->order_by('tbl_org_items.st_item_type',$order);
+							break;       
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 					
+					//echo $this->db->last_query(); die;											
+					$arrItem = array();
+					
+					if($query->num_rows()>0)
+					{   $type = '';	
+						foreach($query->result() as $Row)
+						{	
+
+						$sqlcountcomment  = "SELECT count(*) as cnt FROM tbl_org_need where in_item_id = '".$Row->in_item_id."' AND in_deleted=0";
+										$sqlcomment	=	$this->db->query($sqlcountcomment);
+										$numrowprostat		=	$sqlcomment->num_rows($sqlcomment);	
+										$comment			=	$sqlcomment->result();
+										$commentcount		=	$comment[0]->cnt;
+						
+						
+							
+							
+							
+							if($Row->st_item_type == 'N'){ $type='Needed';}
+							if($Row->st_item_type == 'O'){ $type='Offering';}
+							$arrItem[]	=	array('id'	 => $Row->in_item_id,
+											      'name' => $Row->st_item_name,	
+											      'qty'	 => $Row->in_item_qty,
+											      'cat'	 => $Row->st_category,
+											      'desc' => $Row->st_item_desc,
+												  'type' => $type,
+												  'commentcount' => $commentcount,
+												  'partner' => $Row->st_org_name,
+												  'partnerurl' => base_url()."organization-".$Row->in_organization_id."-".$this->common_function->get_filtered_name($Row->st_org_name),
+												  'partneremail' => $Row->st_email_address
+											);
+						}
+						return $arrItem;						
+					}	
+		
+	}
+	
+	function add_offer_details($data)
+	{
+	  $this->db->insert('tbl_org_need',$data);
+      $id =  $this->db->insert_id();  
+      return $id;	
+	}
+	
+	
+	function get_item_list_all_data_available($txtname,$txtcat,$txttype)
+	{		
+		$this->db->select("tbl_org_items.in_item_id", false);						   	
+		$this->db->from('tbl_org_items');	
+		$this->db->join('tbl_product_category', 'tbl_product_category.in_cat_id=tbl_org_items.in_item_cat','LEFT');	
+		$this->db->where('tbl_org_items.in_deleted','0');
+		$this->db->where('tbl_org_items.in_status','1');
+		$this->db->where('tbl_org_items.in_org_id',$this->session->userdata('partnerorg_id'));
+		if($txtname != '') {
+							if($txtname=='%'){
+							$this->db->where("tbl_org_items.st_item_name RLIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_org_items.st_item_name LIKE '%".$txtname."%'", NULL, FALSE);
+						}
+					}
+
+
+						if($txtcat != '') {							
+							$this->db->where("tbl_org_items.in_item_cat = '".$txtcat."'", NULL, FALSE);
+					    }
+						
+						if($txttype != '') {							
+							$this->db->where("tbl_org_items.st_item_type = '".$txttype."'", NULL, FALSE);
+					    }
+						
+					
+		
+		$query = $this->db->get();	
+		//echo $this->db->last_query();  die;							
+		return $query->num_rows();				
+	}	
+	
+	
+	// added by sadique on 29-05-18
+	function get_item_list_data_available($rec_per_page,$limit,$sort,$order,$txtname,$txtcat,$txttype)
+	{		
+		
+		$this->db->select("tbl_org_items.in_item_id,
+						   tbl_org_items.st_item_name,
+						   tbl_org_items.in_item_qty,
+						   tbl_org_items.in_item_cat,
+						   tbl_org_items.st_item_type,						   
+						   tbl_org_items.st_item_desc,
+						   tbl_product_category.st_category,o.st_org_name,o.st_email_address,o.st_director
+						   ", false);						   	
+				$this->db->from('tbl_org_items');
+				$this->db->join('tbl_product_category', 'tbl_product_category.in_cat_id=tbl_org_items.in_item_cat','LEFT');	
+				$this->db->join('tbl_organization o', 'o.in_organization_id=tbl_org_items.in_org_id','LEFT');
+				
+				$this->db->where('tbl_org_items.in_deleted',0);
+				$this->db->where('tbl_org_items.in_status',1);
+				$this->db->where('tbl_org_items.in_org_id',$this->session->userdata('partnerorg_id'));
+				
+				if($txtname != '') {
+							if($txtname=='%'){
+							$this->db->where("tbl_org_items.st_item_name RLIKE '%".$txtname."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_org_items.st_item_name LIKE '%".$txtname."%'", NULL, FALSE);
+						}
+					}
+
+					if($txtcat != '') {							
+							$this->db->where("tbl_org_items.in_item_cat = '".$txtcat."'", NULL, FALSE);
+					    }
+						
+					if($txttype != '') {							
+							$this->db->where("tbl_org_items.st_item_type = '".$txttype."'", NULL, FALSE);
+					    }
+				
+						
+						
+						switch($sort)
+						{							
+														
+							case 'name': 								
+								$this->db->order_by('tbl_org_items.st_item_name',$order);
+							break;
+								
+							case 'qty': 								
+								$this->db->order_by('tbl_org_items.in_item_qty',$order);
+							break;	
+							
+							case 'cat': 								
+								$this->db->order_by('tbl_product_category.st_category',$order);
+							break;
+							
+							case 'type': 								
+								$this->db->order_by('tbl_org_items.st_item_type',$order);
+							break;       
+						}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 					
+					//echo $this->db->last_query();  die;											
+					$arrItem = array();
+					
+					
+					if($query->num_rows()>0)
+					{   $type = '';	
+						foreach($query->result() as $Row)
+						{	
+
+						$sqlcountcomment  = "SELECT count(*) as cnt FROM tbl_org_need where in_item_id = '".$Row->in_item_id."' AND in_deleted=0";
+										$sqlcomment			=	$this->db->query($sqlcountcomment);
+										$numrowprostat		=	$sqlcomment->num_rows($sqlcomment);	
+										$comment			=	$sqlcomment->result();
+										$commentcount		=	$comment[0]->cnt;
+						
+						
+							
+							
+							
+							if($Row->st_item_type == 'N'){ $type='Needed';}
+							if($Row->st_item_type == 'O'){ $type='Offering';}
+							$arrItem[]	=	array('id'	 => $Row->in_item_id,
+											      'name' => $Row->st_item_name,	
+											      'qty'	 => $Row->in_item_qty,
+											      'cat'	 => $Row->st_category,
+											      'desc' => $Row->st_item_desc,
+												  'type' => $type,
+												  'commentcount' => $commentcount,
+												  'orgname' => $Row->st_org_name,
+												  'orgemail' => $Row->st_email_address,
+												  'director' => $Row->st_director
+											);
+						}
+						return $arrItem;						
+					}	
+	}
+
+
+	public function get_all_partner_byOrg($zipcode, $org_id,$miles){
+        if(!empty($org_id)){
+			$org_id = $org_id;
+		}else{
+			$org_id = $this->session->userdata('org_id');
+		}
+
+		if(!empty($zipcode))
+		{				
+			$lat_long = $this->google_lat_long($zipcode);
+		}
+		if(!empty($miles)){
+			$miles = $miles;
+		}else{
+			$miles = 100;
+		}
+		//print_r($lat_long);die;
+		 $data	=	array();
+		if(sizeof($lat_long) > 0)
+		{ 
+
+        $this->db->select('p.in_partner_id, p.in_organization_id, o.in_user_id, p.in_favorite, o.st_org_name, o.st_primary_phone, u.st_display_name, u.st_last_name, u.st_email');
+        $this->db->from('tbl_partner p');
+        $this->db->join('tbl_organization o' , 'p.in_organization_id = o.in_organization_id');
+        $this->db->join('tbl_users u' , 'o.in_user_id = u.in_user_id');
+        $this->db->join('tbl_zip_code zp', 'zp.zip_code=o.st_zip', 'LEFT');	
+        $this->db->where('p.in_deleted', 0);
+        $this->db->where('u.in_deleted', 0);
+        $this->db->where('o.in_deleted', 0);  
+         $this->db->where('zp.lat !=','');
+		 $this->db->where('zp.lon !=','');      
+        $this->db->where('p.in_user_organization_id',$org_id);       
+        
+        $query = $this->db->get();   
+       	return $query->result_array(); 
+        }     
+    }
+
+
+    function google_lat_long($address) {
+        $latlon['lat'] = '';
+        $latlon['lon'] = '';
+	
+		if($address)
+		{
+			
+			$sql1	=	"SELECT lat,lon FROM tbl_zip_code WHERE zip_code ='".$address."'";
+			$query 	=	$this->db->query($sql1);
+			$result	=	$query->result();
+			
+			$latlon =array();
+			if(!empty($result)){
+				
+				$latlon['lat'] = $result[0]->lat;
+                $latlon['lon'] = $result[0]->lon;				
+			}			
+			if(!isset($latlon['lat']) && $latlon['lat']==''){
+			
+			
+				$url ="http://maps.googleapis.com/maps/api/geocode/json?address=" .urlencode(@$address)."&sensor=false";
+				
+				// create curl resource
+				$ch = curl_init();
+				// set url
+				curl_setopt($ch, CURLOPT_URL, $url);
+				//return the transfer as a string
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+				// $output contains the output string
+				$output = curl_exec($ch);
+				// close curl resource to free up system resources
+				curl_close($ch);
+				//echo $output;die;
+				$response_array = json_decode($output, TRUE);
+				if($response_array['status'] == 'OK')
+				{
+					$arrAxis = json_decode($output)->results[0]->geometry->location;
+					$lat = $arrAxis->lat;
+					$lan = $arrAxis->lng;
+					$latlon['lat'] = $lat;
+					$latlon['lon'] = $lan;
+				}
+			}
+		}		
+		return $latlon;
+    }
+
+}
+?>

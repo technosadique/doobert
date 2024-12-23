@@ -1,0 +1,221 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 14-Jan-2016
+# File description	: Widget Model for admin
+# Special - notes	: none
+# Tables used		: tbl_widget
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class widget_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_widget()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of vehicle types from tbl_widget
+	#------------------------------------------------------------
+	public function get_total_widget($name='')
+	{ 				
+					$this->db->select("tbl_widget.in_widget_id", false);						   	
+					$this->db->from('tbl_widget');					
+					$this->db->where('tbl_widget.in_deleted','0');
+					
+		//if($name!='')
+		//{	 
+		//  $this->db->where("tbl_widget.st_vehicle_type LIKE '%".$name."%'", NULL, FALSE);
+		//}
+		
+		
+		if(trim($name) != '') {
+							if($name=='%'){ 
+							$this->db->where("tbl_widget.st_org_name RLIKE '%".$name."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_widget.st_org_name LIKE '%".$name."%'", NULL, FALSE);
+						}
+					}	
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_widget()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to get widget details
+	#------------------------------------------------------------
+	public function get_widget($sort,$order,$limit,$rec_per_page,$name)
+	{	  
+				   $this->db->select("tbl_widget.in_widget_id,
+									  tbl_widget.st_org_name,
+									  tbl_widget.dt_created,
+									  tbl_widget.dt_modified", false);						   	
+					$this->db->from('tbl_widget');					
+					$this->db->where('tbl_widget.in_deleted','0');				  
+		
+		
+		if(trim($name) != '') {
+							if($name=='%'){ 
+							$this->db->where("tbl_widget.st_org_name RLIKE '%".$name."%'", NULL, FALSE);
+						}
+						else
+						{
+							$this->db->where("tbl_widget.st_org_name LIKE '%".$name."%'", NULL, FALSE);
+						}
+					}	
+					
+					switch($sort)
+					{
+						case 'id': 						
+							$this->db->order_by('tbl_widget.in_widget_id',$order);
+						break;
+						
+						case 'name': 						
+							$this->db->order_by('tbl_widget.st_org_name',$order);
+						break;	
+							
+						case 'createddate': 							
+							$this->db->order_by('tbl_widget.dt_created',$order);
+						break;
+						
+						case 'modifieddate': 							
+							$this->db->order_by('tbl_widget.dt_modified',$order);
+						break;
+						
+							 
+						default:
+						   $this->db->order_by('tbl_widget.in_widget_id',$order);
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					//echo $this->db->last_query();  die;					
+					$arrWidget = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+							
+							$this->db->select('in_user_id');
+							$this->db->from('tbl_users');
+							$this->db->where('in_user_from', $Row->in_widget_id);
+							$this->db->where('in_deleted',0);
+							$query = $this->db->get();								
+							$count = $query->num_rows();
+							$arrWidget[$Row->in_widget_id]	=	array('in_widget_id'	=> $Row->in_widget_id,
+															'st_org_name'				=> $Row->st_org_name,
+															'dt_created'				=> $Row->dt_created,
+															'dt_modified'   => $Row->dt_modified,
+															'count' => $count
+											);
+						}
+						return $arrWidget;
+						
+					}
+					
+	}
+	
+	
+	#====================================================================================
+	#	Function	:	delete_vehicle_types()
+	#   Parameter	: 	widgetId
+	#	Perpose		:	to delete single vehicle type details from tbl_widget table
+	#------------------------------------------------------------------------------------
+	public function delete_widget($widgetId)
+	{
+				$arrWidget = 	array('in_deleted' 	=> '1' );		
+				$this->db->where('in_widget_id', $widgetId);
+				$this->db->update('tbl_widget', $arrWidget);		
+	}
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	delete_multiple_widget()
+	#   Parameter	: 	widgetIds
+	#	Perpose		:	to delete multiple vehicle types details from tbl_widget table
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_widget($widgetIds)
+	{			
+				$arrWidget = 	array('in_deleted' 	=> '1' );
+				$this->db->where_in('in_widget_id', $widgetIds);
+				$this->db->update('tbl_widget', $arrWidget);		
+				return $this->db->affected_rows();
+	}
+	
+	
+	
+	#============================================================================
+	#	Function	:	get_vehicle_types_profile()
+	#   Parameter	: 	widgetIds
+	#	Perpose		:	to get vehicle types details from tbl_widget table
+	#----------------------------------------------------------------------------
+	public function get_widget_profile($widgetId)
+	{
+				$this->db->select('v.in_widget_id,v.st_org_name');
+				$this->db->from('tbl_widget as v');		
+				$this->db->where('v.in_widget_id',$widgetId);
+				$query = $this->db->get();
+				return $query->row_array();	
+	}
+	
+	#============================================================================
+	#	Function	:	update_widget_info()
+	#   Parameter	: 	data,widgetId,table
+	#	Perpose		:	to update vehicle types details tbl_widget table
+	#----------------------------------------------------------------------------
+	public function update_widget_info($data,$widgetId,$table) {
+				$this->db->where('in_widget_id',$widgetId);
+				$this->db->update($table,$data);
+				return $this->db->affected_rows();	
+	}
+	
+    #============================================================================
+	#	Function	:	:insertWidget()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert widget details in tbl_widget table
+	#----------------------------------------------------------------------------
+	public function insertWidget($post)
+	{
+				 $arrWidget = 	  array(
+										'st_org_name'		=>	$post['name'],			
+										'dt_created'		=>  date("Y-m-d H:i:s")	
+										);	
+										$this->db->insert('tbl_widget', $arrWidget);
+										return $this->db->insert_id();												
+	}
+	
+	
+	function is_widget_exists($widget)
+	{ 
+				$this->db->select('in_widget_id');
+				$this->db->from('tbl_widget');							
+				$this->db->where("st_org_name",$widget);
+				$this->db->where("in_deleted",0);
+				$query = $this->db->get();		
+				//echo $this->db->last_query(); die;	
+				
+				if($query->num_rows()>0)
+					return true;
+				else
+					return false;				
+			}
+	
+}
+?>

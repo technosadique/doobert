@@ -1,0 +1,1230 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: organization(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none 
+# ------------------------------
+
+class organization extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');
+		$this->load->library('form_validation');
+		$this->load->library('upload');	
+		$this->load->model('organization_model');
+		$this->load->helper(array('form', 'url'));
+		$this->load->library('user_agent');
+		$this->load->library('nativesession');
+	}	
+	
+	function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+	    if($this->nativesession->get('searchadmin4')){$this->nativesession->delete('searchadmin4'); }
+		if($this->nativesession->get('searchadmin5')){$this->nativesession->delete('searchadmin5'); }
+		if($this->nativesession->get('searchadmin6')){$this->nativesession->delete('searchadmin6'); }
+		if($this->nativesession->get('searchadmin7')){$this->nativesession->delete('searchadmin7'); }
+		if($this->nativesession->get('searchadmin8')){$this->nativesession->delete('searchadmin8'); }
+		if($this->nativesession->get('searchadmin9')){$this->nativesession->delete('searchadmin9'); }
+		if($this->nativesession->get('searchadmin10')){$this->nativesession->delete('searchadmin10'); }	
+		$this->page();	
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$zip				=	'';
+		$certified			=	'';
+		$contract			=	'';
+		$fromdate			=	'';
+		$todate				=	'';
+		$state				=	'';
+			
+		//print "<pre>";print_r($this->session->userdata);print "</pre>";
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtname') && ($this->input->post('action') == 'search'))
+		{			
+			$name = trim(addslashes($this->input->post('txtname')));				
+			$this->nativesession->set('searchadmin1',$this->common_function->custom_htmlentities($name));	
+				
+		}		
+		
+		if($this->input->post('txtzipcode') && ($this->input->post('action') == 'search'))
+		{	
+				$zip_code = $this->input->post('txtzipcode');
+				$zip_code = str_replace(" ","",$zip_code);
+				$_POST['txtzipcode'] = strtoupper($zip_code);		
+			
+			$zip = trim(addslashes($this->input->post('txtzipcode')));				
+			$this->nativesession->set('searchadmin2',$this->common_function->custom_htmlentities($zip));
+				
+		}
+		
+		
+		if($this->input->post('txtcertified') && ($this->input->post('action') == 'search'))
+		{
+			
+			$certified = trim($this->input->post('txtcertified')); 				
+			$this->nativesession->set('searchadmin3',$certified);
+				
+			
+		}
+		
+		if($this->input->post('txtcontract') && ($this->input->post('action') == 'search'))
+		{
+			
+			$contract = trim($this->input->post('txtcontract')); 				
+			$this->nativesession->set('searchadmin4',$contract);			
+		}
+		
+		
+		
+		if($this->input->post('txtfrom') && ($this->input->post('action') == 'search'))
+		{	
+			
+			
+			$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 			
+			$this->nativesession->set('searchadmin5',$fromdate);			
+				
+		}
+		
+		if($this->input->post('txtto') && ($this->input->post('action') == 'search'))
+		{
+			$todate = date('Y-m-d',strtotime($this->input->post('txtto'))); 			
+			$this->nativesession->set('searchadmin6',$todate);					
+				
+		}
+		
+		
+		if($this->input->post('txtstate') && ($this->input->post('action') == 'search'))
+		{ 
+			$state = trim($this->input->post('txtstate'));				
+			$this->nativesession->set('searchadmin7',$state);					
+				
+		}
+		
+		if($this->input->post('country') && ($this->input->post('action') == 'search'))
+		{
+			$country = trim($this->input->post('country')); 				
+			$this->nativesession->set('searchadmin8',$country);	
+		}
+		
+		if($this->input->post('txtorgid') && ($this->input->post('action') == 'search'))
+		{ 
+			$orgid = trim($this->input->post('txtorgid'));				
+			$this->nativesession->set('searchadmin9',$orgid);					
+				
+		}
+		
+		if($this->input->post('txtemailid') && ($this->input->post('action') == 'search'))
+		{ 
+			$emailid = trim($this->input->post('txtemailid'));				
+			$this->nativesession->set('searchadmin10',$emailid);					
+				
+		}
+		
+		
+		$rec_per_page =	 $this->config->item('per_page');			
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->organization_model->get_total_organization($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8'),$this->nativesession->get('searchadmin9'),$this->nativesession->get('searchadmin10'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['org_list']	= $this->organization_model->get_organization($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8'),$this->nativesession->get('searchadmin9'),$this->nativesession->get('searchadmin10'));
+		
+		//echo '<pre>'; print_r($data['org_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'organization/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$data['org_type_arr'] = $this->common_function->org_type;
+		
+		//$this->session->set_userdata('a_sort',$sort);
+		//$this->session->set_userdata('a_order',$order);
+		//$this->session->set_userdata('a_limit',$limit);
+		
+		session_start();
+		$_SESSION['a_sort'] = $sort;
+		$_SESSION['a_order'] = $order;
+		$_SESSION['a_limit'] = $limit;
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Organization Information Available.';
+		}
+		
+		$this->load->view('organization-manage',$data);
+	}
+	
+	
+	function organization_delete()
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		$orgId	=	$this->uri->segment(3);
+		$this->organization_model->delete_org($orgId);			
+		$this->session->set_flashdata('success', 'Organization information has been deleted successfully.');
+		//$sort 	= $this->session->userdata('a_sort');
+//		$order  = $this->session->userdata('a_order');
+//		$limit	= $this->session->userdata('a_limit');		
+		redirect($this->config->item('admin_base_url').'organization');
+		
+	}
+	
+	
+	function organization_block()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+		$orgId	=	$this->uri->segment(3);
+		$this->organization_model->block_org($orgId);			
+		$this->session->set_flashdata('success', 'Organization has been blocked successfully.');		
+		redirect($this->config->item('admin_base_url').'organization');	
+	}
+	
+	
+	
+	function delete_multiple_org()
+	{   
+		$org_ids = $this->input->post('orgid');
+		$orgs_ids	  = $this->input->post('orgsid');
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+	
+		if(!empty($org_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->organization_model->delete_multiple_org($org_ids);
+			
+			$this->session->set_flashdata('success', 'Organization(s) information has been deleted successfully.');			
+		}
+		
+		
+		if(!empty($orgs_ids) && $this->input->post('H2') == 'Save')
+		{	
+			$this->organization_model->update_orgs($orgs_ids);
+			
+			$this->session->set_flashdata('success', 'Organization(s) information has been updated successfully.');			
+		}
+		
+		
+		if(empty($orgs_ids) && $this->input->post('H2') == 'Save')
+		{			
+			$this->organization_model->update_org();
+			
+			$this->session->set_flashdata('success', 'Organization(s) information has been updated successfully.');			
+		}
+			//$sort 	= $this->session->userdata('a_sort');
+			//$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		/*if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}*/
+		
+		session_start();
+		
+		if(isset($_SESSION['a_sort']) && !empty($_SESSION['a_sort']))
+		{
+			$sort 	= $_SESSION['a_sort'];
+		}
+		
+		if(isset($_SESSION['a_order']) && !empty($_SESSION['a_order']))
+		{
+			$order 	= $_SESSION['a_order'];
+		}
+		if(isset($_SESSION['a_limit']) && !empty($_SESSION['a_limit']))
+		{  
+			$limit	= $_SESSION['a_limit'];
+		}
+		
+		redirect($this->config->item('admin_base_url').'organization/page/'.$sort.'/'.$order.'/'.$limit);	
+			
+	}
+	
+	function organization_view($orgId)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+			
+			
+			$data['org_details'] 					= $this->organization_model->get_org_info($orgId);							
+			$data['ref_details'] 					= $this->organization_model->get_ref_details($orgId); 
+			$data['org_approve_letter'] 			= $this->organization_model->get_org_approve_letter($orgId);
+			$data['org_approve_letter_count']		= count($data['org_approve_letter']);	
+			
+			$data['guideline_links_details'] 		= $this->organization_model->get_guideline_links($orgId);
+			$data['organization_files'] 			= $this->organization_model->get_org_guideline_files($orgId);
+			
+			if(count($data['org_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}
+			//echo '<pre>'; print_r($data['org_details']); die;					
+			$this->load->view('organization-manage-view',$data);			
+	}
+	
+	
+	
+	function organization_edit($orgId=false)
+	{		
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$this->load->model('common_model');
+		$data			 =	array();
+		$data['Err_Msg']	=	'';	
+		$state_list 			= $this->common_function->state_list;			
+		$data['state_list'] 	= $state_list;	
+		$data['org_details'] = $this->organization_model->get_organization_profile($orgId);	
+		$data['selected_state'] = $this->common_model->get_state($data['org_details'][0]['st_zip']);
+		
+		$form_field	=	array('name'			 => "",	
+							  'director'		 => "",
+							  'address1'		 => "",
+							  'address2'		 => "",
+							  'country'			 => "",
+							  'city'			 => "",
+							  'state'			 => "",
+							  'zipcode'			 => "",
+							  'phone1'			 => "",
+							  'phone2'			 => "",
+							  'fax'				 => "",	
+							  'email'			 => "",
+							  'website'			 => "",
+							  'comments'		 => "",
+							  'paypalemail'		 => "",
+							  'reference_1' 	 => "",
+							  'reference_2' 	 => "",
+							  'reference_3' 	 => "",
+							  'ref_1_name'  	 => "",
+							  'ref_1_email'  	 => "",
+							  'ref_1_phone'  	 => "",
+							  'ref_2_name'  	 => "",
+							  'ref_2_email'  	 => "",
+							  'ref_2_phone'  	 => "",
+							  'ref_3_name'  	 => "",
+							  'ref_3_email'  	 => "",
+							  'ref_3_phone'  	 => "",
+							  'st_what_type_org' => "",
+							  'ein'				 => "",							  
+							  'profile_desc'     => "",
+							  "image_file"	     => "",
+							  "type"			 => ""
+							  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+						$data['org_details'] = $this->organization_model->get_organization_profile($orgId);	
+						$data['ref_details'] = $this->organization_model->get_ref_details($orgId); 
+						$data['guideline_links_details'] = $this->organization_model->get_guideline_links($orgId);
+						$data['organization_files'] = $this->organization_model->get_org_guideline_files($orgId);
+						 
+						
+						//print_r($data['guideline_links_details']);exit;
+						
+						//echo '<pre>'; print_r($data['org_details']); die;
+		
+		if($this->input->post('action')=='Edit')
+		{
+			if($this->input->post('zipcode'))
+			{	
+				$zip_code = $this->input->post('zipcode');
+				$zip_code = str_replace(" ","",$zip_code);
+				$_POST['zipcode'] = strtoupper($zip_code);		
+			}
+			//Validation rules
+						$orgId			      = $this->input->post('orgId');
+						$data['org_details'] = $this->organization_model->get_organization_profile($orgId);	
+						$data['ref_details'] = $this->organization_model->get_ref_details($orgId);
+						$data['guideline_links_details'] = $this->organization_model->get_guideline_links($orgId);
+						$data['organization_files'] = $this->organization_model->get_org_guideline_files($orgId); 
+			
+			foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+				}
+	
+				$org_zipcode = explode('-',$data['edit']['zipcode']);
+				if(isset($org_zipcode[1]) && !empty($org_zipcode[1]))
+				{
+					$data['edit']['zipcode'] = $org_zipcode[0];
+				}
+						$this->form_validation->set_rules('name',      'Name',  'trim|required');
+						$this->form_validation->set_rules('director',  'Manager or Director',  'trim|required');						
+						//$this->form_validation->set_rules('certified',     'Certified',  'trim|required');
+						//$this->form_validation->set_rules('contract',      'Has contract',  'trim|required');
+						$this->form_validation->set_rules('type',      	   'Organization type',  'trim|required');						
+						$this->form_validation->set_rules('address1',  'Address',  'trim|required');
+						//$this->form_validation->set_rules('address2',  'Address2',  'trim|required');
+						$this->form_validation->set_rules('country',      'Country',  'trim|required');
+						$this->form_validation->set_rules('city',      'City',  'trim|required');
+						$this->form_validation->set_rules('state',     'State',  'trim|required');
+						$this->form_validation->set_rules('zipcode',   'Zip',  'trim|required');
+						$this->form_validation->set_rules('phone1',    'Primary phone',  'trim|required');
+						//$this->form_validation->set_rules('phone2',    'Secondary phone',  'trim|required');
+						//$this->form_validation->set_rules('fax',       'Fax',  'trim|required');
+						$this->form_validation->set_rules('email',     'Email',  'trim|required|valid_email');
+						//$this->form_validation->set_rules('website',   'Organization website', 'trim|required');						
+						//$this->form_validation->set_rules('ein',       'EIN#', 'trim|required');
+						
+				
+						for($a=1;$a<=3;$a++)
+						{
+						 if($data['edit']['ref_'.$a.'_name']!='')
+							{
+								$this->form_validation->set_rules('ref_'.$a.'_email', 'Reference '.$a.' Email', 'trim|valid_email');
+								$this->form_validation->set_rules('ref_'.$a.'_phone', 'Reference '.$a.' Phone', 'trim');
+							}
+							
+						 if($data['edit']['ref_'.$a.'_email']!='')
+							{
+								$this->form_validation->set_rules('ref_'.$a.'_name', 'Reference '.$a.' Name', 'trim');
+								$this->form_validation->set_rules('ref_'.$a.'_phone', 'Reference '.$a.' Phone', 'trim');
+							}
+						 if($data['edit']['ref_'.$a.'_phone']!='')
+							{
+								$this->form_validation->set_rules('ref_'.$a.'_email', 'Reference '.$a.' Email', 'trim|valid_email');
+								$this->form_validation->set_rules('ref_'.$a.'_name', 'Reference '.$a.' Name', 'trim');
+							}	
+							
+						
+						}
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$data['org_details'] = $this->organization_model->get_organization_profile($orgId);		
+						$data['ref_details'] = $this->organization_model->get_ref_details($orgId);
+						$data['guideline_links_details'] = $this->organization_model->get_guideline_links($orgId);
+						$data['organization_files'] = $this->organization_model->get_org_guideline_files($orgId); 		
+						$this->load->view('organization-manage-edit',$data);
+				}
+			
+				else
+				{
+					//Uploading approval letter
+					if($data['edit']['type'] == 'FS') { 
+						if(isset($_FILES['approval_file_1']) && $_FILES['approval_file_1']['name']!='') {  
+							if($this->organization_model->upload_approval_files('approval_file_1')){
+								$arrImageInfo = $this->upload->data();
+								$approval = $arrImageInfo['file_name'];
+								$approval_letter[] = $arrImageInfo['file_name'];
+							} else {
+								$this->upload->display_errors();
+								$this->session->set_flashdata('err_msg','Approval letter is invalid');
+								//$data['error'] = "<p>Approval letter is invalid.</p>";
+								//return false;
+								redirect(base_url().'administration.php/organization/organization_edit/'.$orgId);
+							}
+						 }
+						
+						$approval_letter = $_FILES['approval_file_1']['name'];
+						if(!empty($approval_letter)) {   
+							$file_ext = preg_replace('/^.*\.([^.]+)$/D', '$1', $approval_letter);				   
+							$file_name = time(basename($approval_letter,'.'.$file_ext)); 
+							$approve_file=$file_name.'.'.$file_ext; 
+							$upload_details = array("in_organization_id"	=> $orgId,
+													"st_file_name"			=> $approve_file,
+													"dt_created"			=> date("Y-m-d H:i:s"),
+													"in_deleted"			=> "0"
+													);
+							$checkorgid = $this->organization_model->check_org_upload($orgId);
+							if($checkorgid == true){ 
+							$this->organization_model->shelter_approval_letter($upload_details,$orgId);
+							}
+							else{
+								$this->organization_model->add_shelter_approval_letter($upload_details);
+							}				
+							
+						}
+
+						else {
+							if($data['org_details'][0]['st_file_name'] == '') {
+								$this->session->set_flashdata('err_msg_approval_letter','Please Upload Approval letter.');
+								redirect(base_url().'administration.php/organization/organization_edit/'.$orgId);
+							}
+						}
+					}
+					//End Uploading approval letter 		
+				
+						$guidelines_imgs = explode(",",$data['edit']['image_file']);
+						//echo "<pre>";print_r($guidelines_imgs);die;
+						if(!empty($guidelines_imgs))
+						{
+							for($q=0;$q<count($guidelines_imgs);$q++)
+							{
+								if($guidelines_imgs[$q]!='')
+								{
+									$upload_details = array("in_organization_id"	=> $orgId,
+															"st_file_name"			=> $guidelines_imgs[$q],
+															"in_doc_type"			=> "1",
+															"dt_created"			=> date("Y-m-d H:i:s"),
+															"in_deleted"			=> "0"
+															);
+									$this->organization_model->organization_images($upload_details);
+								}
+							}
+						}
+				
+						if($_FILES['certifiedimage']['name']!=''){		
+										
+						// certified image upload start	
+						$flnamecertified=$_FILES['certifiedimage']['name'];
+						$file_ext1 = preg_replace('/^.*\.([^.]+)$/D', '$1', $flnamecertified);
+						//$file_name_certified = time(basename($flnamecertified,'.'.$file_ext1)); 						
+						$file_name_certified = time().'cert'; 				
+					    $certifiedimage		        = $file_name_certified.'.'.$file_ext1;				
+						$config['upload_path']  	= $this->config->item('upload').'org_doc/';						
+						$config['max_size']			= '5120';  // 5 MB						
+						//$config['allowed_types']    = 'gif|jpg|jpeg|png|doc|pdf|docx|txt|xls|xlsx';
+						$config['allowed_types']    = 'jpg|png|jpeg|doc|docx|pdf'; //updated on 25sept2014
+						$config['remove_spaces']  	= TRUE;
+						$config['file_name'] 		= $certifiedimage;
+						
+						//Initialization
+						$this->upload->initialize($config);
+							
+						//RW permission to upload folder.
+						//chmod($this->config->item('upload')."org_doc/", 0777);
+						
+						//Upload image by calling do_upload method.
+						$this->upload->do_upload("certifiedimage"); 
+						$file_errors = array('errors' => $this->upload->display_errors());
+						
+						//Display errors of file upload.
+						if(!empty($file_errors['errors'])) { 
+							$data = array('upload_error' => "501C3 Certified error : ".strip_tags($this->upload->display_errors())."<br>");								
+							$this->session->set_flashdata($data);
+							redirect(site_url('organization/organization_edit/'.$orgId));
+						}	
+												
+					     //certified image upload end
+				
+						}
+						
+						// contract image upload start
+						if($_FILES['contractimage']['name']!=''){	
+						$flname=$_FILES['contractimage']['name'];
+						$file_ext2 = preg_replace('/^.*\.([^.]+)$/D', '$1', $flname);				   
+						//$file_name = time(basename($flname,'.'.$file_ext2)); 
+						$file_name = time().'cont';			
+										
+					    $contractimage		        = $file_name.'.'.$file_ext2; 							
+						$config['upload_path']  	= $this->config->item('upload').'org_doc/';						
+						$config['max_size']			= '5120';  // 5 MB						
+						//$config['allowed_types']    = 'gif|jpg|jpeg|png|doc|pdf|docx|txt|xls';
+						$config['allowed_types']    = 'jpg|png|jpeg|doc|docx|pdf'; //updated on 25sept2014
+						$config['remove_spaces']  	= TRUE;
+						$config['file_name'] 		= $contractimage;
+						
+						//Initialization
+						$this->upload->initialize($config);
+							
+						//RW permission to upload folder.
+						//chmod($this->config->item('upload')."org_doc/", 0777);
+						
+						//Upload image by calling do_upload method.
+						$this->upload->do_upload("contractimage"); 
+						$file_errors = array('errors' => $this->upload->display_errors());
+						
+						//Display errors of file upload.
+						if(!empty($file_errors['errors'])) { 
+							$data = array('upload_error' => "Adoption Contract error : ".strip_tags($this->upload->display_errors())."<br>");								
+							$this->session->set_flashdata($data);
+							redirect(site_url('organization/organization_edit/'.$orgId));
+						}					
+						}
+						// contract image upload end
+				
+				        
+				 
+						$org_info 						=   array();
+						$org_info['st_org_name'] 		=	$this->input->post('name');			
+						$org_info['st_director'] 		=	$this->input->post('director');							
+						$org_info['st_has_501c3'] 		=	$this->input->post('certified');	
+						if($_FILES['certifiedimage']['name']!=''){
+						$org_info['st_organization_501c3'] =	$certifiedimage;
+						}
+						if($_FILES['contractimage']['name']!=''){
+						$org_info['st_org_adoption'] 	=	$contractimage;
+						}
+						
+						if($org_info['st_has_501c3']=="N")
+						{
+							$org_info['st_organization_501c3']="";
+						}
+						$org_info['st_has_contract'] 	=	$this->input->post('adoption_contract');	
+						if($org_info['st_has_contract']=="N")
+						{
+							$org_info['st_org_adoption']="";
+						}
+						$org_info['st_org_type'] 		=	$this->input->post('type');						
+						$org_info['st_address1'] 		=	$this->input->post('address1');		
+						$org_info['st_address2'] 		=	$this->input->post('address2');	
+						$org_info['st_country'] 		=	$this->input->post('country');			
+						$org_info['st_city'] 			=	$this->input->post('city');		
+						$org_info['st_state'] 			=	$this->input->post('state');		
+						//$org_info['st_zip'] 			=	$this->input->post('zipcode');		
+						$org_info['st_zip'] 			=	$data['edit']['zipcode'];		
+						$org_info['st_primary_phone'] 	=	$this->input->post('phone1');		
+						$org_info['st_secondary_phone'] =	$this->input->post('phone2');		
+						$org_info['st_fax'] 			=	$this->input->post('fax');		
+						$org_info['st_paypal_email'] 	=	$this->input->post('paypalemail');		
+						$org_info['st_email_address'] 	=	$this->input->post('email');		
+						$org_info['st_website'] 		=	$this->input->post('website');		
+						$org_info['st_org_ein'] 		=	$this->input->post('ein');			
+						$org_info['st_additional_info'] =	$this->input->post('comments');	
+						$org_info['st_guideline']		=	$this->input->post('guidelines');
+						$org_info['st_profile_desc']	=	$this->input->post('profile_desc');
+						
+							
+						if($data['org_details'][0]['st_org_type']=='O')
+						{
+							$org_info['st_what_type_org'] =	$this->input->post('what_type');	
+						}
+						
+						
+						 // update referencesstart
+						 $this->organization_model->organization_references_update($orgId);
+						
+						for($a=1;$a<=3;$a++)
+						{  
+							$ref_details = array();
+							if($data['edit']['ref_'.$a.'_name']!='' || $data['edit']['ref_'.$a.'_email']!='' || $data['edit']['ref_'.$a.'_phone']!='')
+							{ 
+								$ref_details = array(	"in_organization_id"	=> $orgId, 
+														"st_ref_type"			=> $data['edit']['reference_'.$a], 
+														"st_ref_name"			=> $data['edit']['ref_'.$a.'_name'],
+														"st_ref_email"			=> $data['edit']['ref_'.$a.'_email'],
+														"st_ref_phone"			=> $data['edit']['ref_'.$a.'_phone'],
+														"dt_created"			=> date("Y-m-d H:i:s"),  
+														"in_deleted"			=> "0"
+														);
+								$this->organization_model->organization_references($ref_details);
+							}
+						}
+						
+						// update references end										
+						$org_info['dt_modified'] 		= 	date('Y-m-d H:i:s');							
+						//Updating organization data
+						$this->organization_model->update_organization_info($org_info,$orgId,'tbl_organization');					
+						
+						$org_links_array = $this->input->post('guideline_url'); 
+						for($links_cnt=0;$links_cnt<count($org_links_array);$links_cnt++)
+						{  
+							$org_links_data = array();
+							
+							if(isset($org_links_array[$links_cnt]) && $org_links_array[$links_cnt] != '')
+							{					
+								//$org_links_array[$links_cnt] = "http://" . $org_links_array[$links_cnt];
+								$org_links_array[$links_cnt] = $org_links_array[$links_cnt];
+							
+								$org_links_data = array(	"in_organization_id"	=> $orgId, 
+															"st_org_link"			=> $org_links_array[$links_cnt],
+															"dt_created"			=> date("Y-m-d H:i:s"),  
+															"in_deleted"			=> "0"
+														);
+								$this->organization_model->organization_links_detail($org_links_data);
+							}
+						}
+						
+						$this->session->set_flashdata('message', 'You have successfully updated organization details!');					
+						redirect(site_url('organization/organization_edit/'.$orgId));						
+				}
+		}
+		
+		else
+		{				
+						$this->load->view('organization-manage-edit',$data);
+		}
+	}
+	
+	function generate_download($document)
+    {	
+		
+        $file = $this->config->item('upload')."org_doc/".$document;
+		
+		if ($document!='' && file_exists($file)) {
+		
+		$this->load->helper('download');
+		$data = file_get_contents($file); // Read the file's contents
+		$name = $document;
+		force_download($name, $data);
+		}
+		else
+		{   		
+			$this->session->set_flashdata('docmsg', 'File does not exist.');
+			redirect($this->agent->referrer());		
+			
+		}
+    }
+	
+	
+	function generate_download_approval_letter($document)
+    {	
+		
+		$file = $this->config->item('upload')."shelter_approval/".$document;
+		
+		if ($document!='' && file_exists($file)) {
+		
+		$this->load->helper('download');
+		$data = file_get_contents($file); // Read the file's contents
+		$name = $document;
+		force_download($name, $data);
+		}
+		else
+		{   		
+			$this->session->set_flashdata('docmsg', 'File does not exist.');
+			redirect($this->agent->referrer());		
+			
+		}
+    }	
+	
+	
+	function remove_org_link()
+	{
+		$org_link_id =  $this->input->post('id');
+		return $this->organization_model->organization_link_update($org_link_id);
+		
+	}
+		
+	# *******************************************************************************************	
+	#	Function	:	add_images
+	#	Purpose		:	For Adding Product Images
+	# *******************************************************************************************
+	
+	public function add_images() {
+		
+		if(!isset($_FILES['files']['name'])) {
+			return false;
+		}
+		
+		
+		$ext = pathinfo($_FILES['files']['name'], PATHINFO_EXTENSION);
+		//$filename = time(basename($_FILES['files']['name'], ".".$ext));
+		//$flname= $filename . '.'.$ext; 
+
+		ini_set("post_max_size",'256M');
+		ini_set("upload_max_filesize",'128M');
+		$config['upload_path'] = $this->config->item('upload')."org_doc/";
+		$config['allowed_types'] = 'jpg|jpeg|doc|docx|xls|xlsx|pdf';
+		//$config['allowed_types'] = 'doc|docx|pdf';
+		$config['max_size']	= '5120'; //5mb
+		$config['remove_spaces']  	= TRUE;
+		//$config['file_name'] 		= str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES['files']['name']);
+		$config['file_name'] = time().".".$ext;
+		
+		$this->load->library('upload', $config);
+		$this->upload->initialize($config);
+		$this->upload->do_upload('files');
+
+		
+		$file_errors = array('errors' => $this->upload->display_errors());
+			
+		//Display errors of file upload.
+		if(!empty($file_errors['errors'])){
+			$data = array('error' => strip_tags($file_errors['errors']));
+			echo json_encode(array('files' => array($data) ));
+			return false;
+		}		
+		$data = array(	'name' => $config['file_name'],
+						'size' => $_FILES['files']['size'],
+						'type' => $_FILES['files']['type'],
+						"url"  => $this->config->item('upload_url')."org_doc/".urlencode($config['file_name']),
+						"deleteUrl"  => $this->config->item('base_url')."organization/delete_files/org_doc/?files=".urlencode($config['file_name']),
+						"deleteType"=>"DELETE"
+					);
+		echo json_encode(array('files' => array($data) ));
+		//return $data;
+	}
+	
+	function delete_files($path)
+	{
+		if($this->input->get('files')!='')
+		{
+			$files = $this->input->get('files');
+			@unlink($this->config->item('upload').$path."/".$files);
+			//delete_files($this->config->item('upload').$path."/".$files);
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_organization_files
+	#	Purpose		:	Deleting organization guidelines files
+	# *******************************************************************************************
+	public function delete_organization_files() {
+		$file_id = $this->input->post('id');
+		return $this->organization_model->delete_organization_files($file_id);		
+	}
+	
+	//function to export org details in excel
+	function exportorgs()
+	{		
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$zip				=	'';
+		$certified			=	'';
+		$contract			=	'';
+		$fromdate			=	'';
+		$todate				=	'';
+		$state				=	'';
+			
+		//print "<pre>";print_r($this->session->userdata);print "</pre>";
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if($this->uri->segment(4))
+			$sort = $this->uri->segment(4);
+		else	
+			$sort = 'id';
+			
+		//if(!$order)
+			//$order = 'asc';
+		
+		if($this->uri->segment(5))
+			$order = $this->uri->segment(5);
+		else	
+			$order = 'asc';
+				
+		if($this->uri->segment(3))
+			$limit = $this->uri->segment(3);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		$rec_per_page =	 $this->config->item('per_page');			
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->organization_model->get_total_organization($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8'),$this->nativesession->get('searchadmin9'),$this->nativesession->get('searchadmin10'));
+		// GET PAGE LIST RESULT HERE
+		//print_r($totalrecord);exit;
+		
+		$org_lists	= $this->organization_model->get_organization($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8'),$this->nativesession->get('searchadmin9'),$this->nativesession->get('searchadmin10'));
+		
+		//echo '<pre>'; print_r($org_lists); die;
+		
+		$org_type_arr = $this->common_function->org_type;
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		$tmparray =array("Organization ID","Name","Email","Organization Type","501c3 Certified","Adoption Contract","Manager Name","Created by User","Created Date","Modified Date","Last Logged In","Device Info");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($org_lists as $org_list)
+		{
+		$tmparray =array();
+		
+		$created_date  = $org_list['dt_created'];	
+		$deviceinfo    = $org_list['deviceinfo'];	
+		
+		if($created_date!='' && $created_date!='0000-00-00 00:00:00' && $created_date!='1969-12-31'){ 
+		$created_date = date("m-d-Y H:i:s",strtotime($created_date));} else{ $created_date=''; }								
+		
+		$lastlogin_date  = $org_list['lastlogin'];	
+		if($lastlogin_date!='' && $lastlogin_date!='0000-00-00 00:00:00' && $lastlogin_date!='1969-12-31'){ 
+		$lastlogin_date = date("m-d-Y H:i:s",strtotime($lastlogin_date));} else{ $lastlogin_date=''; }
+		
+		$modified_date  = $org_list['dt_modified'];	
+		if($modified_date!='' && $modified_date!='0000-00-00 00:00:00' && $modified_date!='1969-12-31'){ 
+		$modified_date = date("m-d-Y H:i:s",strtotime($modified_date));} else{ $modified_date=''; }
+		
+		if($org_list['st_has_501c3']=='N' || $org_list['st_has_501c3']==NULL)
+		{
+			$orgcertified="No";
+		}
+		if($org_list['st_has_501c3']=='Y')
+		{
+			$orgcertified="Yes";
+		}
+		
+		if($org_list['st_has_contract']=='N'  || $org_list['st_has_contract']== NULL)
+		{
+			$orgcontracted="No";
+		}
+		if($org_list['st_has_contract']=='Y')
+		{
+			$orgcontracted="Yes";
+		}
+        
+		//$serialnumber = $serialnumber + 1;
+		//array_push($tmparray,$serialnumber);
+		$org_name = $org_list['st_org_name'];
+		//echo $user_name;exit;
+		$orgid = $org_list['in_organization_id'];
+		array_push($tmparray,$orgid);
+		array_push($tmparray,$org_name);
+		$email = $org_list['st_email_address'];
+		array_push($tmparray,$email);
+		array_push($tmparray,$org_type_arr[$org_list['st_org_type']]);
+		array_push($tmparray,$orgcertified);
+		array_push($tmparray,$orgcontracted);
+		array_push($tmparray,$org_list['st_director']);
+		array_push($tmparray,$org_list['st_display_name']);
+		array_push($tmparray,$created_date);
+		array_push($tmparray,$modified_date);
+		array_push($tmparray,$lastlogin_date);
+		array_push($tmparray,$deviceinfo);	
+		array_push($sheet,$tmparray);
+		}
+		//print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="Organization Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('Organization Details');
+		$worksheet->SetCellValue('A1', 'Organization Details');
+		$worksheet->getStyle('A1:L1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:L1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:L2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+						
+	}
+	
+	//function to export all org details in excel
+	function exportallorgs()
+	{		
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		 
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$zip				=	'';
+		$certified			=	'';
+		$contract			=	'';
+		$fromdate			=	'';
+		$todate				=	'';
+		$state				=	'';
+			
+		//print "<pre>";print_r($this->session->userdata);print "</pre>";
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		//if(!$sort)
+			//$sort='id';
+		
+		if($this->uri->segment(3))
+			$sort = $this->uri->segment(3);
+		else	
+			$sort = 'id';
+			
+		//if(!$order)
+			//$order = 'asc';
+		
+		if($this->uri->segment(4))
+			$order = $this->uri->segment(4);
+		else	
+			$order = 'asc';
+			
+		$limit = 0;
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+			
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->organization_model->get_total_organization();
+		// GET PAGE LIST RESULT HERE
+		//print_r($totalrecord);exit;
+		
+		$rec_per_page =	 $totalrecord;		
+		
+		$org_lists	= $this->organization_model->export_all_organization($sort,$order,$limit,$rec_per_page);
+		
+		//echo '<pre>'; print_r($org_lists); die;
+		
+		$org_type_arr = $this->common_function->org_type;
+		
+		/** PHPExcel_IOFactory */
+		
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		//$serialnumber=0;
+		//Set header with temp array
+		$tmparray =array("Organization ID","Name","Email","Organization Type","501c3 Certified","Adoption Contract","Manager Name","Created by User","Created Date","Modified Date","Last Logged In","Device Info");
+		//take new main array and set header array in it.
+		$sheet =array($tmparray);
+		
+		foreach($org_lists as $org_list)
+		{
+		$tmparray =array();
+		
+		$created_date  = $org_list['dt_created'];	
+		$deviceinfo  = $org_list['deviceinfo'];	
+		
+		if($created_date!='' && $created_date!='0000-00-00 00:00:00' && $created_date!='1969-12-31'){ 
+		$created_date = date("m-d-Y H:i:s",strtotime($created_date));} else{ $created_date=''; }								
+		
+		$lastlogin_date  = $org_list['lastlogin'];	
+		if($lastlogin_date!='' && $lastlogin_date!='0000-00-00 00:00:00' && $lastlogin_date!='1969-12-31'){ 
+		$lastlogin_date = date("m-d-Y H:i:s",strtotime($lastlogin_date));} else{ $lastlogin_date=''; }
+		
+		$modified_date  = $org_list['dt_modified'];	
+		if($modified_date!='' && $modified_date!='0000-00-00 00:00:00' && $modified_date!='1969-12-31'){ 
+		$modified_date = date("m-d-Y H:i:s",strtotime($modified_date));} else{ $modified_date=''; }
+		
+		
+		
+		if($org_list['st_has_501c3']=='N' || $org_list['st_has_501c3']==NULL)
+		{
+			$orgcertified="No";
+		}
+		if($org_list['st_has_501c3']=='Y')
+		{
+			$orgcertified="Yes";
+		}
+		
+		if($org_list['st_has_contract']=='N'  || $org_list['st_has_contract']== NULL)
+		{
+			$orgcontracted="No";
+		}
+		if($org_list['st_has_contract']=='Y')
+		{
+			$orgcontracted="Yes";
+		}
+        
+		//$serialnumber = $serialnumber + 1;
+		//array_push($tmparray,$serialnumber);
+		$org_name = $org_list['st_org_name'];
+		//echo $user_name;exit;
+		array_push($tmparray,$org_list['in_organization_id']);
+		array_push($tmparray,$org_name);
+		$email = $org_list['st_email_address'];
+		array_push($tmparray,$email);
+		array_push($tmparray,$org_type_arr[$org_list['st_org_type']]);
+		array_push($tmparray,$orgcertified);
+		array_push($tmparray,$orgcontracted);
+		array_push($tmparray,$org_list['st_director']);
+		array_push($tmparray,$org_list['st_display_name']);
+		array_push($tmparray,$created_date);
+		array_push($tmparray,$modified_date);
+		array_push($tmparray,$lastlogin_date);
+		array_push($tmparray,$deviceinfo);			
+		array_push($sheet,$tmparray);
+		}
+		//print_r($sheet); die;
+		header('Content-type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment; filename="All Organization Details-'.date("m-d-Y").'.xls"');
+		
+		$title = array(
+			'font' => array(
+				'name' => 'Arial',
+				'size' => 14,
+				'bold' => true,
+				'color' => array(
+					'rgb' => 'FFFFFF'
+				),
+			),
+			'borders' => array(
+				'bottom' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				),
+				'right' => array(
+					'style' => PHPExcel_Style_Border::BORDER_THIN,
+					'color' => array(
+						'rgb' => '606060'
+					)
+				)
+			),
+			'fill' => array(
+				'type' => PHPExcel_Style_Fill::FILL_SOLID,
+				'startcolor' => array(
+					'rgb' => '606060',
+				),
+			),
+		);
+		
+		$worksheet = $objPHPExcel->getActiveSheet();
+		
+		$worksheet->setTitle('All Organization Details');
+		$worksheet->SetCellValue('A1', 'All Organization Details');
+		$worksheet->getStyle('A1:L1')->applyFromArray($title);
+		$worksheet->mergeCells('A1:L1');
+
+		//print_r($sheet);exit;
+		foreach($sheet as $row => $columns) {
+		foreach($columns as $column => $data) {
+			$worksheet->setCellValueByColumnAndRow($column, $row + 2, $data);
+		}
+		}
+		
+		//make first row bold
+		$objPHPExcel->getActiveSheet()->getStyle("A2:L2")->getFont()->setBold(true);
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+						
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_approval_letter
+	#	Purpose		:	Deleting Approval Letter
+	# *******************************************************************************************
+	
+	public function delete_approval_letter($id,$orgId) {
+		$data = array('in_deleted' => '1');
+		$data['delete_approval_letter'] = $this->organization_model->delete_approval_letter($data,$id);
+		
+		if($data['delete_approval_letter'] == 1) {
+			redirect(base_url().'administration.php/organization/organization_edit/'.$orgId);
+		}
+	}
+	
+}
+
+/* End of file organization.php */
+/* Location: ./application/administration/controllers/organization.php */

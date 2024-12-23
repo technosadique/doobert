@@ -1,0 +1,206 @@
+<?php
+# =======================================================
+# Created by		: Nirav Motta
+# Created date		: 28-Feb-2018
+# File description	: sendgrid volunteer email checksum model Model for admin
+# Special - notes	: none
+# Tables used		: tbl_transportation
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class sendgrid_volunteer_email_checksum_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+    public function get_users_transport_email_list($id,$dtcreated)
+	{   //echo $dtcreated;die;
+	
+	    $dtdate	=	str_replace("%2"," ",$dtcreated);
+		$this->db->select("vec.in_email_type,vec.st_user_name,vec.st_email_address");
+		$this->db->from('tbl_volunteer_email_checksum vec');
+		if(!empty($id))
+		{
+			$this->db->where('vec.in_email_type',$id);
+		} 	
+		$this->db->where("vec.dt_created LIKE '%$dtcreated%'");		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		$query_result = $query->result_array();	
+		return $query_result; 
+	}
+	
+	public function get_volunteer_email_details($from_date='',$to_date='',$sort,$order,$limit,$rec_per_page)
+	{	
+			if($from_date=='1969-12-31' || empty($from_date) ){ $from_date='';  }
+			if($to_date=='1969-12-31' || empty($to_date) ){$to_date='';  }
+			
+			
+			
+			$transport_data_list = array();
+			$this->db->select("vec.*");
+			$this->db->from('tbl_sendgrid_volunteer_email_checksum vec');				
+			
+			
+			if(!empty($from_date) && !empty($to_date) )
+			{
+				$this->db->where('vec.dt_email_checksum >= ',date('Y-m-d 00:00:00',strtotime($from_date)));
+				$this->db->where('vec.dt_email_checksum <= ',date('Y-m-d 23:59:59',strtotime($to_date)));
+			} 
+			else if(!empty($from_date) && empty($to_date) )
+			{
+				$this->db->where('vec.dt_email_checksum >= ',date('Y-m-d',strtotime($from_date)));
+			} 
+			else if(empty($from_date) && !empty($to_date) )
+			{
+				$this->db->where('vec.dt_email_checksum <= ',date('Y-m-d',strtotime($to_date)));
+			}	
+			
+			$this->db->group_by(array("vec.dt_email_checksum", "vec.in_email_id"));
+			
+			switch($sort)
+			{							
+				case 'email_type':								
+					$this->db->order_by('vec.in_email_type',$order);
+				break;
+				
+				case 'email_cat':								
+					$this->db->order_by('vec.st_email_cat',$order);
+				break;
+
+				case 'created_date':							
+					$this->db->order_by('vec.dt_email_checksum',$order);
+				break;
+								
+				default: 								
+					$this->db->order_by('vec.id',$order);
+				break;		 
+			}
+			
+			$this->db->limit($rec_per_page,$limit);	
+			
+			$query = $this->db->get();
+			//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";
+			//exit;
+			if($query->num_rows() > 0 )
+			{
+				foreach($query->result_array() as $key=>$row)
+				{
+					if(isset($row['st_user_details']) && !empty($row['st_user_details']))
+					{
+						$user_counts = count(unserialize($row['st_user_details']));
+					}
+					
+					if(isset($row['st_category_detail']) && $row['st_category_detail'] != '')
+					{
+						//echo "category_detail";
+						//print_r(unserialize($row['st_category_detail']));
+						$cat_details =	unserialize($row['st_category_detail']);
+						if(isset($cat_details) && !empty($cat_details) && isset($cat_details[0]) && !empty($cat_details[0]))
+						{
+							$delivered = $cat_details[0]['delivered'];
+							$invalid_email = $cat_details[0]['invalid_email'];
+							$bounces	= $cat_details[0]['bounces'];
+							$blocked	= $cat_details[0]['blocked'];
+							$requests	= $cat_details[0]['requests'];
+						}
+					}else{
+						//echo 'no category_detail';
+						$delivered = 0;
+						$invalid_email = 0;
+						$bounces	= 0;
+						$blocked	= 0;
+						$requests	= 0;
+					}
+					$dtcreated	=	date('Y-m-d',strtotime($row['dt_email_checksum']));
+					$user_counts  = $this->get_all_users_for_email_type3($row['in_email_id'],$dtcreated);
+					
+					//print_r($user_counts);
+					
+					$checksum_email_type[]=array('id'  				=>  $row['id'],											
+											 'dt_created'       	=>  $row['dt_email_checksum'],
+											 'total_users'  		=>  $user_counts,
+											 'email_type'			=>  $row['in_email_id'],
+											 'email_cat'			=>  $row['st_email_cat'],
+											 'delivered'			=>  isset($delivered) ? $delivered : 0,
+											 'invalid_email'		=>  isset($invalid_email) ? $invalid_email : 0,
+											 'bounces'				=>  isset($bounces) ? $bounces : 0,
+											 'blocked'				=>  isset($blocked) ? $blocked : 0,
+											 'requests'				=>  isset($requests) ? $requests : 0,
+											);
+				}
+			}
+			
+			return $checksum_email_type;		
+	
+	}
+	
+	public function get_total_volunteer_email_details($from_date='',$to_date='',$sort,$order)
+	{	
+			$transportsql = '';
+			if($from_date=='1969-12-31' || empty($from_date) ){ $from_date='';  }
+			if($to_date=='1969-12-31' || empty($to_date) ){$to_date='';  }
+			
+			
+			$transport_data_list = array();
+			$this->db->select("vec.*");
+			$this->db->from('tbl_sendgrid_volunteer_email_checksum vec');
+			
+			
+			
+			if(!empty($from_date) && !empty($to_date))
+			{
+				$this->db->where('vec.dt_email_checksum >= ',date('Y-m-d 00:00:00',strtotime($from_date)));
+				$this->db->where('vec.dt_email_checksum <= ',date('Y-m-d 23:59:59',strtotime($to_date)));
+			} 
+			else if(!empty($from_date) && empty($to_date) )
+			{
+				$this->db->where('vec.dt_email_checksum >= ',date('Y-m-d',strtotime($from_date)));
+			} 
+			else if(empty($from_date) && !empty($to_date) )
+			{
+				$this->db->where('vec.dt_email_checksum <= ',date('Y-m-d',strtotime($to_date)));
+			}	
+				
+			$query = $this->db->get();			
+			return $query->num_rows();		
+	
+	}
+		
+	public function get_user_email_detail($id,$email_address)
+	{  
+		$this->db->select("vec.st_email_address,vec.st_user_name");
+		$this->db->from('tbl_volunteer_email_checksum vec');
+		if(!empty($id))
+		{
+			$this->db->where('vec.in_email_type',$id);
+		} 
+		$this->db->where('vec.st_email_address',$email_address);
+		$query = $this->db->get();
+		$query_result = $query->result_array();
+		return $query_result; 
+	}
+	
+	public function get_all_users_for_email_type3($email_type_id,$dt)
+	{
+		$this->db->select("vec.*");
+		$this->db->from('tbl_volunteer_email_checksum vec');		
+		$this->db->where("vec.in_email_type",$email_type_id);
+		$this->db->where("vec.dt_created LIKE '%$dt%'");
+		$query = $this->db->get();
+		//echo "<pre>";print_r($this->db->last_query()); echo"</pre>";die;
+		
+		$user_counts = array();
+		$all_user_counts = 0;	
+		$all_user_counts = $query->num_rows();
+		//print_r($user_counts);
+		//exit;
+		return  $all_user_counts;
+	}
+		
+	
+}
+?>

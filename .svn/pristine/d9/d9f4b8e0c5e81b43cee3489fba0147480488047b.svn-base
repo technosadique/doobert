@@ -1,0 +1,121 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Cron_once extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	public function __construct()
+    {
+		parent::__construct();
+		
+		$this->output->enable_profiler(TRUE);
+		$this->load->library('common_function');	
+		### CRON MODEL
+		$this->load->model('trasnportation_model');
+		$this->load->model('organimal_model');
+		$this->load->model('common_model');
+		$this->load->model('cron_model');
+		
+		
+		error_reporting(E_ALL);	
+	}	
+	 
+	public function index()
+	{		
+		
+	}	
+
+	#=========================================================
+	#	Function : update_user
+	#	Purpose  : Update all basic detail under user table.
+	#	Timing	 : Every 6 hours	
+	#=========================================================		
+	
+	public function update_user(){
+		// new column in User Table st_driver, st_coods		
+		$this->cron_model->update_user_coods();
+	}
+	
+	#=========================================================
+	#	Function : update_trans
+	#	Purpose  : Update all basic detail under transport table.
+	#	Timing	 : Every 3 hours
+	#=========================================================		
+	
+	public function update_trans(){
+		// new column in Transport Table st_from_coods,st_to_coods
+		$trans_id	=	0;
+		
+		if($this->uri->segment(3) && is_numeric($this->uri->segment(3))){
+			$trans_id	=	$this->uri->segment(3);
+		}
+		$this->cron_model->update_trans_coods($trans_id);
+	}
+
+	#=========================================================
+	#	Function : nearby_transport_ride_email
+	#	Purpose  : Send email to all near by user for Ride.
+	#	Timing	 : Every 5 min
+	#=========================================================		
+	
+	function nearby_transport_ride_email()
+	{		
+		ini_set('max_execution_time', 300);
+		$trans_id	=	0;
+		
+		if($this->uri->segment(3) && is_numeric($this->uri->segment(3))){
+			$trans_id	=	$this->uri->segment(3);
+		}
+		$this->cron_model->get_near_by_transportride_users($trans_id);
+	}
+	
+	function insert_animal_transfer()
+	{
+		$organization_list = $this->cron_model->get_organization_listing();
+		if(count($organization_list)>0)
+		{
+			foreach($organization_list as $key=>$org_id)
+			{	
+			$total_cat = $total_dog = $total_other = 0;
+			$total_cat 	 = $this->organimal_model->get_total_animal_transfer($org_id['in_organization_id'],'Cat');
+			$total_dog 	 = $this->organimal_model->get_total_animal_transfer($org_id['in_organization_id'],'Dog');
+			$total_other = $this->organimal_model->get_total_animal_transfer($org_id['in_organization_id'],'Other');
+			
+			$tx_dog_out = array('st_animal_name'=>'Dog','in_organization_id'=>$org_id['in_organization_id'],'in_animal_no'=>$total_dog,'dt_created'=>date('Y-m-d H:i:s'),'dt_modified'=>date('Y-m-d H:i:s'),'in_automatic_type'=>1,'in_transfer_type'=>1);
+			$this->organimal_model->insert_tranfer_animal($tx_dog_out);
+			$tx_cat_out = array('st_animal_name'=>'Cat','in_organization_id'=>$org_id['in_organization_id'],'in_animal_no'=>$total_dog,'dt_created'=>date('Y-m-d H:i:s'),'dt_modified'=>date('Y-m-d H:i:s'),'in_automatic_type'=>1,'in_transfer_type'=>1);
+			$this->organimal_model->insert_tranfer_animal($tx_cat_out);
+			$tx_other_out = array('st_animal_name'=>'Other','in_organization_id'=>$org_id['in_organization_id'],'in_animal_no'=>$total_other,'dt_created'=>date('Y-m-d H:i:s'),'dt_modified'=>date('Y-m-d H:i:s'),'in_automatic_type'=>1,'in_transfer_type'=>1);
+			$this->organimal_model->insert_tranfer_animal($tx_other_out);
+		
+			$tx_dog_in = array('st_animal_name'=>'Dog','in_organization_id'=>$org_id['in_organization_id'],'in_animal_no'=>0,'dt_created'=>date('Y-m-d H:i:s'),'dt_modified'=>date('Y-m-d H:i:s'),'in_automatic_type'=>0,'in_transfer_type'=>2);
+			$this->organimal_model->insert_tranfer_animal($tx_dog_in);
+			$tx_cat_in = array('st_animal_name'=>'Cat','in_organization_id'=>$org_id['in_organization_id'],'in_animal_no'=>0,'dt_created'=>date('Y-m-d H:i:s'),'dt_modified'=>date('Y-m-d H:i:s'),'in_automatic_type'=>0,'in_transfer_type'=>2);
+			$this->organimal_model->insert_tranfer_animal($tx_cat_in);
+			$tx_other_in = array('st_animal_name'=>'Other','in_organization_id'=>$org_id['in_organization_id'],'in_animal_no'=>0,'dt_created'=>date('Y-m-d H:i:s'),'dt_modified'=>date('Y-m-d H:i:s'),'in_automatic_type'=>0,'in_transfer_type'=>2);
+			$this->organimal_model->insert_tranfer_animal($tx_other_in); 
+			}
+			echo "success";
+		} else 
+			echo "failure";	
+	}
+	
+}
+
+/* End of file user.php */
+//http://crystal99/doobertv4/manage-my-transports/1/trid/asc/0/
+/* Location: ./application/controllers/welcome.php */

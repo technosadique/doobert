@@ -1,0 +1,1284 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: Rejected_organizations(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class pending_organizations extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();		
+		//error_reporting(E_ALL);
+		$this->load->library('common_function');		
+		$this->load->library('pagination');
+		$this->load->library('form_validation');
+		$this->load->library('email');
+		$this->load->model('common_model');			
+		$this->load->model('organization_model');
+		$this->load->helper(array('form', 'url'));
+		$this->load->library('user_agent');
+		$this->load->library('nativesession'); 
+		
+	}	
+	
+	function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+	    if($this->nativesession->get('searchadmin4')){$this->nativesession->delete('searchadmin4'); }
+		if($this->nativesession->get('searchadmin5')){$this->nativesession->delete('searchadmin5'); }
+		if($this->nativesession->get('searchadmin6')){$this->nativesession->delete('searchadmin6'); }
+		if($this->nativesession->get('searchadmin7')){$this->nativesession->delete('searchadmin7'); }
+		if($this->nativesession->get('searchadmin8')){$this->nativesession->delete('searchadmin8'); }
+		if($this->nativesession->get('searchadmin9')){$this->nativesession->delete('searchadmin9'); }
+		if($this->nativesession->get('searchadmin10')){$this->nativesession->delete('searchadmin10'); }
+		if($this->nativesession->get('searchadmin11')){$this->nativesession->delete('searchadmin11'); }
+		$this->page();	
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+	
+	
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$zip				=	'';	
+		$certified			=	'';
+		$contract			=	'';
+		$fromdate			=	'';
+		$todate				=	'';
+		$state				=	'';	
+		//$status				=	'';	
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		// Get Action Msg on successful ADD/ EDIT/ DELETE/ UPLOAD		
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtname') && ($this->input->post('action') == 'search'))
+		{
+			
+			$name = trim(addslashes($this->input->post('txtname')));				
+			$this->nativesession->set('searchadmin1',$this->common_function->custom_htmlentities($name));	
+				
+		}		
+		
+		if($this->input->post('txtzipcode') && ($this->input->post('action') == 'search'))
+		{
+			$zip_code = $this->input->post('txtzipcode');
+			$zip_code = str_replace(" ","",$zip_code);
+			$_POST['txtzipcode'] = strtoupper($zip_code);	
+			$zip = trim(addslashes($this->input->post('txtzipcode')));				
+			$this->nativesession->set('searchadmin2',$this->common_function->custom_htmlentities($zip));			
+				
+		}
+		
+		
+		if($this->input->post('txtcertified') && ($this->input->post('action') == 'search'))
+		{
+			$certified = trim($this->input->post('txtcertified')); 				
+			$this->nativesession->set('searchadmin3',$certified);			
+				
+		}
+		
+		if($this->input->post('txtcontract') && ($this->input->post('action') == 'search'))
+		{
+			
+			$contract = trim($this->input->post('txtcontract')); 				
+			$this->nativesession->set('searchadmin4',$contract);		
+				
+		}
+		
+		
+		
+		if($this->input->post('txtfrom') && ($this->input->post('action') == 'search'))
+		{
+			$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 			
+			$this->nativesession->set('searchadmin5',$fromdate);		
+				
+		}
+		
+		if($this->input->post('txtto') && ($this->input->post('action') == 'search'))
+		{			
+			$todate = date('Y-m-d',strtotime($this->input->post('txtto'))); 			
+			$this->nativesession->set('searchadmin6',$todate);	
+				
+		}
+		
+		
+		if($this->input->post('txtstate') && ($this->input->post('action') == 'search'))
+		{
+			$state = trim($this->input->post('txtstate'));				
+			$this->nativesession->set('searchadmin7',$state);
+		}
+		if($this->input->post('country') && ($this->input->post('action') == 'search'))
+		{
+			$country = trim($this->input->post('country')); 				
+			$this->nativesession->set('searchadmin8',$country);				
+				
+		}
+		
+		if($this->input->post('apptype') && ($this->input->post('action') == 'search'))
+		{  
+			$status = $this->input->post('apptype'); 				
+			$this->nativesession->set('searchadmin9',$status);
+		}
+		
+		//echo $status; die;
+		if($this->nativesession->get('apptype'))
+		{
+			$status = $this->nativesession->get('apptype');
+			$this->nativesession->delete('apptype');		
+		}
+		
+		if($this->input->post('txtorgid') && ($this->input->post('action') == 'search'))
+		{ 
+			$orgid = trim($this->input->post('txtorgid'));				
+			$this->nativesession->set('searchadmin10',$orgid);					
+				
+		}
+		
+		if($this->input->post('txtemailid') && ($this->input->post('action') == 'search'))
+		{ 
+			$emailid = trim($this->input->post('txtemailid'));				
+			$this->nativesession->set('searchadmin11',$emailid);					
+				
+		}
+		
+		if($this->uri->segment(6))
+		{
+			$status = $this->uri->segment(6);
+		}
+		
+		//echo 'status'.$status;exit;
+		$rec_per_page =	 $this->config->item('per_page');	
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->organization_model->get_total_pending_organization($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8'),$this->nativesession->get('searchadmin9'),$this->nativesession->get('searchadmin10'),$this->nativesession->get('searchadmin11'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['org_list']	= $this->organization_model->get_pending_organization($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8'),$this->nativesession->get('searchadmin9'),$this->nativesession->get('searchadmin10'),$this->nativesession->get('searchadmin11'));
+		
+		//echo '<pre>'; print_r($data['org_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'pending_organizations/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order;
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);		
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+	
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;
+		$data['org_type_arr'] = $this->common_function->org_type;
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Pending Organization Information Available.';
+		}
+		
+		$app_type_array = array('1'=>'Pending Organization Applications','2'=>'Deleted Pending Organization Applications');
+		$data['app_type_array'] = $app_type_array;
+		
+		$data['app_type'] = $status;
+		
+		$this->load->view('pending-oranizations',$data);
+	}
+	
+	
+	function delete_multiple_org()
+	{   
+		$org_ids = $this->input->post('orgid');
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+	
+		if(!empty($org_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->organization_model->delete_multiple_org($org_ids);
+			
+			$this->session->set_flashdata('success', 'Organization(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'pending_organizations/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	function undelete_multiple_org()
+	{   
+		$org_ids = $this->input->post('orgid');
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+	
+		if(!empty($org_ids) && $this->input->post('B3') == 'Undelete')
+		{	
+			$this->organization_model->undelete_multiple_org($org_ids);
+			
+			$this->session->set_flashdata('success', 'Organization(s) information has been undeleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		
+		
+		$this->session->set_userdata('apptype','1');
+		
+		redirect($this->config->item('admin_base_url').'pending_organizations/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	
+	function pending_organization_view($orgId)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+			 {
+				$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				$this->session->set_userdata('redirect_url',$url);
+				redirect($this->config->item('admin_base_url'));	
+			 }			
+			
+			$data['org_details']					= $this->organization_model->get_org_details($orgId); 
+			$data['certificate'] 					= $data['org_details'][0]['st_organization_501c3'];
+			$data['contract'] 						= $data['org_details'][0]['st_org_adoption'];					
+			$data['ref_details'] 					= $this->organization_model->get_ref_details($orgId); 
+			$data['org_approve_letter'] 			= $this->organization_model->get_org_approve_letter($orgId);
+			$data['org_approve_letter_count']		= count($data['org_approve_letter']);
+			$data['guideline_links_details'] 		= $this->organization_model->get_guideline_links($orgId);
+			$data['organization_files'] 			= $this->organization_model->get_org_guideline_files($orgId);
+			
+			$other_shelter = 'no';
+			if((isset($data['org_details'][0]['st_org_type']) && $data['org_details'][0]['st_org_type']=="S") || (isset($data['org_details'][0]['st_org_type'])&&$data['org_details'][0]['st_org_type']=='FS'))
+			{
+				
+				if(isset($data['org_details'][0]['in_shelter_id'])  && $data['org_details'][0]['in_shelter_id']!='0'){ 
+				$other_org_details = $this->organization_model->get_existing_shelter($data['org_details'][0]['in_shelter_id'],$data['org_details'][0]['st_org_type'],$data['org_details'][0]['in_organization_id']);
+				}
+				
+				if(!empty($other_org_details))
+				{
+					$other_shelter = "yes";
+				}
+			}
+			//echo '<pre>'; print_r($data['org_details']); die;
+			
+			//echo '<pre>'; print_r($data['ref_details']); die;
+			$data['other_shelter'] = $other_shelter;
+			if(count($data['org_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}			
+					
+			$this->load->view('pending-organization-view',$data);			
+	}
+	
+	function status_accept($orgId,$status=false)
+	{
+		
+			
+			if(!$this->session->userdata('sess_admin_id'))
+			{
+				redirect($this->config->item('admin_base_url'));		
+			}
+			
+			
+			$org_details = $this->organization_model->get_pending_org_details($orgId); 
+			//echo '<pre>'; print_r($org_details); die();
+			//exit("Exit");
+			// accept email
+			$data['email']		=	$org_details[0]['st_email_address'];
+			$data['user_name']	=	$org_details[0]['st_director'];
+			$data['org_name']	=	$org_details[0]['st_org_name'];
+			$data['zipcode']	=	$org_details[0]['st_zip'];
+			
+			
+			// By bhushan on 15 june 2016 for org sign in
+			if($org_details[0]['in_direct_signup'] == 1)
+			{
+				$userid = $org_details[0]['in_user_id'];
+				$this->organization_model->update_user_direct_signup($userid);
+			}				
+			//$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name')); 
+			
+			$allmail =  $data['email']; 
+			//echo $allmail;die;
+			
+			/*$this->email->to($allmail);
+			if($_SERVER['HTTP_HOST']!='crystal9')
+			{
+				$this->email->bcc($this->config->item('bcc_email_id'));
+			}*/
+			
+			$this->organization_model->update_status_accept($orgId);
+			
+			$email_details = $this->common_model->get_email_containt("8");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			//echo '<pre>'; print_r($email_details); die;			
+			
+			if(isset($email_details[0]['st_email_body']))
+			{
+				$templete = $email_details[0]['st_email_body'];
+				$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+				$templete  = str_replace("##user_name##",$data['user_name'],$templete);
+				$templete  = str_replace("##organization_name##",$data['org_name'],$templete);
+				$templete  = str_replace("##DONATION##",$donation,$templete);
+				//$this->email->subject($email_details[0]['st_email_subject']);
+				$strMail = $templete;
+				//$this->email->message($strMail);
+				//$this->email->send();
+				$to		 =  $allmail;
+				$message = $strMail;
+				$subject = $email_details[0]['st_email_subject'];
+				$this->load->library('email');
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+				$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+				$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_details[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}	
+								
+				if($send_email == '1')
+				{   
+				    
+					// LCR Banner added		
+							
+								$q1			=	$this->common_model->get_affiliate_detail('8','C');	
+							    $q2			=	$this->common_model->get_affiliate_detail('8','L');	
+							    $q3			=	$this->common_model->get_affiliate_detail('8','R');
+											   		
+									if(isset($q1) && !empty($q1)){	
+										
+										foreach($q1 as $qr)
+										{
+											 
+											  if(!empty($qr['st_code']))
+											{    
+												    $affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name']; 										
+													$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';					
+												  
+											}
+											else
+											{
+												   $affiliate_content='';								 
+											}
+											  
+												
+										}
+									}			
+									   
+								   else
+								   {
+									  $affiliate_content='';
+								   }
+				
+						//LEFT BANNER
+									if(isset($q2) && !empty($q2)){					   		
+										foreach($q2 as $qr)
+										{								 
+											 if(!empty($qr['st_code']))
+											{    
+												   $leftbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+													$imgtitle   =   $qr['st_banner_name']; 
+													$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+												  
+											}
+											else
+											{
+												   $leftbanner='';								 
+											} 	
+										}
+									}
+									else
+									{
+										   $leftbanner='';								 
+									}
+									
+						//RIGHT BANNER
+									if(isset($q3) && !empty($q3)){					   		
+										foreach($q3 as $qr)
+										{
+											 
+											if(!empty($qr['st_code']))
+											{    
+												   $rightbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{	
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name']; 
+													$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" /></a>';	
+												  
+											}
+											else
+											{
+												   $rightbanner='';								 
+											}								  
+												
+										}
+									}
+									else
+									{
+										   $rightbanner='';								 
+									}
+				
+				
+						$message = str_replace("##affiliate_content##",$affiliate_content,$message);	
+						$message = str_replace("##leftbanner##",$leftbanner,$message);
+						$message = str_replace("##rightbanner##",$rightbanner,$message);
+				// LRC Banner added	
+				//echo $to;
+				  //echo $message;die;
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='',$this->config->item('admin_from_name'),$this->email,$category);
+				}		
+				
+				//$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+			}
+			//accept email end			
+					
+			if(isset($org_details[0]['in_shelter_id']) && $org_details[0]['in_shelter_id'] >0)
+			{
+				$other_org_details = $this->organization_model->get_existing_shelter($org_details[0]['in_shelter_id'],$org_details[0]['st_org_type'],$orgId);
+				if(!empty($other_org_details))
+				{
+					//echo $org_details[0]['st_org_type'];
+					$this->organization_model->update_status($org_details[0]['in_shelter_id'],$org_details[0]['st_org_type'],$orgId);	
+				}
+			}
+			
+				if(isset($orgId) && $orgId > 0)
+				{  
+					$org_privacy_setting_data 		= array();							
+					
+					$geninfo_array = array ( '0' => 'smanager', '1' => 'sorg_type', '2' => 'sorg_ein', '3' => 'shas_501c3', '4' => 'shas_contract', '5' => 'sorg_desc', '6' => 'saddress', '7' => 'sphone', '8' => 'semail', '9' => 'sfax', '10' => 'swebsite', '11' => 'sguide', '12' => 'sguidelink', '13' => 'sguideimage');
+					
+					$org_privacy_setting_data['st_general_info'] 	=	serialize($geninfo_array);	
+					$org_privacy_setting_data['in_organization_id']	=	$orgId;		
+					$org_privacy_setting_data['in_public'] 			=	0;
+					$org_privacy_setting_data['dt_updated'] 		= 	date('Y-m-d H:i:s');
+					
+				//echo 'AASS';die;
+					//$this->load->model('organization_model');
+					$data['org_privacy_info']		=	$this->organization_model->add_org_privacy_setting($org_privacy_setting_data);	
+				 }	
+		   
+			//admin email notification start
+			$admin_list = $this->common_model->get_admin_list();
+			$this->organization_request_email($admin_list,$data['org_name'],$orgId,$data['user_name'],$data['email']);			
+			//admin email notification end
+			
+		// New Org Notification start			
+			   $this->new_org_notification($data['org_name'],$orgId,$data['zipcode']);				
+		// New Org Notification end
+		$this->get_nearby_org($orgId, $org_details);
+		###################### ORG REF EMAIL ###########################
+		$organization_ref	=	$this->organization_model->get_ref_details($orgId);
+		
+		foreach($organization_ref as $key=>$value)
+		{
+			if($value['st_ref_type'] == 'V')
+			{
+					$email_details = $this->common_model->get_email_containt("44");
+			}
+			if($value['st_ref_type'] == 'O')
+			{
+					$email_details = $this->common_model->get_email_containt("43");
+			}
+			if($value['st_ref_type'] == 'P')
+			{
+					$email_details = $this->common_model->get_email_containt("45");
+			}			
+			
+			$org_name	=	$data['org_name'];
+			if(isset($email_details[0]['st_email_body']))
+			{	  	 				
+				$strMail='';
+				$templete = $email_details[0]['st_email_body'];							
+				$templete  = str_replace("##REFERENCE_NAME##",$value['st_ref_name'],$templete);
+				$templete  = str_replace("##DONATION##",$donation,$templete);
+				//$templete  = str_replace("##APPLICANT_NAME##",$manager_name,$templete);
+				$templete  = str_replace("##APPLICANT_NAME##",$data['user_name'],$templete);	
+				$templete  = str_replace("##ORGANIZATION_NAME##",$org_name,$templete);	
+				$templete  = str_replace("##DONATION##",$donation,$templete);	
+				$this->load->library('email');
+				$strMail 	= 	$templete;
+				$to			=	$value['st_ref_email'];
+				$subject	=	$email_details[0]['st_email_subject'];
+				$subject    = str_replace("##ORGANIZATION_NAME##",$org_name,$subject);	
+				$subject    = str_replace("##APPLICANT_NAME##",$data['user_name'],$subject);
+				$message	=	$strMail;
+				$category   =   $email_details[0]['st_category'];
+				$reply_to	=	"applications@doobert.zendesk.com";
+				### REF email need to send only after approval.
+				$this->common_function->send_mail($this->email, $to, $subject, $message, 'references@doobert.com' ,$cc ='', $this->config->item('admin_from_name'),$this->email,$category,$reply_to);
+			}
+		}
+		
+		################################################################
+		/*************************Coalition**************************************/
+			$coalition_admin_list = $this->common_model->get_coalition_admin($orgId);
+			$coalition_name  = 	$this->common_model->get_coalition_name($orgId);
+			//echo '<pre>'; print_r($coalition_admin_list[0]['st_display_name']); die;
+			$user_name_new=$coalition_admin_list[0]['st_display_name'];
+			$email_details_new = $this->common_model->get_email_containt("157");
+			//echo '<pre>'; print_r($email_details_new[0]); die;
+			if(isset($email_details_new[0]['st_email_body']))
+							{
+								
+												
+								
+										
+								for($a=0;$a<count($coalition_admin_list);$a++)
+								{	
+										$templete_new  = $email_details_new[0]['st_email_body'];							
+										$templete_new  = str_replace("##user_name##",$coalition_admin_list[$a]['st_display_name'],$templete_new);
+										$templete_new  = str_replace("##org_name##",$org_details[0]['st_org_name'],$templete_new);
+										//$templete_new  = str_replace("##coaliation_name##",$coalition_name['st_coalition_name'],$templete_new);				
+										$templete_new  = str_replace("##coaliation_name##",$coalition_admin_list[$a]['st_coalition_name'],$templete_new);
+										$templete_new  = str_replace("##coaliation_admin_url##",$this->config->item('admin_base_url').'coalition/manage_coalition_org',$templete_new);			
+										$templete_new  = str_replace("##current_year##",date('Y'),$templete_new);
+										$strMail_new 	= 	$templete_new;
+										$to_new			=	$coalition_admin_list[$a]['st_email'];
+										$subject_new	=	$email_details_new[0]['st_email_subject'];
+										$message_new	=	$strMail_new;
+
+										$user_to_id = $this->common_model->get_user_id_by_email($to_new);
+								
+										$message_new = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);		
+										$message_new = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);
+										$this->common_function->send_mail($this->email, $to_new, $subject_new, $message_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+										//$this->common_function->send_mail($this->email, $to, $subject_new, $message_new,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+								}
+							}
+							
+							
+		
+		$this->session->set_flashdata('success', 'Organization has been accepted successfully.');	
+		
+		redirect($this->config->item('admin_base_url').'pending_organizations/');
+		
+	}
+	
+	function status_reject($orgId)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+			{
+				redirect($this->config->item('admin_base_url'));		
+			}
+			
+			
+			// reject mail start
+			$org_details = $this->organization_model->get_pending_org_details($orgId); 
+			//echo '<pre>'; print_r($org_details); die;
+			// accept email
+			$data['email']		=	$org_details[0]['st_email_address'];
+			$data['user_name']	=	$org_details[0]['st_director'];
+			$data['org_name']	=	$org_details[0]['st_org_name'];
+				
+			//$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name')); 
+			
+			$allmail =  $data['email'];
+			//echo $allmail;die;
+			
+			/*$this->email->to($allmail);
+			if($_SERVER['HTTP_HOST']!='crystal9')
+			{
+				$this->email->bcc($this->config->item('bcc_email_id'));
+			}*/
+			
+			$this->organization_model->update_status_reject($orgId);			
+			$email_details = $this->common_model->get_email_containt("9");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			//echo '<pre>'; print_r($email_details); die;
+			
+			if(isset($email_details[0]['st_email_body']))
+			{
+				$templete = $email_details[0]['st_email_body'];
+				$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+				$templete  = str_replace("##user_name##",$data['user_name'],$templete);
+				$templete  = str_replace("##organization_name##",$data['org_name'],$templete);	
+				$templete  = str_replace("##current_year##",date('Y'),$templete);
+				$templete  = str_replace("##DONATION##",$donation,$templete);
+				//$this->email->subject($email_details[0]['st_email_subject']);
+				$strMail = $templete;
+				/*$this->email->message($strMail);
+				$this->email->send();*/
+				
+				$to		 = $allmail;
+				$message = $strMail;
+				$subject = $email_details[0]['st_email_subject'];
+				$this->load->library('email');
+				$category  	=  $email_details[0]['st_category'];
+				$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+			
+			}
+			
+			//admin email notification start
+			$admin_list = $this->common_model->get_admin_list();
+			$this->organization_reject_email($admin_list,$data['org_name'],$orgId);			
+			//admin email notification end
+			
+		
+		
+		$this->session->set_flashdata('success', 'Organization has been rejected successfully.');		
+		redirect($this->config->item('admin_base_url').'pending_organizations/');	
+	}
+	#######################ADDED ##########################
+	public function get_nearby_org($orgId,$org_details)
+	{
+		$near_by_org = $this->organization_model->get_nearby_organization($orgId,$org_details[0]['st_zip']);
+		if(count($near_by_org)>0)
+		{
+			$email_details = $this->common_model->get_email_containt("88");
+			
+			foreach($near_by_org as $key=>$value)
+			{
+				if(isset($email_details[0]['st_email_body']) && !empty($email_details[0]['st_email_body']))
+				{
+					$templete = $email_details[0]['st_email_body'];							
+					//$templete  = str_replace("##SENDING_ORG##",$value['organization_name'],$templete);
+					//$templete  = str_replace("##NEW_ORG##",$org_details['st_org_name'],$templete);
+					$donation='';
+						$q			=	$this->common_model->get_affiliate_donation_detail('3');
+					if(isset($q) && !empty($q)){					   		
+						foreach($q as $qr)
+						{		 
+					  
+							if(!empty($qr['st_image']))
+							{
+								$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+								$imgtitle   =   $qr['st_banner_name']; 				
+								$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+								alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+							}							  
+						}
+					}			
+					if(isset($value['email_address']) && !empty($value['email_address']))
+					{
+					$templete = $email_details[0]['st_email_body'];							
+					$templete  = str_replace("##REFERENCE_NAME##",$value['reference_name'],$templete);
+					$templete	=	str_replace("##DONATION##",$donation,$templete);
+					//$templete  = str_replace("##APPLICANT_NAME##",$org_details['st_director'],$templete);
+					//$templete  = str_replace("##APPLICANT_NAME##",$org_details['st_org_name'],$templete);	
+					$templete  = str_replace("##organization_name##",$org_details[0]['st_org_name'],$templete);
+					$new_organization_cron = array('sttoEmail'		=> $value['email_address'],
+												   'stMailSubject'	=> $email_details[0]['st_email_subject'],
+												   'stMailcategory' => $email_details[0]['st_category'],
+												   'stMailContent'	=> $templete,
+												   'inMailSend'		=> 0,
+												   'dateCreated'	=> date("Y-m-d H:i:s"),
+												   'dateModified'	=> date("Y-m-d H:i:s"),
+												   'inDeleted'		=> 0,
+												   );
+					$this->db->insert('tbl_new_organization_cron',$new_organization_cron);	
+					}		
+				}
+			}		
+		}	
+	}
+	##############################
+	
+	
+	function generate_download($document)
+    {		
+        $file = $this->config->item('upload')."org_doc/".$document;
+		if ($document!='' && file_exists($file)) {
+		$this->load->helper('download');
+		$data = file_get_contents($file); // Read the file's contents
+		$name = $document;
+		force_download($name, $data);
+		}
+		else
+		{
+			$this->session->set_flashdata('docmsg', 'File does not exist.');
+			redirect($this->agent->referrer());	
+		}
+    }
+	
+	
+	
+	#=========================================================
+	#	Function : organization_request_email
+	#	Purpose  : Send email to admin for request organization
+	#=========================================================		
+	function organization_request_email($admin_list,$org_name,$orgId,$org_owner,$org_email)
+	{
+		
+		$data['org_name']		= $org_name;
+		$this->load->library('email');
+		$email_details = $this->common_model->get_email_containt("53");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		if(isset($email_details[0]['st_email_body']))
+		{
+			$templete  = $email_details[0]['st_email_body'];
+			$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+			$templete  = str_replace("##org_name##",$data['org_name'],$templete);
+			$templete  = str_replace("##owner_name##",$org_owner,$templete);
+			$templete  = str_replace("##owner_email##",$org_email,$templete);
+			$templete  = str_replace("##user_name##",$this->session->userdata('sess_admin_name'),$templete);
+			$templete  = str_replace("##application_id##",$orgId,$templete);
+			$templete  = str_replace("##org_url##",$this->config->item('admin_base_url').'organization/organization_view/'.$orgId,$templete);			
+			$templete  = str_replace("##current_year##",date('Y'),$templete);
+			$templete  = str_replace("##DONATION##",$donation,$templete);
+			//echo $templete; die;
+			
+			$full_name	=	$this->session->userdata('user_name').' '.$this->session->userdata('last_name');
+							
+			for($a=0;$a<count($admin_list);$a++)
+			{
+				//if($a>1){ break;}
+				 $permission = unserialize($admin_list[$a]['st_permission']); 
+				// print_r($permission); die;
+				if(isset($permission) &&  !empty($permission) && in_array('New_Organization_Creation',$permission))
+				{
+				
+					$strMail 	= 	$templete;
+					$to			=	$admin_list[$a]['email_address'];
+					//$to			=	'sadique.mohammed+u1@pulsesolutions.net';
+					$subject	=	$email_details[0]['st_email_subject'];
+					$message	=	$strMail; 
+					
+					$category  	=  $email_details[0]['st_category'];
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+				}
+			}
+		}
+		
+	}
+	
+	
+	
+	#=========================================================
+	#	Function : organization_request_email
+	#	Purpose  : Send email to admin for request organization
+	#=========================================================		
+	function organization_reject_email($admin_list,$org_name,$orgId)
+	{
+		
+		$data['org_name']		= $org_name;
+		$this->load->library('email');
+		$email_details = $this->common_model->get_email_containt("54");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		if(isset($email_details[0]['st_email_body']))
+		{
+			$templete  = $email_details[0]['st_email_body'];
+			$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+			$templete  = str_replace("##org_name##",$data['org_name'],$templete);			
+			$templete  = str_replace("##user_name##",$this->session->userdata('sess_admin_name'),$templete);
+			$templete  = str_replace("##application_id##",$orgId,$templete);
+			$templete  = str_replace("##org_url##",$this->config->item('admin_base_url').'rejected_organizations/organization_view/'.$orgId,$templete);			
+			$templete  = str_replace("##current_year##",date('Y'),$templete);	
+			$templete  = str_replace("##DONATION##",$donation,$templete);	
+			
+			$full_name	=	$this->session->userdata('user_name').' '.$this->session->userdata('last_name');
+							
+			for($a=0;$a<count($admin_list);$a++)
+			{
+				//if($a>1){ break;}
+				 $permission = unserialize($admin_list[$a]['st_permission']); 
+				// print_r($permission); die;
+				if(isset($permission) &&  !empty($permission) && in_array('New_Organization_Creation',$permission))
+				{
+				
+					$strMail 	= 	$templete;
+					$to			=	$admin_list[$a]['email_address'];
+					//$to			=	'sadique.mohammed+u1@pulsesolutions.net';
+					$subject	=	$email_details[0]['st_email_subject'];
+					$message	=	$strMail; 
+					
+					$category  	=  $email_details[0]['st_category'];
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+				} 
+			}
+		}
+		
+	}
+	
+	
+	
+	public function pending_doobert_org_cron()
+	{
+		$pending_org = $this->organization_model->pending_doobert_org_cron();
+		
+		//echo '<pre>'; print_r($pending_org); die;
+		
+		
+		if(isset($pending_org) && !empty($pending_org))
+		{
+			
+			
+			foreach($pending_org as $org_val)
+			{		
+				$cron_array = array("in_status"=>'1');
+		
+			    $this->common_model->update_org_status($cron_array,$org_val['in_organization_id']);	
+				
+				
+				$org_details = $this->organization_model->get_pending_org_details($org_val['in_organization_id']); 
+			
+				$data['email']		=	$org_details[0]['st_email_address'];
+				$data['user_name']	=	$org_details[0]['st_director'];
+				$data['org_name']	=	$org_details[0]['st_org_name'];	
+							
+			
+				$email_details = $this->common_model->get_email_containt('8');
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				$this->load->library('email');
+				if (isset($email_details[0]['st_email_body'])) {
+					$subject = $email_details[0]['st_email_subject'];
+					
+					$to = $org_val['st_email'];
+					
+					$templete 	= $email_details[0]['st_email_body'];
+					
+					$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+					$templete  = str_replace("##user_name##",$data['user_name'],$templete);
+					$templete  = str_replace("##organization_name##",$data['org_name'],$templete);	
+					$templete  = str_replace("##current_year##",date('Y'),$templete);
+					$templete  = str_replace("##DONATION##",$donation,$templete);
+					$message 	= $templete;					
+					
+					$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+					$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+					$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+					
+					$send_email = 1;							
+					$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+					if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+					{
+						$send_email = 0;										
+					}
+					
+					$email_template_id = $email_details[0]['in_email_id'];
+					$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+					if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+					{
+						$send_email = 1;
+					}
+					
+					if($send_email == '1')
+					{
+						
+						// LCR Banner added				
+								$q1			=	$this->common_model->get_affiliate_detail('8','C');	
+							    $q2			=	$this->common_model->get_affiliate_detail('8','L');	
+							    $q3			=	$this->common_model->get_affiliate_detail('8','R');
+											   		
+									if(isset($q1) && !empty($q1)){	
+										
+										foreach($q1 as $qr)
+										{
+											 
+											  if(!empty($qr['st_code']))
+											{    
+												    $affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];										
+													$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';					
+												  
+											}
+											else
+											{
+												   $affiliate_content='';								 
+											}
+											  
+												
+										}
+									}			
+									   
+								   else
+								   {
+									  $affiliate_content='';
+								   }
+				
+						//LEFT BANNER
+									if(isset($q2) && !empty($q2)){					   		
+										foreach($q2 as $qr)
+										{								 
+											 if(!empty($qr['st_code']))
+											{    
+												   $leftbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{
+													
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+													$imgtitle   =   $qr['st_banner_name'];
+													$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0"/></a>';
+												  
+											}
+											else
+											{
+												   $leftbanner='';								 
+											} 	
+										}
+									}
+									else
+									{
+										   $leftbanner='';								 
+									}
+									
+						//RIGHT BANNER
+									if(isset($q3) && !empty($q3)){					   		
+										foreach($q3 as $qr)
+										{
+											 
+											if(!empty($qr['st_code']))
+											{    
+												   $rightbanner	= $qr['st_code'];
+												  
+											}
+											elseif(!empty($qr['st_image']))
+											{	
+													$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+													$imgtitle   =   $qr['st_banner_name'];
+													$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" /></a>';	
+												  
+											}
+											else
+											{
+												   $rightbanner='';								 
+											}								  
+												
+										}
+									}
+									else
+									{
+										   $rightbanner='';								 
+									}
+				
+				
+						$message = str_replace("##affiliate_content##",$affiliate_content,$message);	
+						$message = str_replace("##leftbanner##",$leftbanner,$message);
+						$message = str_replace("##rightbanner##",$rightbanner,$message);
+				// LRC Banner added
+				
+				
+					
+						$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+					}	
+				}	
+			}		
+			
+		}
+	}
+	
+	public function new_org_notification($orgname=false,$orgId,$zipcode=false)
+	{
+		########## DEFINE ALL VARIABLE ##########
+		$donation	=	'';
+		$data 		= 	array();
+		#########################################
+		
+		$near_by_org = $this->organization_model->get_nearby_organization1($orgId,$zipcode);
+		
+		
+		if(sizeof($near_by_org)>0){
+			$email_details 	=	$this->common_model->get_email_containt("144");
+			$q				=	$this->common_model->get_affiliate_donation_detail('3');
+
+			if(isset($q) && !empty($q)){
+				foreach($q as $qr)
+				{					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+					}
+				}
+			}
+				
+			$this->load->library('email');
+			
+			
+			if(isset($email_details[0]['st_email_body']))
+			{  
+					$templete  = $email_details[0]['st_email_body'];	
+					$orgurl=base_url()."organization-".$orgId."-".$this->common_function->get_filtered_name($orgname);
+					
+					$templete  = str_replace("##org_name##",$orgname,$templete);
+					$templete  = str_replace("##org_url##",$orgurl,$templete);
+					$templete  = str_replace("##current_year##",date('Y'),$templete);
+					$templete  = str_replace("##DONATION##",$donation,$templete);
+				
+					foreach($near_by_org as $key => $userDetail){ 
+							
+							$strMail 	= 	$templete;
+							$strMail  = str_replace("##user_name##",$userDetail['reference_name'],$strMail);
+							$base_url_setting = base_url().'organization/login_as_organization_notification_setting/'.$this->common_function->encode_base64($userDetail['in_user_id']).'/'.$this->common_function->encode_base64($userDetail['in_organization_id']);
+							$hyper_link_url = '<a href="'.$base_url_setting.'">'.$base_url_setting.'</a>';
+							$strMail  = str_replace("##hyper_link_setting##",$hyper_link_url,$strMail);
+							
+							//$to			=	$userDetail['email_address'];
+							$to			=	"rupesh@pulsesolutions.net";
+							$subject	=	$email_details[0]['st_email_subject'];
+							$message	=	$strMail; 
+							
+							
+							$user_to_id = $this->common_model->get_user_id_by_email($to);						
+							$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+							$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+							
+							
+							
+							$this->common_function->send_mail($this->email, $to, $subject, $message,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));									
+							
+						   //echo $this->email->print_debugger();									
+					}	
+					//echo 'email sent';
+				
+			}
+		}		
+		
+	}
+	
+}
+
+/* End of file organization.php */
+/* Location: ./application/administration/controllers/pending_organizations.php */

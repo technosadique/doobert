@@ -1,0 +1,221 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 27-Jul-2019
+# File description	: quiz Model
+# Special - notes	: none
+# Tables used		: tbl_quesans,tbl_exam,tbl_arpa_org
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class quiz_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#  Function	:	get_total_vehicle_types()
+	#  Parameter	: 	name
+	#  Perpose		:	to get total no of vehicle types from tbl_quesans
+	#------------------------------------------------------------
+	public function get_total_quiz_result($name='')
+	{ 				
+					$this->db->select("q.in_id", false);						   	
+					$this->db->from('tbl_quesans q');		
+					$this->db->join('tbl_exam as ex','q.in_exam_id = ex.in_exam_id','INNER');
+					$this->db->join('tbl_exam_question as eq','eq.in_exam_id = ex.in_exam_id','INNER');
+					$this->db->join('tbl_arpa_org as a','a.in_arpa_org_id = q.in_user_id','INNER');
+					$this->db->where('q.in_deleted','0');
+					$this->db->where('a.in_deleted','0');
+					$where="(q.in_status =  '1'	OR q.in_status =  '2')";
+					$this->db->where($where, NULL, FALSE); 		
+					
+					if($name!='')
+					{	 
+					  $this->db->where("ex.st_exam_title LIKE '%".$name."%'", NULL, FALSE);
+					}
+		
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;			
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_vehicle_types()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name
+	#	Perpose		:	to get vehicle types details
+	#------------------------------------------------------------
+	public function get_quiz_result($sort,$order,$limit,$rec_per_page,$name)
+	{	  
+				    $this->db->select("q.in_id,ex.st_exam_title,ex.in_exam_duration,q.in_correct_score,q.in_time,a.st_org_email,a.st_org_contact,eq.st_question,q.dt_created", false);						   	
+					$this->db->from('tbl_quesans q');		
+					$this->db->join('tbl_exam as ex','q.in_exam_id = ex.in_exam_id','INNER');
+					$this->db->join('tbl_exam_question as eq','eq.in_exam_id = ex.in_exam_id','INNER');
+					$this->db->join('tbl_arpa_org as a','a.in_arpa_org_id = q.in_user_id','INNER');
+					$this->db->where('q.in_deleted','0');
+					$this->db->where('a.in_deleted','0');
+					$where="(q.in_status =  '1'	OR q.in_status =  '2')";
+					$this->db->where($where, NULL, FALSE); 		
+					  
+					if($name!='')
+					{	 
+					   $this->db->where("ex.st_exam_title LIKE '%".$name."%'", NULL, FALSE);
+					}
+		
+					
+					switch($sort)
+					{
+						case 'name': 						
+							$this->db->order_by('ex.st_exam_title',$order);
+						break;											
+						
+						case 'email': 						
+							$this->db->order_by('a.st_org_email',$order);
+						break;	
+
+						case 'phone': 						
+							$this->db->order_by('a.st_org_contact',$order);
+						break;					
+						
+						case 'dtcreated': 						
+							$this->db->order_by('q.dt_created',$order);
+						break;	
+							 
+						default:
+						   $this->db->order_by('q.in_id',$order);
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 	
+					//echo $this->db->last_query();  die;					
+					$arrExam = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+								// 5 out of 5 or 100%	
+								
+								$questionlist = unserialize($Row->st_question);
+								$qcount = count($questionlist);
+								
+								$percentagescore = ($Row->in_correct_score / $qcount) * 100;
+								
+								$time = '00'.':'.$Row->in_exam_duration;
+								sscanf($time, "%d:%d:%d", $hours, $minutes, $seconds);
+								$time_seconds = isset($hours) ? $hours * 3600 + $minutes * 60 + $seconds : $minutes * 60 + $seconds;
+								$hr =  floor($time_seconds/3600);
+								$min = floor(($time_seconds/60)%60);
+								$sec = $time_seconds%60;
+								$str = ''; 
+								$str .= (isset($hr) && !empty($hr))?$hr.' hour ':'';
+								$str .= (isset($min) && !empty($min))?$min.' minute ':'';
+								$str .= (isset($sec) && !empty($sec))?$sec.' second ':'';
+								
+								$time1 = '00'.':'.$Row->in_time;
+								sscanf($time1, "%d:%d:%d", $hours1, $minutes1, $seconds1);
+								$time_seconds1 = isset($hours1) ? $hours1 * 3600 + $minutes1 * 60 + $seconds1 : $minutes1 * 60 + $seconds1;
+								$hr1  =  floor($time_seconds1/3600);
+								$min1 = floor(($time_seconds1/60)%60);
+								$sec1 = $time_seconds1%60;
+								$str1 = ''; 
+								$str1 .= (isset($hr1) && !empty($hr1))?$hr1.' hour ':'';
+								$str1 .= (isset($min1) && !empty($min1))?$min1.' minute ':'';
+								$str1 .= (isset($sec1) && !empty($sec1))?$sec1.' second ':'';
+								
+								
+							$arrExam[]	=	array(  'in_id'						=> $Row->in_id,
+													'st_exam_title'				=> $Row->st_exam_title,
+													'in_correct_score'			=> isset($Row->in_correct_score)? $Row->in_correct_score : 0,
+													'in_time'					=> $str1,												
+													'email'						=> $Row->st_org_email,
+													'phone'   					=> $Row->st_org_contact,
+													'dt_created'   				=> $Row->dt_created,
+													'totalquestions'            => $qcount,
+													'percentagescore'           => $percentagescore,
+													'time_to_complete'			=> $str	
+													
+													
+													
+											);
+						}
+						return $arrExam;
+						
+					}
+					
+	}
+	
+	
+	#====================================================================================
+	#	Function	:	delete_vehicle_types()
+	#   Parameter	: 	vehicletypeId
+	#	Perpose		:	to delete single vehicle type details from tbl_quesans table
+	#------------------------------------------------------------------------------------
+	public function quiz_result_delete($id)
+	{
+				$arrQuiz = 	array('in_deleted' 	=> '1' );		
+				$this->db->where('in_id', $id);
+				$this->db->update('tbl_quesans', $arrQuiz);		
+	}
+	
+	
+	
+	#==========================================================================================
+	#	Function	:	delete_multiple_vehicle_types()
+	#   Parameter	: 	vehicletypeIds
+	#	Perpose		:	to delete multiple vehicle types details from tbl_quesans table
+	#------------------------------------------------------------------------------------------
+	public function delete_multiple_quiz_result($id)
+	{			
+				$arrQuiz = 	array('in_deleted' 	=> '1' );
+				$this->db->where_in('in_id', $id);
+				$this->db->update('tbl_quesans', $arrQuiz);		
+				return $this->db->affected_rows();
+	}
+	
+	
+	
+	#============================================================================
+	#	Function	:	get_vehicle_types_profile()
+	#   Parameter	: 	vehicletypeIds
+	#	Perpose		:	to get vehicle types details from tbl_quesans table
+	#----------------------------------------------------------------------------
+	public function get_quiz($id)
+	{
+				    $this->db->select("q.in_id,ex.st_exam_title,q.in_correct_score,q.in_time,q.st_status,a.st_org_email,a.st_org_contact,eq.st_question,q.dt_created,a.st_first_name,a.st_last_name", false);						   	
+					$this->db->from('tbl_quesans q');		
+					$this->db->join('tbl_exam as ex','q.in_exam_id = ex.in_exam_id','LEFT');
+					$this->db->join('tbl_exam_question as eq','eq.in_exam_id = ex.in_exam_id','LEFT');					
+					$this->db->join('tbl_arpa_org as a','a.in_arpa_org_id = q.in_user_id','LEFT');
+					$this->db->where('q.in_deleted','0');
+					$this->db->where('a.in_deleted','0');
+					$this->db->where('q.in_id',$id);
+					$where="(q.in_status =  '1'	OR q.in_status =  '2')";
+					$this->db->where($where, NULL, FALSE); 
+					$query = $this->db->get(); 	
+					return $query->row_array();
+					
+	}	
+	
+	public function checkanswer($qid)
+	{
+		$this->db->select('st_answers');
+		$this->db->from('tbl_survey_questions');		
+		$this->db->where('in_ques_id',$qid);		
+		$query = $this->db->get();			
+		return $query->row_array();
+	}
+	
+	
+}
+?>

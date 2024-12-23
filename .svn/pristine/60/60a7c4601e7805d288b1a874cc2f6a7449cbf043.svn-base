@@ -1,0 +1,125 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 24-Jun-2014
+# File description: Plane_types(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Aviation_corridor extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('form_validation');	
+		$this->load->model('aviation_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	
+	
+	
+	function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		
+		$data			    =	array();
+		$data['Err_Msg']	=	'';		
+		
+		$aviationId='1';
+		$data['aviation_details'] = $this->aviation_model->get_aviation_profile($aviationId);					
+		$data['av_details']		  = unserialize($data['aviation_details']['st_aviation_fly_range']);
+		$form_field	=	array('startm1'		=> "",
+							   'endm1'		=> "",	
+							   'corrm1'		=> "",
+							    'startm2'	=> "",
+								'endm2'		=> "",
+								'corrm2'	=> "",
+								'startm3'	=> "",
+								'endm3'		=> "",
+								'corrm3'	=> "",
+								
+		);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['edit'][$key] = $value;	
+		}	
+		
+		if($this->input->post('action')=='Edit')
+		{  
+			
+			//Validation rules
+						$aviationId			      = $this->input->post('aviationId');									
+						$this->form_validation->set_rules('startm1', 'Start miles 1', 'trim|required');		
+						$this->form_validation->set_rules('startm2', 'Start miles 2', 'trim|required');			
+						$this->form_validation->set_rules('startm3', 'Start miles 3', 'trim|required');
+						$this->form_validation->set_rules('endm1', 'End miles 1', 'trim|required');				
+						$this->form_validation->set_rules('endm2', 'End miles 2', 'trim|required');
+						$this->form_validation->set_rules('endm3', 'End miles 3', 'trim|required');						
+						$this->form_validation->set_rules('corrm1', 'Corridor miles 1', 'trim|required');	
+						$this->form_validation->set_rules('corrm2', 'Corridor miles 2', 'trim|required');	
+						$this->form_validation->set_rules('corrm3', 'Corridor miles 3', 'trim|required');											
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{  
+						$data['Err_Msg'] = validation_errors();									
+						$this->load->view('aviation-corridor',$data);	
+				}
+			
+			
+			
+			else
+			  {			
+			
+						$aviation_range[0]['nm_from']	=	$this->input->post('startm1');
+						$aviation_range[0]['nm_to']		=	$this->input->post('endm1');
+						$aviation_range[0]['route_nm']	=	$this->input->post('corrm1');			
+						$aviation_range[1]['nm_from']	=	$this->input->post('startm2');
+						$aviation_range[1]['nm_to']		=	$this->input->post('endm2');
+						$aviation_range[1]['route_nm']	=	$this->input->post('corrm2');
+						$aviation_range[2]['nm_from']	=	$this->input->post('startm3');
+						$aviation_range[2]['nm_to']		=	$this->input->post('endm3');
+						$aviation_range[2]['route_nm']	=	$this->input->post('corrm3');						
+						$aviation_val	=	serialize($aviation_range);
+						$this->aviation_model->update_aviation_range($aviation_val);
+						$this->session->set_flashdata('message', 'You have successfully updated Aviation Corridor!');					
+						redirect(site_url('aviation_corridor/'));
+			
+			}
+		}
+		else
+		{		
+				$this->load->view('aviation-corridor',$data);
+		}	
+	}
+	
+}
+
+/* End of file plane_types.php */
+/* Location: ./application/controllers/plane_types.php */

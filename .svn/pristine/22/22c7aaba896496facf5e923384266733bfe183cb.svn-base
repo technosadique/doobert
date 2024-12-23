@@ -1,0 +1,386 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Rajashri Mahapure
+# Created date: 26-Feb-2018
+# File description: New state_rule(controller)
+# Special instructions-notes: none
+# Tables used: tbl_state_rule
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Manage_state_rule extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('manage_state_rule_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin1');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';		
+		$name				=	'';
+		$tempstate			= array();
+		$searchstate 		= array();
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='st_state';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		//state list
+		
+		$data['statearr'] = $this->common_function->state_list;		
+
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('st_state') != '')
+		{
+			
+			if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');
+
+
+			$tempstate  = trim(($this->input->post('st_state')));
+			
+			
+			/*foreach ($data['statearr'] as $key => $value) {
+	        	if (false !== stripos($value, $tempstate)) {
+	        		$state[] = $key;
+	        	}
+	    	}
+	    	
+	    	if(count($state) != 0){
+	    		$searchstate = $state;
+	    	}else{
+	    		$searchstate = "";
+	    	}
+	    	
+			$this->session->set_userdata('searchadmin1',$searchstate);*/
+			
+			$this->session->set_userdata('searchadmin1',$tempstate);
+		}
+
+
+		//$rec_per_page =	$this->config->item('per_page');
+		
+		$rec_per_page =	25;
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->manage_state_rule_model->get_total_manage_state_rules($this->session->userdata('searchadmin1'));
+		$data['totalrecord'] = $totalrecord;
+		// GET PAGE LIST RESULT HERE
+		//echo "<pre>"; print_r($totalrecord);
+		$data['state_rule_list']	= $this->manage_state_rule_model->get_manage_state_rules($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'));
+		//echo $this->db->last_query();
+		//echo '<pre>'; print_r($data['state_rule_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'manage_state_rule/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No state-rule information available.';
+		}
+
+		
+		$this->load->view('manage-state-rule',$data);
+	}
+	
+	
+	function manage_state_rule_delete($state_ruleId)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->manage_state_rule_model->delete_manage_state_rules($state_ruleId);			
+		$this->session->set_flashdata('success', 'State-rule information has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'manage_state_rule');
+				
+	}
+	
+	
+		
+		
+	function delete_multiple_manage_state_rule()
+	{   
+	    
+		$state_ruleids = $this->input->post('stateruleid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($state_ruleids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->manage_state_rule_model->delete_multiple_manage_state_rules($state_ruleids);
+			
+			$this->session->set_flashdata('success', 'State-rule(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'manage_state_rule/page/'.$sort.'/'.$order.'/'.$limit);			
+	}
+	
+	
+		
+	
+	function manage_state_rule_edit($Id)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		
+		$data['Err_Msg']	=	'';		
+		$data['id'] = $Id;
+		$form_field	=	array(
+						'st_state'		=> "",
+						'st_rule'		=> "",
+						'in_reset'		=> ""
+				);
+		
+		foreach($form_field as $key => $value)	
+		{	
+			$data['edit'][$key] = $value;	
+		}	
+		$data['statearr'] = $this->common_function->state_list;
+		$data['state_rule_info'] = $this->manage_state_rule_model->get_manage_state_rules_byId($Id);		
+		
+		
+		if($this->input->post('action')=='Edit')
+		{  
+		
+			//Validation rules
+			$Id 	= $this->input->post('id');									
+			$this->form_validation->set_rules('st_state', 'State', 'trim|required');						
+			$this->form_validation->set_rules('st_rule', 'Rule', 'trim|required');
+				
+			
+			if($this->form_validation->run() == FALSE)
+			{  
+				$data['Err_Msg'] = validation_errors();						
+				$data['state_rule_info'] = $this->manage_state_rule_model->get_manage_state_rules_byId($Id);					
+				$this->load->view('manage-state-rule-edit',$data);	
+			}
+			else
+			{ 	
+				$st_state1	=	$this->input->post('st_state1'); 		
+				$st_state	=	$this->input->post('st_state'); 	
+				 if($st_state!=$st_state1)
+				{  							
+					$check	=	$this->manage_state_rule_model->is_staterule_exists($this->input->post('st_state'));
+				}
+							
+				if($check){							
+					$data['state_rule_info'] = $this->manage_state_rule_model->get_manage_state_rules_byId($Id);					
+					$data['Err_Msg'] = 'Record already exist.';	
+					$this->load->view('manage-state-rule-edit',$data);	
+				}else{
+
+					//$state_rule_info 	=   array();
+					$data['state_rule_info']['st_state'] 		=	$this->input->post('st_state');
+					$data['state_rule_info']['st_rule'] 		=	$this->input->post('st_rule');
+					$data['state_rule_info']['in_reset'] 		=	$this->input->post('in_reset');
+					$data['state_rule_info']['dt_modified']		= 	date('Y-m-d H:i:s');
+							
+
+					if($data['state_rule_info']['in_reset'] != 1){
+						$data['state_rule_info']['in_reset'] = 0;
+					}
+					
+					if($data['state_rule_info']['in_reset'] == 1)
+					{
+						$this->db->where('st_state',$data['state_rule_info']['st_state']);
+						$this->db->update('tbl_state_optout',array('in_opt_out'=>0));
+					}	
+					
+					//Updating admin data				
+					$this->manage_state_rule_model->update_state_rule_info($data['state_rule_info'],$Id);					
+					$this->session->set_flashdata('success', 'You have successfully updated state rule.');					
+					redirect(site_url('manage_state_rule/'));
+				}
+			
+			}
+		}
+			
+		else
+		{		
+			$this->load->view('manage-state-rule-edit',$data);
+		}
+	}
+	
+	
+	
+
+
+	function manage_state_rule_add()
+	{		 
+	    if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();
+		$data['statearr'] = $this->common_function->state_list;
+		$form_field	=	array(
+						'st_state'		=> "",
+						'st_rule'		=> "",
+						'in_reset'		=> ""
+				);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['state_rule_info'][$key] = $value;	
+			}			
+		
+		if($this->input->post('action')=='Add')
+		{  
+			
+			// validation starts
+			foreach ($form_field as $key => $value) {	
+				$data['state_rule_info'][$key] = $this->input->post($key);
+				$data['state_rule_info']['dt_created']	= date('Y-m-d H:i:s');	
+			}
+			
+			$this->form_validation->set_rules('st_state', 'State', 'trim|required');						
+			$this->form_validation->set_rules('st_rule', 'Rule', 'trim|required');
+
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();												
+						$this->load->view('manage-state-rule-add',$data);	
+				}
+			else
+			{  	
+				
+				$check	=	$this->manage_state_rule_model->is_staterule_exists($this->input->post('st_state'));							
+				
+				if($check){							
+					$data['state_rule_info'] = $this->manage_state_rule_model->get_manage_state_rules_byId($Id);					
+					$data['Err_Msg'] = 'Record already exist.';	
+					$this->load->view('manage-state-rule-add',$data);	
+				}else{
+
+					if($data['state_rule_info']['in_reset'] != 1){
+						$data['state_rule_info']['in_reset'] = 0;
+					}
+					
+					
+					$this->manage_state_rule_model->insertstate_rule($data['state_rule_info']);							
+					$this->session->set_flashdata('success', 'You have successfully created new state rule.');							
+					redirect(site_url('manage_state_rule/'));	
+				}		
+			}			
+		}
+		else
+		{		     
+			$this->load->view('manage-state-rule-add',$data);
+			
+		}		
+	}	
+
+}
+
+/* End of file manage_state_rules.php */
+/* state_rule: ./application/controllers/manage_state_rule.php */

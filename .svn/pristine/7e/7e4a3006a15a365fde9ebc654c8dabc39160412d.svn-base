@@ -1,0 +1,328 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: User(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Non_doobert_org extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');
+		$this->load->library('form_validation');	
+		$this->load->model('non_doobert_org_model');
+		$this->load->helper(array('form', 'url'));
+		$this->load->library('nativesession');	  	
+	}	
+	
+	function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		 
+		
+			
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+	    if($this->nativesession->get('searchadmin4')){$this->nativesession->delete('searchadmin4'); }
+		if($this->nativesession->get('searchadmin5')){$this->nativesession->delete('searchadmin5'); }			
+		$this->page();	
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$data			 	=	array();
+		$state_list = $this->common_function->shortAllState;
+		//echo '<pre>';print_r($state_list);die;
+        $data['state_list'] = $state_list;
+		
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$email				=	'';
+		$city				=	'';		
+		$state				=	'';
+		$zip				=	'';
+		
+		
+		
+				
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='name';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		// Get Action Msg on successful ADD/ EDIT/ DELETE/ UPLOAD		
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtname') || ($this->input->post('action') == 'search'))
+		{
+			
+			$name = trim(html_entity_decode($this->input->post('txtname')));				
+			$this->nativesession->set('searchadmin1',$name);	
+				
+		}	
+		
+		
+		if($this->input->post('txtemail') || ($this->input->post('action') == 'search'))
+		{
+			$email = trim($this->input->post('txtemail')); 				
+			$this->nativesession->set('searchadmin2',$email);			
+				
+		}	
+		
+		
+		
+		
+		if($this->input->post('txtcity') || ($this->input->post('action') == 'search'))
+		{
+			$city = trim($this->input->post('txtcity'));				
+			$this->nativesession->set('searchadmin3',$city);
+		}
+		
+		
+		if($this->input->post('txtstate') || ($this->input->post('action') == 'search'))
+		{
+			$state = trim($this->input->post('txtstate'));				
+			$this->nativesession->set('searchadmin4',$state);
+		}
+		
+		
+		
+		if($this->input->post('txtzipcode') || ($this->input->post('action') == 'search'))
+		{
+			$zip_code = $this->input->post('txtzipcode');
+			$zip_code = str_replace(" ","",$zip_code);
+			$_POST['txtzip'] = strtoupper($zip_code);
+			$zip = trim($this->input->post('txtzipcode'));				
+			$this->nativesession->set('searchadmin5',$this->common_function->custom_htmlentities($zip));	
+				
+		}		
+		
+		
+		$rec_per_page =	  $this->config->item('per_page');	
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->non_doobert_org_model->get_total_org($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['org_list']	= $this->non_doobert_org_model->get_org($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'));
+		
+		//echo '<pre>'; print_r($data['org_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'non_doobert_org/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];	
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+	
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No record(s) found.';
+		}
+		
+		$this->load->view('manage-non-doobert-org',$data);
+	}
+	
+
+	function edit_org($orgId=false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';			
+		$form_field	=	array('name'				=> "",	
+							  'email'				=> "",
+							  'city'				=> "",
+							  'state'  				=> "",
+							  'zip'					=> "",
+							  'website'					=> "",
+							  'address1'			=> "",
+							  'address2'			=> "",
+							  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+		$data['org_details'] = $this->non_doobert_org_model->get_org_profile($orgId);	
+		//echo "<pre>";print_r($data['org_details']);die;	
+		if($this->input->post('action')=='Edit')
+		{   
+			//Validation rules
+						$orgId			   = $this->input->post('orgId');
+						$data['org_details'] = $this->non_doobert_org_model->get_org_profile($orgId);
+			
+						foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+						}
+						$this->form_validation->set_rules('name', 'Name', 'trim|required');
+						$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+						
+										
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$data['org_details'] = $this->non_doobert_org_model->get_org_profile($orgId);					
+						$this->load->view('edit-org',$data);	
+				}
+			
+			else
+			{ 		 
+										
+						$profile_info = array();
+						$profile_info['stOrgName'] 			=	addslashes($this->input->post('name'));
+						$profile_info['stOrgEmail'] 		=	$this->input->post('email');
+						$profile_info['stCity'] 			=	$this->input->post('city');
+						$profile_info['stState'] 			=	$this->input->post('state');
+						$profile_info['stZip'] 				=	$this->input->post('zip');
+						$profile_info['stOrgWeb'] 			=	'http://'.$this->input->post('website');
+						$profile_info['stAddr1'] 			=	addslashes($this->input->post('address1'));
+						$profile_info['stAddr2'] 			=	addslashes($this->input->post('address2'));
+				
+				
+						$email1	=	trim($this->input->post('email1')); 		
+						$email	=	trim($this->input->post('email'));
+							
+						 if($email <> $email1)
+						{  				
+							$check	=	$this->non_doobert_org_model->is_email_exists($this->input->post('email'));							
+						}
+						
+						if($check){ 
+							$data['Err_Msg'] = "Email address already exist.";											
+							$this->load->view('edit-org',$data);	
+							}
+							else{					
+					
+							//Updating admin data							
+							$this->non_doobert_org_model->update_org_info($profile_info,$orgId,'tbl_non_doobert_org');					
+							$this->session->set_flashdata('message', 'You have successfully updated non doobert org!');					
+							redirect($this->config->item('admin_base_url').'non_doobert_org/edit_org/'.$orgId);
+							}
+			}
+		}
+		
+		else
+		{				
+						$this->load->view('edit-org',$data);
+		}
+	}
+	
+	function org_delete($orgId=false)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->non_doobert_org_model->org_delete($orgId);			
+		$this->session->set_flashdata('success', 'Record has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'non_doobert_org');
+		
+	}	
+	
+	
+	function delete_multiple_org()
+	{   
+		$org_ids = $this->input->post('orgid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($org_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->non_doobert_org_model->delete_multiple_org($org_ids);
+			
+			$this->session->set_flashdata('success', 'Record(s) has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'non_doobert_org/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	
+		
+	
+}
+
+/* End of file non_doobert_org.php */
+/* Location: ./application/administration/controllers/non_doobert_org.php */

@@ -1,0 +1,3490 @@
+<?php
+# ======================================================================================
+# Created by		: Jigar Patel
+# Created date		: 18-March-2013
+# File description	: User Model for User
+# Special - notes	: none
+# Tables used		: tbl_users,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class user_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	function index()
+	{
+	
+	}
+	
+	function insert_user($arrData)
+	{
+		$user_id = $this->db->insert('tbl_users', $arrData);
+		$this->db->insert_id();	
+		return  $this->db->insert_id();
+	}
+	function insert_user_profile($arrData)
+	{
+		$user_id = $this->db->insert('tbl_user_profile', $arrData);
+		$this->db->insert_id();	
+		return  $this->db->insert_id();
+	}
+	function user_login($data)
+	{
+		$this->db->select("in_user_id,st_display_name,st_last_name,st_email,in_status,in_login_direct");
+		$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($data['email']),"st_password"=>md5(htmlspecialchars_decode($data['password']))));
+		
+		$this->db->where("(in_status = 0 OR in_status = 1)");
+		$query = $this->db->get("tbl_users");
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData['user_details']	= array("userid"	=> $Row->in_user_id,
+													"user_name"	=> $Row->st_display_name,
+													"last_name"	=> $Row->st_last_name,
+													"email"		=> $Row->st_email,
+													"status"	=> $Row->in_status,
+													"login_direct_status" => $Row->in_login_direct,
+													);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	function user_forgotpassword($data)
+	{
+		$this->db->select("in_user_id,st_display_name,st_last_name,st_email,in_status");
+		$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($data['email'])));
+		$query = $this->db->get("tbl_users");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData['user_details']	= array("userid"	=> $Row->in_user_id,
+													"user_name"	=> $Row->st_display_name,
+													"lastname"	=> $Row->st_last_name,
+													"email"		=> $Row->st_email,
+													"status"	=> $Row->in_status,
+													);
+			}
+			return $arrData;
+		}
+		
+	}
+	#=========================================================
+	#Function : forgot-thankyou
+	#Purpose  : Forgot password Thank you page
+	#---------------------------------------------------------	
+	public function forgot_password_thankyou()
+	{
+		$data = array();
+		$data['email'] = $this->session->userdata('forgot_email_member');
+		$this->session->unset_userdata('forgot_email_member');
+		
+		$this->load->view('forgot-password-thankyou',$data);
+	}
+	
+	function forgotpassword_details($token='',$user_id='')
+	{
+		$this->db->select("in_user_id,dt_reset_password_sent");
+		$this->db->where(array("in_deleted"=>'0',"in_user_id"=>$user_id,"st_reset_password_token"=>addslashes($token)));
+		$query = $this->db->get("tbl_users");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData['user_details']	= array("userid"				=> $Row->in_user_id,
+													"reset_password_sent"   => $Row->dt_reset_password_sent
+													);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	function update_user($array,$user_id)
+	{
+		$this->db->where('in_user_id', $user_id);
+		$this->db->update('tbl_users', $array);
+		return $this->db->affected_rows();
+	}
+
+
+	function update_user_profile($array,$user_id)
+	{
+		$this->db->where('in_user_id', $user_id);
+		$this->db->update('tbl_user_profile', $array);
+		return $this->db->affected_rows();
+	}
+	
+	//============================================================
+	//	Function	:	facebookuser()
+	//  Parameter	: 	$post
+	//	Perpose		:	to ADD member data
+	//------------------------------------------------------------	
+	function facebookuser($fbarr){		
+		//echo "<pre>";
+		
+		if(isset($fbarr['userid']) && $fbarr['userid']!='')
+		{
+			if(!$this->is_fb_user_exists($fbarr['email'],$fbarr['userid']))
+			{
+			
+				$verificationCode = $this->generate_random_password(15);
+				
+				$browser_details = array();
+				$browser_details["page_referral"]	= $_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				$browser_details["ip_address"]		= $_SERVER['REMOTE_ADDR'];
+				$browser_details["browser_used"]	= $_SERVER['HTTP_USER_AGENT'];
+				$memberid = '';
+				$arrmember	 = 	 array( 'st_display_name' 	=> $fbarr['first_name'],
+										'st_last_name' 		=> $fbarr['last_name'],
+										'st_email'  		=> $fbarr['email'],
+										'st_facebook_uid'	=> $fbarr['userid'],
+										'dt_created'		=> date("Y-m-d h:i:s"),
+										'in_newsletter'		=> "N",
+										"in_public"		    => "1",
+										'in_status'			=> "0",
+										'in_deleted'   		=> '0',
+										"st_browser_info"	=> @serialize($browser_details),
+										'st_fb_first_name' 	=> $fbarr['first_name'],
+										'st_fb_last_name' 	=> $fbarr['last_name'],
+										"st_email_verification_code" => $verificationCode,
+										'in_email_verify_status' => '1',
+										"st_signup_as" 		=> isset($fbarr['sign_up_as']) && $fbarr['sign_up_as'] != '' ? $fbarr['sign_up_as'] : '',
+										);
+				
+				
+				if($this->db->insert('tbl_users', $arrmember))
+				{
+					$memberid = $this->db->insert_id();	
+					$arrData = array("in_user_id" => $memberid
+									);
+					$this->db->insert('tbl_user_profile', $arrData);
+					$ret = '2';
+				}
+				
+				$member_data = array();
+				$data = array();
+				
+				if(!empty($memberid))
+				{
+					//$member_data	=	$this->get_fbuser_details_id($fbarr['userid']);
+					$member_data	=	$this->get_fbuser_details_id($fbarr['email'],$fbarr['userid']);
+					$member_arr = array('userid'  	=> $member_data['userid'],
+									   'user_name'	=> $member_data['user_name'],
+									   'last_name'	=> $member_data['last_name'],
+									   'email'	=> $fbarr['email'],
+									  );
+							  
+					$this->session->set_userdata($member_arr);
+					//set coockie
+						if(!isset($_COOKIE['doobert_home'])) {
+							setcookie("doobert_home","doobert_value",0,"/",".doobert.com");
+						}
+					//End set coockie			  
+					return (isset($ret)?'2':'1');
+				}
+				else
+				{
+					return false;
+				}
+					
+				
+			}
+			else
+			{
+				$fbmember_data = array();
+				//$fbmember_data	=	$this->get_fbuser_details_id($fbarr['userid']);
+				$fbmember_data	=	$this->get_fbuser_details_id($fbarr['email'],$fbarr['userid']);
+				
+				if($fbmember_data['status'] == '3')
+				{
+					//$this->session->set_userdata('fb_warning', 'Invalid username or password.');	
+					//redirect($this->config->item('base_url')."user/");
+					return $ret = '3';
+				}
+				
+				$member_arr = array('userid'  	=> $fbmember_data['userid'],
+								   'user_name'	=> $fbmember_data['user_name'],
+								   'last_name'	=> $fbmember_data['last_name'],
+								   'email'	=> $fbmember_data['email'],
+								  );
+				//$this->update_user(array("st_facebook_uid"=>$fbarr['userid'],"st_email"=>$fbarr['email']),$fbmember_data['userid']);		
+				$this->session->set_userdata($member_arr);
+				
+				
+				$user_details = $this->get_user_profile($fbmember_data['userid']);
+				$this->session->set_userdata('zip', $user_details['st_zip']);
+				$this->session->set_userdata('login_direct_status', $result['user_details']['login_direct_status']); 
+				$this->session->set_userdata('ststate', $user_details['st_state']);
+				$this->session->set_userdata('stcountry', $user_details['st_country']);	
+				setcookie("devuserid",$fbmember_data['userid'],0,"/",".doobert.com");
+				
+				//set coockie
+				if(!isset($_COOKIE['doobert_home'])) {
+					setcookie("doobert_home","doobert_value",0,"/",".doobert.com");
+				}
+				//End set coockie
+				return true;
+			}
+		}
+		
+	}//EOF fb_member_data()	
+	
+	
+	function googleuser($garr)
+	{		
+		//echo "<pre>";
+		
+		if(isset($garr['userid']) && $garr['userid']!='')
+		{
+			if(!$this->is_google_user_exists($garr['email'],$garr['userid']))
+			{
+			
+				$verificationCode = $this->generate_random_password(15);
+				
+				$browser_details = array();
+				$browser_details["page_referral"]	= $_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				$browser_details["ip_address"]		= $_SERVER['REMOTE_ADDR'];
+				$browser_details["browser_used"]	= $_SERVER['HTTP_USER_AGENT'];
+				$memberid = '';
+				$arrmember	 = 	 array( 'st_display_name' 	=> $garr['first_name'],
+										'st_last_name' 		=> $garr['last_name'],
+										'st_email'  		=> $garr['email'],
+										'st_google_uid'		=> $garr['userid'],
+										'dt_created'		=> date("Y-m-d h:i:s"),
+										'in_newsletter'		=> "N",
+										"in_public"		    => "1",
+										'in_status'			=> "0",
+										'in_deleted'   		=> '0',
+										"st_browser_info"	=> @serialize($browser_details),
+										'st_fb_first_name' 	=> $garr['first_name'],
+										'st_fb_last_name' 	=> $garr['last_name'],
+										"st_email_verification_code" => $verificationCode,
+										'in_email_verify_status' => '1',
+										"st_signup_as" 		=> '',
+										);
+				
+				
+				if($this->db->insert('tbl_users', $arrmember))
+				{
+					$memberid = $this->db->insert_id();	
+					$arrData = array("in_user_id" => $memberid
+									);
+					$this->db->insert('tbl_user_profile', $arrData);
+					$ret = '2';
+				}
+				
+				$member_data = array();
+				$data = array();
+				
+				if(!empty($memberid))
+				{
+					//$member_data	=	$this->get_fbuser_details_id($fbarr['userid']);
+					$member_data	=	$this->get_googleuser_details_id($garr['email'],$garr['userid']);
+					$member_arr = array('userid'  	=> $member_data['userid'],
+									   'user_name'	=> $member_data['user_name'],
+									   'last_name'	=> $member_data['last_name'],
+									   'email'	=> $fbarr['email'],
+									  );
+							  
+					$this->session->set_userdata($member_arr);
+					
+					
+					
+					//set coockie
+						if(!isset($_COOKIE['doobert_home'])) {
+							setcookie("doobert_home","doobert_value",0,"/",".doobert.com");
+						}
+					//End set coockie			  
+					return (isset($ret)?'2':'1');
+				}
+				else
+				{
+					return false;
+				}
+					
+				
+			}
+			else
+			{
+				$gmember_data = array();
+				//$fbmember_data	=	$this->get_fbuser_details_id($fbarr['userid']);
+				$gmember_data	=	$this->get_googleuser_details_id($garr['email'],$garr['userid']);
+				
+				if($gmember_data['status'] == '3')
+				{
+					//$this->session->set_userdata('fb_warning', 'Invalid username or password.');	
+					//redirect($this->config->item('base_url')."user/");
+					return $ret = '3';
+				}
+				
+				$member_arr = array('userid'  	=> $gmember_data['userid'],
+								   'user_name'	=> $gmember_data['user_name'],
+								   'last_name'	=> $gmember_data['last_name'],
+								   'email'		=> $gmember_data['email'],
+								  );
+				$this->update_user(array("st_google_uid"=>$garr['userid']),$gmember_data['userid']);		
+				$this->session->set_userdata($member_arr);
+				
+				$user_details = $this->get_user_profile($gmember_data['userid']);
+				$this->session->set_userdata('zip', $user_details['st_zip']);
+				$this->session->set_userdata('login_direct_status', $result['user_details']['login_direct_status']); 
+				$this->session->set_userdata('ststate', $user_details['st_state']);
+				$this->session->set_userdata('stcountry', $user_details['st_country']);	
+				setcookie("devuserid",$gmember_data['userid'],0,"/",".doobert.com");
+				
+				//set coockie
+				if(!isset($_COOKIE['doobert_home'])) {
+					setcookie("doobert_home","doobert_value",0,"/",".doobert.com");
+				}
+				//End set coockie
+				return true;
+			}
+		}
+		
+	}
+	
+	
+	
+	
+	//============================================================
+	//	Function	:	is_fb_user_exists()
+	//  Parameter	: 	$email , $memberId
+	//	Perpose		:	to check if member Email Id is already exists 
+	//------------------------------------------------------------
+	function is_fb_user_exists($fbemail,$fbid='')
+	{
+		$this->db->select('in_user_id,st_facebook_uid');
+		$this->db->from('tbl_users');							
+		//$this->db->where("(in_status = 0 OR in_status = 1)"); 
+		$this->db->where("in_deleted",0);
+		$this->db->where("(st_email='".addslashes($fbemail)."' OR st_facebook_uid='".$fbid."')"); 
+		//$this->db->where("(st_email='".addslashes($fbemail)."')"); 
+		#$this->db->or_where("st_facebook_uid",$fbid);
+		$query = $this->db->get();			
+		//echo $this->db->last_query();die;
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;	
+			
+	}//EN is_fb_user_exists	
+	
+	
+	function get_fbuser_details($fbemail)
+	{
+		$this->db->select("in_user_id,st_display_name,st_email,in_status");
+		$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($fbemail)));
+		$query = $this->db->get("tbl_users");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array("userid"	=> $Row->in_user_id,
+									"user_name"	=> $Row->st_display_name,
+									"email"		=> $Row->st_email,
+									"status"	=> $Row->in_status,
+									);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	//function get_fbuser_details_id($userid)
+	function get_fbuser_details_id($fbemail,$fbid='')
+	{	
+		$this->db->select("in_user_id,st_display_name,st_email,in_status,st_last_name");
+		//$this->db->where(array("in_deleted"=>'0',"st_facebook_uid"=>addslashes($userid)));
+		//$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($email)));
+		$this->db->where("in_deleted",0);
+		$this->db->where("(st_email='".addslashes($fbemail)."' OR st_facebook_uid='".$fbid."')"); 
+		$query = $this->db->get("tbl_users");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array("userid"	=> $Row->in_user_id,
+									"user_name"	=> $Row->st_display_name,
+									"last_name"	=> $Row->st_last_name,
+									"email"		=> $Row->st_email,
+									"status"	=> $Row->in_status,
+									);
+			}
+			return $arrData;
+		}
+		
+	}
+	function link_with_fb($fbemail)
+	{
+			$this->update_user(array("st_facebook_uid"=>isset($fbemail['userid'])?$fbemail['userid']:'',
+									 "st_fb_first_name"=>isset($fbemail['first_name'])?$fbemail['first_name']:'',
+									 "st_fb_last_name"=>isset($fbemail['last_name'])?$fbemail['last_name']:''),$this->session->userdata('userid'));
+	}
+	
+	
+	
+	function is_google_user_exists($gemail,$gid='')
+	{
+		$this->db->select('in_user_id,st_google_uid');
+		$this->db->from('tbl_users');							
+		//$this->db->where("(in_status = 0 OR in_status = 1)"); 
+		$this->db->where("in_deleted",0);
+		$this->db->where("(st_email='".addslashes($gemail)."' OR st_google_uid='".$gid."')"); 
+		//$this->db->where("(st_email='".addslashes($fbemail)."')"); 
+		#$this->db->or_where("st_facebook_uid",$fbid);
+		$query = $this->db->get();			
+		//echo $this->db->last_query();die;
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;	
+			
+	}//EN is_fb_user_exists	
+	
+	
+	function get_googleuser_details($gemail)
+	{
+		$this->db->select("in_user_id,st_display_name,st_email,in_status");
+		$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($gemail)));
+		$query = $this->db->get("tbl_users");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array("userid"	=> $Row->in_user_id,
+									"user_name"	=> $Row->st_display_name,
+									"email"		=> $Row->st_email,
+									"status"	=> $Row->in_status,
+									);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	//function get_fbuser_details_id($userid)
+	function get_googleuser_details_id($fbemail,$gid='')
+	{	
+		$this->db->select("in_user_id,st_display_name,st_email,in_status,st_last_name");
+		//$this->db->where(array("in_deleted"=>'0',"st_facebook_uid"=>addslashes($userid)));
+		//$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($email)));
+		$this->db->where("in_deleted",0);
+		$this->db->where("(st_email='".addslashes($fbemail)."' OR st_google_uid='".$gid."')"); 
+		$query = $this->db->get("tbl_users");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array("userid"	=> $Row->in_user_id,
+									"user_name"	=> $Row->st_display_name,
+									"last_name"	=> $Row->st_last_name,
+									"email"		=> $Row->st_email,
+									"status"	=> $Row->in_status,
+									);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	check_email	
+	#	Purpose		:	Check customer id exists in database
+	# *******************************************************************************************
+
+	public function check_email($email,$id) {
+		$this->db->select('in_user_id');	
+		$this->db->where('st_email',$email);
+		$this->db->where('in_user_id !=',$id);
+			
+		$this->db->where('in_status != ',2);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get('tbl_users');
+		
+		return $query->num_rows();
+	}
+	
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	update_user_info	
+	#	Purpose		:	Updating user info
+	# *******************************************************************************************
+	
+	public function update_user_info($data,$id,$table) {
+		$this->db->where('in_user_id',$id);
+		$this->db->update($table,$data);
+		//echo "<pre>".$this->db->last_query();		
+		return $this->db->affected_rows();
+	}
+	
+	
+	
+	public function update_user_details($post,$id,$zipcode,$availability,$ziplat,$ziplon,$table)
+		{  
+			//echo '<pre>'; print_r($post); die;			
+			$arrVehicle	 = 	  array('in_deleted'	=> '1'
+									);							
+			$this->db->where_in('in_user_id', $id);
+			$this->db->update('tbl_user_vehicle', $arrVehicle);			
+			
+			for($val=0;$val<sizeof($post['vehicletype']);$val++)
+			{
+				$arrVehicle	 = 	  array('in_user_id'				    => $id,
+				                        'st_zip_vehicle'				=> $zipcode,
+										'st_driver_availability'		=> $availability,										
+										'zip_lat'						=> $ziplat, 
+										'zip_lon'						=> $ziplon,	
+										'st_vehicle_type'				=> $post['vehicletype'][$val],
+										'st_vehicle_color'				=> $post['color'][$val],
+										'st_vehicle_license_plate'		=> $post['license'][$val],										
+										'st_vehicle_license_state'		=> $post['license_state'][$val],
+										'in_distance_to_drive'			=> $post['distance'][$val],
+										'dt_created'					=> date('Y-m-d H:i:s'),
+										'in_status'						=> '1', 
+										'in_deleted'					=> '0'
+										);																
+				$this->db->insert($table, $arrVehicle);	
+				$insert_id = $this->db->insert_id();
+				$image = explode(",",$post['image_file']);
+				for($a=0;$a<count($image);$a++)
+				{
+					$Vehicle_image = array("in_vehicle_id"	=> $insert_id,
+											"st_image"		=> $image[$a],
+											"in_deleted"	=> "0");
+					$this->db->insert("tbl_vehicle_image", $Vehicle_image);	
+				}
+			
+			}
+			
+		}
+		
+		public function update_vehicle_zip_code($id,$zipcode,$ziplat,$ziplon)
+		{
+			$arrVehicle	 = 	  array('st_zip_vehicle'	=> $zipcode,
+									'zip_lat'			=> $ziplat, 
+									'zip_lon'			=> $ziplon,
+									"dt_modified"			=>	date('Y-m-d H:i:s')
+									);							
+			$this->db->where_in('in_user_id', $id);
+			$this->db->where('in_deleted', "0");
+			$this->db->update('tbl_user_vehicle', $arrVehicle);	
+		}	
+	
+	public function update_vehicle_details($post,$id,$zipcode,$availability,$radius_miles,$ziplat,$ziplon,$table)
+		{  
+			//echo '<pre>'; print_r($post); die;			
+			//$arrVehicle	 = 	  array('in_deleted'	=> '1');							
+			//$this->db->where_in('in_user_id', $id);
+			//$this->db->update('tbl_user_vehicle', $arrVehicle);			
+			/*
+			$arrVehicle	 = 	  array('st_zip_vehicle'	=> $zipcode,
+									'zip_lat'			=> $ziplat, 
+									'zip_lon'			=> $ziplon
+									);							
+			$this->db->where_in('in_user_id', $id);
+			$this->db->update('tbl_user_vehicle', $arrVehicle);
+			*/
+			//echo 'record updated';exit;	
+			//print_r($post['vehicletype']);exit;
+			$insert_id = '';
+			$data = array();
+			for($val=0;$val<sizeof($post['vehicletype']);$val++)
+			{
+				//echo sizeof($post['vehicletype']);
+				//echo 'ziplat'.$ziplat;
+				//echo 'ziplon'.$ziplon;
+				//exit;
+				
+				if($post['vehicletype'][$val]!='')
+				{
+					$arrVehicle	 = 	  array('in_user_id'				        => $id,
+												'st_zip_vehicle'				=> $zipcode,
+												'st_driver_availability'		=> $availability,										
+												'zip_lat'						=> $ziplat, 
+												'zip_lon'						=> $ziplon,	
+												'st_vehicle_type'				=> $post['vehicletype'][$val],
+												'st_vehicle_color'				=> $post['color'][$val],
+												'st_vehicle_license_plate'		=> $post['license'][$val],										
+												'st_vehicle_license_state'		=> $post['license_state'][$val],
+												'in_distance_to_drive'			=> $radius_miles,
+												'st_photos_url'					=> $post['googlephotos_vehicle'][$val],
+												'dt_created'					=> date('Y-m-d H:i:s'),
+												'dt_modified'					=> date('Y-m-d H:i:s'),
+												'in_status'						=> '1', 
+												'in_deleted'					=> '0'
+												);	
+					if($post['vehicle_ids'][$val]!='')
+					{															
+						$this->db->where('in_vehicle_id', $post['vehicle_ids'][$val]);
+						$this->db->update($table, $arrVehicle);	
+						$insert_id = $post['vehicle_ids'][$val];
+					}
+					else
+					{
+						$this->db->insert($table, $arrVehicle);	
+						$insert_id = $this->db->insert_id();
+					}
+					
+					//Adding Vehicle Images
+					$this->load->library('upload');
+			
+					$date = date('Y-m-d H:i:s');
+					
+					$photos = array('photo1' => '',
+									'photo2' => '',
+									'photo3' => '',
+									'photo4' => ''
+									);
+					
+					$xaxis = '';
+					$yaxis = '';
+					$height = '';
+					$width = '';
+									
+					if($this->input->post('v_uploaded_photo1') != '') {
+						$photos['photo1'] = $this->input->post('v_uploaded_photo1');
+						
+						$img_name_array = explode('.', $photos['photo1']);
+						$img_extension = end($img_name_array);
+						$image_name = current(explode('.', $photos['photo1'])); 
+						 
+						if($img_extension == "JPE" || $img_extension == "jpe")
+						{
+							$new_image_name = $image_name.'.jpg';
+							$image = imagecreatefromjpeg($this->config->item('upload') . 'vehicle/' . $photos['photo1']);
+							imagejpeg($image, $this->config->item('upload') . 'vehicle/' . $new_image_name);
+							$photos['photo1'] =  $new_image_name;
+						}
+						
+					}
+					if($this->input->post('v_uploaded_photo2') != '') {
+						$photos['photo2'] = $this->input->post('v_uploaded_photo2');
+						
+						$img_name_array = explode('.', $photos['photo2']);
+						$img_extension = end($img_name_array);
+						$image_name = current(explode('.', $photos['photo2'])); 
+						 
+						if($img_extension == "JPE" || $img_extension == "jpe")
+						{
+							$new_image_name = $image_name.'.jpg';
+							$image = imagecreatefromjpeg($this->config->item('upload') . 'vehicle/' . $photos['photo2']);
+							imagejpeg($image, $this->config->item('upload') . 'vehicle/' . $new_image_name);
+							$photos['photo2'] =  $new_image_name;
+						}
+						
+					}
+					if($this->input->post('v_uploaded_photo3') != '') {
+						$photos['photo3'] = $this->input->post('v_uploaded_photo3');
+						
+						$img_name_array = explode('.', $photos['photo3']);
+						$img_extension = end($img_name_array);
+						$image_name = current(explode('.', $photos['photo3'])); 
+						 
+						if($img_extension == "JPE" || $img_extension == "jpe")
+						{
+							$new_image_name = $image_name.'.jpg';
+							$image = imagecreatefromjpeg($this->config->item('upload') . 'vehicle/' . $photos['photo3']);
+							imagejpeg($image, $this->config->item('upload') . 'vehicle/' . $new_image_name);
+							$photos['photo3'] =  $new_image_name;
+						}
+						
+					}
+					if($this->input->post('v_uploaded_photo4') != '') {
+						$photos['photo4'] = $this->input->post('v_uploaded_photo4');
+						
+						$img_name_array = explode('.', $photos['photo4']);
+						$img_extension = end($img_name_array);
+						$image_name = current(explode('.', $photos['photo4'])); 
+						 
+						if($img_extension == "JPE" || $img_extension == "jpe")
+						{
+							$new_image_name = $image_name.'.jpg';
+							$image = imagecreatefromjpeg($this->config->item('upload') . 'vehicle/' . $photos['photo4']);
+							imagejpeg($image, $this->config->item('upload') . 'vehicle/' . $new_image_name);
+							$photos['photo4'] =  $new_image_name;
+						}
+						
+					}
+					
+					//Resize the image with ratio (4 Thumbnails)
+					$thumb = array(	'100x100'	=>	'100x100',
+									'180x180'	=>	'180x180'
+									);
+					
+					//Adding animal images
+					$rotate_angle1	=	0;
+					$rotate_angle2	=	0;
+					$rotate_angle3	=	0;
+					$rotate_angle4	=	0;
+					
+					$this->load->library('image_lib');
+					
+					foreach($photos as $key => $row) {
+						$config = array();	
+						if(trim($row) != '') {
+							$count_photo = substr($key,-1);
+							if($key == 'photo1') {
+								$rotate_angle = $this->input->post('v_rotate_angle1');
+								$xaxis = $this->input->post('v_x1');
+								$yaxis = $this->input->post('v_y1');
+								$height = $this->input->post('v_h1');
+								$width = $this->input->post('v_w1');
+							} else if($key == 'photo2'){
+								$rotate_angle = $this->input->post('v_rotate_angle2');
+								$xaxis = $this->input->post('v_x2');
+								$yaxis = $this->input->post('v_y2');
+								$height = $this->input->post('v_h2');
+								$width = $this->input->post('v_w2');
+							} else if($key == 'photo3'){
+								$rotate_angle = $this->input->post('v_rotate_angle3');
+								$xaxis = $this->input->post('v_x3');
+								$yaxis = $this->input->post('v_y3');
+								$height = $this->input->post('v_h3');
+								$width = $this->input->post('v_w3');
+							} else if($key == 'photo4'){
+								$rotate_angle = $this->input->post('v_rotate_angle4');
+								$xaxis = $this->input->post('v_x4');
+								$yaxis = $this->input->post('v_y4');
+								$height = $this->input->post('v_h4');
+								$width = $this->input->post('v_w4');
+							}
+							
+							########################		
+							
+							$config['file_name'] = $row;
+							
+							if($rotate_angle < 0 )
+							{
+								$rotate_angle	=	360+$rotate_angle;
+							}
+							
+							//rotate image if 90 or 270 deg rotation 
+							//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+							if($rotate_angle > 0 )
+							{
+								if($rotate_angle == 90)
+								{
+									$rotate_angle = 270;
+								}
+								else if($rotate_angle == 270){
+									$rotate_angle = 90;
+								}
+								
+								$config['image_library'] = 'gd2';
+								$config['source_image']	= $this->config->item('upload').'vehicle/'.$config['file_name'];
+								$config['rotation_angle'] = $rotate_angle;
+								
+								$this->image_lib->initialize($config);
+								if ( ! $this->image_lib->rotate()) {
+									echo $this->image_lib->display_errors();
+								}
+							}
+							$this->image_lib->clear();
+							//Cropping Image
+							$config['image_library'] = 'gd2';
+							$config['source_image']	= $this->config->item('upload').'vehicle/'.$config['file_name'];
+							$config['new_image']	= $this->config->item('upload').'vehicle/cropped_images/'.$config['file_name'];
+							$config['maintain_ratio'] 	= FALSE;
+							$config['x_axis'] = $xaxis;
+							$config['y_axis'] = $yaxis;					
+							$config['width'] = $width;
+							$config['height'] = $height;
+							
+												
+							$this->image_lib->initialize($config); 
+							if ( ! $this->image_lib->crop()) {
+								echo $this->image_lib->display_errors();
+							}
+							$this->image_lib->clear();
+								
+							
+							foreach($thumb as $key => $value) {
+								$exp_value = explode('x',$value);
+								
+								//Resizing Image
+								$config['image_library'] 	= 'gd2';
+								$config['source_image']		= $this->config->item('upload').'vehicle/cropped_images/'.$config['file_name'];
+								$config['new_image']		= $this->config->item('upload').'vehicle/'.$key.'/'.$config['file_name'];
+								$config['maintain_ratio'] 	= TRUE;
+								$config['width']	 		= $exp_value[0];
+								$config['height']			= $exp_value[1];
+								
+								$this->image_lib->initialize($config);
+								$this->image_lib->resize();
+								$this->image_lib->clear();
+								
+								
+							}
+							
+							$data['vehicle_images'] = array('in_vehicle_id'		=>	$insert_id,
+															'st_image'			=>	$config['file_name'],
+															'in_deleted'		=>	'0'
+															);
+													  
+							//$data['add_vehicle_images']	=	$this->user_model->add_vehicle_images($data['vehicle_images']);
+							$this->db->insert("tbl_vehicle_image", $data['vehicle_images']);
+						}
+					}
+					//End Adding Vehicle Images
+					
+					/*$image = explode(",",$post['image_file']);
+					for($a=0;$a<count($image);$a++)
+					{
+						if($image[$a]!='')
+						{
+							$Vehicle_image = array("in_vehicle_id"	=> $insert_id,
+													"st_image"		=> $image[$a],
+													"in_deleted"	=> "0");
+							$this->db->insert("tbl_vehicle_image", $Vehicle_image);	
+						}
+					}*/
+				}
+			
+			}
+			$vehicle_info = array('st_driver_availability'	=> $availability,
+								  'in_distance_to_drive'	=> $radius_miles,	
+								  //"st_zip_vehicle"			=>	$zipcode,
+								  "dt_modified"				=>	date('Y-m-d H:i:s'));	
+			$this->db->where('in_user_id', $this->session->userdata('userid'));
+			$this->db->where('in_deleted', "0");
+			$this->db->update("tbl_user_vehicle", $vehicle_info);
+			//echo $this->db->last_query(); die;
+			
+		}	
+		
+		public function update_user_details_no($id,$table) 
+		{
+			$arrVehicle	 = 	  array('in_deleted'	=> '1'
+									);							
+			$this->db->where_in('in_user_id', $id);
+			$this->db->update($table, $arrVehicle);	
+		}
+		
+	
+	# *******************************************************************************************	
+	#	Function	:	insert_user_info	
+	#	Purpose		:	Inserting user info
+	# *******************************************************************************************
+	
+	public function insert_user_info($data,$table) {
+		$this->db->insert($table,$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_user_profile	
+	#	Purpose		:	Getting user profile
+	# *******************************************************************************************
+	
+	public function get_user_profile($id) {
+		$this->db->select('u.st_display_name,u.st_last_name,u.st_email,u.in_status as profile_status,u.st_signup_as,u.dt_created,u.in_login_direct,u.st_profile_image,u.st_facebook_uid,p.st_address1,p.st_address2,p.st_city,p.st_state,
+							p.st_zip,p.st_time_zone,p.st_primary_phone,p.st_secondary_phone,
+							p.st_fax,p.st_website,p.st_about_me,p.st_country,
+							p.st_driver,p.st_pilot,p.st_transport_cood,p.st_airline_emp,p.st_fundraiser,p.st_manager,p.st_foster_home,p.st_photographer,p.st_in_person_volunteer,	p.st_virtual_support_volunteer,
+							v.in_user_id as userid,v.st_driver_availability,v.st_zip_vehicle,v.st_vehicle_type,
+							v.st_vehicle_color,v.st_vehicle_license_plate,v.st_vehicle_license_state,
+							v.in_distance_to_drive,
+							ua.in_user_id as ad_userid,ua.in_animal_type_id,ua.in_animal_breed_id,
+							ua.in_demeanor_id,ua.in_no_animal,ua.in_duration,ua.in_duration_type');
+		$this->db->from('tbl_users as u');
+		$this->db->join('tbl_user_profile as p','u.in_user_id = p.in_user_id','LEFT');
+		$this->db->join('tbl_user_addition_info as ua','u.in_user_id = ua.in_user_id','LEFT');
+		$this->db->join('tbl_user_vehicle as v','u.in_user_id = v.in_user_id','LEFT');
+		
+		$this->db->where('u.in_user_id',$id);
+		$this->db->where('u.in_deleted',0);
+		//$this->db->where('u.in_status',1);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	
+	public function get_user_available($id)
+	{
+		$this->db->select('v.st_driver_availability');
+		$this->db->from('tbl_user_vehicle as v');		
+		$this->db->where('v.in_user_id',$id);
+		$this->db->where('v.in_deleted',0);		
+		$query = $this->db->get();
+		return $query->row_array();
+		
+	}
+	
+	#=========================================================
+	#	Function : get_user_profile
+	#	Purpose  : Getting selected user profile
+	#=========================================================
+	
+	public function get_user_profile_front($id) {
+		
+		$this->db->select('	u.st_profile_image,u.st_display_name,u.st_last_name,u.st_email,u.in_public,u.in_user_id,
+							up.st_address1,up.st_address2,up.st_city,up.st_state,up.st_zip,
+							up.st_primary_phone,up.st_secondary_phone,up.st_fax,up.st_website,
+							up.st_about_me,up.st_driver,up.st_foster_home,up.st_photographer,up.st_in_person_volunteer,up.st_virtual_support_volunteer,
+							ua.in_animal_type_id,ua.in_animal_breed_id,ua.in_demeanor_id,ua.in_no_animal,
+							ua.in_duration_type,ua.in_duration,at.st_animal_type_name,
+							ab.st_animal_breed_name,d.st_demeanor_name'
+						);
+						
+		$this->db->from('tbl_users as u');
+		
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		
+		//$this->db->join('tbl_user_vehicle as uv','u.in_user_id = uv.in_user_id','LEFT');
+		$this->db->join('tbl_user_addition_info as ua','u.in_user_id = ua.in_user_id','LEFT');
+		
+		$this->db->join('tbl_animal_type as at','ua.in_animal_type_id = at.in_animal_type_id','LEFT');
+		$this->db->join('tbl_animal_breed as ab','ua.in_animal_breed_id = ab.in_animal_breed_id','LEFT');
+		$this->db->join('tbl_demeanor as d','ua.in_demeanor_id = d.in_demeanor_id','LEFT');
+		
+		$this->db->where('u.in_user_id',$id);
+		
+		//$this->db->where('u.in_status',0);
+		$this->db->where('u.in_deleted',0);
+		//$this->db->where('uv.in_deleted',0);
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->row_array();
+	}
+	
+	public function get_user_vehicle_detail($id)
+	{
+		$this->db->select('uv.st_vehicle_type,uv.st_vehicle_color,uv.st_vehicle_license_plate,uv.st_vehicle_license_state,uv.in_distance_to_drive,uv.st_driver_availability');
+						
+		$this->db->from('tbl_user_vehicle as uv');
+		$this->db->where('uv.in_user_id',$id);
+		//$this->db->where('uv.in_status',0);
+		$this->db->where('uv.in_deleted',0);
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->result_array();
+		
+	}
+	
+	#=========================================================
+	#	Function : get_users_org
+	#	Purpose  : Getting current users joining organization details
+	#=========================================================
+	
+	public function get_users_org($userid) {
+		$this->db->select('o.in_organization_id,o.st_org_name,ou.st_transport_cood,ou.st_fundraiser,
+							ou.st_animal_profile',FALSE);
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_organization_user as ou','ou.in_organization_id = o.in_organization_id','LEFT');
+		
+		
+		$where = "(( o.in_user_id ='".$userid."')  
+					OR( ou.in_user_id ='".$userid."' )
+					AND ou.in_status='1' 
+					AND ou.in_deleted='0') AND o.in_deleted='0' AND o.in_status='1' 
+					";
+		$this->db->where($where, NULL, FALSE);
+		$this->db->group_by('o.in_organization_id'); 
+		$this->db->order_by('o.st_org_name','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->result_array());die;
+		return $query->result_array();
+	}
+	
+	public function get_vehicle_detail($userId)
+	{
+		$sql	= "SELECT vh.*
+		           FROM tbl_user_vehicle as vh 
+				   WHERE vh.in_user_id= '".$userId."' AND  vh.in_deleted= '0' ";
+				  	
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();die;
+		
+		if($query->num_rows()>0){
+		foreach($query->result() as $Row)
+				{
+					$this->db->select('st_image,in_id');
+					$this->db->from('tbl_vehicle_image as p');		
+					$this->db->where('in_vehicle_id',$Row->in_vehicle_id);
+					$this->db->where('in_deleted',0);	
+					$query = $this->db->get();
+					$images = $query->result_array();
+					
+					$arrData[]=	array('st_vehicle_type'					=>	$Row->st_vehicle_type,
+											'st_vehicle_color'			=>	$Row->st_vehicle_color,
+											'st_vehicle_license_plate'	=>	$Row->st_vehicle_license_plate,
+											'st_vehicle_license_state'	=>  $Row->st_vehicle_license_state,	
+											'in_distance_to_drive'		=>	$Row->in_distance_to_drive,
+											'st_photos_url'				=>	$Row->st_photos_url,
+											'st_zip_vehicle'			=>	$Row->st_zip_vehicle,
+											'in_vehicle_id'				=>	$Row->in_vehicle_id,
+											'st_image'					=>	$images
+											
+										);					
+				}			
+				return $arrData;
+		}
+	}
+	
+
+
+
+
+
+
+	#============================================================
+	#	Function	:	updateAdminLog()
+	#   Parameter	: 	admin_id,logmsg
+	#	Perpose		:	updating logstatus in tbl_admin_log
+	#------------------------------------------------------------		
+	public function updateAdminLog($adminid,$logmsg='')
+	{  
+		$created_date	=	date('Y-m-d H:i:s');
+		$st_server_ip	=	$_SERVER['REMOTE_ADDR']; 
+		$admindetails	=	array('in_admin_id'	=>$adminid,'st_log'	=>$logmsg,'st_server_ip'	=>$st_server_ip,'dt_created'	=>$created_date);
+		$this->db->insert('tbl_admin_log', $admindetails);
+		//echo $this->db->last_query(); die;
+			
+	}
+	
+	
+	
+	public function get_plane_detail($userId)
+	{
+		$sql	= "SELECT * 
+		           FROM tbl_user_pilot as pl 
+				   WHERE pl.in_user_id= '".$userId."' AND  pl.in_deleted= '0' ";
+				  	
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();die;
+		
+		if($query->num_rows()>0){
+		foreach($query->result() as $Row)
+				{
+					
+					$this->db->select('st_image,in_id');
+					$this->db->from('tbl_plane_image as p');		
+					$this->db->where('in_plane_id',$Row->in_pilot_id);
+					$this->db->where('in_deleted',0);	
+					$query = $this->db->get();
+					//echo $this->db->last_query();die;
+					$images = $query->result_array();
+					
+					$arrData[]=	array('st_plane_type'					=>	$Row->st_plane_type,
+											'st_plane_color'			=>	$Row->st_plane_color,
+											'st_plane_number'			=>	$Row->st_plane_number,
+											'in_plane_ifr'				=>  $Row->in_plane_ifr,												
+											'st_identifier'				=>	$Row->st_identifier,
+											'st_pilot_zip'				=>	$Row->st_pilot_zip,
+											'in_distance_to_pilot'		=>	$Row->in_distance_to_pilot,
+											'st_photos_url'				=>	$Row->st_photos_url,
+											'st_pilot_availability'		=>	$Row->st_pilot_availability,
+											'in_pilot_id'				=>	$Row->in_pilot_id,
+											'st_image'					=>	$images											
+										);					
+				}			
+				return $arrData;
+		}
+	}
+	
+	
+	public function get_pilot_available($id)
+	{
+		$this->db->select('p.st_pilot_availability');
+		$this->db->from('tbl_user_pilot as p');		
+		$this->db->where('p.in_user_id',$id);
+		$this->db->where('p.in_deleted',0);		
+		$query = $this->db->get();
+		return $query->row_array();
+		
+	}
+
+	
+	public function update_plane_zip_code($id,$zipcode,$ziplat,$ziplon)
+	{
+		$plane_info = array(
+								  "st_pilot_zip"			=>	$zipcode,
+								  "zip_lat"					=>	$ziplat,
+								  "zip_lon"					=>	$ziplon,
+								  "dt_modified"			=>	date('Y-m-d H:i:s'));	
+		$this->db->where('in_user_id', $this->session->userdata('userid'));
+		$this->db->where('in_deleted', "0");
+		$this->db->update("tbl_user_pilot", $plane_info);
+	}
+	
+	public function update_plane_details($post,$id,$zipcode,$availability,$identifier,$ifr,$pilot_radius,$ziplat,$ziplon,$table)
+		{  
+			//echo '<pre>'; print_r($post); die;			
+			/*$arrPlane	 = 	  array('in_deleted'	=> '1'
+									);							
+			$this->db->where_in('in_user_id', $id);
+			$this->db->update($table, $arrPlane);	*/		
+			
+			for($val=0;$val<sizeof($post['airplanetype']);$val++)
+			{
+				if($post['airplanetype'][$val]!='')
+				{
+				$arrPlane	 = 	  array('in_user_id'				=> $id,
+				                        'st_pilot_zip'				=> $zipcode,
+										'st_pilot_availability'		=> $availability,	
+										'st_identifier'				=> $identifier,									
+										'zip_lat'					=> $ziplat, 
+										'zip_lon'					=> $ziplon,	
+										'st_plane_type'				=> $post['airplanetype'][$val],
+										'st_plane_color'			=> $post['airplane_color'][$val],
+										'st_plane_number'		    => $post['nnumber'][$val],										
+										'in_plane_ifr'				=> $ifr,
+										'in_distance_to_pilot'		=> $pilot_radius,
+										'st_photos_url'				=> $post['googlephotos_pilot'][$val],
+										'dt_created'				=> date('Y-m-d H:i:s'),
+										'dt_modified'				=> date('Y-m-d H:i:s'),
+										'in_status'					=> '1', 
+										'in_deleted'				=> '0'
+										);																
+			//$insert_id = $this->db->insert($table, $arrPlane);	
+			
+			if($post['plane_ids'][$val]!='')
+			{															
+				$this->db->where('in_pilot_id', $post['plane_ids'][$val]);
+				$this->db->update($table, $arrPlane);	
+				$insert_id = $post['plane_ids'][$val];
+			}
+			else
+			{
+				$this->db->insert($table, $arrPlane);	
+				$insert_id = $this->db->insert_id();
+			}
+			
+			//Adding Vehicle Images
+			$this->load->library('upload');
+	
+			$date = date('Y-m-d H:i:s');
+			
+			$photos = array('photo1' => '',
+							'photo2' => '',
+							'photo3' => '',
+							'photo4' => ''
+							);
+			
+			$xaxis = '';
+			$yaxis = '';
+			$height = '';
+			$width = '';
+							
+			if($this->input->post('p_uploaded_photo1') != '') {
+				$photos['photo1'] = $this->input->post('p_uploaded_photo1');
+				
+				$img_name_array = explode('.', $photos['photo1']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo1'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'plane/' . $photos['photo1']);
+					imagejpeg($image, $this->config->item('upload') . 'plane/' . $new_image_name);
+					$photos['photo1'] =  $new_image_name;
+				}
+						
+			}
+			if($this->input->post('p_uploaded_photo2') != '') {
+				$photos['photo2'] = $this->input->post('p_uploaded_photo2');
+				
+				$img_name_array = explode('.', $photos['photo2']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo2'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'plane/' . $photos['photo2']);
+					imagejpeg($image, $this->config->item('upload') . 'plane/' . $new_image_name);
+					$photos['photo2'] =  $new_image_name;
+				}
+
+			}
+			if($this->input->post('p_uploaded_photo3') != '') {
+				$photos['photo3'] = $this->input->post('p_uploaded_photo3');
+				
+				$img_name_array = explode('.', $photos['photo3']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo3'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'plane/' . $photos['photo3']);
+					imagejpeg($image, $this->config->item('upload') . 'plane/' . $new_image_name);
+					$photos['photo3'] =  $new_image_name;
+				}
+
+			}
+			if($this->input->post('p_uploaded_photo4') != '') {
+				$photos['photo4'] = $this->input->post('p_uploaded_photo4');
+				
+				$img_name_array = explode('.', $photos['photo4']);
+				$img_extension = end($img_name_array);
+				$image_name = current(explode('.', $photos['photo4'])); 
+				 
+				if($img_extension == "JPE" || $img_extension == "jpe")
+				{
+					$new_image_name = $image_name.'.jpg';
+					$image = imagecreatefromjpeg($this->config->item('upload') . 'plane/' . $photos['photo4']);
+					imagejpeg($image, $this->config->item('upload') . 'plane/' . $new_image_name);
+					$photos['photo4'] =  $new_image_name;
+				}
+
+			}
+			
+			//Resize the image with ratio (4 Thumbnails)
+			$thumb = array(	'100x100'	=>	'100x100',
+							'180x180'	=>	'180x180'
+							);
+			
+			//Adding animal images
+			$rotate_angle1	=	0;
+			$rotate_angle2	=	0;
+			$rotate_angle3	=	0;
+			$rotate_angle4	=	0;
+			
+			$this->load->library('image_lib');
+			
+			foreach($photos as $key => $row) {
+				$config = array();	
+				if(trim($row) != '') {
+					$count_photo = substr($key,-1);
+					if($key == 'photo1') {
+						$rotate_angle = $this->input->post('p_rotate_angle1');
+						$xaxis = $this->input->post('p_x1');
+						$yaxis = $this->input->post('p_y1');
+						$height = $this->input->post('p_h1');
+						$width = $this->input->post('p_w1');
+					} else if($key == 'photo2'){
+						$rotate_angle = $this->input->post('p_rotate_angle2');
+						$xaxis = $this->input->post('p_x2');
+						$yaxis = $this->input->post('p_y2');
+						$height = $this->input->post('p_h2');
+						$width = $this->input->post('p_w2');
+					} else if($key == 'photo3'){
+						$rotate_angle = $this->input->post('p_rotate_angle3');
+						$xaxis = $this->input->post('p_x3');
+						$yaxis = $this->input->post('p_y3');
+						$height = $this->input->post('p_h3');
+						$width = $this->input->post('p_w3');
+					} else if($key == 'photo4'){
+						$rotate_angle = $this->input->post('p_rotate_angle4');
+						$xaxis = $this->input->post('p_x4');
+						$yaxis = $this->input->post('p_y4');
+						$height = $this->input->post('p_h4');
+						$width = $this->input->post('p_w4');
+					}
+					
+					########################		
+					
+					$config['file_name'] = $row;
+					
+					if($rotate_angle < 0 )
+					{
+						$rotate_angle	=	360+$rotate_angle;
+					}
+					
+					//rotate image if 90 or 270 deg rotation 
+					//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+					if($rotate_angle > 0 )
+					{
+						if($rotate_angle == 90)
+						{
+							$rotate_angle = 270;
+						}
+						else if($rotate_angle == 270){
+							$rotate_angle = 90;
+						}
+						
+						$config['image_library'] = 'gd2';
+						$config['source_image']	= $this->config->item('upload').'plane/'.$config['file_name'];
+						$config['rotation_angle'] = $rotate_angle;
+						
+						$this->image_lib->initialize($config);
+						if ( ! $this->image_lib->rotate()) {
+							echo $this->image_lib->display_errors();
+						}
+					}
+					$this->image_lib->clear();
+					//Cropping Image
+					$config['image_library'] = 'gd2';
+					$config['source_image']	= $this->config->item('upload').'plane/'.$config['file_name'];
+					$config['new_image']	= $this->config->item('upload').'plane/cropped_images/'.$config['file_name'];
+					$config['maintain_ratio'] 	= FALSE;
+					$config['x_axis'] = $xaxis;
+					$config['y_axis'] = $yaxis;					
+					$config['width'] = $width;
+					$config['height'] = $height;
+					
+										
+					$this->image_lib->initialize($config); 
+					if ( ! $this->image_lib->crop()) {
+						echo $this->image_lib->display_errors();
+					}
+					$this->image_lib->clear();
+						
+					
+					foreach($thumb as $key => $value) {
+						$exp_value = explode('x',$value);
+						
+						//Resizing Image
+						$config['image_library'] 	= 'gd2';
+						$config['source_image']		= $this->config->item('upload').'plane/cropped_images/'.$config['file_name'];
+						$config['new_image']		= $this->config->item('upload').'plane/'.$key.'/'.$config['file_name'];
+						$config['maintain_ratio'] 	= TRUE;
+						$config['width']	 		= $exp_value[0];
+						$config['height']			= $exp_value[1];
+						
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+						$this->image_lib->clear();
+						
+						
+					}
+					
+					$data['plane_images'] = array('in_plane_id'		=>	$insert_id,
+													'st_image'			=>	$config['file_name'],
+													'in_deleted'		=>	'0'
+													);
+											  
+					//$data['add_vehicle_images']	=	$this->user_model->add_vehicle_images($data['vehicle_images']);
+					$this->db->insert("tbl_plane_image", $data['plane_images']);
+				}
+				}
+			}
+			//End Adding Vehicle Images
+			}
+			
+			$plane_info = array('st_pilot_availability'	=> $availability,
+								'in_distance_to_pilot'	=> $pilot_radius,
+								  //"st_pilot_zip"			=>	$zipcode,
+								  "dt_modified"			=>	date('Y-m-d H:i:s'));	
+			$this->db->where('in_user_id', $this->session->userdata('userid'));
+			$this->db->where('in_deleted', "0");
+			$this->db->update("tbl_user_pilot", $plane_info);
+			//echo $this->db->last_query(); die;
+			
+		}
+		
+	public function update_plane_details_no($id,$table) 
+		{
+			$arrPlane = 	  array('in_deleted'	=> '1'
+									);							
+			$this->db->where_in('in_user_id', $id);
+			$this->db->update($table, $arrPlane);	
+		}
+	
+	public function delete_vehicle($id,$table) 
+		{
+			$arrPlane = 	  array('in_deleted'	=> '1'
+									);							
+			$this->db->where_in('in_vehicle_id', $id);
+			$this->db->update($table, $arrPlane);	
+		}
+		
+	public function delete_vehicle_image($where_cnd,$table) 
+	{
+		$images_val = 	  array('in_deleted'	=> '1'
+								);							
+		$this->db->where($where_cnd);
+		$this->db->update($table, $images_val);	
+	}			
+	
+	public function delete_plane_image($where_cnd,$table) 
+	{
+		$images_val = 	  array('in_deleted'	=> '1'
+								);							
+		$this->db->where($where_cnd);
+		$this->db->update($table, $images_val);	
+	}
+		
+	# *******************************************************************************************	
+	#	Function	:	get_referals
+	#	Purpose		:	For getting user and organization name in the autocomplete referred by field
+	# *******************************************************************************************	
+	public function get_referals($name)
+	{
+		$data = array();
+		$org_data = array();
+		$user_data = array();
+		
+		$this->db->select("st_org_name as label");
+		$this->db->from('tbl_organization');
+		$this->db->where('st_org_name LIKE "%'.$name.'%"');
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_org_name','ASC');
+		$this->db->limit("5");
+		$query = $this->db->get();
+		if($query->num_rows() > 0)
+		{
+			$org_data = $query->result_array();
+		}
+		
+		$this->db->select('concat(st_display_name," ",st_last_name) as label',false);
+		$this->db->from('tbl_users');
+		//$this->db->where('st_display_name LIKE "%'.$name.'%" || st_last_name LIKE "%'.$name.'%"');
+		$this->db->where('concat(st_display_name," ",st_last_name) LIKE "%'.$name.'%"');
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('label','ASC');
+		$this->db->limit("5");
+		$query = $this->db->get();
+		//return $this->db->last_query();die; //use for testing
+		if($query->num_rows() > 0)
+		{
+			$user_data = $query->result_array();
+		}
+		
+		$name_array = array_merge($org_data,$user_data);
+		
+		for($i = 0; $i <  count($name_array); $i++) {
+     		array_push($data,strtolower($name_array[$i]['label']));
+		}
+		//$array_lowercase = array_map('strtolower', $data);
+		sort($data);
+		return $data;
+	}
+	
+	#=========================================================
+	#	Function : get_users_own_org
+	#	Purpose  : Getting current users organization details which he has owner
+	#=========================================================
+	
+	public function get_users_own_org($userid) {
+		$this->db->select('o.in_organization_id,o.st_org_name',FALSE);
+		$this->db->from('tbl_organization as o');
+		$this->db->where('in_user_id',$userid);
+		
+		$this->db->where('o.in_status',1);
+		$this->db->where('o.in_deleted',0);
+		
+		$this->db->order_by('o.st_org_name','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->result_array());die;
+		return $query->result_array();
+	}
+	
+	#=========================================================
+	#	Function : get_users_participating_org
+	#	Purpose  : Getting current users joining organization details
+	#=========================================================
+	
+	public function get_users_participating_org($userid) {
+		$this->db->select('o.in_organization_id,o.st_org_name,ou.st_transport_cood,ou.st_fundraiser,
+							ou.st_animal_profile,ou.st_permission');
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_organization_user as ou','ou.in_organization_id = o.in_organization_id','LEFT');
+		
+		$this->db->where('ou.in_user_id',$userid);
+		
+		$this->db->where('ou.in_status',1);
+		$this->db->where('ou.in_deleted',0);
+		
+		$this->db->where('o.in_status',1);
+		$this->db->where('o.in_deleted',0);
+		
+		//$this->db->where($where, NULL, FALSE);
+		//$this->db->group_by('o.in_organization_id'); 
+		$this->db->order_by('o.st_org_name','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->result_array());die;
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_user_vehicle_detail_with_image
+	#	Purpose		:	For getting user vehicle details
+	# *******************************************************************************************
+	
+	public function get_user_vehicle_detail_with_image($id) {
+		$data = array();
+		
+		$this->db->select('uv.st_vehicle_type,uv.st_vehicle_color,uv.st_vehicle_license_plate,
+							uv.st_vehicle_license_state,uv.in_distance_to_drive,uv.in_vehicle_id,
+							uv.st_driver_availability,uv.st_zip_vehicle,uv.st_photos_url');
+		$this->db->from('tbl_user_vehicle as uv');
+		$this->db->where('uv.in_user_id',$id);
+		$this->db->where('uv.in_status',1);
+		$this->db->where('uv.in_deleted',0);
+		$query = $this->db->get();
+		
+		if($query->num_rows()>0){
+			foreach($query->result_array() as $Row) {
+					
+					$data[]  =	array('st_vehicle_type'			=>	$Row['st_vehicle_type'],
+									'st_vehicle_color'			=>	$Row['st_vehicle_color'],
+									'st_vehicle_license_plate'	=>	$Row['st_vehicle_license_plate'],
+									'st_vehicle_license_state'	=>  $Row['st_vehicle_license_state'],												
+									'in_distance_to_drive'		=>	$Row['in_distance_to_drive'],
+									'st_zip_vehicle'			=>	$Row['st_zip_vehicle'],
+									'st_driver_availability'	=>	$Row['st_driver_availability'],
+									'st_photos_url'				=>	$Row['st_photos_url'],
+									'vehicle_images'			=>	$this->get_vehicle_images($Row['in_vehicle_id'])											
+								);					
+			}			
+				return $data;
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_user_detail
+	#	Purpose		:	For getting user details
+	# *******************************************************************************************
+	
+	public function get_user_detail($id) {
+		$this->db->select('	u.st_profile_image,u.st_display_name,u.st_last_name,u.st_email,u.in_public,
+							u.in_user_id,up.st_address1,up.st_address2,up.st_city,up.st_time_zone,
+							up.st_state,up.st_country,up.st_zip,up.st_primary_phone,up.st_secondary_phone,
+							up.st_fax,up.st_website,up.st_about_me,up.st_driver,up.st_foster_home,
+							up.st_pilot,up.st_photographer,up.st_in_person_volunteer,up.st_virtual_support_volunteer,up.st_lost_animal_support,
+							ua.in_animal_type_id,ua.in_animal_breed_id,ua.in_demeanor_id,ua.in_no_animal,
+							ua.in_duration_type,ua.in_duration,at.st_animal_type_name,
+							ab.st_animal_breed_name,d.st_demeanor_name,
+							upi.st_pilot_availability,upi.st_pilot_zip,upi.st_identifier,upi.st_plane_type,
+							upi.st_plane_color,upi.st_plane_number,upi.in_plane_ifr,upi.in_distance_to_pilot,upi.st_photos_url,
+							v.dt_doobert_verified'
+						);
+						
+		$this->db->from('tbl_users as u');
+		
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_user_pilot as upi','u.in_user_id = upi.in_user_id AND upi.in_status = 1 AND upi.in_deleted = 0','LEFT');
+		$this->db->join('tbl_user_addition_info as ua','u.in_user_id = ua.in_user_id','LEFT');
+		$this->db->join('tbl_animal_type as at','ua.in_animal_type_id = at.in_animal_type_id','LEFT');
+		$this->db->join('tbl_animal_breed as ab','ua.in_animal_breed_id = ab.in_animal_breed_id','LEFT');
+		$this->db->join('tbl_demeanor as d','ua.in_demeanor_id = d.in_demeanor_id','LEFT');
+		
+		$this->db->join('tbl_verification as v','u.in_user_id = v.in_user_id AND v.in_deleted = 0','LEFT');
+		
+		$this->db->where('u.in_user_id',$id);
+		
+		//$this->db->where('u.in_status',0);
+		$this->db->where('u.in_deleted',0);
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_vehicle_images
+	#	Purpose		:	For getting user vehicle images
+	# *******************************************************************************************
+	
+	public function get_vehicle_images($id) {
+		$data = array();
+		
+		$this->db->select('in_vehicle_id,st_image');
+		$this->db->from('tbl_vehicle_image');
+		$this->db->where('in_vehicle_id',$id);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		
+		if($query->num_rows()>0) {
+			foreach($query->result_array() as $row) {
+				$data[] = array('st_image' => $row['st_image']);
+			}
+		}
+		return $data;
+	}	
+	
+	# *******************************************************************************************	
+	#	Function	:	check_user_id	
+	#	Purpose		:	Checking user id for fbapp
+	# *******************************************************************************************
+	
+	  public function check_user_id($userid){	
+		$this->db->select('in_user_id,st_display_name,st_last_name,st_email');
+		$this->db->from('tbl_users');
+		$this->db->where('st_facebook_uid',$userid);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		
+		return $query->row_array();
+	  }	
+	  
+	# *******************************************************************************************	
+	#	Function	:	update_user_req_info	
+	#	Purpose		:	Updating Request
+	# *******************************************************************************************
+	
+	public function update_user_req_info($last_id,$data,$user_id,$org_id) {
+		$this->db->where('in_user_id', $user_id);
+		$this->db->where('in_organization_id', $org_id);
+		$this->db->where('in_org_user_id', $last_id);
+		$this->db->where('in_status', 5);
+		$this->db->where('in_deleted', 0);
+		
+		$this->db->update('tbl_organization_user',$data);
+		
+		return $this->db->affected_rows();	
+	}
+	
+	function match_nondoobert_email_id($email_id)
+	{
+		$this->db->select('in_non_doobert_user_id,st_phone,st_zipcode,st_vehicle_type,st_vehicle_color,st_license_plate,st_license_state,in_transportation_id,in_leg_id');
+		$this->db->from('tbl_non_doobert_transport_users');
+		$this->db->where('st_email',$email_id);
+		$this->db->where('in_deleted','0');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->result_array());die;
+		return $query->result_array();
+	}
+	
+	
+	public function delete_plane_profiles($id,$table) 
+	{
+		$arrPlane =  array('in_deleted'	=> '1');							
+		$this->db->where('in_pilot_id', $id);
+		$this->db->update($table, $arrPlane);	
+	}
+	
+	public function delete_plane_images($id,$table) 
+	{
+		$images_val = 	  array('in_deleted' => '1');							
+		$this->db->where('in_plane_id', $id);
+		$this->db->update($table, $images_val);	
+	}	
+	
+	public function get_photographer_detail($userId) 
+	{
+		$sql	= "SELECT * 
+		           FROM tbl_photographer_detail as pd 
+				   WHERE pd.in_user_id= '".$userId."' AND  pd.in_deleted= '0' ";
+				  	
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+		
+	}
+	
+	public function get_photographer_availablility($id)
+	{
+		$this->db->select('pd.st_photographer_availability');
+		$this->db->from('tbl_photographer_detail as pd');		
+		$this->db->where('pd.in_user_id',$id);
+		$this->db->where('pd.in_deleted',0);		
+		$query = $this->db->get();
+		return $query->row_array();
+		
+	}
+	
+	public function update_photographer_details($post,$id,$zipcode,$availability,$ziplat,$ziplon,$table)
+	{  
+			//echo '<pre>'; print_r($post); die;			
+			$insert_id = '';
+			$data = array();
+			
+			$arrPhotographer= array('in_user_id'					=> $id,
+									'st_photographer_zipcode'		=> $zipcode,
+									'st_photographer_availability'	=> $availability,										
+									'zip_lat'						=> $ziplat, 
+									'zip_lon'						=> $ziplon,	
+									'st_website_url'				=> $post['my_website'],
+									'in_pro_bono_ser'				=> isset($post['probonoservice']) && $post['probonoservice'] != '' ? $post['probonoservice'] : 0,
+									'st_about'						=> $post['about_photography'],										
+									'in_distance_to_travel'			=> $post['distance'],
+									'dt_created'					=> date('Y-m-d H:i:s'),
+									'dt_modified'					=> date('Y-m-d H:i:s'),
+									'in_deleted'					=> '0'
+									);
+			//echo "<pre>";print_r($arrPhotographer);die;
+			if(isset($post["photographer_id"]) && $post["photographer_id"] > 0)
+			{															
+				$this->db->where('in_photographer_id', $post["photographer_id"]);
+				$this->db->update($table, $arrPhotographer);	
+				$insert_id = $post['photographer_id'];
+			}
+			else
+			{
+				$this->db->insert($table, $arrPhotographer);	
+				$insert_id = $this->db->insert_id();
+			}
+			return $insert_id;
+			//echo $this->db->last_query(); die;
+			
+		}
+		
+		public function delete_photographer($id,$table) 
+		{
+			$arrPlane 	= array('in_deleted'	=> '1');							
+			$this->db->where('in_user_id', $id);
+			$this->db->update($table, $arrPlane);	
+		}
+		
+		public function get_in_person_volunteer_detail($userId) 
+		{
+			$sql	= "SELECT * 
+					   FROM tbl_in_person_volunteer_detail as pvd 
+					   WHERE pvd.in_user_id= '".$userId."' AND  pvd.in_deleted= '0' ";
+						
+			$query = $this->db->query($sql);
+			//echo $this->db->last_query();die;
+			return $query->row_array();
+			
+		}
+		
+		public function get_volunteer_availability($id)
+		{
+			$this->db->select('pvd.st_volunteer_availability');
+			$this->db->from('tbl_in_person_volunteer_detail as pvd');		
+			$this->db->where('pvd.in_user_id',$id);
+			$this->db->where('pvd.in_deleted',0);		
+			$query = $this->db->get();
+			return $query->row_array();
+			
+		}
+		
+		public function update_volunteer_details($post,$id,$zipcode,$availability,$ziplat,$ziplon,$table)
+		{  
+			//echo '<pre>'; print_r($post); die;			
+			$insert_id = '';
+			$data = array();
+			
+			$arrPhotographer= array('in_user_id'					=> $id,
+									'st_volunteer_zipcode'			=> $zipcode,
+									'st_volunteer_availability'		=> $availability,										
+									'zip_lat'						=> $ziplat, 
+									'zip_lon'						=> $ziplon,	
+									'in_distance_to_drive'			=> $post['distance'],
+									'in_home_visit'					=> isset($post['adoption_visit']) && $post['adoption_visit'] != '' ? $post['adoption_visit'] : 0,
+									'in_app_reviewer'				=> isset($post['adoption_reviewer']) && $post['adoption_reviewer'] != '' ? $post['adoption_reviewer'] : 0,
+									'in_physical_fundraiser'		=> isset($post['physical_fundraiser']) && $post['physical_fundraiser'] != '' ? $post['physical_fundraiser'] : 0,
+									'in_animal_care'				=> isset($post['animal_facility']) && $post['animal_facility'] != '' ? $post['animal_facility'] : 0,									
+									'dt_created'					=> date('Y-m-d H:i:s'),
+									'dt_modified'					=> date('Y-m-d H:i:s'),
+									'in_deleted'					=> '0'
+									);
+			//echo "<pre>";print_r($arrPhotographer);die;
+			if(isset($post["volunteer_id"]) && $post["volunteer_id"] > 0)
+			{															
+				$this->db->where('in_volunteer_id', $post["volunteer_id"]);
+				$this->db->update($table, $arrPhotographer);	
+				$insert_id = $post['volunteer_id'];
+			}
+			else
+			{
+				$this->db->insert($table, $arrPhotographer);	
+				$insert_id = $this->db->insert_id();
+			}
+			return $insert_id;
+			//echo $this->db->last_query(); die;
+			
+		}
+			
+		public function delete_volunteer($id,$table) 
+		{
+			$arrPlane 	= array('in_deleted'	=> '1');							
+			$this->db->where('in_user_id', $id);
+			$this->db->update($table, $arrPlane);	
+		}
+		
+		
+		public function get_virtual_sup_vol_detail($userId) 
+		{
+			$sql	= "SELECT * 
+					   FROM tbl_virtual_support_vol_detail as vsd
+					   WHERE vsd.in_user_id= '".$userId."' AND  vsd.in_deleted= '0' ";
+						
+			$query = $this->db->query($sql);
+			//echo $this->db->last_query();die;
+			return $query->row_array();
+			
+		}
+		
+		public function update_virtual_sup_volunteer_details($post,$id,$table)
+		{  
+			//echo '<pre>'; print_r($post); die;			
+			$insert_id = '';
+			$data = array();
+			
+			$arr_vir_support = array('in_user_id'					=> $id,
+									'in_manage_facebook'			=> isset($post['managing_facebook']) && $post['managing_facebook'] != '' ? $post['managing_facebook'] : 0,
+									'in_manage_facebook_exp'		=> isset($post['managing_facebook_exp']) && $post['managing_facebook_exp'] != '' ? $post['managing_facebook_exp'] : 0,									
+									'in_manage_twitter'				=> isset($post['tweeting']) && $post['tweeting'] != '' ? $post['tweeting'] : 0,
+									'in_manage_twitter_exp'			=> isset($post['tweeting_exp']) && $post['tweeting_exp'] != '' ? $post['tweeting_exp'] : 0,
+									'in_manage_gplus'				=> isset($post['googlepage']) && $post['googlepage'] != '' ? $post['googlepage'] : 0,
+									'in_manage_gplus_exp'			=> isset($post['googlepage_exp']) && $post['googlepage_exp'] != '' ? $post['googlepage_exp'] : 0,
+									'in_manage_pin_board'			=> isset($post['manage_pin_boards']) && $post['manage_pin_boards'] != '' ? $post['manage_pin_boards'] : 0,
+									'in_manage_pin_board_exp'		=> isset($post['manage_pin_boards_exp']) && $post['manage_pin_boards_exp'] != '' ? $post['manage_pin_boards_exp'] : 0,
+									'in_manage_instagram'			=> isset($post['instagram_posting']) && $post['instagram_posting'] != '' ? $post['instagram_posting'] : 0,
+									'in_manage_instagram_exp'		=> isset($post['instagram_posting_exp']) && $post['instagram_posting_exp'] != '' ? $post['instagram_posting_exp'] : 0,
+									'in_manage_video'				=> isset($post['manage_video']) && $post['manage_video'] != '' ? $post['manage_video'] : 0,
+									'in_manage_video_exp'			=> isset($post['manage_video_exp']) && $post['manage_video_exp'] != '' ? $post['manage_video_exp'] : 0,
+									'in_social_media'				=> isset($post['social_media_other']) && $post['social_media_other'] != '' ? $post['social_media_other'] : 0,
+									'st_social_media_other'			=> isset($post['social_media_other_detail']) && $post['social_media_other_detail'] != '' ? $post['social_media_other_detail'] : '',
+									'in_petfinder'					=> isset($post['petfinder']) && $post['petfinder'] != '' ? $post['petfinder'] : 0,
+									'in_petfinder_exp'				=> isset($post['petfinder_exp']) && $post['petfinder_exp'] != '' ? $post['petfinder_exp'] : 0,
+									'in_adoptapet'					=> isset($post['adoptapet']) && $post['adoptapet'] != '' ? $post['adoptapet'] : 0,
+									'in_adoptapet_exp'				=> isset($post['adoptapet_exp']) && $post['adoptapet_exp'] != '' ? $post['adoptapet_exp'] : 0,
+									'in_petharbor'					=> isset($post['petharbor']) && $post['petharbor'] != '' ? $post['petharbor'] : 0,
+									'in_petharbor_exp'				=> isset($post['petharbor_exp']) && $post['petharbor_exp'] != '' ? $post['petharbor_exp'] : 0,
+									'in_petango'					=> isset($post['petango']) && $post['petango'] != '' ? $post['petango'] : 0,
+									'in_petango_exp'				=> isset($post['petango_exp']) && $post['petango_exp'] != '' ? $post['petango_exp'] : 0,
+									'in_rescuegroups'				=> isset($post['rescuegroups']) && $post['rescuegroups'] != '' ? $post['rescuegroups'] : 0,
+									'in_rescuegroups_exp'			=> isset($post['rescuegroups_exp']) && $post['rescuegroups_exp'] != '' ? $post['rescuegroups_exp'] : 0,
+									'in_shelterexchange'			=> isset($post['shelterexchange']) && $post['shelterexchange'] != '' ? $post['shelterexchange'] : 0,
+									'in_shelterexchange_exp'		=> isset($post['shelterexchange_exp']) && $post['shelterexchange_exp'] != '' ? $post['shelterexchange_exp'] : 0,
+									'in_dogtime'					=> isset($post['dogtime']) && $post['dogtime'] != '' ? $post['dogtime'] : 0,
+									'in_dogtime_exp'				=> isset($post['dogtime_exp']) && $post['dogtime_exp'] != '' ? $post['dogtime_exp'] : 0,
+									'in_petsoverstock'				=> isset($post['petsoverstock']) && $post['petsoverstock'] != '' ? $post['petsoverstock'] : 0,
+									'in_petsoverstock_exp'			=> isset($post['petsoverstock_exp']) && $post['petsoverstock_exp'] != '' ? $post['petsoverstock_exp'] : 0,		
+									'in_animal_profile'				=> isset($post['animal_profile_other']) && $post['animal_profile_other'] != '' ? $post['animal_profile_other'] : 0,
+									'st_animal_profile_other'		=> isset($post['animal_profile_other_detail']) && $post['animal_profile_other_detail'] != '' ? $post['animal_profile_other_detail'] : '',		
+									'in_transport_monitor'			=> isset($post['transport_monitor']) && $post['transport_monitor'] != '' ? $post['transport_monitor'] : 0,
+									'in_transport_monitor_exp'		=> isset($post['transport_monitor_exp']) && $post['transport_monitor_exp'] != '' ? $post['transport_monitor_exp'] : 0,		
+									'in_adoption_application'		=> isset($post['adoption_application']) && $post['adoption_application'] != '' ? $post['adoption_application'] : 0,
+									'in_adoption_application_exp'	=> isset($post['adoption_application_exp']) && $post['adoption_application_exp'] != '' ? $post['adoption_application_exp'] : 0,		
+									'in_onlinefundraiser'			=> isset($post['onlinefundraiser']) && $post['onlinefundraiser'] != '' ? $post['onlinefundraiser'] : 0,
+									'in_onlinefundraiser_exp'		=> isset($post['onlinefundraiser_exp']) && $post['onlinefundraiser_exp'] != '' ? $post['onlinefundraiser_exp'] : 0,		
+									'dt_created'					=> date('Y-m-d H:i:s'),
+									'dt_modified'					=> date('Y-m-d H:i:s'),
+									'in_deleted'					=> '0'
+									);
+			//echo "<pre>";print_r($arrPhotographer);die;
+			if(isset($post["virtual_support_vol_id"]) && $post["virtual_support_vol_id"] > 0)
+			{															
+				$this->db->where('in_virtual_support_vol_id', $post["virtual_support_vol_id"]);
+				$this->db->update($table, $arr_vir_support);	
+				$insert_id = $post['virtual_support_vol_id'];
+			}
+			else
+			{
+				$this->db->insert($table, $arr_vir_support);	
+				$insert_id = $this->db->insert_id();
+			}
+			return $insert_id;
+			//echo $this->db->last_query(); die;
+			
+		}
+		
+		public function get_foster_home_detail($userId) 
+		{
+			$sql	= "SELECT * 
+					   FROM tbl_foster_user_detail as vsd
+					   WHERE vsd.in_user_id= '".$userId."' AND  vsd.in_deleted= '0' ";
+						
+			$query = $this->db->query($sql);
+			//echo $this->db->last_query();die;
+			return $query->row_array();
+			
+		}
+		
+		public function get_foster_animal_type_details($userId) 
+		{
+			$sql	= "SELECT fad.*,ani.st_animal_type_name
+					   FROM tbl_foster_animal_type_detail as fad
+					   JOIN tbl_foster_user_detail fud ON fud.in_foster_id = fad.in_foster_id
+					   LEFT JOIN tbl_animal_type ani ON ani.in_animal_type_id = fad.in_animal_type_id
+					   WHERE fud.in_user_id= '".$userId."' AND  fud.in_deleted = '0' AND fad.in_deleted = '0' ";
+						
+			$query = $this->db->query($sql);
+			//echo $this->db->last_query();die;
+			return $query->result_array();
+			
+		}
+		
+		public function update_foster_home_details($post,$id,$table)
+		{  
+			//echo '<pre>'; print_r($post); //die;			
+			$insert_id = '';
+			$data = array();
+			
+			if(isset($post["foster_id"]) && $post["foster_id"] > 0)
+			{
+				$this->delete_foster_animal_type($post["foster_id"]);
+			}
+			
+			if(isset($post['animaltype']) && !empty($post['animaltype']))
+			{
+				$arr_animal_data = array();
+				
+			if(isset($post['animal_reason_back']) && !empty($post['animal_reason_back']))
+			{	
+				$animal_reason_back = implode(',', $post['animal_reason_back']);
+			}
+			
+			
+			$arr_vir_support = array('in_user_id'					=> $id,
+									'in_type_of_residence'			=> isset($post['residence_type']) && $post['residence_type'] != '' ? $post['residence_type'] : 0,
+									'in_renter_or_condo'			=> isset($post['allow_animals']) && $post['allow_animals'] != '' ? $post['allow_animals'] : 0,
+									'in_will_animal_live'			=> isset($post['live_animals']) && $post['live_animals'] != '' ? $post['live_animals'] : 0,
+									'in_nobody_is_home'				=> isset($post['nobodyhome']) && $post['nobodyhome'] != '' ? $post['nobodyhome'] : 0,
+									'in_have_yard'					=> isset($post['yard']) && $post['yard'] != '' ? $post['yard'] : 0,
+									'in_air_condition'				=> isset($post['air_conditioning']) && $post['air_conditioning'] != '' ? $post['air_conditioning'] : 0,
+									'in_animal_care'				=> isset($post['animals_care']) && $post['animals_care'] != '' ? $post['animals_care'] : 0,
+									'in_adoption_events'			=> isset($post['adoption_events']) && $post['adoption_events'] != '' ? $post['adoption_events'] : 0,
+									'st_animal_alone'				=> isset($post['animal_alone']) && $post['animal_alone'] != '' ? $post['animal_alone'] : '',
+									'in_animal_behavioral'			=> isset($post['animal_behavioral']) && $post['animal_behavioral'] != '' ? $post['animal_behavioral'] : 0,
+									'st_org_worked_with'			=> isset($post['org_worked_with']) && $post['org_worked_with'] != '' ? $post['org_worked_with'] : '',
+									'in_feeding_experience'			=> isset($post['feeding_experience']) && $post['feeding_experience'] != '' ? $post['feeding_experience'] : 0,
+									'in_foster_willing'				=> isset($post['foster_willing']) && $post['foster_willing'] != '' ? $post['foster_willing'] : 0,
+									'st_reason_foster_back_ids'		=> isset($animal_reason_back) && $animal_reason_back != '' ? $animal_reason_back : '',
+									'st_other_reason_foster_back'	=> isset($post['animal_reason_back_other']) && $post['animal_reason_back_other'] != '' ? $post['animal_reason_back_other'] : '',
+									'st_no_of_adults'				=> isset($post['adults_live']) && $post['adults_live'] != '' ? $post['adults_live'] : '',
+									'st_no_of_children'				=> isset($post['children_live']) && $post['children_live'] != '' ? $post['children_live'] : '',
+									'st_ages_of_children'			=> isset($post['children_age']) && $post['children_age'] != '' ? $post['children_age'] : '',
+									'st_ages_of_children_visit'		=> isset($post['children_age_visit']) && $post['children_age_visit'] != '' ? $post['children_age_visit'] : '',
+									'st_guidance_children'			=> isset($post['guidance_children']) && $post['guidance_children'] != '' ? $post['guidance_children'] : '',
+									'st_noise_level'				=> isset($post['noise_level']) && $post['noise_level'] != '' ? $post['noise_level'] : '',
+									'st_describe_animal_exp'		=> isset($post['describe_animal']) && $post['describe_animal'] != '' ? $post['describe_animal'] : '',
+									'st_often_travel'				=> isset($post['often_travel']) && $post['often_travel'] != '' ? $post['often_travel'] : '',
+									'st_responsible_care'			=> isset($post['responsible_care']) && $post['responsible_care'] != '' ? $post['responsible_care'] : '',		
+									'st_help_emergency'				=> isset($post['help_emergency']) && $post['help_emergency'] != '' ? $post['help_emergency'] : '',
+									'in_interested_in_fostering'	=> isset($post['interested_animals']) && $post['interested_animals'] != '' ? $post['interested_animals'] : 0,		
+									'st_addition_info'				=> isset($post['additional_info']) && $post['additional_info'] != '' ? $post['additional_info'] : '',
+									'dt_created'					=> date('Y-m-d H:i:s'),
+									'dt_modified'					=> date('Y-m-d H:i:s'),
+									'in_deleted'					=> '0'
+									);
+			//echo "<pre>";print_r($arrPhotographer);die;
+			if(isset($post["foster_id"]) && $post["foster_id"] > 0)
+			{															
+				$this->db->where('in_foster_id', $post["foster_id"]);
+				$this->db->update($table, $arr_vir_support);	
+				$insert_id = $post['foster_id'];
+			}
+			else
+			{
+				$this->db->insert($table, $arr_vir_support);	
+				$insert_id = $this->db->insert_id();
+			}
+			
+			$duration = '';
+			$household_animals = '';
+			if(isset($post['animaltype']) && !empty($post['animaltype']))
+			{	
+				foreach($post['animaltype'] as $ani_key=>$ani_val)
+				{
+					if($post['animaltype'][$ani_key] > 0)
+					{						
+						$duration = $post['duration'][$ani_key][0];
+						
+						//print_r($post['household_animals'][$ani_key]);
+						if(isset($post['household_animals'][$ani_key]) && !empty($post['household_animals'][$ani_key]))
+						{
+							$household_animals = array();
+							//print_r($post['household_animals'][$ani_key]);
+							foreach($post['household_animals'] as $household_val)
+							{
+								$household_animals[] =  implode(',', $household_val);							
+							}
+						}
+						//echo '<pre/>';
+						//print_r($household_animals[$ani_key]);
+						
+						$arr_animal_data = array('in_foster_id'   => $insert_id,
+											'in_animal_type_id'   => $ani_val,
+											'in_duration_type_id' => $duration,
+											'st_maximum_foster_days' => $post['maximum_foster_days'][$ani_key],
+											'st_maximum_foster_size' => $post['maximum_foster_size'][$ani_key],
+											'st_household_animal_ids' => isset($household_animals[$ani_key]) ? $household_animals[$ani_key] : '',
+											'st_household_other_animals' => $post['household_other_animals'][$ani_key],
+											'dt_created'	=>  date('Y-m-d H:i:s'),
+											'in_deleted'	=> '0'
+						); 
+						
+						$this->db->insert('tbl_foster_animal_type_detail', $arr_animal_data);	
+					}
+				}
+			}
+			
+		}
+	
+			return $insert_id;
+			//echo $this->db->last_query(); die;
+			
+		}
+		
+		public function delete_foster_references($id,$table) 
+		{
+			$arrPlane 	= array('in_deleted' => '1','dt_modified' => date('Y-m-d H:i:s'));							
+			$this->db->where('in_foster_id', $id);
+			$this->db->update($table, $arrPlane);	
+		}
+		
+		public function delete_virtual_volunteer($id,$table) 
+		{
+			$arr_data 	= array('in_deleted' => '1','dt_modified' => date('Y-m-d H:i:s'));							
+			$this->db->where('in_user_id', $id);
+			$this->db->update($table, $arr_data);	
+		}
+		
+		public function delete_foster($id,$table) 
+		{
+			$arr_data 	= array('in_deleted' => '1','dt_modified' => date('Y-m-d H:i:s'));							
+			$this->db->where('in_user_id', $id);
+			$this->db->update($table, $arr_data);	
+		}
+		
+		public function delete_foster_animal_type($id) 
+		{
+			$arr_data 	= array('in_deleted' => '1','dt_modified' => date('Y-m-d H:i:s'));							
+			$this->db->where('in_foster_id', $id);
+			$this->db->update('tbl_foster_animal_type_detail', $arr_data);	
+		}
+		
+		public function insert_foster_references($ref_details)
+		{   
+		   // echo '<pre>'; print_r($ref_details); die;
+			$this->db->insert('tbl_fosters_reference', $ref_details);
+		}
+		
+		
+		public function get_foster_home_ref_detail($foster_id)
+		{
+			$this->db->select("ref.in_fosters_ref_id,	
+							   ref.st_ref_name,
+							   ref.st_ref_relation,
+							   ref.st_ref_contact", false);						   	
+			$this->db->from('tbl_fosters_reference ref');
+			$this->db->join('tbl_foster_user_detail fud', 'fud.in_foster_id = ref.in_foster_id','INNER');
+			$this->db->where('ref.in_foster_id',$foster_id);	
+			$this->db->where('ref.in_deleted','0');
+			$this->db->where('fud.in_deleted','0');
+			$query = $this->db->get();		
+			return $query->result_array();
+		}
+		
+		public function get_foster_home_ref_by_user_id($user_id)
+		{
+			$this->db->select("ref.in_fosters_ref_id,	
+							   ref.st_ref_name,
+							   ref.st_ref_relation,
+							   ref.st_ref_contact", false);						   	
+			$this->db->from('tbl_fosters_reference ref');
+			$this->db->join('tbl_foster_user_detail fud', 'fud.in_foster_id = ref.in_foster_id','INNER');
+			$this->db->join('tbl_users tu', 'tu.in_user_id = fud.in_user_id','INNER');
+			$this->db->where('fud.in_user_id',$user_id);	
+			$this->db->where('ref.in_deleted','0');
+			$this->db->where('fud.in_deleted','0');
+			$query = $this->db->get();		
+			//echo $this->db->last_query(); die;
+			return $query->result_array();
+		}
+		
+		# *******************************************************************************************	
+	#	Function	:	get_user_vehicle_detail_with_image
+	#	Purpose		:	For getting user vehicle details
+	# *******************************************************************************************
+	
+	public function get_user_plane_detail_with_image($id) {
+		$data = array();
+		
+		$this->db->select('up.in_user_id,up.st_plane_color,up.st_plane_type,up.st_plane_number,
+							up.st_identifier,up.in_distance_to_pilot,up.in_pilot_id,up.in_plane_ifr,
+							up.st_pilot_availability,up.st_pilot_zip,up.st_photos_url');
+		$this->db->from('tbl_user_pilot as up');
+		$this->db->where('up.in_user_id',$id);
+		$this->db->where('up.in_status',1);
+		$this->db->where('up.in_deleted',0);
+		$query = $this->db->get();
+		
+		if($query->num_rows()>0){
+			foreach($query->result_array() as $Row) {
+					
+					$data[]  =	array('st_plane_type'			=>	$Row['st_plane_type'],
+									'st_plane_color'			=>	$Row['st_plane_color'],
+									'st_plane_number'			=>	$Row['st_plane_number'],
+									'st_identifier'				=>  $Row['st_identifier'],												
+									'in_distance_to_pilot'		=>	$Row['in_distance_to_pilot'],
+									'in_plane_ifr'				=>	$Row['in_plane_ifr'],
+									'st_pilot_zip'				=>	$Row['st_pilot_zip'],
+									'st_pilot_availability'		=>	$Row['st_pilot_availability'],
+									'st_photos_url'				=>	$Row['st_photos_url'],
+									'plane_images'				=>	$this->get_plane_images($Row['in_pilot_id'])											
+								);					
+			}			
+				return $data;
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_vehicle_images
+	#	Purpose		:	For getting user vehicle images
+	# *******************************************************************************************
+	
+	public function get_plane_images($id) {
+		$data = array();
+		
+		$this->db->select('in_plane_id,st_image');
+		$this->db->from('tbl_plane_image');
+		$this->db->where('in_plane_id',$id);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		
+		if($query->num_rows()>0) {
+			foreach($query->result_array() as $row) {
+				$data[] = array('st_image' => $row['st_image']);
+			}
+		}
+		return $data;
+	}
+	
+	public function get_foster_animal_type_detail($foster_id)
+	{
+		$this->db->select("fat.in_foster_animal_detail_id,	
+						   fat.in_foster_id,
+						   fat.in_animal_type_id,
+						   fat.in_duration_type_id,
+						   fat.st_maximum_foster_days,
+						   fat.st_maximum_foster_size,
+						   fat.st_household_animal_ids,
+						   fat.st_household_other_animals", false);						   	
+		$this->db->from('tbl_foster_animal_type_detail fat');
+		$this->db->join('tbl_foster_user_detail fud', 'fud.in_foster_id = fat.in_foster_id','INNER');
+		$this->db->where('fat.in_foster_id',$foster_id);	
+		$this->db->where('fat.in_deleted','0');
+		$this->db->where('fud.in_deleted','0');
+		$query = $this->db->get();		
+		return $query->result_array();
+	}
+	
+	public function check_wp_doobert_user($username,$password)
+	{
+		$this->db->select("in_user_id,st_display_name,st_last_name,st_email,st_password,in_status");
+		$this->db->where(array("in_deleted"=>'0',"st_email"=>addslashes($username),"st_password"=>md5($password)));		
+		$this->db->where("(in_status = 0 OR in_status = 1)");
+		$query = $this->db->get("tbl_users");
+		//echo $this->db->last_query();die;
+		$arrData = array();
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData	= array("userid"	=> $Row->in_user_id,
+									"user_name"	=> $Row->st_display_name,
+									"last_name"	=> $Row->st_last_name,
+									"email"		=> $Row->st_email,
+									"password"	=> $Row->st_password,
+									"status"	=> $Row->in_status,
+									);
+			}			
+		}
+		return $arrData;
+	}
+	
+	public function get_user_fosters_for_import()
+	{
+		$this->db->select("uai.in_user_id,uai.in_animal_type_id,uai.in_duration,uai.in_duration_type,uai.dt_created,uai.dt_modified");
+		$this->db->from('tbl_user_addition_info uai');
+		$this->db->join('tbl_users u', 'u.in_user_id = uai.in_user_id','INNER');
+		$this->db->where("uai.in_user_id NOT IN (select in_user_id from tbl_foster_user_detail where in_deleted = 0)", NULL, FALSE);
+		$this->db->where("uai.in_animal_type_id >","0");
+		$this->db->where("uai.in_status","1");
+		$this->db->where("uai.in_deleted","0");
+		$this->db->where("u.in_deleted","0");
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	public function insert_foster_users($insert_fost_data)
+	{
+		$this->db->insert('tbl_foster_user_detail', $insert_fost_data);
+		$insert_id = $this->db->insert_id();	
+		return  $insert_id;
+	}
+	
+	public function insert_foster_users_animal($insert_fost_animal_data)
+	{
+		$this->db->insert('tbl_foster_animal_type_detail', $insert_fost_animal_data);
+		$insert_id = $this->db->insert_id();	
+		return  $insert_id;
+	}
+	
+	public function insert_driver_details($driver_data)
+	{
+		$vehicle_data	 = 	  array('in_user_id'				    => $driver_data['user_id'],
+								'st_zip_vehicle'				=> $driver_data['zipcode'],
+								'st_driver_availability'		=> serialize($driver_data['avl_days']),										
+								'zip_lat'						=> $driver_data['ziplat'], 
+								'zip_lon'						=> $driver_data['ziplon'],	
+								'st_vehicle_type'				=> $driver_data['vehicletype'],
+								'in_distance_to_drive'			=> $driver_data['distance'],
+								'dt_created'					=> date('Y-m-d H:i:s'),
+								'dt_modified'					=> date('Y-m-d H:i:s'),
+								'in_status'						=> '1', 
+								'in_deleted'					=> '0'
+								);
+		
+		
+		$this->db->insert("tbl_user_vehicle", $vehicle_data);	
+		$insert_id = $this->db->insert_id();
+		return  $insert_id;
+	}
+	
+	public function insert_pilot_details($pilot_data)
+	{
+		$pilot_data	 = 	  array('in_user_id'				=> $pilot_data['user_id'],
+								'st_pilot_zip'				=> $pilot_data['zipcode'],
+								'st_pilot_availability'		=> serialize($pilot_data['avl_days']),										
+								'zip_lat'					=> $pilot_data['ziplat'], 
+								'zip_lon'					=> $pilot_data['ziplon'],	
+								'st_plane_type'				=> $pilot_data['planetype'],
+								'in_distance_to_pilot'		=> $pilot_data['distance'],
+								'dt_created'				=> date('Y-m-d H:i:s'),
+								'dt_modified'				=> date('Y-m-d H:i:s'),
+								'in_status'					=> '1', 
+								'in_deleted'				=> '0'
+								);
+		
+		
+		$this->db->insert("tbl_user_pilot", $pilot_data);	
+		$insert_id = $this->db->insert_id();
+		return  $insert_id;
+	}
+	
+	function update_user_foster_profile_setting()
+	{
+		$this->db->select("tu.in_user_id");
+		$this->db->from('tbl_foster_user_detail tuf');
+		$this->db->join('tbl_users tu', 'tu.in_user_id = tuf.in_user_id','INNER');
+		$this->db->join('tbl_user_profile_setting tup', 'tup.in_user_id = tu.in_user_id and tup.in_public = NULL','LEFT');
+		$this->db->where("tuf.in_deleted","0");
+		$this->db->where("tu.in_deleted","0");
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	function add_user_foster_profile_setting($data)
+	{
+		$arrUser	 = 	  array('in_user_id'			    => $data['in_user_id'],
+				                        'in_public'				=> '0',
+										'st_foster'				=> 'a:5:{i:0;s:18:"st_animal_type_ids";i:1;s:16:"in_duration_type";i:2;s:18:"st_max_foster_days";i:3;s:18:"st_max_animal_size";i:4;s:23:"st_household_animal_ids";}',
+										'dt_created'			=> date('Y-m-d H:i:s'),
+										'in_deleted'			=> '0'											
+										);																
+			$this->db->insert('tbl_user_profile_setting', $arrUser);
+	}
+	
+	public function update_user_profile_setting($data,$userId,$table){
+				
+		$this->db->where('in_user_id',$userId);
+		$this->db->update($table,$data);
+		return $this->db->affected_rows();	
+		
+	}
+	
+	function add_user_photographrer_profile_setting($data)
+	{
+		$arrUser	 = 	  array('in_user_id'			    => $data['in_user_id'],
+				                        'in_public'			=> '0',
+										'st_photographer'	=> 'a:5:{i:0;s:18:"st_animal_type_ids";i:1;s:16:"in_duration_type";i:2;s:18:"st_max_foster_days";i:3;s:18:"st_max_animal_size";i:4;s:23:"st_household_animal_ids";}',
+										'dt_created'		=> date('Y-m-d H:i:s'),
+										'in_deleted'		=> '0'											
+										);																
+			$this->db->insert('tbl_user_profile_setting', $arrUser);
+		
+	}
+	
+	function add_user_personal_profile_setting($data)
+	{
+		$arrUser	 = 	  array('in_user_id'			    => $data['in_user_id'],
+				                        'in_public'			=> '0',
+										'st_in_person_vol'	=> 'a:7:{i:0;s:25:"st_volunteer_availability";i:1;s:20:"st_volunteer_zipcode";i:2;s:20:"in_distance_to_drive";i:3;s:13:"in_home_visit";i:4;s:15:"in_app_reviewer";i:5;s:22:"in_physical_fundraiser";i:6;s:14:"in_animal_care";}',
+										'dt_created'		=> date('Y-m-d H:i:s'),
+										'in_deleted'		=> '0'											
+										);																
+			$this->db->insert('tbl_user_profile_setting', $arrUser);
+		
+	}
+	
+	public function add_user_virtual_profile_setting($data)
+	{
+		$arrUser	 = 	array('in_user_id'			    => $data['in_user_id'],
+				                        'in_public'			=> '0',
+										'st_in_virtual_vol'	=> 'a:19:{i:0;s:18:"in_manage_facebook";i:1;s:17:"in_manage_twitter";i:2;s:15:"in_manage_gplus";i:3;s:19:"in_manage_pin_board";i:4;s:19:"in_manage_instagram";i:5;s:15:"in_manage_video";i:6;s:15:"in_social_media";i:7;s:12:"in_petfinder";i:8;s:12:"in_adoptapet";i:9;s:12:"in_petharbor";i:10;s:10:"in_petango";i:11;s:15:"in_rescuegroups";i:12;s:18:"in_shelterexchange";i:13;s:10:"in_dogtime";i:14;s:16:"in_petsoverstock";i:15;s:17:"in_animal_profile";i:16;s:20:"in_transport_monitor";i:17;s:23:"in_adoption_application',
+										'dt_created'		=> date('Y-m-d H:i:s'),
+										'in_deleted'		=> '0'											
+										);																
+			$this->db->insert('tbl_user_profile_setting', $arrUser);	
+	}
+
+	public function get_user_profile_setting($userId){
+			$this->db->select('u.in_user_id');
+			$this->db->from('tbl_user_profile_setting as u');		
+			$this->db->where('u.in_user_id',$userId);
+			$this->db->where('u.in_deleted',0);		
+			$query = $this->db->get();
+			return $query->row_array();		
+	}
+	
+	public function update_pilot_info($data,$userid,$table)
+	{
+		$this->db->where('in_user_id', $userid);
+		$this->db->update($table, $data);
+	}
+	//Added By Nirav 23 May 2016
+	public function update_login_status($id,$status)
+	{
+		$data = array('in_login_direct' => $status);
+		$this->db->trans_start();
+		$this->db->where('in_user_id',$id);
+		$this->db->update('tbl_users',$data);
+		$this->db->trans_complete();
+		return $this->db->trans_status();
+	}
+	
+	//Added By Nirav 24 June 2016
+	public function get_organization_id($transport_id)
+	{
+		$this->db->select('in_organization_id');
+		$this->db->from('tbl_transportation');
+		$this->db->where('in_transportation_id',$transport_id);
+		$query = $this->db->get();
+		return $query->row_array();		
+	}
+	public function verify_user_permission($id,$org_id)
+	{
+		$this->db->select('in_organization_id');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_user_id',$id);
+		$this->db->where('in_deleted', 0);
+		$this->db->where('in_status',1);
+		$query = $this->db->get()->result_array();
+		if(count($query) > 0)
+			return 'true';
+		else {
+			$this->db->select('in_org_user_id,st_permission');
+			$this->db->from('tbl_organization_user');
+			$this->db->where('in_organization_id',$org_id);
+			$this->db->where('in_user_id',$id);
+			$this->db->where('in_deleted', 0);
+			$this->db->where('in_status',1);
+			$query = $this->db->get()->result_array();
+			if(count($query) > 0)
+			{
+				$permission_data = unserialize($query[0]['st_permission']);
+				if (array_key_exists('transport', $permission_data)) {
+					return 'true';
+					/*$transport_permission = $permission_data['transport'];
+					if(in_array('transport_cr', $transport_permission))
+						return 'true';
+					else 
+						return 'false';*/
+				} else {
+					return 'false';
+				}	
+			}
+			else 
+				return 'false';
+		}
+	}
+	
+	function insert_user_vehicle($array)
+	{
+		$user_id = $this->db->insert('tbl_user_vehicle', $array);
+		$this->db->insert_id();	
+		return  $this->db->insert_id();
+	}
+	
+	public function update_user_vehicle($array ,$updateid)
+	{
+		$this->db->where('in_vehicle_id', $updateid);
+		$this->db->update('tbl_user_vehicle', $array);
+		return $updateid;
+	}
+	
+	function insert_user_plane($array)
+	{
+		$user_id = $this->db->insert('tbl_user_pilot', $array);
+		$this->db->insert_id();	
+		return  $this->db->insert_id();
+	}
+	
+	function update_user_plane($array , $updateid)
+	{
+		$this->db->where('in_pilot_id', $updateid);
+		$this->db->update('tbl_user_pilot', $array);
+		return $updateid;
+	}	
+	/*function set_popover_off($profile_id)
+	{
+		$data =array("in_pop_over"=>1);
+		$this->db->where('in_profile_id', $profile_id);
+		$this->db->update('tbl_user_profile', $data);
+	}*/
+	function check_users_profile($uid)
+	{
+		$this->db->select('p.st_zip,p.st_primary_phone,p.in_profile_id');
+		$this->db->from('tbl_users as u');
+		$this->db->join('tbl_user_profile as p','u.in_user_id = p.in_user_id','LEFT');
+				
+		$this->db->where('u.in_user_id',$uid);
+		$this->db->where('p.in_deleted',0);
+		$this->db->where('p.in_status',1);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	function check_user_status($ip_address)
+	{
+		$ip_address = $_SERVER['REMOTE_ADDR'];
+		
+		$this->db->select('cs.session_id');
+		$this->db->from('ci_sessions as cs');				
+		$this->db->where('cs.ip_address',$ip_address);
+		$where = "cs.user_data LIKE '%userid%' AND cs.user_data LIKE '%email%'";
+		$this->db->where($where);
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;
+	}
+	
+	function get_tc_volunteer_count($user_id)
+	{
+		$end_date =date("Y-m-d");
+		$start_date = date('Y-m-d', strtotime('-1 year'));
+		$this->db->select('((in_rate_transport+in_rate_comm_tc+in_rate_comm_volunteer)/3) AS average_rating');
+		$this->db->from('tbl_transporter_feedback');
+		$this->db->where('in_to_user_id',$user_id);
+		$this->db->where('DATE(dt_created) BETWEEN "'.$start_date.'" AND "'.$end_date.'"');
+		$this->db->where('in_deleted',0);
+		//$this->db->where('DATE(dt_created)BETWEEN '.$start_date.' AND '.$end_date,NULL,False);
+		$query = $this->db->get();
+		$rate_comm_tc = 0;
+		if($query->num_rows() > 0 )
+		{	
+			$count = $query->num_rows();
+			foreach($query->result_array() as $key=>$row)
+			{ 
+				$rate_comm_tc += $row['average_rating'];
+			}
+			$average_tc_rate =  $rate_comm_tc/$count;
+			$average_rating = 	round($average_tc_rate);
+		} else {
+			$average_rating = 0;
+			$count = 0;
+		}	
+		$result['average_rating'] = $average_rating;
+		$result['count']   = $count;
+		return $result; 	
+	}
+	
+	function get_transaction_volunteer_count($user_id)
+	{
+		$end_date =date("Y-m-d");
+		$start_date = date('Y-m-d', strtotime('-1 year'));		
+		$this->db->select('((in_rate_comm_tc+in_rate_comm_volunteer)/2) AS average_rating');
+		$this->db->from('tbl_tc_feedback');
+		$this->db->where('in_non_doobert_users',0);
+		$this->db->where('in_to_user_id',$user_id);
+		$this->db->where('DATE(dt_created) BETWEEN "'.$start_date.'" AND "'.$end_date.'"');
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		$rate_comm_volunteer = 0;
+		if($query->num_rows() > 0 )
+		{	
+			$count = $query->num_rows();
+			foreach($query->result_array() as $key=>$row)
+			{ 
+				$rate_comm_volunteer += $row['average_rating'];
+			}
+			$average_volunteer_rate =  $rate_comm_volunteer/$count;
+			$average_rating = 	round($average_volunteer_rate);
+			
+		}else {
+			$average_rating = 0;
+			$count = 0;
+		}
+		
+		$result['average_rating'] = $average_rating;
+		$result['count']		    = $count;
+		return $result; 	
+	}
+	
+	function check_email_verification_code($user_id,$verification_code)
+	{
+		$this->db->select("in_user_id");
+		$this->db->where(array("in_deleted"=>'0',"in_user_id"=>$user_id,"st_email_verification_code"=>$verification_code));		
+		$this->db->where("(in_status = 0 OR in_status = 1)");
+		$this->db->where("in_email_verify_status","0");
+		$query = $this->db->get("tbl_users");
+		//echo $this->db->last_query();die;
+		return $query->num_rows();		
+	}
+	
+	function check_email_verification_status($user_id)
+	{
+		$this->db->select("in_email_verify_status,dt_created");
+		$this->db->where(array("in_deleted"=>'0',"in_user_id"=>$user_id));		
+		$this->db->where("(in_status = 0 OR in_status = 1)");
+		$query = $this->db->get("tbl_users");
+		//echo $this->db->last_query();die;
+		return $query->row_array();	
+	}
+	
+	function add_foster_home_details($animal_type,$duration_serve,$id,$table)
+	{
+		$insert_id = '';
+		$arr_foster_detail = array('in_user_id'				=> $id,
+							'dt_created'					=> date('Y-m-d H:i:s'),
+							'dt_modified'					=>  date('Y-m-d H:i:s'),
+							'in_deleted'					=> '0'
+							);
+							
+		$this->db->insert($table, $arr_foster_detail);	
+		$insert_id = $this->db->insert_id();
+				
+		if(isset($animal_type) && $animal_type!= '' && isset($duration_serve) && $duration_serve != '')
+		{
+			$arr_foster_data = array('in_foster_id'   => $insert_id,
+									'in_animal_type_id'   => $animal_type,
+									'in_duration_type_id' => $duration_serve,
+									'dt_created'	=>  date('Y-m-d H:i:s'),
+									'dt_modified'	=>  date('Y-m-d H:i:s'),
+									'in_deleted'	=> '0'
+					); 
+					
+			$this->db->insert('tbl_foster_animal_type_detail', $arr_foster_data);	
+		}	
+		
+		return $insert_id;
+										
+	}
+	
+	function update_foster_details($animal_type,$duration_serve,$update)
+	{
+		$arr_foster_data = array('in_animal_type_id'   => $animal_type,
+								'in_duration_type_id' => $duration_serve,
+								'dt_modified'	=>  date('Y-m-d H:i:s'),
+					);
+		$this->db->where('in_foster_id',$update);
+		$this->db->update('tbl_foster_animal_type_detail', $arr_foster_data);	
+	}
+	
+	function get_animal_sup_detail($userId)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_user_lost_animal_support');
+		$this->db->where('in_user_id',$userId);	
+		$this->db->where('in_deleted',0);		
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->row(); 	
+	}
+	
+	function update_animal_support($post,$inId)
+	{
+		$this->db->where('in_id', $inId);
+		$this->db->update('tbl_user_lost_animal_support', $post);	
+	}
+	
+	
+	function insert_animal_support($post)
+	{			
+		$this->db->insert('tbl_user_lost_animal_support', $post);	
+	}
+	 
+	 function inser_ani_supp($post)
+	{  	
+		//echo '<pre>'; print_r($post); die;
+
+		if(isset($post['update']) && $post['update'] >0  )
+		{	
+			$data   = array('in_caseworker' 		=> $post['caseworker'],
+							'in_monitor' 			=> $post['monitor'],
+							'in_networker' 			=> $post['networker'],
+							'in_admin' 				=> $post['admin'],
+							'in_matcher' 			=> $post['matcher'],
+							'in_volunteer' 			=> $post['volunteer'],							
+							'dt_modified'			=> date("Y-m-d H:i:s")		
+						  );
+			$this->db->where('in_id',$post['update']);
+			$this->db->update('tbl_user_lost_animal_support',$data);
+			return $post['update'];
+		}
+		else {	
+			$data   = array('in_user_id' 			=> $this->session->userdata('userid'),						
+						'in_caseworker' 		=> $post['caseworker'],
+						'in_monitor' 			=> $post['monitor'],
+						'in_networker' 			=> $post['networker'],
+						'in_admin' 				=> $post['admin'],
+						'in_matcher' 			=> $post['matcher'],
+						'in_volunteer' 			=> $post['volunteer'],							
+						"dt_created" 			=> date("Y-m-d H:i:s"),
+						'dt_modified'			=> date("Y-m-d H:i:s")				
+		); 	
+	 $this->db->insert('tbl_user_lost_animal_support', $data); 
+	 return  $this->db->insert_id();
+     }
+	 //echo $this->db->last_query();die;
+	 }  
+	 
+	 
+	 public function insert_photographer($post,$ziplat,$ziplon,$table)
+	{  
+			//echo '<pre>'; print_r($post); die;			
+			$insert_id = '';
+			$data = array();
+			
+			$arrPhotographer= array('in_user_id'					=> $this->session->userdata('userid'),
+									'st_photographer_zipcode'		=> $post['photo_user_zip'],
+									'st_photographer_availability'	=>  serialize($post['photo']),										
+									'zip_lat'						=> $ziplat, 
+									'zip_lon'						=> $ziplon,	
+									'st_website_url'				=> $post['photo_mywebsite'],
+									'in_pro_bono_ser'				=> isset($post['probonoservice']) && $post['probonoservice'] != '' ? $post['probonoservice'] : 0,																		
+									'in_distance_to_travel'			=> $post['photo_radius'],
+									'dt_created'					=> date('Y-m-d H:i:s'),
+									'dt_modified'					=> date('Y-m-d H:i:s'),
+									'in_deleted'					=> '0'
+									);					
+				$this->db->insert($table, $arrPhotographer);	
+				return $this->db->insert_id();				    
+			    //echo $this->db->last_query(); die;
+			
+		}
+		
+		function add_photographer($data)
+		{			
+			$this->db->insert('tbl_photographer_detail', $data);	
+		}
+		
+		function update_photographer($data,$photographer_id)
+		{
+			$this->db->where('in_photographer_id', $photographer_id);
+			$this->db->update('tbl_photographer_detail', $data);	
+			return $photographer_id;
+			
+		}
+		
+		public function get_user_zip($zipcode='')
+		{
+			$this->db->select("zip_code as label, zip_code as value",FALSE);
+			$this->db->from('tbl_zip_code');
+			$this->db->where('zip_code LIKE "'.$zipcode.'%"',FALSE,FALSE);
+			$this->db->limit("10");
+			$query = $this->db->get();
+			//echo $this->db->last_query();die;
+			$arrData = array();
+			if($query->num_rows() > 0)
+			{
+				$arrData = array();
+				foreach($query->result() as $Row)
+				{			
+					$arrData[]	= array("label"			=> $Row->label,
+										"value"			=> $Row->value,
+										);
+				}
+				
+			}
+			return $arrData;
+		}
+		
+		public function get_fullzipcode_by_state_city($city='',$state='')
+		{
+			$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix,st_country",FALSE);
+			$this->db->from('tbl_zip_code');
+		
+			
+			//$this->db->where('city',$city);
+			//$this->db->where('state_prefix',$state);
+			$this->db->where('lower(city) LIKE lower("'.$city.'%") AND UPPER(state_prefix) = UPPER("'.trim($state).'")');
+			$this->db->limit("1");
+			
+			$query = $this->db->get();
+			//echo $this->db->last_query();die;
+			if($query->num_rows() > 0)
+			{
+				$arrData = array();
+				foreach($query->result() as $Row)
+				{			
+				//echo $Row->st_country;die;
+						$arrData[]	= array("label"			=> $Row->label.", ".$this->common_function->shortCountry[trim($Row->st_country)],
+											"value"			=> $Row->value,
+											"city"			=> $Row->city,
+											"state_prefix"	=> $Row->state_prefix,
+											"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+											);
+				}
+				return $arrData;
+			}
+			
+		}
+		
+		public function get_zipcode($zipcode='',$city='',$state='',$action='')
+		{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix,st_country",FALSE);
+		$this->db->from('tbl_zip_code');
+		if($action=='')
+		{
+			$this->db->where('zip_code LIKE "'.$zipcode.'%"',FALSE,FALSE);
+			$this->db->limit("10");
+		}
+		else
+		{
+		if($city)
+		{
+			$this->db->where('lower(city) LIKE lower("'.$city.'%")',FALSE,FALSE);
+		}
+		if($state)
+		{
+			if(strlen($state) > 2)
+			{
+				$states_list = $this->common_function->state_list;
+				if(in_array(ucfirst($state), $states_list))
+				{
+					$state_key = array_search(ucfirst($state), $states_list);
+					$state = $state_key;
+				}
+				//echo $state;exit;
+			}
+			$this->db->where('UPPER(state_prefix) = UPPER("'.$state.'")',FALSE,FALSE);
+		}
+		if($city == '' && $state == '')
+		{
+			$this->db->where('zip_code LIKE "'.$zipcode.'%"',FALSE,FALSE);
+		}
+		$this->db->limit("10");
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array("label"			=> $Row->label.", ".$this->common_function->shortCountry[trim($Row->st_country)],
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+		return $query->result_array();
+	}
+	
+	function generate_random_password($length = 10) {
+		$alphabets = range('A','Z');
+		$numbers = range('0','9');
+		$additional_characters = array('_','.');
+		$final_array = array_merge($alphabets,$numbers,$additional_characters);
+			 
+		$password = '';
+	  
+		while($length--) {
+		  $key = array_rand($final_array);
+		  $password .= $final_array[$key];
+		}
+	  
+		return $password;
+	}
+	
+	public function get_lost_animal_detail($userId) 
+	{
+		$sql	= "SELECT * 
+				   FROM tbl_user_lost_animal_support as la 
+				   WHERE la.in_user_id= '".$userId."' AND  la.in_deleted= '0' ";
+					
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+		
+	}
+		
+		
+	public function update_lost_animal_info($array ,$updateid)
+	{
+		$this->db->where('in_id', $updateid);
+		$this->db->update('tbl_user_lost_animal_support', $array);
+		return $updateid;
+	}
+		
+	function update_subscribe_status($userId)
+	{
+		//print_r($userId);exit;
+		$update_arr = array('flg_daily_email'=>'1','flg_immediate_all'=>'2','flg_immediate_transport'=>'2','flg_immediate_animal'=>'2','flg_immediate_fund'=>'2','st_daily_reason'=>'');
+        $this->db->where('in_user_id', $userId);
+        $this->db->update('tbl_users', $update_arr);
+		//echo "<pre>".$this->db->last_query();die;
+        return $this->db->affected_rows();
+	}
+	
+	function update_all_subscribe_status($userId,$reason_type,$other_reason_msg)
+	{
+		if($reason_type == 'Other')
+		{
+			if(isset($other_reason_msg) && $other_reason_msg != '')
+			{
+				$un_reason = $other_reason_msg;
+			}
+		}else
+		{
+			$un_reason = $reason_type;
+		}
+		
+		$update_arr = array('flg_daily_email'=>'2','flg_immediate_all'=>'2','flg_immediate_transport'=>'2','flg_immediate_animal'=>'2','flg_immediate_fund'=>'2','st_daily_reason'=>$un_reason);
+        $this->db->where('in_user_id', $userId);
+        $this->db->update('tbl_users', $update_arr);
+		//echo "<pre>".$this->db->last_query();die;
+        return $this->db->affected_rows();
+	}
+	
+	public function get_email_verification_code($user_id)
+	{
+		$this->db->select('st_email_verification_code');
+		$this->db->from('tbl_users');
+		$this->db->where('in_user_id',$user_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function add_user_activity($post)
+	{
+		$this->db->insert('tbl_user_activity', $post);
+		return  $this->db->insert_id();
+	}
+
+	function check_organization_status($user_id)
+	{
+		$this->db->select('in_organization_id,st_org_complete');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_created_by',$user_id);
+		$this->db->where("(in_status = 0 OR in_status = 4)");
+		$this->db->where('in_direct_signup',1);
+		//$this->db->where('in_status',4);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		//echo "<pre>".$this->db->last_query();die;
+		if($query && $query->num_rows() > 0)
+		{
+			$result = $query->row_array();	 
+		} else{
+			$result = array();
+		}
+			return $result;
+	}
+	
+	function check_userprofile_status($user_id)
+	{
+		$this->db->select("in_complete_profile,in_user_id,hurricane_harvey_reg");
+		$this->db->from('tbl_user_profile');
+		$this->db->where('in_complete_profile','1');
+		$this->db->where('in_user_id',$user_id);
+		$query = $this->db->get();		
+		if($query && $query->num_rows() > 0)
+		{
+			$result = $query->row_array();	 
+		} else{
+			$result = array();
+		}
+			return $result;
+	}
+	
+	function get_users_transport_list_data($status,$rec_per_page,$limit,$sort,$order)
+	{
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS tr.in_transportation_id,
+							tr.in_transportation_id,
+							tr.dt_target,
+							tr.dt_pickup_date,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_to_street,
+							tr.st_to_state,
+							tr.st_to_city,
+							tr.st_trans_type,
+							tr.st_trans_name,
+							tr.in_status,
+							tr.accTcid,
+							tr.in_airline_transport,
+							tr.in_trans_coods_id,
+							tr.in_tot_distance,
+							tr.in_airline_transport,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							concat(u.st_display_name," ",u.st_last_name) as co_name,
+							o.st_org_code',FALSE);
+		$this->db->from('tbl_transportation tr');
+		$this->db->join('tbl_transportation_participants p','tr.in_transportation_id = p.in_transportation_id','LEFT');
+		$this->db->join('tbl_organization o','tr.in_organization_id = o.in_organization_id','INNER');
+		$this->db->join('tbl_users u','u.in_user_id = tr.in_trans_coods_id','INNER');
+		$where = '';
+		$where .= " tr.in_deleted = 0 AND o.in_deleted = 0 AND ((p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid').")";
+		$where .= "|| (`tr`.`in_trans_coods_id`= ".$this->session->userdata('userid')." ))";
+		//$where .= " AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid');
+		if($status == '1')
+		{
+			$where .= " AND ((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+		}
+		else if($status == '2')
+		{
+			$where .= " AND (tr.in_status = '2' && tr.dt_target < current_date())";
+		}
+		else
+		{
+			$where .= " AND tr.in_status = '".$status."'";
+		}
+		
+		$this->db->where($where);
+		
+		switch($sort)
+		{
+			case 'trid':
+					$this->db->order_by("tr.in_transportation_id",$order);
+			break;
+			case 'tdate':
+					$this->db->order_by("tr.dt_target",$order);
+			break;		
+			default:
+					$this->db->order_by("tr.in_transportation_id",$order);
+			break;	
+		}
+		
+		$this->db->group_by('tr.in_transportation_id');
+		$this->db->limit($rec_per_page,$limit);
+		$query = $this->db->get();	
+		//echo $this->db->last_query(); die;
+		$query2 = $this->db->query('SELECT FOUND_ROWS() as rows');
+		$data["num_rows"] = $query2->row()->rows;
+		$data["transport_list"] = ($query->num_rows() > 0) ? $query->result_array()  :  array();     
+		return 	$data;
+		//return ($query->num_rows() > 0) ? $query->result_array()  :  FALSE;	
+	}
+	
+	function get_transport_list($status,$rec_per_page,$limit,$sort,$order)
+	{
+		$sql =	"SELECT tr.dt_target,
+							tr.dt_pickup_date,
+							tr.in_transportation_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_to_street,
+							tr.st_to_state,
+							tr.st_to_city,
+							tr.st_to_zip,
+							tr.st_trans_type,
+							tr.st_trans_name,
+							tr.in_status,
+							tr.in_trans_coods_id,
+							tr.in_tot_distance,	
+							tr.accTcid,
+							tr.in_round,
+							tr.in_mins,
+							tr.in_airline_transport,	
+							concat(tu.st_display_name,' ',tu.st_last_name) as co_name,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							tu.st_email,o.st_org_code 
+							FROM `tbl_transportation` `tr`, 
+							`tbl_users` `tu`,`tbl_transportation_participants` `p`,`tbl_organization` `o` 
+							WHERE (`tu`.`in_user_id` = `tr`.`in_trans_coods_id` )";
+		
+		/*$this->db->select("	tr.dt_target,
+							tr.dt_pickup_date,
+							tr.in_transportation_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_to_street,
+							tr.st_to_state,
+							tr.st_to_city,
+							tr.st_to_zip,
+							tr.st_trans_type,
+							tr.st_trans_name,
+							tr.in_status,
+							tr.in_trans_coods_id,
+							tr.in_tot_distance,
+							concat(tu.st_display_name,' ',tu.st_last_name) as co_name,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							tu.st_email",FALSE);
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_users tu","tu.in_user_id = tr.in_trans_coods_id", "INNER");
+		$this->db->join("tbl_transportation_participants p","p.in_transportation_id = tr.in_transportation_id ", "INNER");*/
+		
+		$where = '';
+		$where .= " AND `o`.in_organization_id = tr.in_organization_id AND o.in_deleted = 0 AND ((`p`.`in_transportation_id` = `tr`.`in_transportation_id` AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid').")";
+		$where .= "|| (`tr`.`in_trans_coods_id`= ".$this->session->userdata('userid')." ))";
+		//$where .= " AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid');
+		if($status == '1')
+		{
+			$where .= " AND ((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+		}
+		else if($status == '2')
+		{
+			$where .= " AND (tr.in_status = '2' && tr.dt_target < current_date())";
+		}
+		else
+		{
+			$where .= " AND tr.in_status = '".$status."'";
+		}
+		$where .= " AND tr.in_deleted = '0'";
+		
+		$sql	.=	$where." GROUP BY `tr`.`in_transportation_id`";
+		
+		//$this->db->where($where);
+		
+		//$this->db->group_by("tr.in_transportation_id");
+		//$this->db->order_by("tr.in_transportation_id","DESC");
+		//echo $sort;
+		switch($sort)
+		{
+			case 'trid':
+					$sql	.=	" ORDER BY tr.in_transportation_id $order";
+					//$this->db->order_by("tr.in_transportation_id",$order);
+			break;
+			case 'transname':
+					$sql	.=	" ORDER BY tr.st_trans_name $order";
+					//$this->db->order_by("tr.st_trans_name",$order);
+			break;
+			case 'tdate':
+					$sql	.=	" ORDER BY tr.dt_target $order";
+					//$this->db->order_by("tr.dt_target",$order);
+			break;
+			case 'coname':
+					$sql	.=	" ORDER BY co_name $order";
+					//$this->db->order_by("co_name",$order);
+			break;		
+			default:
+					$sql	.=	" ORDER BY tr.in_transportation_id $order";
+					//$this->db->order_by("tr.in_transportation_id",$order);
+			break;	
+		} 
+		$sql	.=	" LIMIT $limit , $rec_per_page";
+		//$this->db->limit($rec_per_page,$limit);
+		$query = $this->db->query($sql);	
+		//$query = $this->db->get(); 
+		//echo $this->db->last_query();die;     
+		return ($query->num_rows() > 0) ? $query->result_array()  :  FALSE;	
+	}	
+	
+	function get_transport_list_all($status)
+	{		
+		
+		/*SELECT tr.in_transportation_id FROM `tbl_transportation` `tr`, `tbl_users` `tu`,`tbl_transportation_participants` `p` 
+WHERE (`tu`.`in_user_id` = `tr`.`in_trans_coods_id` OR `tu`.`in_user_id` = `p`.`in_user_id`) AND `p`.`in_transportation_id` = `tr`.`in_transportation_id` 
+
+AND `tr`.`in_deleted` =0 AND `p`.`in_deleted` =0 AND `p`.`in_user_id` = 50 AND ((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date())) 
+GROUP BY `tr`.`in_transportation_id`*/
+
+		$sql =	"SELECT tr.in_transportation_id FROM `tbl_transportation` `tr`, `tbl_users` `tu`,`tbl_transportation_participants` `p`,`tbl_organization` `o` WHERE (`tu`.`in_user_id` = `tr`.`in_trans_coods_id`)";
+		
+		/*$this->db->select("	tr.in_transportation_id",FALSE);
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_users tu","tu.in_user_id = tr.in_trans_coods_id", "INNER");
+		$this->db->join("tbl_transportation_participants p","p.in_transportation_id = tr.in_transportation_id ", "INNER");*/
+		
+		$where = '';
+		$where .= "  AND o.in_organization_id = tr.in_organization_id AND o.in_deleted = 0 AND ((`p`.`in_transportation_id` = `tr`.`in_transportation_id` AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid').")";
+		$where .= "|| (`tr`.`in_trans_coods_id`= ".$this->session->userdata('userid')." ))";
+		//$where .= " AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid');
+		if($status == '1')
+		{
+			$where .= " AND ((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+		}
+		else if($status == '2')
+		{
+			$where .= " AND (tr.in_status = '2' && tr.dt_target < current_date())";
+		}
+		else
+		{
+			$where .= " AND tr.in_status = '".$status."'";
+		}
+		$where .= " AND tr.in_deleted = '0'";
+		
+		$sql	.=	$where." GROUP BY `tr`.`in_transportation_id`";
+		
+		/*$this->db->where($where);
+		
+		$this->db->group_by("tr.in_transportation_id");
+			
+		$query = $this->db->get(); */
+		
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();die;
+		
+		
+		//echo $this->db->last_query();die;     
+		return ($query->num_rows() > 0) ? $query->num_rows()  :  FALSE;	
+	}	
+	
+	public function get_verification_details($userId)
+	{ 
+		$this->db->select('*');
+		$this->db->from('tbl_verification');
+		$this->db->where('in_user_id',$userId);
+		$this->db->where('in_deleted',0);
+        $query=$this->db->get();
+		return $query->row_array();	
+	}
+	
+	
+	function checkphoneexists($user_id)
+	{
+		$this->db->select('st_primary_phone');
+		$this->db->from('tbl_user_profile');
+		$this->db->where("in_user_id",$user_id);
+		$this->db->where("st_primary_phone <>", '');
+		$this->db->where("in_deleted",0);
+		$query = $this->db->get();			
+		//echo $this->db->last_query();die;
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;	
+			
+	}
+	
+	function get_all_assigned_router($user_id)
+	{
+		$arrData = array();
+		$this->db->select('tr.in_transportation_id');
+		$this->db->from('tbl_transportation tr');
+		$this->db->where('tr.in_deleted',0);
+		$this->db->where('tr.st_trans_type','D');
+		$this->db->where('tr.enable_routing_status','1');
+		$this->db->where('tr.in_status!=','3',FALSE);
+		$this->db->where('tr.accTcid',$user_id);
+		$this->db->where('tr.dt_target >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)');
+		$this->db->order_by('tr.in_transportation_id','desc');
+		$query = $this->db->get();		
+		//return $query->num_rows();
+		if($query->num_rows() > 0)
+		{
+			$arrData = $query->result();
+		}
+			return $arrData;
+	}
+	
+	function update_airline_employee($id,$update_arr)
+	{
+		$this->db->where('in_id',$id);
+		$this->db->update('tbl_user_airline_employee',$update_arr);
+        return $this->db->affected_rows();
+	}
+	
+	public function get_airline_detail($userId)
+	{
+		$arrData = array();
+		$this->db->select('*');
+		$this->db->from('tbl_user_airline_employee');		
+		$this->db->where('in_user_id',$userId);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('in_id','desc');	
+		$query = $this->db->get();
+		$arrData = $query->result_array();
+		return $arrData;
+	}
+	
+	public function get_org_profile($userId)
+	{
+		
+		$this->db->select('in_organization_id,st_org_name');
+		$this->db->from('tbl_organization');		
+		$this->db->where('in_user_id',$userId);
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_status',1);
+		$this->db->order_by('in_organization_id','DESC');
+		$this->db->limit(1);
+		$query = $this->db->get();
+		return $query->row_array();		
+	}
+
+	# *******************************************************************************************	
+	#	name		:	Rajashri Mahapure
+	#	Function	:	get_rider_available
+	#	Purpose		:	For getting user vehicle images
+	# *******************************************************************************************
+
+	public function get_rider_available($id){
+		$this->db->select('r.st_ride_daytime');
+		$this->db->from('tbl_user_rides as r');		
+		$this->db->where('r.in_user_id',$id);
+		$this->db->where('r.in_deleted',0);		
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	name		:	Rajashri Mahapure
+	#	Function	:	get_rides_detail
+	#	Purpose		:	For getting user vehicle images
+	# *******************************************************************************************
+	public function get_rides_detail($userId)
+	{
+		$sql	= "SELECT r.*
+		           FROM tbl_user_rides as r 
+				   WHERE r.in_user_id= '".$userId."' AND  r.in_deleted= '0' ";
+				  	
+		$query = $this->db->query($sql);
+		
+		if($query->num_rows()>0){
+				foreach($query->result() as $Row)
+				{
+				    
+					
+					$arrData[]=	array('in_id'			=>	$Row->in_id,
+									  'in_user_id'		=>	$Row->in_user_id,
+									  'st_ride_daytime'=>	$Row->st_ride_daytime,
+									  'in_ride_radius'=>  $Row->in_ride_radius,	
+									  'in_messanger'	=>	$Row->in_messanger,
+									  'st_mobile'		=>$Row->st_mobile
+									);					
+				}			
+				return $arrData;
+		}
+	}
+
+	public function  add_ride_info($ridedata){
+		
+		$this->db->insert('tbl_user_rides', $ridedata);
+		return $this->db->affected_rows();
+	}
+
+	public function update_ride_info($ridedata, $in_id){
+		$this->db->where('in_id', $in_id);
+        $this->db->update('tbl_user_rides', $ridedata);
+        return $this->db->affected_rows();
+	}
+
+	function match_nondoobert_org_vol($email_id)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_org_nondoobert_preferred_vol');
+		$this->db->where('st_email',$email_id);
+		$this->db->where('in_deleted','0');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->result_array());die;
+		return $query->result_array();
+	}
+	
+	function delete_nondoobert_org_vol($in_id)
+	{
+		if(!empty($in_id))
+		{
+			$delete_array = array('in_deleted'=>'1');
+			$this->db->where('in_vol_user_id',$in_id);
+			$this->db->update('tbl_org_nondoobert_preferred_vol',$delete_array);
+		}	
+	}
+
+	
+
+	public function sendtext($code,$to,$postal_code)
+	{
+
+		$phone = preg_replace('/[^0-9]/', '', $to);		
+		//$phone = '9152139418';		
+		$text = "Dev.doobert.com - text Verification code ".$code;
+		$result = '0';	
+		/*if($phone == '2626555523'){
+			
+			$result = sendsms("+1".$phone,$text);		
+		}else{
+			$result = sendsms("+91".$phone,$text);
+		}*/
+		if($postal_code!='')
+		{	
+			$result = sendsms($postal_code.$phone,$text);
+		}
+		/*if(strpos($email_address,'pulsesolutions') !== false || strpos($email_address,'qaps971@gmail.com') !== false )
+		{
+			$result = sendsms("+91".$phone,$text);
+		} else {
+			$result = sendsms("+1".$phone,$text);
+		}*/	
+		
+		//$result = sendsms($phone,$text);
+
+		return $result; exit;
+
+		/*if($result == 'Invalid'){
+			return "Invalid";
+		}elseif($result == 1){			
+			return true;
+		}else{			
+			return false;
+		}*/
+		
+	}
+	public function update_coordinate($coordinates,$userid)
+	{
+		$this->db->where('in_user_id',$userid);
+		$this->db->update('tbl_users',$coordinates);
+		//echo $this->db->last_query();die;
+		return $this->db->affected_rows();
+	}
+	
+	public function getCoordinates($userid)
+	{
+		$this->db->select('st_coverage_area,st_map_zoom,st_map_center');
+		$this->db->from('tbl_users');
+		$this->db->where('in_user_id',$userid);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+	public function user_latlng($zipcode)
+	{
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+	
+	public function update_user_req_info2($last_id) {
+		$data = array('in_status'=>1);		
+		$this->db->where('in_org_user_id', $last_id);		
+		$this->db->where('in_deleted', 0);		
+		$this->db->update('tbl_organization_user',$data);
+		//echo $this->db->last_query(); die;		
+		return $this->db->affected_rows();	
+	}
+	
+	public function update_org_user($user_id,$orgownerid)
+	{
+		$data = array('in_deleted'=>1);		
+		$this->db->where('in_organization_id', $orgownerid);		
+		$this->db->where('in_user_id', $user_id);		
+		$this->db->update('tbl_organization_user',$data);
+		//echo $this->db->last_query(); die;		
+		return $this->db->affected_rows();	
+	}
+	
+	public function get_photos($limit, $start, $orderby='' , $user_id)
+	{
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS tp.in_transport_photo_id,tp.in_transport_photo_id as in_photo_id,tp.st_file_name,u.st_display_name,u.in_user_id',False);
+		$this->db->from('tbl_transportation_photo tp');	
+        $this->db->JOIN('tbl_users u', 'u.in_user_id = tp.in_created_by', 'INNER');		
+		$this->db->where('tp.in_deleted',0);
+		$this->db->where('tp.st_file_type','P');
+		$this->db->where('u.in_user_id',$user_id);
+		$this->db->order_by("in_photo_id", $orderby);
+		$this->db->limit($limit, $start);
+		$query1 = $this->db->get();
+		$generalphotos = $query1->result_array();
+		$query3 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$num_rows1 = $query3->row()->rows;		
+		
+		
+		$this->db->select('SQL_CALC_FOUND_ROWS tbl_general_photo.in_photo_id,tbl_general_photo.*,u.st_display_name,u.in_user_id',False);
+		$this->db->from('tbl_general_photo');
+		$this->db->JOIN('tbl_users u', 'u.in_user_id = tbl_general_photo.in_added_by', 'INNER');	
+		$this->db->where('tbl_general_photo.in_deleted',0);
+		$this->db->where('u.in_user_id',$user_id);
+		$this->db->order_by("tbl_general_photo.in_photo_id", $orderby);
+		$this->db->limit($limit, $start);
+		$query2 = $this->db->get();
+		$photographerphotos = $query2->result_array();
+		$query4 = $this->db->query('SELECT FOUND_ROWS() as rows');		
+		$num_rows2 = $query4->row()->rows;		
+		
+		
+		$total_photos = $num_rows1+$num_rows2;
+		$allphotos=array_merge($generalphotos,$photographerphotos);
+		
+		
+		if (count($allphotos) > 0){
+			foreach ($allphotos as $row) {
+						
+
+			    //$imgpath     = $_SERVER["DOCUMENT_ROOT"]."/app/upload/"."trasnportation/250x250/".$row['st_file_name'];
+				$imgpath     = $this->config->item('upload')."trasnportation/250x250/".$row['st_file_name'];
+				if(file_exists($imgpath)){
+				
+				$row['p_fileid']	=	$row['in_photo_id'];
+				$row['p_filename']	=	$row['st_file_name'];
+				$row['p_username']	=	$row['st_display_name'];
+				$row['p_userprofile']	= base_url().'user-'.$row['in_user_id'].'-'.$this->common_function->get_filtered_name($row['st_display_name']);		
+				$data['all_photos'][] = $row;
+				$data['total_count'] = $total_photos;
+				}
+			}	
+			return $data;
+		} 
+		return false;
+	}
+	
+	
+	public function update_volunteer_map_pin($coordinates,$userid)
+	{
+		$this->db->where('in_user_id',$userid);
+		$this->db->update('tbl_users',$coordinates);
+		//echo $this->db->last_query();die;
+		return $this->db->affected_rows();
+	}
+	
+	public function getLatLon($userid)
+	{
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_users');
+		$this->db->where('in_user_id',$userid);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+	
+	
+	/*public function get_photos($limit, $start, $orderby='' , $user_id){
+		
+		$this->db->select('tbl_general_photo.*,u.st_display_name,u.in_user_id');
+		$this->db->from('tbl_general_photo');
+		$this->db->JOIN('tbl_users u', 'u.in_user_id = tbl_general_photo.in_added_by', 'INNER');	
+		$this->db->where('tbl_general_photo.in_deleted',0);
+		$this->db->where('u.in_user_id',$user_id);
+		$this->db->order_by("tbl_general_photo.in_photo_id", $orderby);
+		$this->db->limit($limit, $start);
+		$query2 = $this->db->get();
+		$allphotos = $query2->result_array();
+		
+		//$allphotos=array_merge($generalphotos,$photographerphotos);
+		//echo  $this->db->last_query(); exit;
+		if (count($allphotos) > 0){
+			foreach ($allphotos as $row) {	
+
+			    //$imgpath     = $_SERVER["DOCUMENT_ROOT"]."/upload/"."trasnportation/250x250/" . $row['st_file_name'];
+				$imgpath     = $this->config->item('upload')."trasnportation/250x250/" . $row['st_file_name'];
+				if(file_exists($imgpath)){
+				
+				$row['p_fileid']	=	$row['in_photo_id'];
+				$row['p_filename']	=	$row['st_file_name'];
+				$row['p_username']	=	$row['st_display_name'];
+				$row['p_userprofile']	= base_url().'user-'.$row['in_user_id'].'-'.$this->common_function->get_filtered_name($row['st_display_name']);		
+				$data[] = $row;
+				}
+			}
+	//echo"<pre>"; print_r($data);		
+			return $data;
+		}
+		return false;
+	}*/
+
+}
+?>

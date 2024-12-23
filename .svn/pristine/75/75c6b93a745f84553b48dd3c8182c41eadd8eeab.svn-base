@@ -1,0 +1,357 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: User(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class user_trips extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('user_trips_model');
+	
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');	
+		$this->session->unset_userdata('searchadmin5');	
+		$this->session->unset_userdata('searchadmin6');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearch'); die;
+			
+			//if($this->session->userdata('searchadmin'))
+				//$this->session->unset_userdata('searchadmin');			
+				
+		 	//$searchtxt = trim(mysql_real_escape_string($this->input->post('txtsearch')));
+			//$this->session->set_userdata('searchadmin',$searchtxt);	
+			
+			/*if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');*/						
+				
+			/*$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin1',$this->common_function->custom_htmlentities($searchtxt));*/
+
+									
+			$this->session->set_userdata('searchadmin1',$this->input->post('search_name'));
+			
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin2',$this->input->post('search_email'));	
+
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin3',$this->input->post('txtfrom'));	
+
+			//$search_name = trim(mysql_real_escape_string($this->input->post('search_name')));				
+			$this->session->set_userdata('searchadmin4',$this->input->post('txtto'));
+			
+		    $this->session->set_userdata('searchadmin5',$this->input->post('radius'));
+			
+			if($this->input->post('zipcode'))
+			{	
+				$zip_code = $this->input->post('zipcode');
+				$zip_code = str_replace(" ","",$zip_code);
+				$_POST['zipcode'] = strtoupper($zip_code);
+			}	
+
+			$this->session->set_userdata('searchadmin6',$this->input->post('zipcode'));	
+		}		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		//$rec_per_page =	  25;
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->user_trips_model->get_count_user_trips($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['user_list']	= $this->user_trips_model->get_user_trips($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'),$this->session->userdata('searchadmin6'));
+		
+		//echo '<pre>'; print_r($data['user_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'user_trips/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Trip User Information Available.';
+		}
+		
+		$this->load->view('user-trips-lisitng',$data);
+	}
+	
+	
+	function edit_user_trips($tripId=false)
+	{
+		//echo "hii";
+		//exit(0);	
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 =	array();
+		$data['Err_Msg']	=	'';			
+		$form_field	=	array('fromloc'		=> "",	
+							  'toloc'		=> "",
+							  'dttrip'		=> "",
+							  'crates'		=> "",
+							  'tethered'	=> "",
+							  'type'  		=> "",
+							  'paid'  		=> array(0 => '')
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+		$data['trip_details'] = $this->user_trips_model->get_trip_profile($tripId);	
+		//echo "<pre>";print_r($data['trip_details']);die;	
+		if($this->input->post('action')=='Edit')
+		{   // echo 'AAA'; die;
+			//Validation rules
+						$tripId			   = $this->input->post('tripId');
+						$data['trip_details'] = $this->user_trips_model->get_trip_profile($tripId);	
+			
+						foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+						}
+						$this->form_validation->set_rules('fromloc', 'From Location', 'trim|required');
+						$this->form_validation->set_rules('toloc', 'To Location', 'trim|required');
+						$this->form_validation->set_rules('dttrip', 'Trip Date', 'trim|required');
+						$this->form_validation->set_rules('crates', 'Number of crates', 'trim|required');
+						$this->form_validation->set_rules('tethered', 'Number of Tethered Animals', 'trim|required');
+											
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();
+						$data['trip_details'] = $this->user_trips_model->get_trip_profile($tripId);						
+						$this->load->view('edit-upcoming-trips',$data);
+				}
+			
+			else
+			{ 		 	$trip_info 		= array();
+						$fromloc								=	$this->input->post('fromloc');
+						$frmloc=explode(', ',$fromloc);
+						//print_r($frmloc); die;
+						
+						$toloc									=	$this->input->post('toloc');
+						$twoloc=explode(', ',$toloc);
+						//print_r($twoloc); die;
+						
+						$trip_info['st_from_city'] 				=	$frmloc[1];
+						$trip_info['st_from_state'] 			=	$frmloc[2];
+						$trip_info['st_from_zip'] 				=	$frmloc[0];
+						$trip_info['st_from_country'] 			=	$frmloc[3];
+						
+						$trip_info['st_to_city'] 				=	$twoloc[1];
+						$trip_info['st_to_state'] 				=	$twoloc[2];
+						$trip_info['st_to_zip'] 				=	$twoloc[0];
+						$trip_info['st_to_country'] 			=	$twoloc[3];
+						
+						
+						$trip_info['dt_trip'] 					=	date('Y-m-d',strtotime($this->input->post('dttrip')));	
+						$trip_info['in_crates'] 				=	$this->input->post('crates');	
+						$trip_info['in_tethered'] 				=	$this->input->post('tethered');	
+						$trip_info['in_type'] 					=	$this->input->post('type');	
+						$trip_info['in_paid'] 					=	$this->input->post('paid');	
+						$trip_info['in_filled']					=   $this->input->post('actv');	
+						$trip_info['dt_modified'] 				= 	date('Y-m-d H:i:s');
+					
+						//Updating trip data
+						$this->user_trips_model->update_trip_info($trip_info,$tripId,'tbl_trips');					
+						$this->session->set_flashdata('success', 'You have successfully updated upcoming trip.');			
+						redirect($admin_base_url.'user_trips');
+			}
+		}		
+		else
+		{				
+						$this->load->view('edit-upcoming-trips',$data);
+		}	
+		
+	}
+
+    public function get_zip_code(){
+
+      if(!$this->session->userdata('sess_admin_id')){
+            echo "1";
+            die;
+            //redirect($this->config->item('base_url'));
+        }
+		
+		if($this->input->get('flag')){
+			$city = addslashes($this->input->get('city'));
+            $state = addslashes($this->input->get('state'));
+			/*print_r($city);
+			print_r($state);
+			die();*/
+			$result = $this->user_trips_model->get_fullzipcode_by_state_city(trim($city), trim($state));
+			if(!empty($result)){
+			echo json_encode($result);
+			}else {
+				$result ='NULL';
+				echo json_encode($result);
+			}
+			
+		}
+		
+       else  if ($this->input->get('term')){
+			//echo "in the term.";
+            //echo $this->uri->segment(3);
+            //echo "<pre>";print_r($_GET);print_r($_POST);die;
+            //echo "<pre>";print_r($this->input->get());print_r($this->input->post());die;
+            $zip = addslashes($this->input->get('term'));
+            $city = addslashes($this->input->get('city'));
+            $state = addslashes($this->input->get('state'));
+			/*print_r($zip);
+			print_r($city);
+			print_r($state);
+			die();*/
+            $result = $this->user_trips_model->get_zipcode($zip);
+            echo json_encode($result);
+        } else {
+			//echo "<br> in the else";
+            $city = addslashes(trim($this->input->get('city')));
+            $state = addslashes(trim($this->input->get('state')));
+			//echo "city=".$city;
+			$city1=''; $state1='';
+			$expcity = explode(',',$city);
+			if(!empty($expcity)){
+				if(isset($expcity[0])){ $city1 = trim($expcity[0]);}
+				if(isset($expcity[1])){ $state1 = trim($expcity[1]);}
+			}
+			//print_r($expcity);
+			//die(); 
+            //$data['zipcodes'] = $this->orgtrasnportation_model->get_zipcode("",$city,$state,"action");
+          	//$result = $this->orgtrasnportation_model->get_zipcode("", $city, $state, "action");
+		    	$result = $this->user_trips_model->get_zipcode("",$city ,$state, "action");
+             if(isset($result[0]['value']))
+              {
+             // echo $result[0]['value']."#*#".$result[0]['city']."#*#".$result[0]['st_country'];
+              }
+              echo json_encode($result); 
+         //   print_r($result);*/
+			
+           /* if (isset($result[0]['value'])) {
+                echo $result[0]['value'] . "#*#" . $result[0]['city'] . "#*#" . $result[0]['st_country'];
+            }*/
+		 }
+    }
+
+	function gettripinfo()
+	{
+		$tripdetails = $this->user_trips_model->trip_details($this->uri->segment(3));
+        echo $tripdetails;	
+	}		
+}
+
+/* End of file user.php */
+/* Location: ./application/controllers/user.php */

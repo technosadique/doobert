@@ -1,0 +1,127 @@
+<?php
+# =======================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 28-Mar-2018
+# File description	: referral Model for admin
+# Special - notes	: none
+# Tables used		: tbl_transportation_participants
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class referral_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	
+	    
+	#============================================================
+	#	Function	:	total_featured_partner()
+	#  Parameter	: 	name
+	#------------------------------------------------------------
+	public function get_transport_participant($user_id)	{ 
+		$this->db->select('COUNT(in_user_id) as participant');
+ 		$this->db->where('in_user_id',$user_id); 
+ 		$this->db->where('in_deleted',0);
+ 		$query = $this->db->get('tbl_transportation_participants');
+ 		return $query->row_array();
+	}
+
+
+	public function get_organization($userid)	{ 
+		$this->db->select('in_user_id, group_concat(in_organization_id) as orgid,count(in_organization_id) as orgcount');
+ 		//$this->db->group_by('in_user_id'); 
+ 		$this->db->where('in_deleted',0);
+ 		$this->db->where('in_user_id',$userid);
+ 		$query = $this->db->get('tbl_organization');
+ 		return $query->result_array();
+	}
+
+	//public function get_transport($orgid){
+	public function get_transport($userid){	
+		$this->db->select('COUNT(in_transportation_id) as transport');
+ 		$this->db->where('in_deleted',0);
+ 		$this->db->where_in('in_created_by', $userid);
+ 		$query = $this->db->get('tbl_transportation'); 			
+ 		return $query->row_array();
+	}
+
+	
+
+	public function get_users_count($search='',$selectopt='')
+	{ 			
+		 $this->db->select("u.in_user_id", false);						   	
+		 $this->db->from('tbl_users u');
+		 $this->db->join('tbl_organization o', 'u.in_user_id = o.in_user_id and o.in_deleted=0','LEFT');
+		 $this->db->where('u.in_deleted',0);		
+		 $this->db->where('u.st_referred_by IS NOT NULL', null, false);			 
+		 
+		
+		 if($selectopt == 1){
+		$where = "(o.st_referred_by = 'BFAS' OR o.st_referred_by = 'altl' OR o.st_referred_by = 'HIFV' OR o.st_referred_by = 'PTTR' OR o.st_referred_by = 'PVAC')";
+		 }
+		 else{
+		$where = "(u.st_referred_by = 'BFAS' OR u.st_referred_by = 'altl' OR u.st_referred_by = 'HIFV' OR u.st_referred_by = 'PTTR' OR u.st_referred_by = 'PVAC')";	
+		 }
+		
+		$this->db->where($where);
+			if(trim($search) != '') {
+			$this->db->where("(u.st_display_name LIKE '%".$search."%' OR u.st_last_name LIKE '%".$search."%' OR u.st_referred_by LIKE '%".$search."%'OR u.st_email LIKE '%".$search."%')", NULL, FALSE);		
+		}	
+		
+		$query = $this->db->get();	
+		return $query->num_rows();
+	}
+	
+	
+	public function get_users($sort,$order,$limit,$rec_per_page,$search='',$selectopt=''){		
+		
+		$this->db->select('u.in_user_id, u.st_display_name,u.st_last_name, u.st_referred_by,u.st_email,o.st_org_name');		
+		$this->db->from('tbl_users u');
+		$this->db->join('tbl_organization o', 'u.in_user_id = o.in_user_id and o.in_deleted=0','LEFT');		
+		$this->db->where('u.in_deleted',0);		
+		$this->db->where('u.st_referred_by IS NOT NULL', null, false);		
+		
+		
+		if($selectopt == 1){		
+		$where = "(o.st_referred_by = 'BFAS' OR o.st_referred_by = 'altl' OR o.st_referred_by = 'HIFV' OR o.st_referred_by = 'PTTR' OR o.st_referred_by = 'PVAC')";
+		 }
+		 else{ 
+		$where = "(u.st_referred_by = 'BFAS' OR u.st_referred_by = 'altl' OR u.st_referred_by = 'HIFV' OR u.st_referred_by = 'PTTR' OR u.st_referred_by = 'PVAC')";		
+		 }
+		
+		
+		$this->db->where($where);
+		if(trim($search) != '') {
+			$this->db->where("(u.st_display_name LIKE '%".$search."%' OR u.st_last_name LIKE '%".$search."%' OR u.st_referred_by LIKE '%".$search."%'OR u.st_email LIKE '%".$search."%')", NULL, FALSE);		
+		}
+		switch($sort){
+			case 'name':
+				$this->db->order_by('u.st_display_name',$order);
+			break;
+			case 'st_referred_by':							
+				$this->db->order_by("u.st_referred_by", $order);
+			break;
+			case 'org':							
+				$this->db->order_by("o.st_org_name", $order);
+			break;
+			default:							
+			$this->db->order_by('u.st_display_name',$order);
+			break;				         
+		}			  
+	  	 if(!isset($limit))
+		 {
+				$limit=0;
+		 }	
+		$this->db->limit($rec_per_page,$limit);		
+		$query = $this->db->get();		
+		return $query->result_array();		
+	}
+		
+	
+	
+}
+?>

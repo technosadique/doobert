@@ -1,0 +1,199 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by		: sadique mohammed
+# Created date		: 30-May-2017
+# File description	: Non Doobert Rescue Map controller
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: NONE 
+# Triggers used		: none 
+# --------------------------------------------------------------------------------------
+
+class non_doobert_rescue_map_cron extends CI_Controller {
+	
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->library('common_function');
+		$this->load->model('non_doobert_rescue_map_model');		
+		ini_set('memory_limit', '1073741824');
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	index	
+	#	Purpose		:	non doobert rescue map cron Map View
+	# *******************************************************************************************	
+	 
+	public function index() {
+		
+	   			 /* Non Doobert Oreganizations */
+				 
+   				
+				$rescue_map1 = $this->non_doobert_rescue_map_model->get_non_doobert_org();
+				
+				
+				
+				$data['rescue_map1'] = $rescue_map1;			
+						
+				
+					foreach($data['rescue_map1'] as $row)
+					{							
+							
+							$zip_details = $this->non_doobert_rescue_map_model->get_state_by_zipcode($row['zip']);
+							
+							
+							$state_name = isset($zip_details['state_prefix'])?$zip_details['state_prefix']:''; 
+							
+							if(isset($state_name) && !empty($state_name))	
+							{  
+								$st='';			
+								
+								if(isset($row['website']) && !empty($row['website'])){
+								
+								
+								$st .='<div class="flying-dog-rescue-box">
+										<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';							
+								
+								}
+								
+								else{
+								
+								$st .='<div class="flying-dog-rescue-box">
+										<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+										<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+								
+								}	
+																				
+								$data_to_store1[$state_name]['pop_up_desc'][]  = $st;	
+								$data_to_store1[$state_name]['all_zip'][]  	   = $row['zip'];
+								$data_to_store1[$state_name]['lat'][]		   = isset($zip_details['lat'])?$zip_details['lat']:'';
+								$data_to_store1[$state_name]['lon'][]		   = isset($zip_details['lon'])?$zip_details['lon']:'';								
+								$data_to_store1[$state_name]['img'][]		   = $row['img'];
+								$data_to_store1[$state_name]['count']		   = count($rescue_map1);
+								
+								
+								$fp = fopen('upload/usermaps/non_doobert_org_map/'.$state_name.'.json', 'w');
+								fwrite($fp, json_encode($data_to_store1[$state_name]));
+								fclose($fp);
+								
+							}							
+				    }  
+    	 
+		 
+		
+		 
+		 
+		   /* Doobert Oreganizations */
+          
+   			$rescue_map2 = $this->non_doobert_rescue_map_model->get_doobert_org();				
+			$data['rescue_map2'] = $rescue_map2;
+			
+			foreach($data['rescue_map2'] as $row)
+			{					
+					
+					$zip_details = $this->non_doobert_rescue_map_model->get_state_by_zipcode($row['zip']);
+					$state_name = isset($zip_details['state_prefix'])?$zip_details['state_prefix']:''; 
+					if(isset($state_name) && !empty($state_name))	
+					{				
+					$st='';		
+						
+					$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);			
+					$st .='<div class="flying-dog-rescue-box">
+							<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+							<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></div>';
+											
+					$data_to_store2[$state_name]['pop_up_desc'][]   = $st;	
+					$data_to_store2[$state_name]['all_zip'][]  	   = $row['zip'];
+					$data_to_store2[$state_name]['lat'][]		   = isset($zip_details['lat'])?$zip_details['lat']:'';
+					$data_to_store2[$state_name]['lon'][]		   = isset($zip_details['lon'])?$zip_details['lon']:'';			
+					$data_to_store2[$state_name]['img'][]		   = $row['img'];	
+					$data_to_store2[$state_name]['count']		   = count($rescue_map2);				
+					
+					$fp = fopen('upload/usermaps/doobert_org_map/'.$state_name.'.json', 'w');
+					fwrite($fp, json_encode($data_to_store2[$state_name]));	
+					fclose($fp);
+					}								
+			}	
+			
+			
+			
+			
+			  /*  All Organizations */
+			  
+				$all_non_org = $this->non_doobert_rescue_map_model->get_non_doobert_org();
+				$all_org     = $this->non_doobert_rescue_map_model->get_doobert_org();		
+				
+				$rescue_map3 = array_merge($all_non_org,$all_org);	
+			
+			
+				
+				$data['rescue_map3'] = $rescue_map3;
+				
+				foreach($data['rescue_map3'] as $row)
+				{					
+						
+						$zip_details = $this->non_doobert_rescue_map_model->get_state_by_zipcode($row['zip']);
+					    $state_name = isset($zip_details['state_prefix'])?$zip_details['state_prefix']:''; 
+						if(isset($state_name) && !empty($state_name))	
+						{										
+						$st='';	
+						
+						if(isset($row['status']) && $row['status']=='1'){
+						$link	=	base_url().'organization-'.$row['org_id'].'-'.$this->common_function->get_filtered_name($row['orgname']);	
+							
+						$st .='<div class="flying-dog-rescue-box">
+								<h2><a href="'.$link.'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+								<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></div>';
+						
+						}
+						
+						else if(isset($row['website']) && !empty($row['website'])){							
+						$st .='<div class="flying-dog-rescue-box">
+								<h2><a href="'.$row['website'].'" target="_blank">'.$this->common_function->custom_addslashes($row['orgname']).'</a></h2>
+								<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+						
+						}
+						
+						
+						else
+						{
+						$st .='<div class="flying-dog-rescue-box">
+								<h2>'.$this->common_function->custom_addslashes($row['orgname']).'</h2>
+								<p>'.$row['address'].$row['city'].', '.$row['state'].', '.$row['zip'].'</p><a data-toggle="modal" href="javascript:void(0)" title=" " class="btn white-btn" onClick="contactUser3('.$row['org_id'].')">CONTACT ME</a></div>';
+						
+						}						
+						
+												
+						$data_to_store3[$state_name]['pop_up_desc'][]  = $st;	
+						$data_to_store3[$state_name]['all_zip'][]  	   = $row['zip'];
+						$data_to_store3[$state_name]['lat'][]		   = isset($zip_details['lat'])?$zip_details['lat']:'';
+						$data_to_store3[$state_name]['lon'][]		   = isset($zip_details['lon'])?$zip_details['lon']:'';				
+						$data_to_store3[$state_name]['img'][]		   = $row['img'];
+						$data_to_store3[$state_name]['count']		   = count($rescue_map3);					
+						
+						$fp = fopen('upload/usermaps/all_doobert_org_map/'.$state_name.'.json', 'w');
+						fwrite($fp, json_encode($data_to_store3[$state_name]));	
+						fclose($fp);	
+						}							
+				}
+				
+				
+   }
+   
+   function test_org_file()
+   {
+	   $state_name = 'NY';
+	   $fp = fopen('upload/usermaps/non_doobert_org_map/'.$state_name.'.json', 'w');
+	   echo "<pre>"; print_r($fp); echo "</pre>";
+	   die;
+   }
+   
+
+	
+}
+
+/* End of file non_doobert_rescue_map_cron.php */
+/* Location: ./application/controllers/non_doobert_rescue_map_cron.php */

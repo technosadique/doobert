@@ -1,0 +1,485 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Volunteermatch extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		//$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		//$this->load->helper('cookie');
+		$this->load->model('common_model');	
+        $this->load->model('volunteermatch_model');        
+	}	
+	 
+	public function index()
+	{
+	}
+	
+	public function volunteer_response()
+	{
+		$cron_email_array = array("cron_url"=> base_url().'volunteermatch/volunteer_response',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+		
+		$last_cron_inserted_id = $this->db->insert_id();
+		
+		$vol_old_data = $this->volunteermatch_model->get_old_volunteers_email();
+		//print_r($vol_old_data); //exit;
+		
+		/*if(isset($vol_old_data) && !empty($vol_old_data))
+		{
+			foreach($vol_old_data as $old_val)
+			{
+				$update_data = array('in_deleted'=>'1');
+				$this->volunteermatch_model->update_mail_status($old_val['in_id'],$update_data);
+			}
+		}*/
+		
+		$vol_data = $this->volunteermatch_model->get_all_volunteers_details();
+		//print_r($vol_data);exit;
+		if(isset($vol_data) && !empty($vol_data))
+		{
+			$cron_email_array = array("cron_step"=>'2',
+								"cron_step_detail"=>'step2',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$this->load->library('email');
+			foreach($vol_data as $vol_val)
+			{
+				//echo $vol_val['st_from'];
+				if(trim($vol_val['st_from'])=='All For Good <admin@allforgood.org>'){
+				
+				
+				//echo '<pre/>'; print_r(htmlspecialchars($vol_val['st_text'])); 
+				$strPosProject	=	strpos(htmlspecialchars($vol_val['st_text']),'Project');
+				$strPosName	=	strpos(htmlspecialchars($vol_val['st_text']),'Volunteer Name');
+				$strPosEmail	=	strpos(htmlspecialchars($vol_val['st_text']),'Volunteer Email');
+				$strPosPlease	=	strpos(htmlspecialchars($vol_val['st_text']),'Please reach out');
+				
+				$strProject	=	substr(htmlspecialchars($vol_val['st_text']), $strPosProject, $strPosName - $strPosProject);
+				
+				$strName	=	substr(htmlspecialchars($vol_val['st_text']), $strPosName, $strPosEmail - $strPosName);
+				
+				$strEmail	=	substr(htmlspecialchars($vol_val['st_text']), $strPosEmail, $strPosPlease - $strPosEmail);
+				
+				$to_name = trim($this->get_string_between($strName,':','&'));
+				$to_email = trim(substr($strEmail,strpos($strEmail,":")+1));
+				
+				//strpos($strProject,'Drive a leg');
+				//exit;
+				$title_first_character	=	'';
+				$comment_exists	=	$strProject;	
+				
+				$email_details = $this->common_model->get_email_containt("42");
+				
+				if(strpos($strProject,'Drive a leg') > 1)
+				{
+					$email_type = '42';
+					$email_details = $this->common_model->get_email_containt("42");
+				}
+				if(strpos($strProject,'Are you an airline employee') > 1)
+				{
+					$email_type = '118';
+					$email_details = $this->common_model->get_email_containt("118");
+				}
+				if(isset($title_first_character) && $title_first_character == 'I')
+				{
+					$email_type = '51';
+					$email_details = $this->common_model->get_email_containt("51");					
+				}
+				if(isset($title_first_character) && $title_first_character == 'Let')
+				{
+					$email_type = '52';
+					$email_details = $this->common_model->get_email_containt("52");				
+				}	
+				if(isset($title_first_character) && $title_first_character == 'Are')
+				{
+					$email_details = $this->common_model->get_email_containt("73");				
+				}
+				if(isset($title_first_character) && $title_first_character == 'Do')
+				{
+					$email_type = '74';
+					$email_details = $this->common_model->get_email_containt("74");				
+				}
+				if(isset($title_first_character) && $title_first_character == 'Punch')
+				{
+					$email_type = '79';
+					$email_details = $this->common_model->get_email_containt("79");				
+				}
+				
+					$q			=	$this->common_model->get_affiliate_donation_detail('3');
+					if(isset($q) && !empty($q)){					   		
+							foreach($q as $qr)
+							{		 
+								  
+								if(!empty($qr['st_image']))
+								{
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+										$imgtitle   =   $qr['st_banner_name']; 				
+										$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+										alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+									  
+									  
+								}
+								else
+								{
+									   $donation='';								 
+								}							  
+									
+							}
+						}			
+						   
+					   else
+					   {
+						  $donation='';
+					   }
+				
+				if (isset($email_details[0]['st_email_body'])) {
+				
+					$subject = $email_details[0]['st_email_subject'];
+					
+					$category = $email_details[0]['st_category'];
+					
+					if(isset($comment_exists) && $comment_exists != '')
+					{
+						//$comment_part = $strProject.'<br>'.$strName.'<br>'.$strEmail;
+						$comment_part = '';
+						if(isset($comment_part) && $comment_part != '')
+						{
+							//$to = 'ghanshyam.maurya@pulsesolutions.net';
+							$to = 'nirav.motta@pulsesolutions.net';
+							//$to = 'chris@doobert.com';
+							//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+							$subject = "Doobert.com: Someone Wants to Help!";
+							$comments = '';
+							$comments .= 'VOLUNTEER INFORMATION:';
+							$comments .= '<br/>';
+							$comments .= $comment_part;
+							$message  = $comments;
+				
+							$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'), $this->email, $category);
+							//echo 'comment mail sent';
+						}
+					}
+				
+					$templete = $email_details[0]['st_email_body'];
+					$templete  = str_replace("##user_name##",trim($to_name),$templete);
+					$templete  = str_replace("##DONATION##",$donation,$templete);
+					$strMail = $templete;
+					//$to = 'rupesh@pulsesolutions.net';
+					//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+					$to = $to_email;
+					//$to = 'chris@doobert.com';
+					//$subject = $email_details[0]['st_email_subject'];
+					$message = $strMail;
+		
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'), $this->email, $category);
+					//echo 'mail sent';
+					$update_data = array('in_auto_res_sent'=>'1');
+					$this->volunteermatch_model->update_mail_status($vol_val['in_id'],$update_data);
+					
+					$volunteer_email_checksum = array("in_email_type"		=> $email_type,
+														"st_email_cat"		=> $category,
+														"dt_created"		=> date("Y-m-d H:i:s"),
+														"st_user_name"			=> trim($to_name),
+														"st_email_address" 		=> $to_email,
+											);
+					$insert_id = $this->db->insert('tbl_volunteer_email_checksum',$volunteer_email_checksum);
+				}
+				
+				
+					
+				} else{
+					// IF not ALL for good.
+				//echo '<pre/>'; print_r(htmlspecialchars($vol_val['st_from']));
+				//echo '<pre/>'; print_r(htmlspecialchars($vol_val['st_text'])); 
+				$title_first_character = $this->get_string_between(htmlspecialchars($vol_val['st_text']),'Title: ',' ');
+				//echo $title_first_character; exit;
+				//$to_name = $this->get_string_between(htmlspecialchars($vol_val['st_text']),'Reply-To: ','&lt;');
+				//echo 'to_name'.$to_name ;//exit;
+				//$to_email = $this->get_string_between(htmlspecialchars($vol_val['st_text']),'Reply-To: ','To: ');
+				//echo 'to_email'.$to_email ;//exit;
+				//$to_email = trim($this->get_string_between($to_email,'&lt;','&gt;'));
+				//echo 'to_email'.$to_email;
+				$to_name = trim($this->get_string_between(htmlspecialchars($vol_val['st_text']),'Name: ','Email'));
+				$to_email = trim($this->get_string_between(htmlspecialchars($vol_val['st_text']),'Email: ','Phone'));
+				//echo 'to_email'.$to_email ;//exit;
+				//exit;
+				$comment_exists = trim($this->get_string_between(htmlspecialchars($vol_val['st_text']),'Comments:','Volunteers are always eager'));
+				/*if(isset($comment_exists) && $comment_exists != '')
+				{
+				echo 'comment_exists';	$comment_exists;
+				}
+				else{
+					echo 'no comments';
+					}
+					exit;*/
+				$email_details = $this->common_model->get_email_containt("42");
+				
+				if(isset($title_first_character) && $title_first_character == 'Drive')
+				{
+					$email_type = '42';
+					$email_details = $this->common_model->get_email_containt("42");
+				}
+				if(isset($title_first_character) && $title_first_character == 'airline')
+				{
+					$email_type = '118';
+					$email_details = $this->common_model->get_email_containt("118");
+				}
+				if(isset($title_first_character) && $title_first_character == 'I')
+				{
+					$email_type = '51';
+					$email_details = $this->common_model->get_email_containt("51");					
+				}
+				if(isset($title_first_character) && $title_first_character == 'Let')
+				{
+					$email_type = '52';
+					$email_details = $this->common_model->get_email_containt("52");				
+				}	
+				if(isset($title_first_character) && $title_first_character == 'Are')
+				{
+					$email_type = '73';
+					$email_details = $this->common_model->get_email_containt("73");				
+				}
+				if(isset($title_first_character) && $title_first_character == 'Do')
+				{
+					$email_type = '74';
+					$email_details = $this->common_model->get_email_containt("74");				
+				}
+				if(isset($title_first_character) && $title_first_character == 'Punch')
+				{
+					$email_type = '79';
+					$email_details = $this->common_model->get_email_containt("79");				
+				}			
+				
+				if (isset($email_details[0]['st_email_body'])) {
+				
+					$subject = $email_details[0]['st_email_subject'];
+					
+					$category = $email_details[0]['st_category'];
+					
+					if(isset($comment_exists) && $comment_exists != '')
+					{
+						$comment_part = $this->get_string_between(htmlspecialchars($vol_val['st_text']),'VOLUNTEER INFORMATION:','Volunteers are always eager ');
+						$comment_part = str_replace( "\n", '<br />', $comment_part);
+						if(isset($comment_part) && $comment_part != '')
+						{
+							//$to = 'ghanshyam.maurya@pulsesolutions.net';
+							$to = 'nirav.motta@pulsesolutions.net';
+							//$to = 'chris@doobert.com';
+							//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+							$subject = "Doobert.com: Someone Wants to Help!";
+							$comments = '';
+							$comments .= 'VOLUNTEER INFORMATION:';
+							$comments .= '<br/>';
+							$comments .= $comment_part;
+							$message  = $comments;
+				
+							$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'), $this->email, $category);
+							//echo 'comment mail sent';
+						}
+					}
+				
+					$templete = $email_details[0]['st_email_body'];
+					$templete  = str_replace("##user_name##",trim($to_name),$templete);
+					$templete  = str_replace("##DONATION##",$donation,$templete);
+					$strMail = $templete;
+					//$to = 'ghanshyam.maurya@pulsesolutions.net';
+					//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+					$to = $to_email;
+					//$to = 'chris@doobert.com';
+					//$subject = $email_details[0]['st_email_subject'];
+					$message = $strMail;
+		
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'), $this->email, $category);
+					//echo 'mail sent';
+					$update_data = array('in_auto_res_sent'=>'1');
+					$this->volunteermatch_model->update_mail_status($vol_val['in_id'],$update_data);
+					$volunteer_email_checksum = array("in_email_type"		=> $email_type,
+														"st_email_cat"		=> $category,
+														"dt_created"		=> date("Y-m-d H:i:s"),
+														"st_user_name"		=> trim($to_name),
+													    "st_email_address" 		=> $to_email,
+											);
+				//print_r($volunteer_email_checksum);die;
+					$insert_id = $this->db->insert('tbl_volunteer_email_checksum',$volunteer_email_checksum);
+				}
+				} // Else END for ALL FOR GOOD	
+				
+			}
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+		}else{
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		}
+	}
+	
+	function get_string_between($string, $start, $end){
+		$string = ' ' . $string;
+		$ini = strpos($string, $start);
+		if ($ini == 0) return '';
+		$ini += strlen($start);
+		$len = strpos($string, $end, $ini) - $ini;
+		return substr($string, $ini, $len);
+	}
+	
+	public function volunteer_response_new()
+	{
+		//echo 'mail stop';exit;		
+		$vol_old_data = $this->volunteermatch_model->get_old_volunteers_email();
+		//print_r($vol_old_data); //exit;
+		
+		if(isset($vol_old_data) && !empty($vol_old_data))
+		{
+			foreach($vol_old_data as $old_val)
+			{
+				$update_data = array('in_deleted'=>'1');
+				$this->volunteermatch_model->update_mail_status($old_val['in_id'],$update_data);
+			}
+		}
+		
+		$vol_data = $this->volunteermatch_model->get_all_volunteers_details_new();
+		//print_r($vol_data);exit;
+		if(isset($vol_data) && !empty($vol_data))
+		{
+			$this->load->library('email');
+			foreach($vol_data as $vol_val)
+			{
+				//echo '<pre/>'; print_r(htmlspecialchars($vol_val['st_from']));
+				//echo '<pre/>'; print_r(htmlspecialchars($vol_val['st_text'])); 
+				//echo '=======================';
+				//exit;
+				$title_first_character = $this->get_string_between(htmlspecialchars($vol_val['st_text']),'Title: ',' ');
+				//echo $title_first_character; //exit;
+				//echo '=======================';
+				$to_name = trim($this->get_string_between(htmlspecialchars($vol_val['st_text']),'Name: ','Email'));
+				//echo 'to_name'.$to_name ;//exit;
+				//echo '=======================';
+				$to_email = trim($this->get_string_between(htmlspecialchars($vol_val['st_text']),'Email: ','Phone'));
+				//echo 'to_email'.$to_email ;//exit;
+				//echo '=======================';
+				//$to_email = trim($this->get_string_between($to_email,'&lt;','&gt;'));
+				//echo 'to_email'.$to_email;
+				//echo '=======================';
+				//exit;
+				$comment_exists = trim($this->get_string_between(htmlspecialchars($vol_val['st_text']),'Comments:','Volunteers are always eager'));
+				/*if(isset($comment_exists) && $comment_exists != '')
+				{
+				echo 'comment_exists';	$comment_exists;
+				}
+				else{
+					echo 'no comments';
+					}
+					exit;*/
+				$email_details = $this->common_model->get_email_containt("42");
+				
+				if(isset($title_first_character) && $title_first_character == 'Drive')
+				{
+					$email_details = $this->common_model->get_email_containt("42");
+				}
+				if(isset($title_first_character) && $title_first_character == 'I')
+				{
+					$email_details = $this->common_model->get_email_containt("51");					
+				}
+				if(isset($title_first_character) && $title_first_character == 'Let')
+				{
+					$email_details = $this->common_model->get_email_containt("52");				
+				}	
+				
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				if (isset($email_details[0]['st_email_body'])) {
+				
+					$subject = $email_details[0]['st_email_subject'];
+					
+					if(isset($comment_exists) && $comment_exists != '')
+					{
+						$comment_part = $this->get_string_between(htmlspecialchars($vol_val['st_text']),'VOLUNTEER INFORMATION:','Volunteers are always eager ');
+						$comment_part = str_replace( "\n", '<br />', $comment_part);
+						if(isset($comment_part) && $comment_part != '')
+						{
+							//$to = 'ghanshyam.maurya@pulsesolutions.net';
+							$to = 'chris@doobert.com';
+							//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+							$subject = "Doobert.com: Someone Wants to Help!";
+							$comments = '';
+							$comments .= 'VOLUNTEER INFORMATION:';
+							$comments .= '<br/>';
+							$comments .= $comment_part;
+							$message  = $comments;
+				
+							$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = 'rupesh.kumar@pulsesolutions.net', $this->config->item('admin_from_name'));
+							//echo 'comment mail sent';
+						}
+					}
+				
+					$templete = $email_details[0]['st_email_body'];
+					$templete  = str_replace("##user_name##",trim($to_name),$templete);
+					$templete  = str_replace("##DONATION##",$donation,$templete);
+					$strMail = $templete;
+					//$to = 'ghanshyam.maurya@pulsesolutions.net';
+					//$to = 'rajesh.ramakrishnan@pulsesolutions.net';
+					$to = $to_email;
+					//$to = 'chris@doobert.com';
+					//$subject = $email_details[0]['st_email_subject'];
+					$message = $strMail;
+		
+					$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = 'rupesh.kumar@pulsesolutions.net', $this->config->item('admin_from_name'));
+					//echo 'mail sent';
+					$update_data = array('in_auto_res_sent'=>'1');
+					$this->volunteermatch_model->update_mail_status($vol_val['in_id'],$update_data);
+				}	
+				
+			}
+		}
+	}
+	
+}
+
+/* End of file Verification.php */
+/* Location: ./application/controllers/Verification.php */

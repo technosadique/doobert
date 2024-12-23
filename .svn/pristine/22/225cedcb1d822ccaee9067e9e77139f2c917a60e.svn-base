@@ -1,0 +1,132 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 24-March-2014
+# File description	: User Model for admin
+# Special - notes	: none
+# Tables used		: tbl_admin
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class Mailchimp_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#	Function	:	get_total_user()
+	#   Parameter	: 	searchtxt
+	#	Perpose		:	to get no of users
+	#------------------------------------------------------------
+	
+	
+	#============================================================
+	#	Function	:	get_user()
+	#   Parameter	: 	sort,order,limit,rec_per_page,searchtxt
+	#	Perpose		:	to get user details
+	#------------------------------------------------------------
+	/*public function get_user()
+	{		
+				  $this->db->select("m.stEmail", false);						   	
+				  $this->db->from('tbl_mailchimp m');
+				  $this->db->order_by('inId','ASC');
+				  $this->db->limit(600,1800);	
+				  $query = $this->db->get(); 					
+					//echo $this->db->last_query();  die;					
+						$arrUser = array();
+					 
+						foreach ($query->result() as $key =>$value)
+						{		
+							$arrUser['personalizations'][$key]['to'][]	=	array('email'=>$value->stEmail);
+						}
+						$arrUser['from']['name'] = "Doobert.com Animal rescue made simple";
+						$arrUser['from']['email'] = "No-reply@doobert.com";
+						$arrUser['template_id']	=	"5459d25a-2d5b-418d-a3f7-294a152a9531";
+						
+						return $arrUser;						
+	}*/
+	
+	
+	function updateuser($arrUserIds)
+	{
+		$update_arr	=	array('flg_newsletter'=>1);
+		$ids	=	implode(",",$arrUserIds);		
+		$this->db->where_in('in_user_id',$ids,false);
+		$this->db->update('tbl_users',$update_arr);
+		//echo $this->db->last_query();
+       // return $this->db->affected_rows();
+	}
+
+	
+	public function get_userdetail()
+	{
+		//$template_id	=	5;
+		
+		
+		
+		$this->db->query($sql);
+		// tbl_newsletter
+		$this->db->select("*", false);						   	
+		$this->db->from('tbl_newsletter n');	       
+		$wh = "in_deleted =0 AND in_sent=0 AND dt_sendtime BETWEEN DATE_SUB(NOW(), INTERVAL 30 MINUTE) AND NOW()";			
+		$this->db->where($wh);
+		$this->db->limit(1);
+		$this->db->order_by('in_newsletter_id', 'DESC');
+		$this->db->where('in_deleted',0); 
+					
+		$query2 = $this->db->get();
+		//$arrData = $query2->result_array();		
+		
+		foreach ($query2->result() as $key1 =>$value1)
+		{
+			
+			$newsletter_id	=	$value1->in_newsletter_id;
+			$template_id	=	$value1->st_template_id;			
+			if($value1->in_reset==0)
+			{
+				$update_arr	=	array('flg_newsletter'=>0);				
+				$this->db->update('tbl_users',$update_arr);
+				$update_arr	=	array('in_reset' =>1);
+				$this->db->where('in_newsletter_id',$newsletter_id);
+				$this->db->update('tbl_newsletter',$update_arr);
+			}
+			//print_r($value1);
+
+			
+			$this->db->select("u.in_user_id,u.st_email", false);						   	
+			$this->db->from('tbl_users u');				  
+			$this->db->where('in_newsletter','Y');
+			$this->db->where('flg_newsletter','0');
+			$this->db->where('in_deleted',0);				  			  
+			$this->db->limit('2');	
+			$query = $this->db->get(); 
+
+			$arrUser = array();
+			$arrUserIds	=	array();
+
+			foreach ($query->result() as $key =>$value)
+			{		
+				$arrUser['personalizations'][$key]['to'][]	=	array('email'=>$value->st_email);
+				$arrUserIds[]	=	$value->in_user_id;
+			}
+			if(count($arrUserIds)>0)
+			{
+				$arrUser['from']['name'] = "Doobert.com Animal rescue made simple";
+				$arrUser['from']['email'] = "No-reply@doobert.com";
+				//$arrUser['template_id']	=	$template_id; 
+				$arrUser['template_id']	=	"5459d25a-2d5b-418d-a3f7-294a152a9531";
+				return array($arrUser,$arrUserIds);
+			}else{
+				$update_arr	=	array('in_sent' =>1);
+				$this->db->where('in_newsletter_id',$newsletter_id);
+				$this->db->update('tbl_newsletter',$update_arr);				
+			}	
+		}				  
+										
+	}
+	
+}
+?>

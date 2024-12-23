@@ -1,0 +1,264 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class User_info extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->load->model('common_model');
+		$this->load->library('common_function');
+	}
+	
+	public function index()
+	{
+		 $data = array();
+		if($this->input->post('name') && $this->input->post('emailaddress') && $this->input->post('organization')
+			&& $this->input->post('phone_no')	&& $this->input->post('checkone') )
+		{
+				
+			$seminar_details = array('st_name'	=> $this->input->post('name'),
+									'st_email' => $this->input->post('emailaddress'),
+									'st_org_name' => $this->input->post('organization'),
+									'st_phone'	   => $this->input->post('phone_no'),
+									'st_checked_one' => $this->input->post('checkone'),
+									'st_trans_id' => '',
+									'dt_created' => date('Y-m-d H:i:s')	
+									);
+			 $this->db->insert('tbl_seminar_registration',$seminar_details);
+			 $memberid = $this->db->insert_id();
+			 $data['memberid'] =  $memberid;
+			$this->load->view('seminar_paypal_view',$data);
+		}
+	}
+	
+	public function seminar_notify_url()
+	{
+		$postData = file_get_contents('php://input');
+		$rawPostArray = explode('&', $postData);
+		
+		$myPost = array();
+		foreach ($rawPostArray as $keyval) {
+		  $keyval = explode ('=', $keyval);
+		  if (count($keyval) == 2)
+			$myPost[$keyval[0]] = urldecode($keyval[1]);
+		}
+		if(isset($myPost) && (strtoupper($myPost['payment_status'])=='COMPLETED' || $myPost['payer_status']=='verified'))
+		{
+			$order_id	=	$myPost['custom'];			
+			$transaction_id	=	$myPost['txn_id'];
+			$ipn_notification_data = array('st_trans_id'=>$transaction_id,'ipn_notification_data'=>serialize($rawPostArray));
+			$this->db->where('in_id',$order_id);
+			$this->db->update('tbl_seminar_registration',$ipn_notification_data);
+			
+			$this->load->library('email');
+			 $email_details = $this->common_model->get_email_containt("128");
+			 $q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			$user_detail = $this->common_model->get_seminar_user_detail($order_id);
+			if (isset($email_details[0]['st_email_body']) && isset($user_detail)) 
+			{
+				$templete  = $email_details[0]['st_email_body'];
+				$templete = str_replace("##display_name##",$user_detail['st_name'], $templete);
+				$templete = str_replace("##DONATION##",$donation, $templete);
+				$strMail = $templete;
+				$to = $user_detail['st_email'];
+				$subject = $email_details[0]['st_email_subject']; 
+				$category = $email_details[0]['st_category'];
+				$message = $strMail;
+		 		$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+			}
+			
+			if(isset($user_detail) && !empty($user_detail))
+			{	
+				$email_details = $this->common_model->get_email_containt("129");
+				$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+				//if(isset($email_details[0]['st_email_body']))
+				//{
+					
+					$email_templete  = $email_details[0]['st_email_body'];
+					$user_info ='';   
+					$user_info .= 'Name: '.$user_detail['st_name'].'<br>';
+					$user_info .= 'Name of Shelter, Clinic or Organization: '.$user_detail['st_org_name']."<br>";
+					$user_info .= 'Phone: '.$user_detail['st_phone']."<br>";
+					$user_info .= 'E-mail Address: '.$user_detail['st_email']."<br>";
+					$user_info .= 'Please Check One: '.$user_detail['st_checked_one']."<br>";
+					$user_info .= 'Transaction ID: '.$user_detail['st_trans_id']."<br>";	
+					$admin_list = $this->common_model->get_admin_list();
+					//for($a=0;$a<count($admin_list);$a++)
+					//{
+							$templete   = $email_templete;
+							$templete   = str_replace("##display_name##",'rupesh',$templete);
+							$templete   = str_replace("##user_details##",$user_info,$templete);  
+							$templete   = str_replace("##DONATION##",$donation,$templete);  
+							$strMail 	= 	$templete;
+							$to			=	'rupesh.kumar@pulsesolutions.net';
+							//$to			=	'ghanshyam.maurya@pulsesolutions.net';
+							$subject	=	$email_details[0]['st_email_subject'];
+							$message	=	$strMail;
+							$category   =   $email_details[0]['st_category'];
+							$this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='',$this->config->item('admin_from_name'),$this->email,$category);
+						
+					//}
+				//}
+			}
+			
+		}
+			
+			//$to			=	$myPost['payer_email'];	
+			/*$to			=	'nirav.motta@pulsesolutions.net';
+			$subject	=	'Communicating with Canines and Canine Aggression Seminar Registration';
+			$category 	= 	'Give Smiles';
+			$message  	= 	$rawPostArray['custom'];
+			
+			$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);*/			
+	}
+	
+	
+	
+	
+	public function send_mail_to_tc() {
+
+        $sender_name = $this->input->post('user_name');
+        $sender_email_address = $this->input->post('email_address');
+		$msg = nl2br($this->input->post('contactmessage'));
+		$transport_id = $this->input->post('transport_id');
+		$contact_email = $this->input->post('contact_email');
+        $contact_name = $this->input->post('contact_name');
+		
+		$this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("62");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		
+        if (isset($email_details[0]['st_email_body'])) {
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##user_name##",$contact_name  , $templete);
+            $templete = str_replace("##sender_name##", $sender_name , $templete);
+			$templete = str_replace("##message##", $msg, $templete);
+			$templete =	str_replace("##transport_id##","DBT".$transport_id, $templete); 
+            $templete = str_replace("##sender_email##",  $sender_email_address , $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+            $strMail = $templete;
+            $to = $contact_email;
+			//$to = 'nirav.motta@pulsesolutions.net';
+            $subject = $email_details[0]['st_email_subject'];
+			$subject = str_replace('##sender_name##', $sender_name,$subject); 
+			$category = $email_details[0]['st_category'];
+		   // $subject = 'Contact Request From: ' . $this->session->userdata('user_name');
+            $message = $strMail;
+			
+			
+			$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);
+			
+			$send_email = 1;							
+			$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+			if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_details[0]['in_email_id'];
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}
+			
+			if($send_email == '1')
+			{
+		 		$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('from_name'),$this->email,$category);
+			}
+			
+			$data['success'] = 1;
+			echo json_encode($data);
+		}
+	}
+
+	public function test_seminar_user_detail()
+	{
+		$order_id = '23';
+		$user_detail = $this->common_model->get_seminar_user_detail($order_id);
+		print_r($user_detail);
+		die;
+	}	
+}	
+?>	

@@ -1,0 +1,361 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 25-Mar-2014
+# File description: User(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Events extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('event_model');
+		$this->load->model('common_model');		
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin1');	
+		$this->session->unset_userdata('searchadmin2');	
+		$this->session->unset_userdata('searchadmin3');	
+		$this->session->unset_userdata('searchadmin4');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$searchtxt			=	'';	
+		$data['organization_list'] = $this->common_model->get_organization_list();	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{			
+			
+			if($this->session->userdata('searchadmin1'))
+				$this->session->unset_userdata('searchadmin1');						
+				
+			$searchtxt = trim(addslashes($this->input->post('txtsearch')));				
+			$this->session->set_userdata('searchadmin1',$searchtxt);	
+								
+		}	
+		
+		
+		
+		if($this->input->post('txtfrom') || ($this->input->post('action') == 'search'))
+		{	
+			
+			if($this->session->userdata('searchadmin2'))
+				$this->session->unset_userdata('searchadmin2');										
+			 	$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 				
+				$this->session->set_userdata('searchadmin2',$fromdate);
+		}
+		
+		if($this->input->post('txtto') || ($this->input->post('action') == 'search'))
+		{
+			if($this->session->userdata('searchadmin3'))
+				$this->session->unset_userdata('searchadmin3');			
+				$todate = date('Y-m-d',strtotime($this->input->post('txtto')));	
+				$this->session->set_userdata('searchadmin3',$todate);			
+				
+		}	
+		if($this->input->post('organization') || ($this->input->post('action') == 'search'))
+		{
+			
+			if($this->session->userdata('searchadmin4'))
+				$this->session->unset_userdata('searchadmin4');			
+				$organization = trim($this->input->post('organization'));	
+				$this->session->set_userdata('searchadmin4',$organization);			
+				
+		}
+
+		$rec_per_page =	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->event_model->get_total_event($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['event_list']	= $this->event_model->get_event($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),$this->session->userdata('searchadmin3'),$this->session->userdata('searchadmin4'));
+		
+		//echo '<pre>'; print_r($data['event_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'events/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		 $data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);	
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No events available.';
+		}
+		
+		$this->load->view('event-manage',$data);
+	}
+	
+	
+	function event_delete($adminId)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->event_model->delete_event($adminId);			
+		$this->session->set_flashdata('success', 'Event has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'events');
+		
+	}	
+	
+	function delete_multiple_event()
+	{   
+	    
+		$admin_ids = $this->input->post('adminid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($admin_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->event_model->delete_multiple_event($admin_ids);
+			
+			$this->session->set_flashdata('success', 'Event(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'events/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	
+	
+	function event_edit($eventId)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$state_list 			= $this->common_function->state_list;			
+		$data['state_list'] 	= $state_list;	
+		$data['Err_Msg']	=	'';			
+		$form_field	=	array('title'			=> "",	
+							  'description'		=> "",
+							   'startdate'		=> "",
+							   'address1'		=> "",
+							   'address2'		=> "",
+							   'city'			=> "",
+							   'zipcode'		=> "",
+							   'country'		=> "",
+							   'state'			=> "", 
+							   'event_time'     => "",
+							   'enddate'		=> ""		  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+		$data['event_details'] = $this->event_model->get_event_detail($eventId);	
+		//echo "<pre>"; print_r($data['event_details']); die;
+		if($this->input->post('action')=='Edit')
+		{   
+			//Validation rules
+						$eventId			   = $this->input->post('eventId');
+						$data['event_details'] = $this->event_model->get_event_detail($eventId);	
+			
+						foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+						}
+						$this->form_validation->set_rules('title', 'Event Title', 'trim|required');
+						$this->form_validation->set_rules('description', 'Event Description', 'trim|required');
+						$this->form_validation->set_rules('address1', 'Address', 'trim');
+						$this->form_validation->set_rules('address2', 'Address2', 'trim');
+						$this->form_validation->set_rules('city', 'City', 'trim');
+						$this->form_validation->set_rules('country', 'Country', 'trim');
+						$this->form_validation->set_rules('state', 'State', 'trim');
+						$this->form_validation->set_rules('zipcode', 'Zip Code', 'trim');	
+						$this->form_validation->set_rules('startdate', 'Event Start Date', 'trim|required');
+						$this->form_validation->set_rules('enddate', 'Event End Date', 'trim|required');
+						$this->form_validation->set_rules('event_time', 'Event Time', 'trim|required');
+						$this->form_validation->set_rules('event_timezone', 'Event TimeZone', 'trim|required');
+						
+						
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$data['event_details'] = $this->event_model->get_event_detail($eventId);					
+						$this->load->view('event-edit',$data);	
+				}
+			
+			else
+			{ 		  
+						$event_time 									=   date('H:i:s',strtotime($this->input->post('event_time')));			
+						$event_info 									=   array();
+						$event_info['st_timezone'] 						=   $this->input->post('event_timezone');	
+						$event_info['st_event_title'] 					=	$this->input->post('title');
+						$event_info['st_event_desc'] 					=	$this->input->post('description');		
+						$event_info['dt_start'] 						=	date('Y-m-d H:i:s',strtotime($this->input->post('startdate').' '.$event_time));
+						$event_info['dt_end'] 							=	date('Y-m-d H:i:s',strtotime($this->input->post('enddate')));						
+						$event_info['st_address1'] 						=	$this->input->post('address1');
+						$event_info['st_address2'] 						=	$this->input->post('address2');
+						$event_info['st_city'] 							=	$this->input->post('city');
+						$event_info['st_zip'] 							=	$this->input->post('zipcode');	
+						$event_info['st_country'] 						=	$this->input->post('country');
+						$event_info['st_state'] 					    =	$this->input->post('state');
+						$profile_info['dt_modified'] 					= 	date('Y-m-d H:i:s');
+					
+						//Updating event data
+						$this->event_model->update_event_info($event_info,$eventId,'tbl_organization_event');					
+						$this->session->set_flashdata('message', 'You have successfully updated event!');					
+						redirect(site_url('events/event_edit/'.$eventId));
+			}
+		}
+		
+		else
+		{				
+						$this->load->view('event-edit',$data);
+		}
+	}
+	
+	
+	
+	
+	
+		function event_view($eventId)
+			{
+				 
+					if(!$this->session->userdata('sess_admin_id'))
+					 {
+						$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+						$this->session->set_userdata('redirect_url',$url);
+						redirect($this->config->item('admin_base_url'));	
+					}			
+					
+					$data['event_details'] = $this->event_model->get_event_detail($eventId); 
+					
+					//echo '<pre>'; print_r($data['event_details']); die;
+						
+					if(count($data['event_details'])=='')
+					{
+						redirect($this->config->item('admin_base_url'));	
+					}
+										
+					$this->load->view('manage-event-view',$data);			
+			
+			
+			
+			
+		}
+	}
+	
+	
+	
+
+
+
+
+/* End of file user.php */
+/* Location: ./application/controllers/user.php */

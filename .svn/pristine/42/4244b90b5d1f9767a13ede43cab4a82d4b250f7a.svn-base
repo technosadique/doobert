@@ -1,0 +1,272 @@
+<?php
+# ======================================================================================
+# Created by		: Sadique Mohammad
+# Created date		: 25-March-2014
+# File description	: User Model for admin
+# Special - notes	: none
+# Tables used		: tbl_organization_event
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class event_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#	Function	:	get_total_user()
+	#   Parameter	: 	searchtxt
+	#	Perpose		:	to get no of users
+	#------------------------------------------------------------
+	public function get_total_event($searchtxt='',$fromdate='',$todate='',$organization='')
+	{ 			
+		  if($fromdate=='1969-12-31'){$fromdate='';  }
+		  if($todate=='1969-12-31'){$todate='';  }
+		  
+		 $this->db->select("e.in_event_id", false);						   	
+		 $this->db->from('tbl_organization_event as e');
+		 $this->db->join('tbl_organization o', 'o.in_organization_id=e.in_organization_id AND o.in_deleted=0 AND o.in_status=1','LEFT');		
+		 $this->db->join('tbl_users u', 'u.in_user_id=e.in_created_by AND u.in_deleted=0','LEFT');						
+		 $this->db->where('e.in_deleted','0');			
+			
+			if($searchtxt!= '') {	
+							$searchtxt = str_replace("%","\%",$searchtxt);							
+							$this->db->where("e.st_event_title LIKE '%".$searchtxt."%' 
+							OR e.st_event_desc LIKE '%".$searchtxt."%'  
+							OR e.st_zip LIKE '%".$searchtxt."%' 
+							OR  e.st_address1 LIKE '%".$searchtxt."%' 
+							OR  e.st_city LIKE '%".$searchtxt."%'", NULL, FALSE);								
+					}	
+			if($organization!='')
+					{						  
+					  $this->db->where("e.in_organization_id = '".$organization."'", NULL, FALSE);
+					}		
+					
+		   if($fromdate!='' && $todate!='' )
+					{						
+						$this->db->where("e.dt_start >='".$fromdate."' AND e.dt_start <='" .$todate. ' 23:59:59'."' OR
+						e.dt_end >='".$fromdate."' AND e.dt_end <='" .$todate. ' 23:59:59'."'",NULL, FALSE); 
+					}	
+		
+		$query = $this->db->get();		
+		return $query->num_rows();
+	}
+	
+	#============================================================
+	#	Function	:	get_user()
+	#   Parameter	: 	sort,order,limit,rec_per_page,searchtxt
+	#	Perpose		:	to get user details
+	#------------------------------------------------------------
+	public function get_event($sort,$order,$limit,$rec_per_page,$searchtxt,$fromdate,$todate,$organization)
+	{
+		         if($fromdate=='1969-12-31'){$fromdate='';  }
+		  		 if($todate=='1969-12-31'){$todate='';  }
+		
+				  $this->db->select("e.in_event_id,
+									  e.st_event_title,
+									  e.dt_start,
+									  e.dt_end,									  
+									  e.st_zip,
+									  e.in_created_by,
+									  o.st_org_name,
+									  u.st_display_name,
+									  u.st_last_name", false);						   	
+				  $this->db->from('tbl_organization_event as e');
+				  $this->db->join('tbl_organization o', 'o.in_organization_id=e.in_organization_id AND o.in_deleted=0 AND o.in_status=1','LEFT');
+				  $this->db->join('tbl_users u', 'u.in_user_id=e.in_created_by AND u.in_deleted=0','LEFT');							
+				  $this->db->where('e.in_deleted','0');	  
+				  
+					
+					if($searchtxt!= '') {
+							$searchtxt = str_replace("%","\%",$searchtxt);	
+							$this->db->where("e.st_event_title LIKE '%".$searchtxt."%' 
+							OR e.st_event_desc LIKE '%".$searchtxt."%'
+							OR e.st_zip LIKE '%".$searchtxt."%' OR  e.st_address1 LIKE '%".$searchtxt."%'  
+							OR  e.st_city LIKE '%".$searchtxt."%'", NULL, FALSE);
+											
+					}	
+					
+					if($organization!='')
+					{						  
+					  $this->db->where("e.in_organization_id = '".$organization."'", NULL, FALSE);
+					}	
+					
+					if($fromdate!='' && $todate!='' )
+					{						
+						// $this->db->where("e.dt_start >='".$fromdate."' AND e.dt_end <='" .$todate. ' 23:59:59'."'", NULL, FALSE);
+						$this->db->where("e.dt_start >='".$fromdate."' AND e.dt_start <='" .$todate. ' 23:59:59'."' OR
+						e.dt_end >='".$fromdate."' AND e.dt_end <='" .$todate. ' 23:59:59'."'",NULL, FALSE); 
+					}	
+					
+					switch($sort)
+					{
+						
+						case 'id': 							
+							$this->db->order_by('e.in_event_id',$order);							
+						break;
+						
+						case 'title': 							
+							$this->db->order_by('e.st_event_title',$order);							
+						break;	
+						
+						case 'org': 							
+							$this->db->order_by('o.st_org_name',$order);							
+						break;	
+						
+						case 'createdby': 							
+							$this->db->order_by('u.st_display_name',$order);							
+						break;		
+						
+						case 'startdate': 							
+							$this->db->order_by('e.dt_start',$order);
+						break;	 
+						
+						case 'enddate': 							
+							$this->db->order_by('e.dt_end',$order);
+						break;	
+						
+						default:						
+						$this->db->order_by('e.in_event_id',$order);
+						 break;        
+					}
+					  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}
+					//$sql 	.= " LIMIT ".$limit.",".$rec_per_page;
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 					
+					//echo $this->db->last_query();  die;					
+					$arrEvent = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+							$arrEvent[]	=	array('in_event_id'	=> $Row->in_event_id,
+											'st_event_title'	=> $Row->st_event_title,															
+											'dt_start'			=> $Row->dt_start,
+											'dt_end'			=> $Row->dt_end,
+											'st_zip'			=> $Row->st_zip,
+											'st_org_name'		=> $Row->st_org_name,											
+											'st_display_name'	=> $Row->st_display_name. ' '.$Row->st_last_name 																					
+											);
+						}
+						return $arrEvent;
+						
+					}
+					
+	}
+	
+	
+	#======================================================================
+	#	Function	:	delete_event()
+	#   Parameter	: 	eventId
+	#	Perpose		:	to delete single event details from tbl_admin table
+	#----------------------------------------------------------------------
+	function delete_event($eventId)
+	{
+		$arrEvent = 	array('in_deleted' 	=> '1' );		
+		$this->db->where('in_event_id', $eventId);
+		$this->db->update('tbl_organization_event', $arrEvent);		
+	}
+	
+	#========================================================================
+	#	Function	:	delete_multiple_event()
+	#   Parameter	: 	eventIds
+	#	Perpose		:	to delete multiple event details from tbl_organization_event table
+	#------------------------------------------------------------------------
+	function delete_multiple_event($eventIds)
+	{				
+		$arrEvent = 	array('in_deleted' 	=> '1' );
+		$this->db->where_in('in_event_id', $eventIds);
+		$this->db->update('tbl_organization_event', $arrEvent);		
+		return $this->db->affected_rows();
+	}
+	
+	
+	
+	
+	#======================================================================
+	#	Function	:	get_event_detail()
+	#   Parameter	: 	eventId
+	#	Perpose		:	to get event profile from tbl_organization_event table
+	#----------------------------------------------------------------------
+	function get_event_detail($eventId)	{
+		$this->db->select('e.in_event_id,e.in_organization_id,e.st_event_title,e.dt_start,
+						   e.dt_end,e.st_address1,e.st_address2,e.st_city,
+						   e.st_state,e.st_country,e.st_zip,e.st_event_desc,e.st_timezone,o.st_org_name');
+		$this->db->from('tbl_organization_event as e');	
+		$this->db->join('tbl_organization o', 'o.in_organization_id=e.in_organization_id','INNER');	
+		$this->db->where('e.in_event_id',$eventId);			
+		$query = $this->db->get();
+		return $query->row_array();	
+	}
+	
+	
+	
+	#======================================================================
+	#	Function	:	update_admin_info()
+	#   Parameter	: 	data,adminid,table
+	#	Perpose		:	to update admin profile in tbl_admin table
+	#----------------------------------------------------------------------
+	public function update_admin_info($data,$adminid,$table) {		
+		$this->db->where('in_admin_id',$adminid);
+		$this->db->update($table,$data);
+		return $this->db->affected_rows();	
+	}
+	
+	#======================================================================
+	#	Function	:	insertAdmin()
+	#   Parameter	: 	post
+	#	Perpose		:	to insert admin details in tbl_admin table
+	#----------------------------------------------------------------------
+	public function insertAdmin($post)
+	{    
+	     $password = md5($post['password']);
+		 $arrAdmin = 	  array(
+								'st_email_address'		=>	$post['email'],	
+								'st_password'			=>	$password,	
+								'st_name'     		    =>	$post['name'],
+								'dt_created'			=>  date("Y-m-d H:i:s"),	
+								'in_deleted'		    =>'0'																				
+								);	
+								$this->db->insert('tbl_admin', $arrAdmin);												
+	}
+	
+	function is_email_exists($email)
+	{ 
+		$this->db->select('in_admin_id');
+		$this->db->from('tbl_admin');							
+		$this->db->where("st_email_address",$email); 
+		$this->db->where("in_deleted",0);
+		$query = $this->db->get();		
+		//echo $this->db->last_query(); die;	
+		
+		if($query->num_rows()>0)
+			return true;
+		else
+			return false;				
+	}
+	
+	
+	#======================================================================
+	#	Function	:	update_event_info()
+	#   Parameter	: 	data,eventId,table
+	#	Perpose		:	to update event profile in tbl_organization_event table
+	#----------------------------------------------------------------------
+	public function update_event_info($data,$eventId,$table) {		
+		$this->db->where('in_event_id',$eventId);
+		$this->db->update($table,$data);
+		return $this->db->affected_rows();	
+	}
+	
+}
+?>

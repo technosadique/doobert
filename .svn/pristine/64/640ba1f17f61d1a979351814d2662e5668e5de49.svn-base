@@ -1,0 +1,293 @@
+<?php
+# ======================================================================================
+# Created by		: Chetan Pedgaonkar
+# Created date		: 6-May-2014
+# File description	: Sponsorship model
+# Special - notes	: none
+# Tables used		: 
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class donation_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+
+	
+	# *******************************************************************************************	
+	#	Function	:	get_animal_photos	
+	#	Purpose		:	Getting all selected animal photo
+	# *******************************************************************************************
+	
+	public function get_animal_photos($id) {
+		$this->db->select('st_file_name,in_file_id,st_file_type');
+		$this->db->from('tbl_animal_file');
+		$this->db->where('in_animal_id',$id);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_file_type','ASC');
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	public function get_campaign_cost($campaign_id) {
+		$this->db->select('in_campaign_id,st_items,in_cost');
+		$this->db->from('tbl_campaign_cost');
+		
+		$this->db->where('in_campaign_id',$campaign_id);
+		$this->db->where('in_deleted',0);
+		
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+
+
+#==================================== New Function ==================================#		
+	# *******************************************************************************************	
+	#	Function	:	get_sponsorshipdetails	
+	#	Purpose		:	Getting Sponsorship All details
+	# *******************************************************************************************	
+	
+	public function get_sponsorshipdetails($page)
+	{
+		$this->db->select('c.in_campaign_id,c.in_animal_id,c.st_campaign_type,c.st_page_title,c.st_custom_url,
+							c.dt_campaign_start,c.dt_campaign_end,c.st_profile_story,c.st_paypal_email,
+							c.in_created_by,c.in_goal_fund,c.in_fund_raised,c.st_template,c.st_background,
+							c.st_font,c.dt_created,c.st_paypal_email,c.st_page_story_title,
+							u.st_display_name,a.st_animal_name,o.st_org_name,o.st_org_image,
+							o.in_organization_id
+							');
+		$this->db->from('tbl_campaign as c');
+		$this->db->join('tbl_users as u','u.in_user_id = c.in_created_by','LEFT');
+		$this->db->join('tbl_animal as a','a.in_animal_id = c.in_animal_id','LEFT');
+		//$this->db->join('tbl_organization as o','a.in_organization_id = o.in_organization_id','LEFT');
+		$this->db->join('tbl_organization as o','c.in_organization_id = o.in_organization_id','LEFT');
+		$this->db->where('c.st_custom_url',$page);
+		$this->db->where('c.in_deleted',0);
+		$this->db->where('c.in_status',1);
+		$this->db->where('c.dt_campaign_end >= ',date('Y-m-d'));		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+
+	}
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_cost_donation	
+	#	Purpose		:	Getting Sponsorship Cost and Donation
+	# *******************************************************************************************	
+	
+	public function get_campaign_cost_donation($campaign_id,$donation_type='D') {
+		$this->db->select('st_items,in_cost,in_campaign_cost_id,(SELECT SUM(in_donation_amount) FROM tbl_campaign_donation d WHERE in_donation_for=in_campaign_cost_id AND d.in_deleted="0" AND d.st_donation_type="'.$donation_type.'" AND in_status IN (\'1\',\'2\')) as donation_amt',FALSE);
+		$this->db->from('tbl_campaign_cost');
+		$this->db->where('in_campaign_id',$campaign_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_donation_sum	
+	#	Purpose		:	Getting Sponsorship Donation Sum
+	# *******************************************************************************************		
+	
+	public function get_campaign_donation_sum($campaign_id,$donation_type='D') {
+		$this->db->select('SUM(in_donation_amount) as total_donation, count(in_donation_id) as c_in_donation_id');
+		$this->db->from('tbl_campaign_donation');
+		$this->db->where('in_campaign_id',$campaign_id);
+		$this->db->where('in_deleted',0);
+		$this->db->where('st_donation_type',$donation_type);
+		$this->db->where_in('in_status',array('1','2'));
+		$query = $this->db->get();
+		
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_cost_sum	
+	#	Purpose		:	Getting Sponsorship Cost Sum
+	# *******************************************************************************************	
+	public function get_campaign_cost_sum($campaign_id) {
+		$this->db->select('SUM(in_cost) as total_cost');
+		$this->db->from('tbl_campaign_cost');
+		$this->db->where('in_campaign_id',$campaign_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_post	
+	#	Purpose		:	Getting Sponsorship post
+	# *******************************************************************************************	
+		
+	public function get_campaign_post($campaign_id) {
+		$this->db->select('in_post_id,in_campaign_id,in_posted_by_id,st_posted_by_name,st_title,st_desc,dt_created');
+		$this->db->from('tbl_campaign_post');
+		$this->db->where('in_campaign_id',$campaign_id);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('in_post_id','DESC');
+		$this->db->limit(5);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+
+	# *******************************************************************************************	
+	#	Function	:	get_user_access	
+	#	Purpose		:	User access
+	# *******************************************************************************************
+		
+	public function get_user_access($org_id,$user_id)
+	{
+		$this->db->select('p.in_user_id,p.in_profile_id,u.st_display_name,p.st_fundraiser as p_st_fundraiser,ou.st_fundraiser as ou_st_fundraiser,o.in_user_id as o_user_id');
+		$this->db->from('tbl_user_profile p');
+		$this->db->join('tbl_organization o',"o.in_user_id=p.in_user_id AND o.in_user_id='".$user_id."' AND o.in_organization_id='".$org_id."' AND o.in_deleted='0'","LEFT");
+		$this->db->join('tbl_organization_user ou',"ou.in_user_id=p.in_user_id AND ou.in_user_id='".$user_id."' AND ou.in_organization_id='".$org_id."'  AND ou.in_deleted='0' AND ou.in_status='1'","LEFT");
+		$this->db->join('tbl_users u',"p.in_user_id=u.in_user_id","INNER");
+		$this->db->where('p.in_user_id',$user_id);
+		$this->db->where('p.in_deleted',0);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	add_post	
+	#	Purpose		:	Add Campaign post
+	# *******************************************************************************************
+	
+	public function add_post($data) {
+		$this->db->insert('tbl_campaign_post',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_donation_sum	
+	#	Purpose		:	Getting Sponsorship Donation Sum
+	# *******************************************************************************************		
+	
+	public function get_campaign_donation($campaign_id,$donation_type='D') {
+		$this->db->select('in_donation_id,in_campaign_id,st_donation_type,in_donation_amount,st_firstname,st_lastname,st_email,st_comment,dt_created,st_hide');
+		$this->db->from('tbl_campaign_donation');
+		$this->db->where('in_campaign_id',$campaign_id);
+		$this->db->where('in_deleted',0);
+		$this->db->where('st_donation_type',$donation_type);
+		$this->db->where_in('in_status',array('1','2'));
+		$this->db->order_by('in_donation_id','DESC');
+		$this->db->limit(5);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	insert_donation	
+	#	Purpose		:	Insert in to donation
+	# *******************************************************************************************	
+	
+	public function insert_donation($data)
+	{
+		$this->db->insert('tbl_campaign_donation',$data);
+		//return $this->db->affected_rows();
+		return  $this->db->insert_id();
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	delete_cost_details	
+	#	Purpose		:	Delete campaign data
+	# *******************************************************************************************
+	
+	public function update_donation_details($id,$data) {
+		$this->db->where('in_donation_id',$id);
+		$this->db->update('tbl_campaign_donation',$data);
+	}
+
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_donation_sum	
+	#	Purpose		:	Getting Sponsorship Donation Sum
+	# *******************************************************************************************		
+	
+	public function get_donation_details($donation_id) {
+		$this->db->select('	d.in_donation_id,
+							d.in_campaign_id,
+							d.st_donation_type,
+							d.in_donation_amount,
+							d.in_doobert_amt,
+							d.st_transaction_id,
+							d.st_doobert_trans_id,
+							d.st_firstname,
+							d.st_lastname,
+							d.st_email,
+							d.st_comment,
+							d.dt_created,
+							d.st_hide,
+							d.in_extra_amount,
+							c.st_paypal_email,
+							c.st_custom_url');
+		$this->db->from('tbl_campaign_donation d,tbl_campaign c ');
+		$this->db->where("c.in_campaign_id=d.in_campaign_id",NULL,FALSE);
+		$this->db->where('d.in_donation_id',$donation_id);
+		#$this->db->where('st_donation_type',"P");
+		$this->db->where('d.in_deleted',0);
+		$this->db->where_in('d.in_status',array('1','2'));
+		$this->db->order_by('in_donation_id','DESC');
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_id
+	#	Purpose		:	Get Campaign ID
+	# *******************************************************************************************
+	
+	public function get_campaign_id($url) {
+		$this->db->select('in_campaign_id');
+		$this->db->from('tbl_campaign');
+		$this->db->where('st_custom_url',$url);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		if($query->num_rows() != 0) {
+			$result = $query->row_array();
+			return $result['in_campaign_id'];
+		} else {
+			return 0;
+		}
+	}
+	
+	public function send_mail_save($data) {
+		$this->db->insert('tbl_tell_a_friend',$data);
+		return $this->db->affected_rows();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_campaign_photos	
+	#	Purpose		:	Getting all selected photo
+	# *******************************************************************************************
+	
+	public function get_campaign_photos($id) {
+		$this->db->select('in_campaign_file_id,in_campaign_id,st_file_name,st_file_type,in_profile_pic');
+		$this->db->from('tbl_campaign_file');
+		$this->db->where('in_campaign_id',$id);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('in_campaign_file_id','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_org_pic	
+	#	Purpose		:	Getting organization picture
+	# *******************************************************************************************
+	
+	public function get_org_pic($id) {
+		$this->db->select('st_org_image');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		
+		return $query->row_array();
+	}
+}
+?>

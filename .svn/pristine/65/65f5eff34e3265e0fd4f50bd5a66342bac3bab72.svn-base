@@ -1,0 +1,826 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Shop extends CI_Controller {
+
+	public function __construct() {
+		//error_reporting(E_ALL);
+		//ini_set('display_errors', 1);
+		parent::__construct();
+		//$this->output->enable_profiler(true);
+		$this->load->model('shop_model');
+		$this->load->model('common_model');
+		$this->load->model('quote_model');
+		$this->load->library('common_function');	
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->helper('cookie');
+		$this->load->library('pagination');
+		if($this->session->userdata('cart_session_id'))
+		{ }else{
+			$this->session->set_userdata('cart_session_id',md5(uniqid()));			
+		} 
+		$this->session->set_userdata('cart_admin_fee',2);
+
+	}
+	
+	
+	public function index() 
+	{
+		$data = array();		
+		$data["banner"] = $this->common_model->get_rescue_banner();
+		$this->load->view("product_list_all", $data);		
+	}
+	
+	/*public function allproducts() 
+	{  
+		$data = array();
+        $idArr=	 explode('-',$this->uri->segment(1));
+		//print_r($idArr[1]);die;
+		$data['catid']	=	$idArr[1];
+		$data['txtsearch'] 	= $this->input->post('txtsearch');		
+		$this->load->view("product_list", $data);		
+	}*/
+	
+	public function allproducts() 
+	{ 
+		//shop	
+		$data = array();
+		$category_id = array();
+		$catid = array();
+		$idArr = '';
+		$data['redirect'] = 0;
+		if(strpos($_SERVER['REQUEST_URI'], 'shop-') !== false)
+		{
+			$data['redirect'] = 1;	
+		}
+		
+		if($this->input->post('category_checked'))
+		{
+			$category_id = json_decode($this->input->post('category_checked'));
+			
+			if(count($category_id)>0)
+			{
+				foreach($category_id as $key=>$value)
+				{
+					if(!in_array($value, $catid) && $value!='')
+					{
+					array_push($catid,$value);
+					}		
+				}	
+			}
+			
+		} else {		
+        $idArr=	 explode('-',$this->uri->segment(1));
+		
+		if($idArr!='')
+		{
+			array_push($catid,$idArr[1]);
+		}
+
+		}
+				
+		/*echo "<pre>"; print_r($catid); echo "</pre>";
+		die;*/
+		//$data['catid'] =	$idArr[1];
+		$data['catid']	=	$catid;
+		$data['txtsearch'] 	= $this->input->post('txtsearch');	
+		$this->load->view("product_list", $data);		
+	}
+	
+	function ajax_product_list()
+	{		
+		$product_type 	= $this->input->post('product_type');
+		$searchproducr 	= $this->input->post('searchproduct');
+		$checkboxValues = $this->input->post('checkboxValues');
+		$currpage 		= $this->input->post('currpage');
+        //echo'<pre>'; print_r($searchproducr); exit;
+		
+		if($order!=''){ $orderby = $order;}
+		else { $orderby='asc'; }
+		 
+		$data["results"] = array();		
+		
+	    $page	=	$currpage*12;	
+				
+		$data["results"] = $this->shop_model->get_product(12, $page, $orderby, $product_type, trim($searchproducr), $checkboxValues);		
+		$data["count"]   = $this->shop_model->get_product_count($orderby, $product_type, trim($searchproducr), $checkboxValues);
+		echo json_encode($data); exit;
+	}	
+	function ajax_orgination_list()
+	{ 
+		//$order 		 = $this->input->post('order');
+		$product_types 		= $this->input->post('product_type');
+		$searchproducr_s	= $this->input->post('searchproduct');
+		$checkboxValuess	= $this->input->post('checkboxValues');
+		$currpage			= $this->input->post('currpage');
+		$orgId 				= $this->input->post('id');
+	//echo'<pre>'; print_r($searchproducr_s); exit;
+		
+		if($order!='')
+		{ $orderby = $order;}
+		else 
+		{ $orderby='asc'; }
+		 
+		$data["results"] = array();
+		$data["links"]   = array();			
+		
+		$page	=	$currpage*12;
+				
+		$data["results"] = $this->shop_model->get_product_orgination(12, $page, $orderbys, $product_types, trim($searchproducr_s), $checkboxValuess, $orgId);		
+		
+		echo json_encode($data); exit;
+	} 
+	
+    public function organization_list($oid) 
+	{
+		$o_array	=	explode('-',$oid);
+		$orgId	=	$o_array[0];	
+		$data= array();
+		$data['result'] = $this->shop_model->get_orgination($orgId);
+		
+		$this->load->view("orgination_list", $data);
+    } 
+	
+	
+	
+	public function cart()
+	{
+		$data = array();
+		$data['admin_fee'] = $this->session->userdata('cart_admin_fee'); 			//Change later cart_admin_fee
+		if($this->input->post('action') != '') 
+		{
+			if($this->input->post('action') == 'update')
+			{
+				$pr_data = $this->input->post('prod_qty');
+				//echo "<pre>"; print_r($pr_data); exit;
+				foreach($pr_data as $pr_data_k => $pr_data_v)
+				{
+					$prod_details = 	array( 	"in_prod_qty"				=>	$pr_data_v);
+					$this->quote_model->update_quote($prod_details,$pr_data_k);	
+				}
+				$this->session->set_flashdata('success','Cart updated successfully.');
+				redirect($this->config->item('base_url')."shop/cart");
+				//var_dump($pr_data); exit;
+			}else if($this->input->post('action') == 'delete')
+			{
+				$pr_data = $this->input->post('pr_quote_id');
+				$prod_details = 	array( 	"in_deleted"				=>	'1');
+				$this->quote_model->update_quote($prod_details,$pr_data);	
+				$this->session->set_flashdata('success','Product removed successfully.');
+				redirect($this->config->item('base_url')."shop/cart");
+				//var_dump($pr_data); exit;
+			}
+		}
+//echo $this->session->userdata('cart_session_id');
+		//get quote details
+		
+        $sessionId  = $this->session->userdata('cart_session_id');
+		if($this->session->userdata('userid'))
+		{
+			$userId = $this->session->userdata('userid');
+		} else {
+			$userId ='';
+		}
+	
+		$quote_id = '';
+	
+		$getdata = $this->quote_model->get_quote_product($quote_id,$userId,$sessionId);
+		$data['quotedata'] = $getdata;
+		
+		//echo "<pre>"; print_r($getdata); exit;
+		
+		$this->load->view("cart_view", $data);
+	}
+
+	public function checkout()
+	{
+		$data = array();
+		$data['Err_Msg'] = '';
+		if($this->input->post('get_quote_id') != '') 
+		{
+			$quote_id = $this->input->post('get_quote_id');
+		}else
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data['admin_fee'] = $this->session->userdata('cart_admin_fee');			//Change later
+		$data['quote_id'] = $quote_id;
+
+		$this->session->set_userdata("quote_id",$quote_id);
+
+		//echo $quote_id; exit;
+		$state_list 			= $this->common_function->state_list;
+		$data['state_list'] 	= $state_list;
+		//get quote details
+		//$quote_id = 1;
+		//$user_id = 1;
+		$sessionId  = $this->session->userdata('cart_session_id');
+		$userId	=	'';
+		$getdata = $this->quote_model->get_quote_product($quote_id,$userId,$sessionId);
+		
+		$get_user_id = '';
+		if($this->session->userdata('userid'))
+		{
+			$get_user_details = $this->quote_model->get_user_details($this->session->userdata('userid'));
+			$data['get_user_details'] = $get_user_details[0];
+			$get_user_id = $this->session->userdata('userid');
+		}
+
+		$data['quotedata'] = $getdata;
+
+		$form_field	=	array('st_display_name' 		=> "",
+								'st_last_name' 			=> "",	
+								'st_email'				=> "",
+								'st_primary_phone'		=> "",
+								'st_address1'			=> "",
+								'st_address2'			=> "",
+								'st_city'				=> "",	  
+								'st_state'				=> "",
+								'st_country'			=> "",
+								'st_zip'				=> "",
+								'order_notes'			=> "",
+								'final_price'			=> "",
+						   );
+		foreach($form_field as $key => $value)	
+		{	
+			$data['register'][$key]='';
+			$data['register'][$key] = $value;	
+		}
+		
+		//$this->load->view("checkout", $data);
+		 $this->load->view("checkout_new", $data);
+		
+	}
+
+	public function checkout_post()
+	{
+		$data = array();
+		$data['Err_Msg'] = '';
+		if($this->session->userdata('quote_id')) 
+		{
+			$quote_id = $this->session->userdata('quote_id');
+		}else
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data['admin_fee'] = $this->session->userdata('cart_admin_fee');			//Change later
+		$data['quote_id'] = $quote_id;
+		//echo $quote_id; exit;
+		$state_list 			= $this->common_function->state_list;
+		$data['state_list'] 	= $state_list;
+		//get quote details
+		//$quote_id = 1;
+		//$user_id = 1;
+		$sessionId  = $this->session->userdata('cart_session_id');
+		$userId	=	'';
+		$getdata = $this->quote_model->get_quote_product($quote_id,$userId,$sessionId);
+		
+		//$getdata = $this->quote_model->get_quote_product($quote_id);
+		
+		//$getquote_details = $this->quote_model->get_quote_details($quote_id);
+
+		//echo "<pre>"; print_r($getquote_details); exit;
+
+		$get_user_id = '';
+		if($this->session->userdata('userid'))
+		{
+			$get_user_details = $this->quote_model->get_user_details($this->session->userdata('userid'));
+			$data['get_user_details'] = $get_user_details[0];
+			$get_user_id = $this->session->userdata('userid');
+		}
+
+		$data['quotedata'] = $getdata;
+
+		$form_field	=	array('st_display_name' 		=> "",
+								'st_last_name' 			=> "",	
+								'st_email'				=> "",
+								'st_primary_phone'		=> "",
+								'st_address1'			=> "",
+								'st_address2'			=> "",
+								'st_city'				=> "",	  
+								'st_state'				=> "",
+								'st_country'			=> "",
+								'st_zip'				=> "",
+								'order_notes'			=> "",
+								'final_price'			=> "",
+						   );
+		foreach($form_field as $key => $value)	
+		{	
+			$data['register'][$key]='';
+			$data['register'][$key] = $value;	
+		}
+
+		
+		$this->form_validation->set_rules('st_display_name', 'First Name', 'trim|required');
+		$this->form_validation->set_rules('st_last_name', 'Last Name', 'trim|required');
+		$this->form_validation->set_rules('st_email', 'Email Address', 'trim|required|valid_email');
+		$this->form_validation->set_rules('st_address1', 'Address', 'trim|required');
+		$this->form_validation->set_rules('st_city', 'Town / City', 'trim|required');
+		$this->form_validation->set_rules('st_state', 'State', 'trim|required');
+		$this->form_validation->set_rules('st_country', 'Country', 'trim|required');
+		$this->form_validation->set_rules('st_zip', 'Zip', 'trim|required');
+		
+		
+		if($this->form_validation->run() == FALSE ) { 
+			foreach ($form_field as $key => $value) 
+			{
+			   $data['get_user_details'][$key] = $this->input->post($key);
+			}
+			$data['Err_Msg'] = validation_errors();
+			
+			// REPOPULATE DATA AFTER ERROR PENDING
+			$this->load->view("checkout_new", $data);
+		}
+		else
+		{
+			
+			foreach ($form_field as $key => $value) 
+			{
+			   $data['register'][$key] = $this->input->post($key); 
+			}
+			//print_r($data);exit;
+			if(isset($getdata) && count($getdata) > 0)
+			{					
+				$subtotal_cost = 0.00;
+				$total_cost = 0.00;
+				foreach($getdata as $getdata_k => $getdata_v)
+				{
+					$total_pr = (float)$getdata_v['in_prod_price'] * $getdata_v['in_prod_qty'];
+					$subtotal_cost = (float)$subtotal_cost + (float)$total_pr;
+					$shipping_pr	=	0.00;
+					$shipping_pr = (float)$getdata_v['fl_shipping_cost'] * $getdata_v['in_prod_qty'];
+					$total_shipping = (float)$total_shipping + (float)$shipping_pr;
+				}
+				$sub_total_cost = (float)$subtotal_cost;				
+				$total_cost = (float)$subtotal_cost + (float)$data['admin_fee'] + (float)$total_shipping;
+			}
+			
+			$order_details = array(	"dt_order_date"       	=>	date('Y-m-d H:i:s'),
+									"in_user_id"			=>  $get_user_id,
+									"in_order_status"       =>	1,
+									"fl_order_total"		=>	$sub_total_cost,
+									"fl_admin_fee"			=>	$data['admin_fee'],
+									"fl_grand_total"		=>	$total_cost,
+								    "fl_shipping_cost"		=>	$total_shipping,
+									"st_order_notes"		=>	($data['register']['order_notes']!='' ? $data['register']['order_notes'] : null),
+									"dt_modified"			=>	date('Y-m-d H:i:s'),
+									"dt_created"			=>	date('Y-m-d H:i:s')
+									);
+			$order_id = $this->quote_model->insert_data('tbl_order',$order_details);
+			if($order_id)
+			{
+				$order_address_details = 	array( 	"in_order_id"	=>	$order_id,
+											"st_first_name"       	=>	($data['register']['st_display_name']!='' ? $data['register']['st_display_name'] : null),
+											"st_last_name"       	=>	($data['register']['st_last_name']!='' ? $data['register']['st_last_name'] : null),
+											"in_addr_type"			=>	'1',
+											"st_addr1"				=>	($data['register']['st_address1']!='' ? $data['register']['st_address1'] : null),
+											"st_addr2"				=>	($data['register']['st_address2']!='' ? $data['register']['st_address2'] : null),
+											"st_city"				=>	($data['register']['st_city']!='' ? $data['register']['st_city'] : null),
+											"st_state"				=>	($data['register']['st_state']!='' ? $data['register']['st_state'] : null),
+											"st_zip"				=>	($data['register']['st_zip']!='' ? $data['register']['st_zip'] : null),
+											"st_country"			=>	($data['register']['st_country']!='' ? $data['register']['st_country'] : null),
+											"st_email"				=>	($data['register']['st_email']!='' ? $data['register']['st_email'] : null),
+											"st_phone"				=>	($data['register']['st_primary_phone']!='' ? $data['register']['st_primary_phone'] : null),
+											"dt_modified"			=>	date('Y-m-d H:i:s'),
+											"dt_created"			=>	date('Y-m-d H:i:s')
+											);
+				$order_address_id = $this->quote_model->insert_data('tbl_order_address',$order_address_details);
+
+				if(isset($getdata) && count($getdata) > 0)
+				{					
+					foreach($getdata as $getdata_k => $getdata_v)
+					{
+						//$total_pr = (float)$quotedata_v['in_prod_price'] * $quotedata_v['in_prod_qty'];	
+						$order_product_details = 	array( 	"in_order_id"	=>	$order_id,
+												"in_product_id"       	=>	$getdata_v['in_prod_id'],
+												"st_product_name"       =>	$getdata_v['st_prod_name'],
+												"fl_cost"				=>	$getdata_v['in_prod_price'],
+												"in_qty"				=>	$getdata_v['in_prod_qty'],
+												"fl_shipping_cost"		=>	$getdata_v['in_prod_qty']*$getdata_v['fl_shipping_cost'],
+												"dt_modified"			=>	date('Y-m-d H:i:s'),
+												"dt_created"			=>	date('Y-m-d H:i:s')
+												);
+						$order_product_id = $this->quote_model->insert_data('tbl_order_items',$order_product_details);
+					}
+
+				}
+
+				
+				//$getdata_details = $this->quote_model->get_quote_product($quote_id);
+				$getdata_details = $getdata;
+				//echo "<pre>"; print_r($getdata_details); exit;
+				if(isset($getdata_details) && count($getdata_details) > 0)
+				{	
+					$total_val = 0.00;
+					$q_details = array();
+					$q_details['admin_fee'] = $data['admin_fee'];
+					$q_details['org_info'] = array();
+					foreach($getdata_details as $getdata_details_k => $getdata_details_v)
+					{
+						$total_pr = 0.00;
+						$total_pr = ((float)$getdata_details_v['in_prod_price'] + (float)$getdata_details_v['fl_shipping_cost']) * $getdata_details_v['in_prod_qty'];
+						$total_val = $total_val + $total_pr;
+						if(isset($q_details['org_info'][$getdata_details_v['in_organization_id']]))
+						{
+							$q_details['org_info'][$getdata_details_v['in_organization_id']]['cost'] = (float)$q_details['org_info'][$getdata_details_v['in_organization_id']]['cost'] + $total_pr;
+						}else
+						{
+							$q_details['org_info'][$getdata_details_v['in_organization_id']]['cost'] = $total_pr;
+							if(isset($getdata_details_v['st_paypal_email']) && $getdata_details_v['st_paypal_email']!='')
+								$q_details['org_info'][$getdata_details_v['in_organization_id']]['email'] = $getdata_details_v['st_paypal_email'];
+							else
+								$q_details['org_info'][$getdata_details_v['in_organization_id']]['email'] = $getdata_details_v['st_email_address'];
+						}
+					}
+					$q_details['subtotal_fee'] = $total_val;
+					$q_details['total_fee'] = (float)$total_val + (float)$q_details['admin_fee'];
+
+					#=================================Paypal Payment Process=================================#
+					/*this code is workimng for primary reiver and secondar reciver*/
+					$paypal_details = $q_details;
+					$paypal_details['tracking_id'] = time()."doobertcart".$order_id;
+					$paypal_details['o_order_id'] = $order_id;
+					$paypal_details['pay_count'] = count($q_details['org_info']) + 1;
+					
+					$paypal_error = $this->paypal_payment($paypal_details);
+					//var_dump($paypal_error); exit;
+					exit;
+					if(isset($paypal_error['error']) && !empty($paypal_error['error']))
+					{
+						foreach ($form_field as $key => $value) 
+						{
+						   $data['get_user_details'][$key] = $this->input->post($key);
+						}
+
+						$order_update = 	array( 	"in_order_status"	=>	'0'	);
+						$order_product_id = $this->quote_model->update_data($order_update,$order_id,'tbl_order','in_order_id');
+
+						$data['Err_Msg'] = $paypal_error['error'];
+						$this->load->view("checkout_new", $data);	
+					}
+					
+				}
+				//echo "<pre>"; print_r($q_details);
+				//exit;
+
+
+			}
+			if($data['Err_Msg'] = '')
+			{
+				$this->session->unset_userdata('quote_id');
+				$this->session->set_flashdata('success','Order has been added successfully.');
+				redirect($this->config->item('base_url')."shop/payment");
+			}
+		
+		}
+		
+		
+	}
+
+	public function thankyou()
+	{ 
+		 $data = array();	
+		 $data['order_detail']	=	$this->shop_model->get_order_detail($this->uri->segment(3));		     
+		 $this->session->unset_userdata('cart_session_id');	 		 
+		 $this->load->view("thankyou", $data);		
+	}
+	
+	function paypal_payment($paypal_detail)
+	{
+			
+		$this->load->model('paypal_model');	
+		//$paypal_detail['o_order_id']
+		//$orderAr	=	explode("doobertcart",$paypal_details['tracking_id']);	
+		//-------------------------------------------------
+		// When you integrate this code
+		// look for TODO as an indication
+		// that you may need to provide a value or take action
+		// before executing this code
+		//-------------------------------------------------
+		
+		//require_once ("paypalplatform.php");
+		// ==================================
+		// PayPal Platform Parallel Payment Module
+		// ==================================
+		
+		// Request specific required fields
+		$actionType            	= "PAY";
+		$cancelUrl				= $this->config->item('base_url')."shop/";  // TODO - If you are not executing the Pay call for a preapproval,
+		
+														//        then you must set a valid cancelUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$returnUrl  			= $this->config->item('base_url')."shop/thankyou/".$paypal_detail['o_order_id'];  // TODO - If you are not executing the Pay call for a preapproval,
+														//        then you must set a valid returnUrl for the web approval flow
+														//        that immediately follows this Pay call
+		$currencyCode        	=  $this->config->item('currency_code');
+		
+		
+		// A parallel payment can be made among two to six receivers
+		// TODO - specify the receiver emails
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		
+		$receiverEmailArray = array();
+		$receiverAmountArray = array();
+		$receiverPrimaryArray = array();
+		if(isset($paypal_detail['org_info']) && count($paypal_detail['org_info']))
+		{
+			foreach($paypal_detail['org_info'] as $paypal_detail_k=>$paypal_detail_v)
+			{
+				array_push($receiverEmailArray,$paypal_detail_v['email']);
+				array_push($receiverAmountArray,$paypal_detail_v['cost']);
+				//$receiverEmailArray[] = $paypal_detail_v['email'];
+				//$receiverAmountArray[] = $paypal_detail_v['cost'];
+				array_push($receiverPrimaryArray,"false");
+			}
+			array_push($receiverEmailArray,$this->config->item('doobert_paypal_acc'));
+			array_push($receiverAmountArray,$paypal_detail['admin_fee']);
+			array_push($receiverPrimaryArray,"false");
+			//$receiverEmailArray[] = $this->config->item('doobert_paypal_acc');
+			//$receiverAmountArray[] = $paypal_detail['admin_fee'];
+		}
+		
+		// TODO - specify the receiver amounts as the amount of money, for example, '5' or '5.55'
+		//        remove or set to an empty string the array entries for receivers that you do not have
+		
+		// for parallel payment, no primary indicators are needed, so set empty array
+		//$receiverPrimaryArray = array("false","true");
+		//$receiverPrimaryArray = array();
+		
+		$feesPayer                        	= "EACHRECEIVER";
+		//$feesPayer                        	= "PRIMARYRECEIVER";
+		
+		
+		
+		// TODO - Set invoiceId to uniquely identify the transaction associated with each receiver
+		//        set the array entries with value for receivers that you have
+		//          each of the array values must be unique
+		$receiverInvoiceIdArray = array(
+				'',
+				'',
+				'',
+				'',
+				'',
+				''
+				);
+		
+		// Request specific optional fields
+		//   Provide a value for each field that you want to include in the request, if left as an empty string the field will not be passed in the request
+		$senderEmail                    	= "";        // TODO - If you are executing the Pay call against a preapprovalKey, you should set senderEmail
+													//        It is not required if the web approval flow immediately follows this Pay call
+		//$feesPayer                        	= "PRIMARYRECEIVER";
+		
+		
+		$ipnNotificationUrl         		= $this->config->item('base_url')."paypal/ipn_notification/" . $paypal_detail['pay_count'];
+		$memo                            	= "";        // maxlength is 1000 characters
+		$pin                           		= "";        // TODO - If you are executing the Pay call against an existing preapproval
+													//        the requires a pin, then you must set this
+		$preapprovalKey                    	= "";        // TODO - If you are executing the Pay call against an existing preapproval, set the preapprovalKey here
+		$reverseAllParallelPaymentsOnError  = "";    // TODO - Set this to "true" if you would like each parallel payment to be reversed if an error occurs
+													//        defaults to "false" if you don't specify
+		$trackingId                        	= $paypal_detail['tracking_id']; //$this->generateTrackingID();    // generateTrackingID function is found in paypalplatform.php
+		
+		//-------------------------------------------------
+		// Make the Pay API call
+		//
+		// The CallPay function is defined in the paypalplatform.php file,
+		// which is included at the top of this file.
+		//-------------------------------------------------
+		//echo "<pre>";print_r($receiverAmountArray);die;
+		//@mail('ghanshyam.maurya@pulsesolutions.net',"Paypal Details",$actionType.' '.$cancelUrl.' '.$returnUrl.' '.$currencyCode.' '.print_r($receiverEmailArray).' '.print_r($receiverAmountArray).' '.print_r($receiverPrimaryArray).' '.print_r($receiverInvoiceIdArray).' '.print_r($feesPayer).' '.$ipnNotificationUrl.' '.$memo.' '.$pin.' '.$preapprovalKey.' '.$reverseAllParallelPaymentsOnError.' '.$senderEmail.' '.$trackingId);	exit;
+		$resArray = $this->paypal_model->CallPay($actionType, $cancelUrl, $returnUrl, $currencyCode, $receiverEmailArray,
+								$receiverAmountArray, $receiverPrimaryArray, $receiverInvoiceIdArray,
+								$feesPayer, $ipnNotificationUrl, $memo, $pin, $preapprovalKey,
+								$reverseAllParallelPaymentsOnError, $senderEmail, $trackingId
+		);
+		//echo "<pre>";print_r($resArray);die;
+		
+		//@mail('ghanshyam.maurya@pulsesolutions.net',"Paypal resArray",$resArray);	
+		
+		if(isset($resArray) && !empty($resArray))
+		{
+			$ack = strtoupper($resArray["responseEnvelope.ack"]);
+			
+			if($ack=="SUCCESS")
+			{
+				if ("" == $preapprovalKey)
+				{
+					// redirect for web approval flow
+					$cmd = "cmd=_ap-payment&paykey=" . urldecode($resArray["payKey"]);
+					$this->paypal_model->RedirectToPayPal ( $cmd );
+			
+				}
+				else
+				{
+					//echo "<pre>elsecnd";print_r($resArray);die;
+					// payKey is the key that you can use to identify the result from this Pay call
+					$payKey = urldecode($resArray["payKey"]);
+					// paymentExecStatus is the status of the payment
+					$paymentExecStatus = urldecode($resArray["paymentExecStatus"]);
+				}
+			}
+			else  
+			{
+				//Display a user friendly Error on the page using any of the following error information returned by PayPal
+				//TODO - There can be more than 1 error, so check for "error(1).errorId", then "error(2).errorId", and so on until you find no more errors.
+				$ErrorCode = urldecode($resArray["error(0).errorId"]);
+				$ErrorMsg = urldecode($resArray["error(0).message"]);
+				$ErrorDomain = urldecode($resArray["error(0).domain"]);
+				$ErrorSeverity = urldecode($resArray["error(0).severity"]);
+				$ErrorCategory = urldecode($resArray["error(0).category"]);
+			   
+				/*echo "Preapproval API call failed. "."<br />";
+				echo "Detailed Error Message: " . $ErrorMsg."<br />";
+				echo "Error Code: " . $ErrorCode."<br />";
+				echo "Error Severity: " . $ErrorSeverity."<br />";
+				echo "Error Domain: " . $ErrorDomain."<br />";
+				echo "Error Category: " . $ErrorCategory."<br />";die;*/
+				$error['error'] = $ErrorMsg;
+				return $error;
+			}
+		}
+		else
+		{
+			$error['error'] = "Invalid paypal email address configure";
+			return $error;
+		}
+	}
+	
+	
+
+
+
+
+
+	public function payment()
+	{
+		echo "success";
+
+	}
+
+	public function addto_cart() 
+	{   
+	    $productId 	= $this->input->post('productId');
+		
+		if($this->input->post('quanty'))
+			$qtyP	=	$this->input->post('quanty');
+		else
+			$qtyP	=	1;
+       	
+    	//session_start();
+        $sessionId  = $this->session->userdata('cart_session_id'); //session_id();
+        
+		 if($this->session->userdata('userid'))
+		 {
+			 $userId = $this->session->userdata('userid');
+		 } else {
+			 $userId ='';
+		 }		
+		
+		$data = array();  
+		$product_Collection = $this->shop_model->get_product_cart($productId, $sessionId, $userId,$qtyP);
+		$data['productDetails'] = $product_Collection;	
+		
+		//echo"<pre>"; print_r($product_Collection); exit;
+		echo json_encode($data['productDetails']); exit;	
+		//$this->load->view("product_list", $data);
+    }
+	
+	public function get_cart() 
+	{   
+		//$this->session->set_userdata('ttid','123');
+    	//print_r($this->session->userdata); 
+		//session_start();
+        $sessionId  = $this->session->userdata('cart_session_id'); //session_id();		 		
+		
+		$data = array();  
+		$product_Collection = $this->shop_model->get_quote_items($sessionId);
+		$data['productDetails'] = $product_Collection;			
+		
+	echo json_encode($data['productDetails']); exit;		
+    }
+	
+	public function product_detail($pid){		
+		//50
+		$p_array	=	explode('-',$pid);
+		$prodId	=	$p_array[0];
+		$data = $this->shop_model->get_product_detail($prodId);	
+		
+		if(isset($data['detail']['in_stock_status']) && $data['detail']['in_stock_status'] == 1){
+			$data['detailsgalleryImages'] = $this->shop_model->get_image($prodId);
+			$data['affiliate_image_url'] = $data['detail']['st_affiliate_image_url'];
+			$this->load->view("product_detail", $data);
+		}else{
+			redirect($this->config->item('base_url')."shop/");
+		}	
+	}
+	
+	public function product_bid_price(){	
+	
+		if($this->session->userdata('userid'))
+		{
+			$userId = $this->session->userdata('userid');
+			$productbidId 	= $this->input->post('productbidId');
+			$bidAmount 	    = $this->input->post('bidAmount');
+			$data['bidResult'] =$this->shop_model->get_bid_price($productbidId, $bidAmount, $userId);
+			echo json_encode($data['bidResult']); exit;
+		} else {
+			echo "Please login to place the Bid.";
+		}	   
+	}
+	
+	public function update_quantity()
+	{
+		$qid = $_POST['id'];
+		$qty = $_POST['qty'];
+		$data =  array('in_prod_qty' => $qty);
+		$this->db->where('in_quote_item_id',$qid);	
+		$update_status = $this->db->update('tbl_quote_item', $data);		
+		echo json_decode($update_status);
+	}
+	
+	public function cron_win_bid()
+	{
+		$data	=	array();
+		//$user_list	=	$this->cron_setting_doobert_model->get_win_bid_user();	
+		$user_list	=	$this->shop_model->get_win_bid_user();
+		//echo '<pre>'; print_r($user_list); die;
+		if(isset($user_list) && count($user_list)>0){
+			
+		   
+			foreach($user_list as $user){	
+			
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			    
+			 	/* $username	= $user['st_display_name']. ' '.$user['st_last_name'];
+			 	 $url=base_url().'prod/'.$user['in_prod_id'].'-'.$this->common_function->get_filtered_name($user['st_product']);
+				 $to      = $user['st_email'];			
+				 $subject = "Auction Winning Bid";
+				 $headers = "MIME-Version: 1.0" . "\r\n";
+				 $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+				 $message = "Hi ".$username. ",<br>You have won the product: "."<b><a href='".$url."'>".$user['st_product']."</a></b>";
+				 
+				 $email_details = $this->common_model->get_email_containt('102');
+				 $this->load->library('email');
+				 mail($to, $subject, $message, $headers);*/				 
+				// $this->common_model->update_product($user['in_user_id']);
+				
+				 $email_details = $this->common_model->get_email_containt('106');
+				 
+				 $this->load->library('email');
+				
+				if (isset($email_details[0]['st_email_body'])) {
+				
+						$subject = $email_details[0]['st_email_subject'];					
+						$to			= $user['st_email'];	
+						$username	= $user['st_display_name']. ' '.$user['st_last_name'];
+						$bidamt 	=  $user['in_bid_amt'];  // in_bid_amt
+			 			$url		= base_url().'prod/'.$user['in_prod_id'].'-'.$this->common_function->get_filtered_name($user['st_product']);	
+						$paymenturl		= base_url().'prod/'.$user['in_prod_id'].'-'.$this->common_function->get_filtered_name($user['st_product']);						
+						$templete 	= $email_details[0]['st_email_body'];
+						$templete 	= str_replace("##url##",$url, $templete);
+						$templete 	= str_replace("##productname##",$user['st_product'], $templete);
+						$templete 	= str_replace("##username##",$username, $templete);
+						$templete 	= str_replace("##DONATION##",$donation, $templete);
+						$templete 	= str_replace("##bidamt##",$bidamt, $templete);
+						$templete 	= str_replace("##paymenturl##",$paymenturl, $templete);
+						$templete  = str_replace("##current_year##",date('Y'),$templete);							
+						$message 	= $templete;			
+						$category  	=  $email_details[0]['st_category'];						
+						$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);	
+						$this->shop_model->update_product($user['in_prod_id']);						
+				}						
+				 							
+			}
+		}
+	}
+		
+}	
+?>	

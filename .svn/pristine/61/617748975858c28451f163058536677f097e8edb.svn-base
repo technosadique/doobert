@@ -1,0 +1,1046 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: Piyali Sarkar
+# Created date: 13-Aug-2018
+# File description: Coalition(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Coalition extends CI_Controller {
+
+	
+	public function __construct()
+    {
+		parent::__construct();		
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('coalition_model');
+		$this->load->model('common_model');
+		$this->load->library('email');		
+		$this->load->helper(array('form', 'url','cookie'));
+	
+		error_reporting(E_ALL);		
+	}	
+	public function index()
+	{  
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');
+		$this->session->unset_userdata('searchadmin1');			
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';		
+		$name				=	'';
+		$status             =    '';
+
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='createddate';
+		
+		if(!$order)
+			$order = 'asc';
+			
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{		
+			
+			if($this->session->userdata('searchadmin'))
+			$this->session->unset_userdata('searchadmin');
+			$name = trim($this->input->post('txtsearch'));			
+			$this->session->set_userdata('searchadmin',$name);
+
+			
+		}
+		if($this->input->post('txtstatus') || ($this->input->post('action') == 'search'))
+		{		
+			
+			if($this->session->userdata('searchadmin1'))
+			$this->session->unset_userdata('searchadmin1');
+			$status = trim($this->input->post('txtstatus'));			
+			$this->session->set_userdata('searchadmin1',$status);
+
+			
+		}			
+
+		$rec_per_page =	 $this->config->item('per_page');
+		
+		if($this->session->userdata('searchadmin1')=='Y')
+		{
+			$status ='1';
+		}
+		elseif($this->session->userdata('searchadmin1')=='N'){
+			$status ='0';
+		}
+		else
+		{
+			$status = '';	
+		}
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->coalition_model->get_total_coalition($this->session->userdata('searchadmin'),$status);
+		// GET PAGE LIST RESULT HERE
+		
+		$data['coalition_list']	= $this->coalition_model->get_coalition($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'),$status);
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'coalition/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No coalition Information Available.';
+		}
+		
+		$this->load->view('manage-coalition',$data);
+	}
+	
+	
+	function coalition_delete($coalition_ids)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->coalition_model->delete_coalition($coalition_ids);			
+		$this->session->set_flashdata('success', 'Coalition has been deleted successfully.');
+		/*************************Coalition Email**************************************/
+		$coalition_admin_list = $this->coalition_model->get_organization_admin_new($coalition_ids);
+		
+		$email_details_new = $this->common_model->get_email_containt("160");
+		
+		if(isset($email_details_new[0]['st_email_body']))
+		{
+		for($a=0;$a<count($coalition_admin_list);$a++)
+			{	
+					
+					$templete_new  = $email_details_new[0]['st_email_body'];							
+					$templete_new  = str_replace("##user_name##",$coalition_admin_list[$a]['st_display_name'],$templete_new);
+					$templete_new  = str_replace("##coaliation_name##",$coalition_admin_list[$a]['st_coalition_name'],$templete_new);				
+					$templete_new  = str_replace("##current_year##",date('Y'),$templete_new);
+					$strMail_new 	= 	$templete_new;
+					$to_new			=	$coalition_admin_list[$a]['st_email'];
+					$subject_new	=	$email_details_new[0]['st_email_subject'];
+					$message_new	=	$strMail_new;
+
+					$user_to_id = $this->common_model->get_user_id_by_email($to_new);
+			
+					$message_new = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);		
+					$message_new = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);
+					//$this->common_function->send_mail($this->email, $to_new, $subject_new, $message_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+					//$this->common_function->send_mail($this->email, $to, $subject_new, $message_new,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+			}
+		}		
+		redirect($this->config->item('admin_base_url').'coalition');
+		
+	}
+	
+	
+	function delete_multiple_coalition()
+	{   
+	    
+		$coalition_ids = $this->input->post('coalitionid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($coalition_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->coalition_model->delete_multiple_coalition($coalition_ids);
+			
+			$this->session->set_flashdata('success', 'coalition(s) information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+			/*************************Coalition Email**************************************/
+			$coalition_admin_list = $this->coalition_model->get_organization_admin_multiple($coalition_ids);
+			
+			$email_details_new = $this->common_model->get_email_containt("160");
+			
+			if(isset($email_details_new[0]['st_email_body']))
+			{
+			for($a=0;$a<count($coalition_admin_list);$a++)
+				{	
+						
+						$templete_new  = $email_details_new[0]['st_email_body'];							
+						$templete_new  = str_replace("##user_name##",$coalition_admin_list[$a]['st_display_name'],$templete_new);
+						$templete_new  = str_replace("##coaliation_name##",$coalition_admin_list[$a]['st_coalition_name'],$templete_new);				
+						$templete_new  = str_replace("##current_year##",date('Y'),$templete_new);
+						$strMail_new 	= 	$templete_new;
+						$to_new			=	$coalition_admin_list[$a]['st_email'];
+						$subject_new	=	$email_details_new[0]['st_email_subject'];
+						$message_new	=	$strMail_new;
+
+						$user_to_id = $this->common_model->get_user_id_by_email($to_new);
+				
+						$message_new = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);		
+						$message_new = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);
+						//$this->common_function->send_mail($this->email, $to_new, $subject_new, $message_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+						//$this->common_function->send_mail($this->email, $to, $subject_new, $message_new,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+				}
+			}
+
+		redirect($this->config->item('admin_base_url').'coalition/page/'.$sort.'/'.$order.'/'.$limit);			
+	}
+	
+	function getCoalition()
+	{
+		 if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+	
+		$data			 =	array();
+		//$res_name = $this->coalition_model->getUsersName($_POST['search']);
+		$res_email = $this->coalition_model->getUsersEmail($_POST['search']);
+		$array = array();
+		$data1 = array();
+		
+		foreach($res_email as $val)
+		{
+			
+			$response2[] = array("value"	=>	$val['in_user_id'],
+								 "fbid"     =>  $val['st_facebook_uid'],
+								"label"		=>	$val['st_display_name'].' ('.$val['st_email'].')'
+								);
+			//$response2[] = array("value"=>$val['st_display_name'].'('.$val['st_email'].')',"label"=>$val['st_email']);
+			
+		}
+		//$result = array_merge($response1, $response2);
+		echo json_encode($response2);
+	
+	}
+	function coalition_add()
+	{		 
+	    if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+	
+		$data			 =	array();
+		
+		
+		$form_field	=	array('name'		=> "",
+		'status'		=> "",
+		'myCoalition'		=> "",
+		'selectuser_id'     =>"",
+		'login'		=> "",
+		'approve'		=> "");
+								
+		foreach($form_field as $key => $value)	
+		{	
+			$data['add'][$key] = $value;	
+		}	
+		
+		if($this->input->post('action')=='Add')
+		{ 
+
+			$this->form_validation->set_rules('name', 'Coalition Name', 'trim|required');				
+			
+			if($this->form_validation->run() == FALSE)
+			{
+					$data['Err_Msg'] = validation_errors();												
+					$this->load->view('coalition-add',$data);	
+			}
+			else
+			{  
+					
+				$check='';		
+				$name	=	$this->input->post('name'); 
+				$status	=	$this->input->post('status'); 
+				$check	=	$this->coalition_model->is_coalition_exists($name);
+				
+				$coali_admin_array	=	array();
+				$coali_admin_cnt = $this->input->post('row_cnt');
+						
+				for($i=1;$i<=$coali_admin_cnt;$i++)
+				{
+					if($this->input->post('selectuser_id_'.$i) && $this->input->post('selectuser_id_'.$i)!=''){
+						$coali_admin_array[$i]['cadmin']	=	$this->input->post('selectuser_id_'.$i);									
+					}else{
+						continue;
+					}
+					if($this->input->post('myCoalition_'.$i) && $this->input->post('myCoalition_'.$i)!=''){
+						$coali_admin_array[$i]['cadmintext']	=	$this->input->post('myCoalition_'.$i);									
+					}
+					if($this->input->post('loginas_'.$i)){
+						$coali_admin_array[$i]['cloginas']	=	$this->input->post('loginas_'.$i);									
+					}else{
+						$coali_admin_array[$i]['cloginas']	=	0;
+					}
+					if($this->input->post('approve_'.$i)){
+						$coali_admin_array[$i]['capprove']	=	$this->input->post('approve_'.$i);									
+					}else{
+						$coali_admin_array[$i]['capprove']	=	0;
+					}
+					if($this->input->post('active_'.$i)){									
+						$coali_admin_array[$i]['cactive']	=	$this->input->post('active_'.$i);									
+					}else{
+						$coali_admin_array[$i]['cactive']	=	0;
+					}
+						
+				}
+				$data['coali_admin_array']	=	$coali_admin_array;
+				$data['coali_admin_cnt']	=	$coali_admin_cnt;
+				$data['name']	=	$name;
+				if(empty($status))
+				{
+					$data['status']	=	'';
+				}
+				else{
+					$data['status']	=	$status;
+				}
+				
+				
+				if($check)
+				{ 
+					$data['Err_Msg']	=	'Coalition already exist.';
+					
+					$this->load->view('coalition-add',$data);	
+				}
+				else
+				{
+				
+					$lastinsertedId = $this->coalition_model->insertCoalition($_POST);
+					
+					foreach($coali_admin_array as $data1)
+					{
+					$check_user = '';
+					$check_user = $this->coalition_model->is_user_exists($data1['cadmin'],$lastinsertedId);
+					if($check_user)
+					{
+						//echo "bb";
+					}
+					else
+					{
+						$data['coalition_login'] = array('in_user_id' => $data1['cadmin'],
+													 'in_login_as' => $data1['cloginas'],
+													 'in_approved' => $data1['capprove'],
+													 'in_active' => $data1['cactive'],
+													 'dt_created' => date('Y-m-d H:i:s'),
+													 'in_deleted' => '0',
+													 'in_coalition_id' => $lastinsertedId
+													);
+													
+						$result  = $this->coalition_model->add_coalition_user($data['coalition_login']);
+						
+					}
+						/*$data['coalition_login'] = array('in_user_id' => $data1['cadmin'],
+													 'in_login_as' => $data1['cloginas'],
+													 'in_approved' => $data1['capprove'],
+													 'in_active' => $data1['cactive'],
+													 'st_created' => date('Y-m-d H:i:s'),
+													 'in_delete' => '1',
+													 'in_coalition_id' => $lastinsertedId
+													);
+													
+						$result  = $this->coalition_model->add_coalition_user($data['coalition_login']);	*/
+						
+					}
+					
+					
+					//die();	
+												
+					$this->session->set_flashdata('message', 'You have successfully created coalition.');	
+					redirect(site_url('coalition/coalition_add'));		
+				}
+			}			
+		}
+		else
+		{		     
+			$this->load->view('coalition-add',$data);
+			
+		}		
+	}		
+	
+	function coalition_edit($coalitionId=false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array('name'=> "",
+		'status'		=> "",
+		'myCoalition'		=> "",
+		'selectuser_id'     =>"",
+		'login'		=> "",
+		'approve'		=> ""
+								);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['edit'][$key] = $value;	
+		}	
+		$data['coalition_details'] = $this->coalition_model->get_coalition_profile($coalitionId);	
+		$data['coalition_user_details'] = $this->coalition_model->get_coalition_users($coalitionId);
+		
+		
+		
+		if($this->input->post('action')=='Edit')
+		{  
+
+			$coalitionId			      = $this->input->post('coalitionId');									
+			$this->form_validation->set_rules('name', 'Coalition Name', 'trim|required');						
+			
+			if($this->form_validation->run() == FALSE)
+				{  
+						$data['Err_Msg'] = validation_errors();						
+						$data['coalition_details'] = $this->coalition_model->get_coalition_profile($coalitionId);
+						$data['coalition_user_details'] = $this->coalition_model->get_coalition_users($coalitionId);
+							
+						$this->load->view('coalition-edit',$data);	
+				}
+			
+			else
+			{ 
+				
+				$coalition_info 							=   array();
+				$coalition_info['st_coalition_name'] 		=	$this->input->post('name');
+				$coalition_info['in_status'] 				=	$this->input->post('status');
+				$coalition_info['dt_modified'] 				= 	date('Y-m-d H:i:s');	
+				
+				
+				$name1	=	$this->input->post('name1'); 		
+				$name	=	$this->input->post('name'); 
+				
+				$coali_admin_array	=	array();
+				$coali_admin_cnt = $this->input->post('row_cnt');
+				
+				for($i=1;$i<=$coali_admin_cnt;$i++)
+				{
+					if($this->input->post('selectuser_id_'.$i) && $this->input->post('selectuser_id_'.$i)!=''){
+						$coali_admin_array[$i]['cadmin']	=	$this->input->post('selectuser_id_'.$i);									
+					}else{
+						continue;
+					}
+					if($this->input->post('myCoalition_'.$i) && $this->input->post('myCoalition_'.$i)!=''){
+						$coali_admin_array[$i]['cadmintext']	=	$this->input->post('myCoalition_'.$i);									
+					}
+					if($this->input->post('loginas_'.$i)){
+						$coali_admin_array[$i]['cloginas']	=	$this->input->post('loginas_'.$i);									
+					}else{
+						$coali_admin_array[$i]['cloginas']	=	0;
+					}
+					if($this->input->post('approve_'.$i)){
+						$coali_admin_array[$i]['capprove']	=	$this->input->post('approve_'.$i);									
+					}else{
+						$coali_admin_array[$i]['capprove']	=	0;
+					}
+					if($this->input->post('active_'.$i)){									
+						$coali_admin_array[$i]['cactive']	=	$this->input->post('active_'.$i);									
+					}else{
+						$coali_admin_array[$i]['cactive']	=	0;
+					}
+				}
+				
+				$data['coali_admin_array']	=	$coali_admin_array;
+				$data['coali_admin_cnt']	=	$coali_admin_cnt;
+				$check='';
+				 if($name!=$name1)
+				{  							
+					$check	=	$this->coalition_model->is_coalition_exists($this->input->post('name'));							
+				}
+				if($check){
+					
+				$data['coalition_details'] = $this->coalition_model->get_coalition_profile($coalitionId);	
+				$data['coalition_user_details'] = $this->coalition_model->get_coalition_users($coalitionId);
+
+				$data['Err_Msg'] = 'Coalition Name already exist.';	
+				$data['segment'] = $this->uri->segment(1);
+				$this->load->view('coalition-edit',$data);	
+				}
+				else{
+				foreach($coali_admin_array as $data1)
+				{
+					$this->coalition_model->delete_coalition_user($data1['cadmin'],$coalitionId);	
+					
+					
+				}
+				
+				foreach($coali_admin_array as $data1)
+				{
+					$check_user = '';
+					$check_user = $this->coalition_model->is_user_exists($data1['cadmin'],$coalitionId);
+					if($check_user)
+					{
+						//echo "bb";
+					}
+					else
+					{
+							$data['coalition_login'] = array('in_user_id' => $data1['cadmin'],
+											 'in_login_as' => $data1['cloginas'],
+											 'in_approved' => $data1['capprove'],
+											 'in_active' => $data1['cactive'],
+											 'dt_created' => date('Y-m-d H:i:s'),
+											 'dt_modified' => date('Y-m-d H:i:s'),
+											 'in_deleted' => '0',
+											 'in_coalition_id' => $coalitionId
+											 );
+													
+						$result  = $this->coalition_model->add_coalition_user($data['coalition_login']);
+						
+					}
+					
+					
+							
+					/*$data['coalition_login'] = array('in_user_id' => $data1['cadmin'],
+											 'in_login_as' => $data1['cloginas'],
+											 'in_approved' => $data1['capprove'],
+											 'in_active' => $data1['cactive'],
+											 'st_created' => date('Y-m-d H:i:s'),
+											 'st_modified' => date('Y-m-d H:i:s'),
+											 'in_delete' => '1',
+											 'in_coalition_id' => $coalitionId
+											 );
+														
+					$result  = $this->coalition_model->add_coalition_user($data['coalition_login']);	*/
+							
+					}	
+					$this->coalition_model->update_coalition_info($_POST,$coalitionId,'tbl_coalition');						
+					$this->session->set_flashdata('message', 'You have successfully updated coalition.');	
+
+									
+					redirect(site_url('coalition/coalition_edit/'.$coalitionId));
+				}
+				
+			}
+		}
+		
+		else
+		{			
+			 $this->load->view('coalition-edit',$data);
+		}
+	}
+	public function manage_coalition_org()
+	{ 
+	
+		if(!$this->session->userdata('sess_user_id') && (!$this->session->userdata('sess_admin_id')))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url').'coalition-login');	
+		 }
+		 
+		 if($this->session->userdata('sess_admin_id'))
+		 {
+			 $this->session->unset_userdata('sess_user_id');
+		 }
+		
+		$this->session->unset_userdata('searchadmin');
+		$this->session->unset_userdata('searchadmin1');			
+		$this->page_coalition();		
+	}
+	
+	
+	function page_coalition($sort=false,$order=false,$limit=false)
+	{ 
+	
+		if(!$this->session->userdata('sess_user_id') && (!$this->session->userdata('sess_admin_id')))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url').'coalition-login');	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';		
+		$name				=	'';
+		$status             =    '';
+
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort=$sort;
+		
+		if(!$order)
+			$order = 'asc';
+			
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+		
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{		
+			
+			if($this->session->userdata('searchadmin'))
+			$this->session->unset_userdata('searchadmin');
+			$name = trim($this->input->post('txtsearch'));			
+			$this->session->set_userdata('searchadmin',$name);
+
+			
+		}
+		if($this->input->post('txtstatus') || ($this->input->post('action') == 'search'))
+		{		
+			
+			if($this->session->userdata('searchadmin1'))
+			$this->session->unset_userdata('searchadmin1');
+			$status = trim($this->input->post('txtstatus'));			
+			$this->session->set_userdata('searchadmin1',$status);
+
+			
+		}
+		if($this->session->userdata('searchadmin1')=='A')
+		{
+			$status ='1';
+		}
+		elseif($this->session->userdata('searchadmin1')=='P'){
+			$status ='0';
+		}
+		elseif($this->session->userdata('searchadmin1')=='R'){
+			$status ='2';
+		}
+		else
+		{
+			$status = '';	
+		}		
+
+		$rec_per_page =	 $this->config->item('per_page');
+		if(isset($this->session->userdata['sess_user_id']))
+		{
+			$this->session->userdata['sess_user_id']=$this->session->userdata['sess_user_id'];
+		}
+		else{
+			$this->session->userdata['sess_user_id'] ='';
+		}
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->coalition_model->get_total_coalition_new($this->session->userdata('searchadmin'),$this->session->userdata['sess_user_id'],$status);
+		// GET PAGE LIST RESULT HERE
+		
+		$data['coalition_list']	= $this->coalition_model->get_coalition_new($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'),$this->session->userdata['sess_user_id'],$status);
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'coalition/page_coalition/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;	
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		$data['org_type_arr'] = $this->common_function->org_type;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No coalition Information Available.';
+		}
+		
+		$this->load->view('manage-coalition-org',$data);
+	}
+	function org_coalition_delete($coalition_ids,$org_id)
+	{	
+		if(!$this->session->userdata('sess_admin_id') && (!$this->session->userdata('sess_user_id')))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->coalition_model->delete_org_coalition($coalition_ids);
+		$get_organization_name = $this->coalition_model->get_organization_name($org_id);
+		
+		$email_details_new = $this->common_model->get_email_containt("162");
+		
+		if(isset($email_details_new[0]['st_email_body']))
+						{
+						//echo $get_organization_name[0]['st_org_name'];
+									$templete_new  = $email_details_new[0]['st_email_body'];							
+									$templete_new  = str_replace("##organizer_name##",$get_organization_name[0]['st_org_name'],$templete_new);
+									$templete_new  = str_replace("##current_year##",date('Y'),$templete_new);
+									$strMail_new 	= 	$templete_new;
+									$to_new			=	$get_organization_name[0]['st_email_address'];
+									$subject_new	=	$email_details_new[0]['st_email_subject'];
+									$message_new	=	$strMail_new;
+
+									$user_to_id = $this->common_model->get_user_id_by_email($to_new);
+									$message_new = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);		
+									$message_new = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);
+									$this->common_function->send_mail($this->email, $to_new, $subject_new, $message_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+									//$this->common_function->send_mail($this->email, $to, $subject_new, $message_new,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+							
+						}	
+					
+		$this->session->set_flashdata('success', 'Coalition Organization has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'coalition/manage_coalition_org');
+		
+	}
+	
+	
+	function delete_multiple_org_coalition()
+	{   
+	    
+		$coalition_ids = $this->input->post('coalitionid');		
+		$email_details_new = $this->common_model->get_email_containt("162");
+		
+		if(isset($email_details_new[0]['st_email_body']))
+			{
+			for($a=0;$a<count($coalition_ids);$a++)
+				{
+					
+					$result  = (explode("/",$coalition_ids[$a]));
+					$this->coalition_model->delete_org_coalition($result[0]);
+					
+					$get_organization_name = $this->coalition_model->get_organization_name($result[1]);
+					
+					$templete_new  = $email_details_new[0]['st_email_body'];							
+									$templete_new  = str_replace("##organizer_name##",$get_organization_name[0]['st_org_name'],$templete_new);
+									$templete_new  = str_replace("##current_year##",date('Y'),$templete_new);
+									$strMail_new 	= 	$templete_new;
+									$to_new			=	$get_organization_name[0]['st_email_address'];
+									$subject_new	=	$email_details_new[0]['st_email_subject'];
+									$message_new	=	$strMail_new;
+
+									$user_to_id = $this->common_model->get_user_id_by_email($to_new);
+									$message_new = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);		
+									$message_new = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);
+									$this->common_function->send_mail($this->email, $to_new, $subject_new, $message_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+									
+		
+					
+				}
+				
+			}
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		$this->session->set_flashdata('success', 'coalition org information has been deleted successfully.');	
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'coalition/page_coalition/'.$sort.'/'.$order.'/'.$limit);			
+	}
+	public function coalition_login()
+	{		
+		if($this->session->userdata('sess_admin_id'))
+			{
+				redirect($this->config->item('admin_base_url').'account/dashboard');	
+			}
+			$data = array();
+			@$data['rem_password'] = get_cookie('pass_admin');
+			@$data['rem_email'] 	  = get_cookie('user_admin');
+			
+			if($this->input->post('action')=='Login')
+			{ 			
+				//echo "<pre>";
+				//print_r($_POST);
+				//die();
+				$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password', 'Password', 'trim|required');
+				if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();
+						//echo "<pre>";print_r($data);die;
+						$this->load->view('coalition_home',$data);	
+				}
+				else{
+					
+					$username	= 	$this->common_function->CUSTOM_ADDSLASHES($this->input->post('email'));
+					$password	= 	$this->common_function->CUSTOM_ADDSLASHES($this->input->post('password')); 				
+					$data		=	$this->coalition_model->isValid($username,$password);
+					
+					
+					if(isset($data['in_user_id']) && $data['in_user_id']!='')
+					{
+						$adminid	=	$data['in_user_id'];
+						$logmsg		=	"Coalition User Login Successfully";
+						//$this->login_model->updateAdminLog($adminid, $logmsg);
+						
+						#===================== remember me starts==================#
+						//if($data['login']['remember']!='')
+						if($this->input->post('remember') != '')
+						{
+							
+							set_cookie('user_admin', $username, 86400);							
+							set_cookie('pass_admin', $password, 86400);							
+						}
+						
+						#===================== remember me ends==================#	
+								
+						// VALID ADMIN LOGIN, SET ADMIN SESSIONS
+						//$this->session->set_userdata('sess_coalition_id',$data['in_user_id']);	
+						$this->session->set_userdata('sess_user_id',$data['in_user_id']);							
+						$this->session->set_userdata('sess_admin_email',$data['email']);
+						$this->session->set_userdata('sess_admin_name',$data['name']);	
+						//$this->login_model->updateloginstatus($data['admin_id'],$data['login_count']);
+						if($this->session->userdata('redirect_url'))
+						{ 
+							redirect($this->session->userdata('redirect_url'));
+						}
+						else
+						{ 
+							redirect($this->config->item('admin_base_url').'coalition/manage_coalition_org');
+						}
+									
+						//redirect($this->config->item('admin_base_url').'account/dashboard');
+					}
+					else
+					{
+						if(isset($data['error']) && $data['error']!='')
+						{
+							$data['Err_Msg']	=	$data['error'];
+							$this->load->view('coalition_home',$data);
+						}
+					}
+				}
+			}
+			else{
+				$this->load->view('coalition_home',$data);
+			}
+			
+		
+	}
+	function logout()
+	{  
+		$this->session->sess_destroy();
+		redirect($this->config->item('admin_base_url').'coalition-login');
+	}
+	function unset_data()
+	{
+		//Unset previusly set sessions for products,customers and stores		
+		$session_data = array('');	
+		$this->session->unset_userdata($session_data);
+		$this->session->unset_userdata();
+	}
+	function org_staus_active($org_id)
+	{	
+		if(!$this->session->userdata('sess_admin_id') && (!$this->session->userdata('sess_user_id')))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->coalition_model->org_staus_active($org_id);
+			/*************************Coalition Email**************************************/
+			$coalition_admin_list = $this->coalition_model->get_organization_admin($org_id);
+			
+			$coalition_name  = 	$this->common_model->get_coalition_name($coalition_admin_list['in_organization_id']);
+			
+			$email_details_new = $this->common_model->get_email_containt("158");
+			
+			if(isset($email_details_new[0]['st_email_body']))
+							{
+								
+										$templete_new  = $email_details_new[0]['st_email_body'];							
+										$templete_new  = str_replace("##organizer_name##",$coalition_admin_list['st_org_name'],$templete_new);
+									
+										$templete_new  = str_replace("##coaliation_name##",$coalition_name['st_coalition_name'],$templete_new);				
+									
+										$templete_new  = str_replace("##coaliation_admin_url##",$this->config->item('admin_base_url').'coalition/manage_coalition_org',$templete_new);			
+										$templete_new  = str_replace("##current_year##",date('Y'),$templete_new);
+										$strMail_new 	= 	$templete_new;
+										$to_new			=	$coalition_admin_list['st_email'];
+										$subject_new	=	$email_details_new[0]['st_email_subject'];
+										$message_new	=	$strMail_new;
+
+										$user_to_id = $this->common_model->get_user_id_by_email($to_new);
+								
+										$message_new = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);		
+										$message_new = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);
+										$this->common_function->send_mail($this->email, $to_new, $subject_new, $message_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+										//$this->common_function->send_mail($this->email, $to, $subject_new, $message_new,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+								
+							}		
+		$this->session->set_flashdata('success', 'Organization Status has been changed successfully.');			
+		redirect($this->config->item('admin_base_url').'coalition/manage_coalition_org');
+		
+	}
+	function org_staus_reject($org_id)
+	{	
+		if(!$this->session->userdata('sess_admin_id') && (!$this->session->userdata('sess_user_id')))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$this->coalition_model->org_staus_reject($org_id);	
+		/*************************Coalition Email**************************************/
+			$coalition_admin_list = $this->coalition_model->get_organization_admin($org_id);
+			
+			$coalition_name  = 	$this->common_model->get_coalition_name($coalition_admin_list['in_organization_id']);
+			
+			$email_details_new = $this->common_model->get_email_containt("159");
+			
+			if(isset($email_details_new[0]['st_email_body']))
+							{
+								
+										$templete_new  = $email_details_new[0]['st_email_body'];							
+										$templete_new  = str_replace("##organizer_name##",$coalition_admin_list['st_org_name'],$templete_new);
+									
+										$templete_new  = str_replace("##coaliation_name##",$coalition_name['st_coalition_name'],$templete_new);				
+											
+										$templete_new  = str_replace("##current_year##",date('Y'),$templete_new);
+										$strMail_new 	= 	$templete_new;
+										$to_new			=	$coalition_admin_list['st_email'];
+										$subject_new	=	$email_details_new[0]['st_email_subject'];
+										$message_new	=	$strMail_new;
+
+										$user_to_id = $this->common_model->get_user_id_by_email($to_new);
+								
+										$message_new = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);		
+										$message_new = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to_new),$message_new);
+										$this->common_function->send_mail($this->email, $to_new, $subject_new, $message_new, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));
+										//$this->common_function->send_mail($this->email, $to, $subject_new, $message_new,  $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'));							
+								
+							}				
+		$this->session->set_flashdata('success', 'Organization Status has been changed successfully.');			
+		redirect($this->config->item('admin_base_url').'coalition/manage_coalition_org');
+		
+	}
+	public function coalition_delete_admin()
+	{
+		
+		$paypal_status = $this->coalition_model->coalition_delete_admin($_POST['coalition_id']);
+		echo 'success';
+	}
+	
+	function organization_view($orgId)
+	{
+		/*
+		 if(!$this->session->userdata('sess_user_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		 */
+			$this->load->model('organization_model');
+			
+			$data['org_details'] 					= $this->organization_model->get_org_info($orgId);
+			
+			$data['ref_details'] 					= $this->organization_model->get_ref_details($orgId); 
+			$data['org_approve_letter'] 			= $this->organization_model->get_org_approve_letter($orgId);
+			$data['org_approve_letter_count']		= count($data['org_approve_letter']);	
+			
+			$data['guideline_links_details'] 		= $this->organization_model->get_guideline_links($orgId);
+			$data['organization_files'] 			= $this->organization_model->get_org_guideline_files($orgId);
+			
+			if(count($data['org_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}
+			//echo '<pre>'; print_r($data['ref_details']); die;
+					
+			$this->load->view('coalition-organization-view',$data);			
+	}
+	
+}
+

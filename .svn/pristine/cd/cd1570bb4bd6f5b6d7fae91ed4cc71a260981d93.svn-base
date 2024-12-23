@@ -1,0 +1,514 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 26-Dec-2011
+# File description: Members(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class rescue_stories extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();				
+		$this->load->library('common_function');				
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('member_model');	
+		$this->load->model('common_model');		
+		$this->load->model('rescue_stories_model');
+		$this->load->helper(array('form', 'url'));	 
+		$this->load->library('nativesession');		
+	}
+
+	public function listing_pending_rescue_stories()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		//$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('searchadmin5');	
+		$this->get_pending_rescue_stories();
+	}
+	
+	public function get_pending_rescue_stories($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		if(!$sort)
+			$sort='crdate';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{						
+			$this->session->set_userdata('searchadmin1',$this->input->post('story_title'));
+			
+			$this->session->set_userdata('searchadmin2',$this->input->post('transport_id'));
+
+			$this->session->set_userdata('searchadmin4',$this->input->post('author_name'));	
+			
+			$this->session->set_userdata('searchadmin5',$this->input->post('email_add'));
+			//$this->session->set_userdata('searchadmin3',$this->input->post('story_status'));
+		}	
+		
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		$data['story_listing'] = $this->rescue_stories_model->get_rescue_story_data($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),'pen',$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		$totalrecord           = $this->rescue_stories_model->get_rescue_story_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),'pen',$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		
+		//$totalrecord = $feedback_listing['total_count'];
+		
+		$config['base_url'] 	= $this->config->item('admin_base_url').'rescue_stories/get_pending_rescue_stories/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		
+		$this->load->view('pending-rescue-transport-story-listing',$data);
+	}
+	
+	function listing_approved_rescue_stories()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		//$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('searchadmin5');		
+		$this->get_approved_rescue_stories();
+	}
+	
+	public function get_approved_rescue_stories($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		if(!$sort)
+			$sort='crdate';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{						
+			$this->session->set_userdata('searchadmin1',$this->input->post('story_title'));
+					
+			$this->session->set_userdata('searchadmin2',$this->input->post('transport_id'));	
+			
+			$this->session->set_userdata('searchadmin4',$this->input->post('author_name'));	
+			
+			$this->session->set_userdata('searchadmin5',$this->input->post('email_add'));
+			//$this->session->set_userdata('searchadmin3',$this->input->post('story_status'));
+		}	
+		
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		$data['story_listing'] = $this->rescue_stories_model->get_rescue_story_data($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),'app',$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		$totalrecord = $this->rescue_stories_model->get_rescue_story_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),'app',$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		
+		//$totalrecord = $feedback_listing['total_count'];
+		
+		$config['base_url'] 	= $this->config->item('admin_base_url').'rescue_stories/get_approved_rescue_stories/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		
+		
+		$this->load->view('approved-rescue-transport-story-listing.php',$data);
+	}
+	
+	function listing_rejected_rescue_stories()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		$this->session->unset_userdata('searchadmin1');
+		$this->session->unset_userdata('searchadmin2');
+		//$this->session->unset_userdata('searchadmin3');
+		$this->session->unset_userdata('searchadmin4');
+		$this->session->unset_userdata('searchadmin5');		
+		$this->get_rejected_rescue_stories();
+	}
+	
+	public function get_rejected_rescue_stories($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		if(!$sort)
+			$sort='crdate';
+		
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if(($this->input->post('action') == 'search'))
+		{						
+			$this->session->set_userdata('searchadmin1',$this->input->post('story_title'));
+	
+			$this->session->set_userdata('searchadmin2',$this->input->post('transport_id'));	
+			
+			$this->session->set_userdata('searchadmin4',$this->input->post('author_name'));	
+			
+			$this->session->set_userdata('searchadmin5',$this->input->post('email_add'));
+			//$this->session->set_userdata('searchadmin3',$this->input->post('story_status'));
+		}	
+		
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		$data['story_listing'] = $this->rescue_stories_model->get_rescue_story_data($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),'rej',$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		$totalrecord = $this->rescue_stories_model->get_rescue_story_count($this->session->userdata('searchadmin1'),$this->session->userdata('searchadmin2'),'rej',$this->session->userdata('searchadmin4'),$this->session->userdata('searchadmin5'));
+		 
+		//$totalrecord = $feedback_listing['total_count'];
+		
+		$config['base_url'] 	= $this->config->item('admin_base_url').'rescue_stories/get_rejected_rescue_stories/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1); 
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page']	   = $config['per_page'];		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		
+		
+		$this->load->view('rejected-rescue-transport-story-listing.php',$data);
+	}
+	
+	function detail_transport_story($id,$type=0)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data['transport_story_detail'] = $this->rescue_stories_model->get_detail_transportstory_data($id);
+		if($type=='2')
+		{
+			$data['link_number'] = 11.3;
+			$data['breedcumbs'] = 'Manage Rejected Stories';
+			$data['header'] = 'Rejected Stories';
+			$data['url'] = 'listing_rejected_rescue_stories';
+		
+		} else if($type=='1')
+		{
+			$data['link_number'] = 11.2;
+			$data['breedcumbs'] = 'Manage Approved Stories';
+			$data['header'] = 'Approved Stories';
+			$data['url'] = 'listing_approved_rescue_stories';
+		} else {
+			$data['link_number'] = 11.1;
+			$data['breedcumbs'] = 'Manage Pending Stories';
+			$data['header'] = 'Pending Stories';
+			$data['url'] = 'listing_pending_rescue_stories';
+		}		
+		$this->load->view('transport-story-view',$data);
+	}
+	
+	function approve_transport_story()
+	{
+		$Id = $this->input->post('transport_story_page_id');
+		$status = $this->rescue_stories_model->approved_transport_story($Id);
+		$this->session->set_flashdata('success', 'Rescue Story approved successfully.');	
+		redirect($this->config->item('admin_base_url').'rescue_stories/listing_approved_rescue_stories/');
+	}
+	
+	function  reject_transport_story()
+	{
+		$Id = $this->input->post('reject_story_page_id');
+		$status = $this->rescue_stories_model->rejected_transport_story($Id);
+		$this->session->set_flashdata('success', 'Rescue Story rejected successfully.');	
+		redirect($this->config->item('admin_base_url').'rescue_stories/listing_rejected_rescue_stories/');
+	}
+	
+	
+	
+	function edit_transport_story($id = false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$data['transport_story_detail'] = $this->rescue_stories_model->get_detail_transportstory_data($id);
+		//echo '<pre>'; print_r($data['transport_story_detail']); die;
+		
+		// ckeditor starts
+		
+		//$this->load->library('ckeditor');
+        //$this->load->library('ckFinder');
+
+        //configure base path of ckeditor folder 
+       // $this->ckeditor->basePath = $this->config->item('base_url').'assets/ckeditor/';
+		
+        
+        $this->ckeditor->config['toolbar'] 	= 'Full';
+		
+		//$this->ckeditor->config['contentsCss']=$this->config->item('base_url').'assets/css/style.css' ;		
+		
+		$this->ckeditor->config['toolbar'] = array(
+													array( 'Source','-',
+														  'NewPage','Templates','-',
+														  'Cut','Copy','-',
+														  'Undo','Redo','-',
+														  'Find','Replace','-',
+														  'SelectAll','RemoveFormat','-',
+														   'ShowBlocks','Image'),													
+													array('Bold','Italic','Underline','Strike','-',														 
+														  'NumberedList','BulletedList','-',
+														  'Outdent','Indent','Blockquote','-',
+														  'JustifyLeft','JustifyCenter','JustifyRight','JustifyBlock','-',
+														  'Link','Unlink','Anchor','-'
+														  ),													
+													array('Format','Font','FontSize','-',
+														  'TextColor','BGColor','Table','SpecialChar')
+												);
+
+		$this->ckeditor->config['width'] 	= '620px';
+		$this->ckeditor->config['height'] 	= '300px';
+		$this->ckeditor->config['language'] = 'en';
+					
+		$this->ckeditor->config['filebrowserBrowseUrl'] 		= $this->config->item('base_url').'assets/ckfinder/ckfinder.html';
+		$this->ckeditor->config['filebrowserImageBrowseUrl'] 	= $this->config->item('base_url').'assets/ckfinder/ckfinder.html?type=Images';
+		$this->ckeditor->config['filebrowserUploadUrl'] 		= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Files';
+		$this->ckeditor->config['filebrowserImageUploadUrl'] 	= $this->config->item('base_url').'assets/ckfinder/core/connector/php/connector.php?command=QuickUpload&type=Images';
+		// ckeditor ends		
+		
+		if($this->input->post('action')=='Edit')
+		{
+					$id	=	$this->input->post('id');
+
+
+					if($this->input->post('is_round') == 1)
+					{
+						if($_POST['txttranstogether'] !=''){
+						$rescue_prompt[0]['Q1']  = 'Tell us how the transport came together?';
+						$rescue_prompt[0]['txttranstogether']	=	$this->input->post('txttranstogether');	
+						
+						}
+						
+						if($_POST['txtmemorable'] !=''){
+						$rescue_prompt[0]['Q2']  = 'Were there any memorable moments from this transport?';	
+						$rescue_prompt[0]['txtmemorable']		=	$this->input->post('txtmemorable');
+									
+						
+						}
+						
+						if($_POST['txtbetter'] !=''){
+						$rescue_prompt[0]['Q3'] = 'What could have made this transport better?';
+						$rescue_prompt[0]['txtbetter']	        =	$this->input->post('txtbetter');					
+						
+						}
+						
+						if($_POST['txtpassenger'] !=''){
+						$rescue_prompt[0]['Q4']         = 'Tell us about your passenger/s (behavior, demeanor, etc)?';
+						$rescue_prompt[0]['txtpassenger']		=	 $this->input->post('txtpassenger');					
+						
+						}
+						
+						if($_POST['txttakehelp'] !=''){
+						$rescue_prompt[0]['Q5'] = 'Why did you take this transport, what compelled you to help?';
+						$rescue_prompt[0]['txttakehelp']		=	$this->input->post('txttakehelp');					
+						
+						}
+						
+						$rescue_prompt_val	=	serialize($rescue_prompt);						
+						$_POST['edit_body'] = $rescue_prompt_val;
+					}
+					$storyinfo = array( "st_rescue_title" 	=> trim($this->input->post('title')),
+                        				"st_rescue_story"	=> trim($this->input->post('edit_body')),   
+										"dt_modified" 		=> date("Y-m-d h:i:s"),
+										"in_flag" => ($this->input->post('is_round') == 1)? 1: 0										
+                    );
+
+                    $this->rescue_stories_model->update_rescue_stories($storyinfo,$id,'tbl_transport_rescue_story');  
+					$this->session->set_flashdata('success', 'Rescue story updated successfully.');                   
+					redirect($this->config->item('admin_base_url') . "rescue_stories/listing_pending_rescue_stories/");
+			
+		}
+		else
+		{
+		
+			$this->load->view('edit-transport-story',$data);
+		
+		}	
+		
+	}
+	
+	
+	function delete_rescue_photo($Id=false,$storyId=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		}
+		
+		$this->rescue_stories_model->delete_rescue_photo($Id,'tbl_transportation_photo');			
+		$this->session->set_flashdata('success', 'Rescue story photo deleted successfully.');		
+		redirect($this->config->item('admin_base_url').'rescue_stories/edit_transport_story/'.$storyId.'/0/');
+	
+	}
+}
+
+/* End of file members.php */
+/* Location: ./application/controllers/members.php */

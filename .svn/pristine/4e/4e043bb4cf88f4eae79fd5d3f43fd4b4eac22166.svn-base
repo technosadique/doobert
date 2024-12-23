@@ -1,0 +1,765 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Dashboard_modern extends CI_Controller {
+
+	/**  
+	 * Index Page for this controller. 
+	 *
+	 * Maps to the following URL 
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	 
+	
+	public function __construct() 
+    { 
+		parent::__construct();	
+		$this->output->enable_profiler(FALSE);			
+		$this->load->library('common_function');		
+		//$this->load->model('user_model');
+		$this->load->model('dashboard_model');
+		$this->load->model('common_model');		
+		$this->load->helper('cookie');		
+		$this->session->unset_userdata('org_id');	
+		$this->session->unset_userdata('delete_org_id');
+		setcookie("dev_organization_id","",time()-3600,"/","dev.doobert.com");
+	}	
+	 
+	public function index($sort=false,$order=false,$limit=false)
+	{  	
+		 $data = array(); 
+		 if($this->session->userdata('transport_id'))
+		{	
+			$this->session->unset_userdata('transport_id');
+     	}	
+		if (!$this->session->userdata('userid')) {
+		  redirect($this->config->item('base_url'));
+        }
+		
+		$org_status = $this->dashboard_model->check_organization_status($this->session->userdata('userid'));
+		//print_r($org_status);die;
+		
+		if(count($org_status)>0)
+		{
+			if($org_status['st_org_complete']!=0)
+			{
+				$this->session->set_userdata('orgstep',$org_status['st_org_complete']);
+				$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+				$this->session->set_userdata('popup_display',1);
+				$redirect = $this->config->item('base_url') . "org-signup";
+				redirect($redirect);
+			} else {
+				$this->session->set_userdata('orgId',$org_status['in_organization_id']);
+				$this->session->set_userdata('popup_display',1);
+				$redirect = $this->config->item('base_url') . "org-signup-thankyou";
+				$this->session->set_userdata('popup_display',1);
+				redirect($redirect);
+			}	
+		}
+			$user_profile_status = $this->dashboard_model->check_userprofile_status($this->session->userdata('userid'));
+			if(count($user_profile_status)>0)
+			{
+				$this->session->set_userdata('registerstep','1');
+				if($user_profile_status['hurricane_harvey_reg'] == 1)
+				{
+					$redirect = $this->config->item('base_url') . "harvey-volunteer-profile";	
+				} else {
+					$redirect = $this->config->item('base_url') . "volunteer-profile";
+				}
+					redirect($redirect);
+			}	
+		
+		if($this->input->post('dashboard_view_type'))
+		{
+			$this->session->unset_userdata('dashboard_view_type');
+			$this->session->set_userdata('dashboard_view_type',$this->input->post('dashboard_view_type'));
+		}
+		
+		if(!$this->session->userdata('dashboard_view_type'))
+		{
+			$this->session->set_userdata('dashboard_view_type','N');
+		}		
+		
+		if($this->session->userdata('dashboard_view_type')=='O')
+		{
+			redirect($this->config->item('base_url').'dashboard/');
+		}
+	 
+	   $data = array();
+	   $temp = array();
+	   $tempq3 = array();
+	   $data['q1']			=	$this->common_model->get_affiliate_detail('D','L',0);	
+	   
+	   $data['q2']			=	$this->common_model->get_affiliate_detail('D','R',$data['q1'][0]['id']);
+		
+	  
+	   
+	   $data['profile_details'] = $this->dashboard_model->get_user_profile($this->session->userdata('userid'));
+	   
+	  
+   	   $data['all_trasport'] 		= array();
+	   $data['enabled_driver_pilot_status'] = 0;
+	   
+	   $data['foster_profile_status'] = 0;
+	   $data['photographer_profile_status'] = 0;
+	   
+	   if(((isset($data['profile_details']['st_foster_home']) && $data['profile_details']['st_foster_home']=='Y')))
+	   {
+	   		$data['foster_profile_status'] = 1;	
+	   }
+	   if(((isset($data['profile_details']['st_photographer']) && $data['profile_details']['st_photographer']=='Y')))
+	   {
+	   		$data['photographer_profile_status'] = 1;	
+	   }	
+	  
+	   if((isset($data['profile_details']['st_driver']) && $data['profile_details']['st_driver']=='Y') || (isset($data['profile_details']['st_pilot']) && $data['profile_details']['st_pilot']=='Y') || (isset($data['profile_details']['st_airline_emp']) && $data['profile_details']['st_airline_emp']=='Y')   )
+	   { 
+		$data['enabled_driver_pilot_status'] = 1;
+		#=============Active Trasport============#
+		if(!$sort)
+			$sort='trid';
+		
+		if(!$order)
+			$order = 'desc';
+		
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';	
+		$rec_per_page = 10;	
+		
+		/*$total_record = $this->dashboard_model->get_transport_list_all("1");
+		
+		$all_trasport = $this->dashboard_model->get_transport_list("1",$rec_per_page,$limit,$sort,$order);*/
+		
+		$transport_record = $this->dashboard_model->get_users_transport_list_data("1",$rec_per_page,$limit,$sort,$order);
+		
+		$total_record = $transport_record['num_rows'];
+		
+		$all_trasport  = $transport_record['transport_list'];
+
+		//$data['events'] = $this->common_model->get_organization_event($this->session->userdata('org_id'));
+		$data['transport_events'] = $this->common_model->get_all_transportation_user($this->session->userdata('userid'));
+		$data['get_user_permission'] = $this->common_model->get_user_permission();
+		//$data['event_data'] = array_merge($data['events'],$data['transport_events']);
+		//echo '<pre>'; print_r($data['transport_events']);die;	
+		$data['event_data'] = $data['transport_events'];
+			
+		
+		$data['all_trasport']  = $all_trasport;
+		
+		$config 				  = array();
+		$config['base_url'] 	  = base_url().'dashboard_modern/index/';
+		$config['base_url']	  	  = $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	  = $total_record;
+		$config['per_page'] 	  = $rec_per_page;
+		$config['cur_page'] 	  = $limit;
+		$config['num_links'] 	  = '3';
+		$config['first_link'] 	  = FALSE;
+		$config['last_link'] 	  = FALSE;
+		$config['full_tag_open']  = '<ul class="pagination">';
+		
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "Prev";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']      = "Next";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  
+		$this->load->library('pagination');	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;	
+		$data['total_record']	=	$total_record;	
+	   }		
+		
+       $this->load->view('dashboard-modern-view', $data);
+	   
+	   
+    }	
+	
+	
+	function disp_transport_listing()
+	{	
+		
+		$rec_per_page = $this->input->post('trans_counter_record')?$this->input->post('trans_counter_record')*10:'10';
+		
+		$transport_detail = $this->get_transport_list_ajax($rec_per_page);
+		$transport_list = $transport_detail['transport_list'];
+		$totalrecord 	= $transport_detail['totalrecord'];	
+		$transport_html_listing = '';
+		$data = array();
+		
+		
+		if(!empty($transport_list))
+        {
+			for($a=0;$a<count($transport_list);$a++)
+			{
+													if($transport_list[$a]['st_trans_type'] == 'P'){ $css="predefined"; $trimg='icon_dashboard_predefined.png'; }
+													if($transport_list[$a]['st_trans_type'] == 'RO'){ $css="route";$trimg='icon_dashboard_car.png'; }
+													if($transport_list[$a]['st_trans_type'] == 'R'){ $css="ride";$trimg='icon_dashboard_ride.png'; }
+													if($transport_list[$a]['in_airline_transport'] == '1' && $transport_list[$a]['st_trans_type'] == 'D'){ $css="airline";$trimg='icon_dashboard_airline.png'; }
+													if($transport_list[$a]['in_airline_transport'] == '0' && $transport_list[$a]['st_trans_type'] == 'D'){ $css="airline";$trimg='icon_dashboard_assisted.png'; }
+													
+
+													$sqlprogressstatus  = "SELECT in_photography_profile FROM tbl_transportation_participants  where in_transportation_id = '".$transport_list[$a]['in_transportation_id']."'";
+													$sqlprogressstat	=	$this->db->query($sqlprogressstatus);
+													$numrowprostat		=	$sqlprogressstat->num_rows($sqlprogressstat);	
+													$prostatus			=	$sqlprogressstat->result();
+													$in_photography_profile		=	$prostatus[0]->in_photography_profile;
+													
+													if($in_photography_profile == 1)
+													{														
+														$img_photographer = '<span class="photographerin">Handoff Photographer in:'.'<i id="iconr" class="material-icons">camera_alt</i></span>';
+													}
+													else  if($in_photography_profile == 0 and $transport_list[$a]['in_airline_transport']==1)
+													{
+														$img_photographer = '<i id="iconr" class="material-icons">airplanemode_active</i>';
+													}
+													else
+													{
+														$img_photographer = '<i id="iconr" class="material-icons">directions_car</i>';
+													}
+													
+												
+												$all_legs_count = 0;
+												$transport_all_legs 	= $this->common_model->get_all_legs_count($transport_list[$a]['in_transportation_id']);
+												
+												if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+												{
+													$all_legs_count	= $transport_all_legs['total_count'];
+												}
+												
+												$transport_filled_data 	= $this->common_model->get_transport_filled_status($transport_list[$a]['in_transportation_id']);
+												$total_filled_legs = 0;
+												if(isset($transport_filled_data['filled_legs_count']) && !empty($transport_filled_data['filled_legs_count']))
+												{
+													$total_filled_legs	= count($transport_filled_data['filled_legs_count']);
+												}
+												$filled_legs_count 	= $this->common_function->get_filled_legs_count($transport_list[$a]['in_transportation_id']);
+												$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($transport_list[$a]['in_transportation_id']);
+												if($transport_list[$a]['perc']>0)
+												{
+													$transport_comp_perc = (($transport_list[$a]['perc']>100)? "100%":$transport_list[$a]['perc']."%");
+												}
+												else
+												{
+														$transport_comp_perc = "0%";
+												}
+												$org_code = ($transport_list[$a]['st_org_code'])? $transport_list[$a]['st_org_code']:'DBT';
+												$joined_leg 			= $this->common_model->get_user_leg_joined($transport_list[$a]['in_transportation_id'],$this->session->userdata('userid'));
+												$removelink = '';
+												if($joined_leg > 0 && $transport_list[$a]['in_status'] == 1) {
+													$removelink = '<a href="javascript:void(0);" title="Exit From Leg" onClick="exit_from_leg('.$transport_list[$a]['in_transportation_id'].');" class="link-orange highlight_off"><i class="material-icons">highlight_off</i></a>';
+												}
+				$transport_html_listing .= '<tr>';
+				$transport_html_listing .= 	'<td class="id"><a href="'.base_url().'org-transportation-scheduled/'.$transport_list[$a]['in_transportation_id'].'/" class="'.$css.'">'.$org_code . $transport_list[$a]['in_transportation_id'].'<span><img src="'.base_url().'modernview/images/'.$trimg.'" alt=""/></span></a></td>';				
+				$transport_html_listing .= 	'<td>'.date("D M d",strtotime($transport_list[$a]['dt_pickup_date'])).' - <br>'.date("D M d",strtotime($transport_list[$a]['dt_target'])).'</td>';
+				$transport_html_listing .=	'<td>'.$transport_list[$a]['st_from_city'].', '.$transport_list[$a]['st_from_state'].'<i class="material-icons backspace">arrow_right_alt</i>'.$img_photographer.$transport_list[$a]['st_to_city'].', '.$transport_list[$a]['st_to_state'].'<br>';				
+				$transport_html_listing .=	'<a href="'.base_url()."org-transportation-scheduled/".$transport_list[$a]['in_transportation_id'].'/" class="linkgreyu">'.$transport_list[$a]['st_trans_name'].'</a>';
+				$transport_html_listing .=	'</td>';
+				$transport_html_listing .=	'<td>'.$all_legs_count.' legs ' .$removelink.'<span class="lightgrey">'.($transport_list[$a]['in_tot_distance']!=''?$transport_list[$a]['in_tot_distance']:"0").' miles</span></td>';
+				$transport_html_listing .=	'<td>'.$transport_list[$a]['co_name'].'<br><a href="mailto:'.$transport_list[$a]['st_email'].'" class="linkgrey">'.$transport_list[$a]['st_email'].'</a></td>';
+				$transport_html_listing .=	'</tr>';	
+															
+																		
+			}
+		} else {
+			$transport_html_listing .=	'<tr><td colspan="5">No Record(s) found.</td></tr>';
+		}
+		$data['transport_html_listing'] = $transport_html_listing;
+		$data['load_more'] = (isset($totalrecord) &&  $totalrecord > count($transport_list))?'1':'0';
+		echo json_encode($data);	
+	}		
+	
+	public function get_transport_list_ajax($rec_per_page)
+	{    
+		$data = array();
+		$limit = 0;	
+		$transport_detail = $this->common_model->get_transport_list_ajax($limit,$rec_per_page);
+		$data['transport_list'] = $transport_detail['transport_details'];
+		$data['totalrecord'] 	= $transport_detail['total_count'];		
+		return $data;
+		
+	}
+		
+	public function update_user_profile_pic() {
+		
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$this->load->library('upload');
+		
+		$xaxis = '';
+		$yaxis = '';
+		$height = '';
+		$width = '';
+		
+		//echo 'uploaded_photo1'.$this->input->post('uploaded_photo1');
+		//exit;
+						
+		if($this->input->post('user_uploaded_photo1') != '') {
+			$photo1 = $this->input->post('user_uploaded_photo1');
+		}
+	
+		if(isset($photo1)) 
+		{
+			
+			$img_name_array = explode('.', $photo1);
+			$img_extension = end($img_name_array);
+			$image_name = current(explode('.', $photo1)); 
+			 
+			if($img_extension == "JPE" || $img_extension == "jpe")
+			{
+				$new_image_name = $image_name.'.jpg';
+				$image = imagecreatefromjpeg($this->config->item('upload') . 'profile/' . $photo1);
+				imagejpeg($image, $this->config->item('upload') . 'profile/' . $new_image_name);
+				$photo1 =  $new_image_name;
+			}
+			
+			$rotate_angle = $this->input->post('rotate_angle1');
+			$xaxis = $this->input->post('x1');
+			$yaxis = $this->input->post('y1');
+			$height = $this->input->post('h1');
+			$width = $this->input->post('w1');
+			
+			$config['file_name'] = $photo1;
+			
+			if($rotate_angle < 0 ) {
+				$rotate_angle	=	360+$rotate_angle;
+			}
+			
+			$this->load->library('image_lib');
+			
+			//rotate image if 90 or 270 deg rotation 
+			//if 90 then rotate to 270 and visa-versa - due to counter clockwise rotation
+			if($rotate_angle > 0 )
+			{
+				if($rotate_angle == 90)
+				{
+					$rotate_angle = 270;
+				}
+				else if($rotate_angle == 270){
+					$rotate_angle = 90;
+				}
+				
+				$config['image_library'] = 'gd2';
+				$config['source_image']	= $this->config->item('upload').'profile/'.$config['file_name'];
+				$config['rotation_angle'] = $rotate_angle;
+				
+				$this->image_lib->initialize($config);
+				if ( ! $this->image_lib->rotate()) {
+					$upload_file_errors = $this->image_lib->display_errors();
+				}
+			}
+			$this->image_lib->clear();
+			
+			//code to fix image orientation for iphone mobile pic starts
+			$this->correctImageOrientation($this->config->item('upload') . 'profile/' . $config['file_name']);
+			//code to fix image orientation for iphone mobile pic ends
+			
+			//Cropping Image
+			$config['image_library'] = 'gd2';
+			$config['source_image']	= $this->config->item('upload').'profile/'.$config['file_name'];
+			$config['new_image']	= $this->config->item('upload').'profile/cropped_images/'.$config['file_name'];
+			$config['maintain_ratio'] 	= FALSE;
+			$config['x_axis'] = $xaxis;
+			$config['y_axis'] = $yaxis;					
+			$config['width'] = $width;
+			$config['height'] = $height;
+			
+			$this->image_lib->initialize($config); 
+			if ( ! $this->image_lib->crop()) {
+				$upload_file_errors =  $this->image_lib->display_errors();
+			}
+			$this->image_lib->clear();
+				
+			//Resize the image with ratio (4 Thumbnails)
+			$thumb = array(	'140x140'		=>	'140X140',
+							'250x250' 		=>  '250X250',       //added by sadique on 26-09-15
+							'36x36'			=>	'36X36',
+							'63x63'			=>	'63X63',
+							'29x29'			=>	'29X29'
+						);
+					
+			foreach($thumb as $key => $value) {
+				$exp_value = explode('X',$value);
+				
+				//Resizing Image
+				$config['image_library'] 	= 'gd2';
+				$config['source_image']		= $this->config->item('upload').'profile/cropped_images/'.$config['file_name'];
+				$config['new_image']		= $this->config->item('upload').'profile/'.$key.'/'.$config['file_name'];
+				$config['maintain_ratio'] 	= TRUE;
+				$config['width']	 		= $exp_value[0];
+				$config['height']			= $exp_value[1];
+				
+				$this->image_lib->initialize($config);
+				$this->image_lib->resize();
+				$this->image_lib->clear();
+				
+			}
+			
+			$file_errors = array('errors' => $this->image_lib->display_errors());
+			//echo "<pre>";print_r($file_errors);die;
+			//Display errors of file upload.
+			if(!empty($file_errors['errors'])) {
+				$data = array('upload_error' => strip_tags($file_errors['errors']));
+				
+				$this->session->set_flashdata($data);
+				
+				redirect(base_url().'my-profile/');
+			}
+			
+			//Updating data
+			$data['picture'] = array('st_profile_image' => $config['file_name'],'dt_modified' => date('Y-m-d H:i:s'));
+			$data['upload_photo'] = $this->common_model->update_user_data($data['picture']);
+			
+			if($data['upload_photo'] == 1) {
+				redirect(base_url().'dashboard_modern/');
+			}
+			
+		}
+		
+		
+	}
+	
+	public function user_profile_pic_upload() {
+		
+		$this->load->library('upload');
+		
+		$config['upload_path']  	= $this->config->item('upload').'profile/';
+		$config['max_size']			= '5120';
+		$config['image_width']		= '300';
+		$config['image_height']		= '300';
+		$config['allowed_types']	= 'jpg|png|gif|jpeg|jpe';
+		$config['remove_spaces']  	= TRUE;
+		//$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES[$this->input->post('file_name')]['name']));
+		
+		$lastDot = strrpos($_FILES[$this->input->post('file_name')]['name'], ".");
+		$_FILES[$this->input->post('file_name')]['name'] = str_replace(".", "", substr($_FILES[$this->input->post('file_name')]['name'], 0, $lastDot)) . substr($_FILES[$this->input->post('file_name')]['name'], $lastDot);
+		$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().'_'.$_FILES[$this->input->post('file_name')]['name']));
+
+		
+		//Initialization
+		$this->upload->initialize($config);
+			
+		//Display errors of file upload.
+		//Upload image by calling do_upload method.
+		$this->upload->do_upload($this->input->post('file_name'));
+		$file_errors = array('errors' => $this->upload->display_errors());
+		
+		if(!empty($file_errors['errors'])) {
+			$data = array('upload_error' => strip_tags($file_errors['errors']));
+			echo json_encode($data);
+			return false;
+		} 
+		
+		echo "{";
+		echo "file_name: '" . $config['file_name'] . "'\n";
+		echo "}";
+	}
+	
+	
+	function correctImageOrientation($filename) {
+	  if (function_exists('exif_read_data')) {
+		$exif = exif_read_data($filename);
+		if($exif && isset($exif['Orientation'])) {
+		  $orientation = $exif['Orientation'];
+		  if($orientation != 1){
+			$img = imagecreatefromjpeg($filename);
+			$deg = 0;
+			switch ($orientation) {
+			  case 3:
+				$deg = 180;
+				break;
+			  case 6:
+				$deg = 270;
+				break;
+			  case 8:
+				$deg = 90;
+				break;
+			}
+			if ($deg) {
+			  $img = imagerotate($img, $deg, 0);        
+			}
+			// then rewrite the rotated image back to the disk as $filename 
+			imagejpeg($img, $filename, 95);
+		  } // if there is some rotation necessary
+		} // if have the exif orientation info
+	  } // if function exists      
+	}	
+	
+	public function markallread()
+	{
+		$data['user_visit_data'] = array('in_user_id'			=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYNOTIFICATIONS',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$this->common_model->insert_last_visit_date($data['user_visit_data']);
+		
+		$data['user_data'] = array('in_user_id'					=>	$this->session->userdata('userid'),
+										 'st_visit_type'		=>	'MYNOTIFICATIONS',
+										 'st_ip_address'		=>	$this->input->ip_address(),
+										 'dt_created'			=>	date('Y-m-d H:i:s')
+										);
+		$this->common_model->update_org_permission();	
+		
+	}
+	
+	
+	
+	function disp_transport_listing_mobile()
+	{	
+		
+		$rec_per_page = $this->input->post('trans_counter_record')?$this->input->post('trans_counter_record')*10:'10';
+		
+		$transport_detail = $this->get_transport_list_ajax($rec_per_page);
+		$transport_list = $transport_detail['transport_list'];
+		$totalrecord 	= $transport_detail['totalrecord'];	
+		$transport_html_listing_mobile = '';
+		$data = array();
+		
+		
+		if(!empty($transport_list))
+        {
+			for($a=0;$a<count($transport_list);$a++)
+			{
+													if($transport_list[$a]['st_trans_type'] == 'P'){ $css="predefined"; $trimg='icon_dashboard_predefined.png'; }
+													if($transport_list[$a]['st_trans_type'] == 'RO'){ $css="route";$trimg='icon_dashboard_car.png'; }
+													if($transport_list[$a]['st_trans_type'] == 'R'){ $css="ride";$trimg='icon_dashboard_ride.png'; }
+													if($transport_list[$a]['in_airline_transport'] == '1' && $transport_list[$a]['st_trans_type'] == 'D'){ $css="airline";$trimg='icon_dashboard_airline.png'; }
+													if($transport_list[$a]['in_airline_transport'] == '0' && $transport_list[$a]['st_trans_type'] == 'D'){ $css="airline";$trimg='icon_dashboard_assisted.png'; }
+													
+
+													$sqlprogressstatus  = "SELECT in_photography_profile FROM tbl_transportation_participants  where in_transportation_id = '".$transport_list[$a]['in_transportation_id']."'";
+													$sqlprogressstat	=	$this->db->query($sqlprogressstatus);
+													$numrowprostat		=	$sqlprogressstat->num_rows($sqlprogressstat);	
+													$prostatus			=	$sqlprogressstat->result();
+													$in_photography_profile		=	$prostatus[0]->in_photography_profile;
+													
+													if($in_photography_profile == 1)
+													{														
+														$img_photographer = '<span class="photographerin">Handoff Photographer in:'.'<i id="iconr" class="material-icons">camera_alt</i></span>';
+													}
+													else  if($in_photography_profile == 0 and $transport_list[$a]['in_airline_transport']==1)
+													{
+														$img_photographer = '<i id="iconr" class="material-icons">airplanemode_active</i>';
+													}
+													else
+													{
+														$img_photographer = '<i id="iconr" class="material-icons">directions_car</i>';
+													}
+													
+												
+												$all_legs_count = 0;
+												$transport_all_legs 	= $this->common_model->get_all_legs_count($transport_list[$a]['in_transportation_id']);
+												
+												if(isset($transport_all_legs['total_count']) && !empty($transport_all_legs['total_count']))
+												{
+													$all_legs_count	= $transport_all_legs['total_count'];
+												}
+												
+												$transport_filled_data 	= $this->common_model->get_transport_filled_status($transport_list[$a]['in_transportation_id']);
+												$total_filled_legs = 0;
+												if(isset($transport_filled_data['filled_legs_count']) && !empty($transport_filled_data['filled_legs_count']))
+												{
+													$total_filled_legs	= count($transport_filled_data['filled_legs_count']);
+												}
+												$filled_legs_count 	= $this->common_function->get_filled_legs_count($transport_list[$a]['in_transportation_id']);
+												$non_doobert_filled_legs_count 	= $this->common_model->get_non_doobert_filled_legs_count($transport_list[$a]['in_transportation_id']);
+												if($transport_list[$a]['perc']>0)
+												{
+													$transport_comp_perc = (($transport_list[$a]['perc']>100)? "100%":$transport_list[$a]['perc']."%");
+												}
+												else
+												{
+														$transport_comp_perc = "0%";
+												}
+												$org_code = ($transport_list[$a]['st_org_code'])? $transport_list[$a]['st_org_code']:'DBT';
+												
+												$joined_leg 			= $this->common_model->get_user_leg_joined($transport_list[$a]['in_transportation_id'],$this->session->userdata('userid'));
+												$removelink = '';
+												if($joined_leg > 0 && $transport_list[$a]['in_status'] == 1) {
+													$removelink = '<a href="javascript:void(0);" title="Exit From Leg" onClick="exit_from_leg('.$transport_list[$a]['in_transportation_id'].');" class="link-orange highlight_off"><i class="material-icons">highlight_off</i></a>';
+												}
+												
+												
+				$transport_html_listing_mobile .= '<li>';
+				$transport_html_listing_mobile .= 	'<div class="id"><a href="'.base_url().'org-transportation-scheduled/'.$transport_list[$a]['in_transportation_id'].'/" class="'.$css.'">'.$org_code . $transport_list[$a]['in_transportation_id'].'<span><img src="'.base_url().'modernview/images/'.$trimg.'" alt=""/></span></a></div>';				
+				$transport_html_listing_mobile .= 	'<div class="details"><p class="date">'.date("D M d",strtotime($transport_list[$a]['dt_pickup_date'])).' - <br>'.date("D M d",strtotime($transport_list[$a]['dt_target'])).'</p>';
+				$transport_html_listing_mobile .=	'<p class="pickdrop">'.$transport_list[$a]['st_from_city'].', '.$transport_list[$a]['st_from_state'].'<i class="material-icons backspace">arrow_right_alt</i>'.$img_photographer.$transport_list[$a]['st_to_city'].', '.$transport_list[$a]['st_to_state'].'<br>';				
+				$transport_html_listing_mobile .=	'<a href="'.base_url()."org-transportation-scheduled/".$transport_list[$a]['in_transportation_id'].'/" class="linkgreyu">'.$transport_list[$a]['st_trans_name'].'</a>';
+				$transport_html_listing_mobile .=	'</p>';
+				$transport_html_listing_mobile .=	'<p class="legs">'.$all_legs_count.' legs <span class="lightgrey">'.($transport_list[$a]['in_tot_distance']!=''?$transport_list[$a]['in_tot_distance']:"0").' miles </span>'.$removelink.'</p>';
+				$transport_html_listing_mobile .=	'<p class="coordinator">'.$transport_list[$a]['co_name'].'<br><a href="mailto:'.$transport_list[$a]['st_email'].'" class="linkgrey">'.$transport_list[$a]['st_email'].'</a></p>';
+				$transport_html_listing_mobile .=	'</div>';
+				$transport_html_listing_mobile .='<div class="br"></div>';				
+				$transport_html_listing_mobile .=	'</li>';	
+															
+																		
+			}
+		} else {
+			$transport_html_listing_mobile .=	'<li>No Record(s) found.</li>';
+		}
+		$data['transport_html_listing_mobile'] = $transport_html_listing_mobile;
+		$data['load_more'] = (isset($totalrecord) &&  $totalrecord > count($transport_list))?'1':'0';
+		echo json_encode($data);	
+	}
+	
+	function resources_maps()
+	{
+		if (!$this->session->userdata('userid')) {
+		  redirect($this->config->item('base_url'));
+        }
+		$this->load->view('resources-maps');
+	}
+	
+	public function invite_user_direct() { 
+	
+		if($this->input->post('invite_frm_action')=='invite_frm_value') {
+			
+			$this->load->model('org_info_model');
+			
+			if(!($this->session->userdata('userid')))
+			{
+				redirect($this->config->item('base_url'));
+			}
+			
+			
+			
+			//echo '<pre>'; print_r($_POST); die;
+			$user_data['org_id'] = $this->input->post('org_id');
+			$user_data['pick_org'] = $this->input->post('pick_org');
+			$user_data['org_email_address'] = $this->input->post('org_email_address');
+			$user_data['invite_user_id'] = $this->input->post('invite_user_id');
+			$user_data['in_user_id'] = $this->input->post('sess_user_id');
+			$user_data['user_name'] = $this->session->userdata('user_name');
+			$user_data['email'] = $this->session->userdata('email');
+			
+			
+			$recordexist=$this->common_model->check_org_permission_exist($user_data['in_user_id'],$user_data['org_id']);
+			
+			if($recordexist == true)
+			{
+				$this->session->set_flashdata('invitation_error','Request already sent to this organization.');
+				redirect(base_url().'dashboard_modern/');
+			}
+			$permission_str = $_POST;
+			
+			//Unsetting hidden value
+			unset($permission_str['invite_frm_action']);
+			unset($permission_str['invite_user_id']);
+			unset($permission_str['org_id']);
+			unset($permission_str['pick_org']);		
+			
+			if(($this->input->post('transport') || $this->input->post('profile_manager') || $this->input->post('fundraiser')) && $this->input->post('view_only')){
+				unset($permission_str['view_only']);
+			}
+			
+			
+			//Serialize permission array
+			$user_permission = (!empty($permission_str))?serialize($permission_str):'';
+			
+			//print_r($user_permission);exit; //use for tseting
+			//Insert user & permissions
+			$data['org_users'] = array('in_organization_id'		=>	$user_data['org_id'],
+										'in_user_id'			=>	$this->session->userdata('userid'),
+										'st_transport_cood'		=>	isset($permission_str['transport'])?'Y':'N',
+										'st_fundraiser'			=>	isset($permission_str['fundraiser'])?'Y':'N',
+										'st_animal_profile'		=>	isset($permission_str['profile_manager'])?'Y':'N',
+										'st_permission'			=>	$user_permission,
+										'in_invite_by'			=>	$user_data['invite_user_id'],
+										'dt_created'			=>	date('Y-m-d H:i:s'),
+										'in_status'				=>	'5',
+										'in_deleted'			=>	'0',
+										'in_request_type'       =>  1
+									);
+			
+			$data['check_user_status'] = $this->org_info_model->check_user_status($user_data['invite_user_id']);
+			
+			if(empty($data['check_user_status'])) { 
+				$data['insert_permission'] = $this->org_info_model->insert_permission($data['org_users']);
+				$last_id = $this->db->insert_id();
+			} else {
+				$last_id = $data['check_user_status']['in_org_user_id'];
+				$data['insert_permission'] = 1;
+			}
+			if($data['insert_permission'] == 1) {
+				
+				$this->load->library('email');
+				
+				$to = $user_data['org_email_address'];
+				//$to = 'sadique.mohammed@pulsesolutions.net';
+				
+				//Getting email body
+				$email_body = $this->common_model->get_email_containt('167');
+				
+
+			
+				//echo $user_data['invite_user_id']; die;
+				$subject = str_replace('##organization_display_name##',$user_data['pick_org'],$email_body[0]['st_email_subject']);
+				
+				$patterns 	= array('%##user_display_name##%','%##organization_display_name##%','%##url##%','%##accept_link##%','%##reject_link##%');
+				$replacements = array($user_data['user_name'],$user_data['pick_org'],base_url(),base_url().'user/accept_request2/'.base64_encode($user_data['in_user_id']).'/'.base64_encode($user_data['org_id']).'/'.base64_encode($last_id).'/'.base64_encode($user_data['invite_user_id']),base_url().'user/reject_request2/'.base64_encode($user_data['in_user_id']).'/'.base64_encode($user_data['org_id']).'/'.base64_encode($last_id).'/'.base64_encode($user_data['pick_org']));
+				
+				
+				$content = preg_replace($patterns, $replacements, $email_body[0]['st_email_body']);//die;
+				$category  =    $email_body[0]['st_category'];
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($user_data['org_email_address']);
+						
+				$content = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				$content = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($this->input->post('user_email')),$content);		
+				
+				$content  	= 	str_replace("##DONATION##",$donation,$content);
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_body[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{	
+				
+					$this->common_function->send_mail($this->email, $to, $subject, $content, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email,$category);
+				}
+				
+				$this->session->set_flashdata('message','Request has been sent successfully. Organization will get back to you soon.');
+				redirect(base_url().'dashboard_modern/');
+			} else {
+				$this->session->set_flashdata('invitation_error','Error sending invitation.');
+				redirect(base_url().'invite-user-profile/'.$this->input->post('invite_user_id'));
+			}
+		}
+	}
+	
+}
+
+/* End of file dashboard_modern.php */
+/* Location: ./application/controllers/user.php */

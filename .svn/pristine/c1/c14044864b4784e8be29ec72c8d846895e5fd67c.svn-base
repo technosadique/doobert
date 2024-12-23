@@ -1,0 +1,397 @@
+<?php
+# ======================================================================================
+# Created by		: Nirav Motta
+# Created date		: 26-Sept-2014
+# File description	: Feedback Model for admin
+# Special - notes	: none
+# Tables used		: tbl_admin
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class feedback_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    	
+	public function get_feedback_listing($sort,$order,$limit,$rec_per_page,$user_name,$transport_id,$feedback_type)
+	{
+		$sql = '';
+		$sql1 = '';
+		
+		if($feedback_type == '' || $feedback_type == 'all' || $feedback_type == 'vol' )
+		{	
+			$sql .= "SELECT tc.in_tc_feedback_id AS ID,
+						    tc.in_transport_id,
+						    uf.st_display_name as 'from_first_name',
+						    uf.st_last_name as 'from_last_name',
+							ut.st_display_name as 'to_first_name',
+						    ut.st_last_name as 'to_last_name',
+						   ((tc.in_rate_comm_tc+tc.in_rate_comm_volunteer)/2) AS average_rating,
+						   0 AS 'is_coordinator',tc.dt_created as 'date_created'	
+				 FROM tbl_tc_feedback tc 
+				 LEFT JOIN tbl_users uf on tc.in_from_user_id = uf.in_user_id
+				  LEFT JOIN tbl_users ut on tc.in_to_user_id = ut.in_user_id
+				 where  tc.in_deleted = 0 AND in_non_doobert_users = 0";
+				 
+			if(!empty($user_name))
+			{
+				$sql .= ' AND';
+				$sql .= " ((concat(uf.st_display_name,' ',uf.st_last_name) LIKE '%".addslashes($user_name)."%') ";
+				$sql .= "  OR (concat(ut.st_display_name,' ',ut.st_last_name) LIKE '%".addslashes($user_name)."%') )";
+			}
+	
+			if(!empty($transport_id))
+			{
+				$sql .= " AND tc.in_transport_id = '".$transport_id."'";	
+			}	 
+				 
+		
+		}
+		if($feedback_type == '' || $feedback_type == 'all' )
+		{		
+			$sql .= " UNION ";
+		}
+		if($feedback_type == '' || $feedback_type == 'all' || $feedback_type == 'tc' ) 
+		{	
+			$sql .= "SELECT   tc.in_transport_feedback_id AS ID,
+						  tc.in_transport_id,
+						  uf.st_display_name as 'from_first_name',
+						  uf.st_last_name as 'from_last_name',
+						  ut.st_display_name as 'to_first_name',
+						  ut.st_last_name as 'to_last_name',
+						  ((tc.in_rate_transport+tc.in_rate_comm_tc+tc.in_rate_comm_volunteer)/3) AS average_rating,
+						  1 AS 'is_coordinator',tc.dt_created as 'date_created'	 
+				 FROM tbl_transporter_feedback tc
+				 LEFT JOIN tbl_users uf on tc.in_from_user_id = uf.in_user_id
+				 LEFT JOIN tbl_users ut on tc.in_to_user_id = ut.in_user_id	
+				 where  tc.in_deleted = 0";
+				
+			if(!empty($user_name))
+			{
+				$sql .= ' AND';
+				$sql .= " ((concat(uf.st_display_name,' ',uf.st_last_name) LIKE '%".addslashes($user_name)."%') ";
+				$sql .= "  OR (concat(ut.st_display_name,' ',ut.st_last_name) LIKE '%".addslashes($user_name)."%') )";
+			}
+	
+			if(!empty($transport_id))
+			{
+				$sql .= " AND tc.in_transport_id = '".$transport_id."'";	
+			}			
+				 
+		}
+		
+		switch($sort)
+		{		
+						case 'trid': 							
+							$sql .= ' order by in_transport_id '.$order;							
+						break;
+
+						case 'from':
+							$sql .= ' order by from_first_name  '.$order.' , from_last_name '.$order;							
+						break;
+						
+						case 'to': 							
+							$sql .= ' order by to_first_name '.$order.' , to_last_name '.$order;
+						break;	 
+						
+						case 'type': 							
+							$sql .= ' order by is_coordinator '.$order;	
+						break;	
+						
+						case 'rating':							
+							$sql .= ' order by average_rating '.$order;							
+						break;
+						
+						case 'date':
+							$sql .= ' order by date_created '.$order;							
+						break;
+						
+						default:						
+							$sql .= ' order by date_created desc';	
+						break; 
+						
+						/*default:						
+							$sql .= ' order by in_transport_id desc';	
+						break; */       
+		 }
+		
+		$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+		
+		/*echo $sql;
+		exit(0);*/
+		
+		$query = $this->db->query($sql1);
+		
+		
+		$querytotal = $this->db->query($sql);	
+			
+		if($query->num_rows() > 0 )
+		{	
+			foreach($query->result_array() as $key=>$row)
+			{ 
+				$feedback_listing[]=array('ID'					=>  $row['ID'],
+										  'transport_id'  		=>  $row['in_transport_id'],
+										  'is_coordinator'    	=>  ($row['is_coordinator'] == 1 )?1:0,
+										  'average_rating'		=>  round($row['average_rating']),
+										  'from_user_name'      =>  $row['from_first_name'].' '. $row['from_last_name'],
+										  'to_user_name'        =>  $row['to_first_name'].' '. $row['to_last_name'],
+										  'date_created'		=>  DATE('m-d-Y H:i:s',strtotime($row['date_created'])),
+									     );
+			}	
+		}		
+
+		$result['total_count'] = $querytotal->num_rows();
+		
+		
+		$result['feedback_listing'] = (isset($feedback_listing))? $feedback_listing : array();
+		
+		return $result;		 				
+	}
+	
+	
+	
+	public function view_volunteer_feedback($id)
+	{
+		 $this->db->select('tc.in_tc_feedback_id,
+						      tc.in_transport_id,
+						      uf.st_display_name as from_first_name,
+							  uf.st_last_name as from_last_name,
+							  ut.st_display_name as to_first_name,
+							  ut.st_last_name as to_last_name,
+						      tc.in_to_user_id,
+						      tc.in_rate_comm_tc,
+						      tc.st_comments_rate_transport,
+						      tc.in_rate_comm_volunteer,
+						      tc.st_comments_rate_comm_volunteer');
+		$this->db->from('tbl_tc_feedback tc');
+		$this->db->join('tbl_users uf','tc.in_from_user_id = uf.in_user_id','LEFT');
+		$this->db->join('tbl_users ut','tc.in_to_user_id = ut.in_user_id','LEFT');	
+		$this->db->where('in_non_doobert_users',0);
+		$this->db->where('tc.in_tc_feedback_id',$id);
+		$this->db->where('tc.in_deleted',0);
+		$query = $this->db->get();
+		$arrData = array();
+		if($query->num_rows() > 0)
+		{ 
+				foreach($query->result() as $Row) {
+				
+				$average_rating = ($Row->in_rate_comm_tc + $Row->in_rate_comm_volunteer)/2;
+				$average_rating = round($average_rating);
+				
+				$arrData[] = array('from_user_name'            =>   $Row->from_first_name.' '. $Row->from_last_name,
+				                   'to_user_name'             =>    $Row->to_first_name.' '. $Row->to_last_name,
+								   'transport_id'              =>   $Row->in_transport_id,
+								   'average_rating'            =>   $average_rating,
+								   'transport_rating'          =>   $Row->in_rate_comm_tc,
+								   'transport_rating_comments' =>   $Row->st_comments_rate_transport,
+								   'volunteer_rating'          =>   $Row->in_rate_comm_volunteer,
+								   'volunteer_rating_comments' =>   $Row->st_comments_rate_comm_volunteer,
+								   'feedback_id'               =>   $Row->in_tc_feedback_id,
+								  );
+				}
+		} else {
+			$arrData = array();
+		}	
+		return $arrData;	
+	}
+	
+	public function view_tc_feedback($id)
+	{
+	   $this->db->select('tc.in_transport_feedback_id,
+						      tc.in_transport_id,
+						      uf.st_display_name as from_first_name,
+							  uf.st_last_name as from_last_name,
+							  ut.st_display_name as to_first_name,
+							  ut.st_last_name as to_last_name,
+							  tc.in_rate_transport,
+							  tc.st_comments_rate_transport,
+						      tc.in_rate_comm_tc,
+							  tc.st_comments_rate_comm_tc,
+						      tc.in_rate_comm_volunteer,
+						      tc.st_comments_rate_comm_volunteer');
+		$this->db->from('tbl_transporter_feedback tc');
+		//$this->db->join('tbl_users u','tc.in_from_user_id = u.in_user_id','LEFT');
+		$this->db->join('tbl_users uf','tc.in_from_user_id = uf.in_user_id','LEFT');
+		$this->db->join('tbl_users ut','tc.in_to_user_id = ut.in_user_id','LEFT');	
+		$this->db->where('tc.in_transport_feedback_id',$id);
+		$this->db->where('tc.in_deleted',0);
+		$query = $this->db->get();
+		$arrData = array();
+		if($query->num_rows() > 0)
+		{ 
+				foreach($query->result() as $Row) {
+				
+				$average_rating = ($Row->in_rate_comm_tc + $Row->in_rate_comm_volunteer + $Row->in_rate_transport )/3;
+				$average_rating = round($average_rating);
+				
+				$arrData[] = array('from_user_name'            =>   $Row->from_first_name.' '. $Row->from_last_name,
+				                   'to_user_name'             =>   $Row->to_first_name.' '. $Row->to_last_name,
+								   'transport_id'              =>   $Row->in_transport_id,
+								   'average_rating'            =>   $average_rating,
+								   'transport_rating'          =>   $Row->in_rate_transport,
+								   'transport_rating_comments' =>   $Row->st_comments_rate_transport,
+								   'tc_rating'				   =>	$Row->in_rate_comm_tc,
+								   'tc_rating_comments'		   =>	$Row->st_comments_rate_comm_tc,
+								   'volunteer_rating'          =>   $Row->in_rate_comm_volunteer,
+								   'volunteer_rating_comments' =>   $Row->st_comments_rate_comm_volunteer,
+								   'feedback_id'               =>   $Row->in_transport_feedback_id,
+								  );
+				}
+		} else {
+			$arrData = array();
+		}	
+		return $arrData;	
+	}
+	
+	#======================================================================
+	#	Function	:	update_trip_info()
+	#   Parameter	: 	data,tripId,table
+	#	Perpose		:	to update trip details in tbl_trips table
+	#----------------------------------------------------------------------
+	public function delete_tc_feedback($id,$data) {		
+		$this->db->where('in_transport_feedback_id',$id);
+		$this->db->update('tbl_transporter_feedback',$data);
+		//echo $this->db->last_query(); die;
+		return $this->db->affected_rows();	
+	}
+	
+	public function delete_volunteer_feedback($id,$data) {		
+		$this->db->where('in_tc_feedback_id',$id);
+		$this->db->update('tbl_tc_feedback',$data);
+		//echo $this->db->last_query(); die;
+		return $this->db->affected_rows();	
+	}
+	
+	public function get_fullzipcode_by_state_city($city='',$state='')
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix,st_country",FALSE);
+		$this->db->from('tbl_zip_code');
+	
+		
+		//$this->db->where('city',$city);
+		//$this->db->where('state_prefix',$state);
+		$this->db->where('lower(city) LIKE lower("'.$city.'%") AND UPPER(state_prefix) = UPPER("'.trim($state).'")');
+		$this->db->limit("1");
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array("label"			=> $Row->label.", ".$this->common_function->shortCountry[trim($Row->st_country)],
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+		
+	public function get_zipcode($zipcode='',$city='',$state='',$action='')
+	{
+		$this->db->select("concat(zip_code,', ',city,', ',state_prefix) as label, zip_code as value,city,state_prefix,st_country",FALSE);
+		$this->db->from('tbl_zip_code');
+		if($action=='')
+		{
+			$this->db->where('zip_code LIKE "'.$zipcode.'%"',FALSE,FALSE);
+			$this->db->limit("10");
+		}
+		else
+		{
+		if($city)
+		{
+			$this->db->where('lower(city) LIKE lower("'.$city.'%")',FALSE,FALSE);
+		}
+		if($state)
+		{
+			if(strlen($state) > 2)
+			{
+				$states_list = $this->common_function->state_list;
+				if(in_array(ucfirst($state), $states_list))
+				{
+					$state_key = array_search(ucfirst($state), $states_list);
+					$state = $state_key;
+				}
+				//echo $state;exit;
+			}
+			$this->db->where('UPPER(state_prefix) = UPPER("'.$state.'")',FALSE,FALSE);
+		}
+		$this->db->limit("10");
+		}
+		
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$arrData = array();
+			foreach($query->result() as $Row)
+			{			
+			//echo $Row->st_country;die;
+					$arrData[]	= array("label"			=> $Row->label.", ".$this->common_function->shortCountry[trim($Row->st_country)],
+										"value"			=> $Row->value,
+										"city"			=> $Row->city,
+										"state_prefix"	=> $Row->state_prefix,
+										"st_country"	=> strtoupper($this->common_function->shortCountry[trim($Row->st_country)])
+										);
+			}
+			return $arrData;
+		}
+		return $query->result_array();
+	}
+	
+	public function trip_details($id)
+	{
+		$data = array();
+		$result = array();
+		$sql	=	"SELECT  t.in_trip_id,t.st_from_city,t.st_from_state,t.st_from_zip,t.st_to_city,t.st_to_state,t.st_to_zip,t.dt_trip,t.in_crates,t.in_tethered,t.in_type,t.in_filled,t.in_paid
+					FROM (`tbl_trips` t) 					
+					WHERE `t`.`in_trip_id` = '".$id."' AND `t`.`in_deleted` = 0";
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query(); die;	
+		
+		if($query->num_rows() > 0) { 
+			$result = $query->result_array();
+			//return  $result;		
+			
+			foreach($query->result_array() as $row){
+				    $type=$tripdate='';
+					if($row['in_type']==1){ $type='Driving';}
+					if($row['in_type']==2){ $type='Flying';}
+					$tripdate=date("m-d-Y",strtotime($row['dt_trip']));
+					//$tripdate = date('M d Y',strtotime($trip['dt_trip']));
+			
+					$data[] = $row['in_trip_id'].','.$row['st_from_city'].','.$row['st_from_state'].','.$row['st_from_zip'].','.$row['st_to_city'].','.$row['st_to_state'].','.$row['st_to_zip'].','.$tripdate.','.$row['in_crates'].','.$row['in_tethered'].','.$type.','.$row['in_filled'].','.$row['in_paid'];	
+					
+				  $data =array(
+				  	'in_trip_id' =>$row['in_trip_id'],
+					'from_city'  =>(isset($row['st_from_city']) && $row['st_from_city']!='')? $row['st_from_city']:'',
+					'from_state' =>(isset($row['st_from_state']) && $row['st_from_state']!='')? $row['st_from_state']:'',
+					'from_zip'   =>(isset($row['st_from_zip']) && $row['st_from_zip']!='')? $row['st_from_zip']:'',
+					'to_city'    =>(isset($row['st_to_city']) && $row['st_to_city']!='')? $row['st_to_city']:'',
+					'to_state'   =>(isset($row['st_to_state']) && $row['st_to_state']!='')? $row['st_to_state']:'',
+					'to_zip'	 =>(isset($row['st_to_zip']) && $row['st_to_zip']!='')? $row['st_to_zip']:'',
+					'in_crates'  =>(isset($row['in_crates']) && $row['in_crates']!='')? $row['in_crates']:'',
+					'in_tethered'=>(isset($row['in_tethered']) && $row['in_tethered']!='')? $row['in_tethered']:'',
+					'in_filled'  =>(isset($row['in_filled']) && $row['in_filled']!='')? $row['in_filled']:'',
+					'in_paid'	 =>(isset($row['in_paid']) && $row['in_paid']!='')? $row['in_paid']:'',
+					'tripdate'	 =>(isset($tripdate) && $tripdate!='')? $tripdate:'',
+					'type'		 =>(isset($type) && $type!='')? $type:''
+				  );	
+					
+			}			
+			return json_encode($data);				
+		}	
+	}
+	
+}
+?>

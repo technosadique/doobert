@@ -1,0 +1,1880 @@
+<?php $base_url = $this->config->item('base_url');
+$display_all_data = 'no';
+$first =	'no';
+$logged_in_userid = ($this->session->userdata('userid')) ? $this->session->userdata('userid') : '';
+$transport_id = ($this->session->userdata('transport_id')) ? $this->session->userdata('transport_id') : '';
+
+
+
+if($transport_id > 0)
+{
+	$transport_co_data = $this->common_function->get_transport_coordinator($transport_id);
+	$transport_co_id = $transport_co_data['in_trans_coods_id'];
+	if($transport_co_id == $logged_in_userid)
+	{
+	$display_all_data = 'yes';
+	}
+	
+	$org_id = $this->common_function->get_transport_organization($transport_id);
+	if($logged_in_userid > 0 && isset($org_id) && !empty($org_id) && isset($org_id['in_organization_id'])) 
+	{
+		$owner_id = $this->common_function->get_org_owner_id($logged_in_userid, $org_id['in_organization_id']);
+		$permission = $this->common_function->get_permission($logged_in_userid, $org_id['in_organization_id']);
+		//echo "<pre>";print_r($permission);die;
+		if($owner_id == $logged_in_userid)
+		{
+			$display_all_data = 'yes';
+		}
+		elseif(isset($permission) && !empty($permission))
+		{
+			$permission_details = unserialize($permission);
+			if(isset($permission_details['transport']) && (in_array('transport_cr',$permission_details['transport']) || in_array('transport_ed',$permission_details['transport']) || in_array('transport_cnf',$permission_details['transport']) || in_array('transport_del',$permission_details['transport'])))
+			{
+				$display_all_data = 'yes';
+			}
+		}
+	}
+}
+?>
+<!DOCTYPE html>
+<!--[if IE 8]> <html lang="en" class="ie8 no-js"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie9 no-js"> <![endif]-->
+<!--[if !IE]><!-->
+<html lang="en" class="no-js">
+<!--<![endif]-->
+<!-- BEGIN HEAD -->
+<head>
+<meta charset="utf-8"/>
+<title>Invited User Profile</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="" name="description"/>
+<meta content="" name="author"/>
+<?PHP //include "includes/head-links-inside.php" ?>
+<?php include APPPATH."views/inc/header-css-js.php";?>
+<!--Being Page Lavel CSS-->
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/prettyPhoto/prettyPhoto.css" type="text/css" media="screen" title="prettyPhoto main stylesheet" charset="utf-8" />
+<!--End Page Lavel CSS-->
+
+</head>
+<!-- BEGIN BODY -->
+<body class="page-header-fixed">
+
+<!--Menu Active Link-->
+<?php $tab = 4; $subtab = 4.6; $display_menu=2; ?>
+<!-- BEGIN HEADER -->
+<?PHP //include "includes/head-content-inside.php"; ?>
+<?php include 'inc/header-myaccount.php';?>
+<!-- END HEADER -->
+<section class="breadcrumb inner-breadcrumb">
+	<div class="container">
+		<div class="text-left">
+			<a href="<?php echo base_url(); ?>dashboard/">My Account</a> <i class="fa fa-angle-right"></i>
+			<a href="<?php echo base_url(); ?>org-dashboard/">Organization</a> <i class="fa fa-angle-right"></i>
+			<a href="<?php echo base_url(); ?>org_info/invite_user">Invite/Block a User</a> <i class="fa fa-angle-right"></i>
+			Invite User Profile
+		</div>
+	</div>
+</section>
+<!--div class="clearfix"> </div>
+
+<div class="page-container">
+  <div class="row no-margin">
+    <div class="top-searchbar">
+     <?PHP //include "includes/quick-links.php"; ?>
+     <?PHP// include "includes/app-search.php"; ?> 
+    </div>
+  </div>
+  <div class="clearfix"></div>
+  <div class="row page-title-bg no-margin">
+    <div class="pull-left inner-bg"> 
+    
+      <div class="col-lg-7 col-md-7 myaccount no-space">
+        <h3 class="page-title">User Profile</h3>
+      </div>
+      <div class="app-breadcrumb col-lg-5 col-md-5 no-space">
+        <ul class="breadcrumb">
+           <li> <a href="<?php// echo base_url(); ?>dashboard/">My Account</a> <i class="fa fa-angle-right"></i> </li>
+          <li> <a href="<?php //echo base_url(); ?>org-dashboard/">Organization</a> <i class="fa fa-angle-right"></i> </li>
+          <li> <a href="<?php// echo base_url(); ?>org_info/invite_user">Invite a User</a> <i class="fa fa-angle-right"></i> </li>         
+          <li>Invite User Profile</li>
+        </ul>
+      </div>
+      
+    </div>
+  </div>
+  <div class="clearfix"> </div>
+  
+  <div class="page-sidebar-wrapper">
+    <?PHP //include "includes/sidebar_menu-organization.php" ?>
+  </div-->
+  <!-- END BEGIN HORIZONTAL MENU PAGE SIDEBAR --> 
+  <!-- BEGIN CONTENT -->
+<section class="main-content-wrapper inner-wrapper">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12 col-sm-12 col-xs-12">
+               <article>
+                    <div class="entry-content">
+                        <div class="sub-content main-container">
+	<h1>User Profile</h1>
+				<div class="clearfix"></div>
+			  <!-- BEING PAGE CONTENT-->
+				  <?php if($this->session->userdata('invitation_success')) { ?>
+					<div class="col-lg-12 no-space">
+						 <div class="margin-bottom-15 info-streep"><?php echo $this->session->userdata('invitation_success'); ?>
+						 <?php if($this->session->userdata('invitation_success') != "User blocked successfully.") {  echo "&nbsp;".$user_profile['st_display_name']."."; } ?></div>
+					</div>
+				  <?php } ?>
+			  
+				  <?php if($this->session->flashdata('invitation_error')) { ?>
+					<div class="col-lg-12 no-space">
+						 <div class="margin-bottom-15 info-streep"><?php echo $this->session->set_flashdata('invitation_error'); ?></div>
+					</div>
+				  <?php } ?>
+				  
+				  <?php //echo "<pre>"; print_r($user_profile);die; ?>
+				  
+				  <div class="row no-space">
+				  <div id="verified-user-profile">
+		  <div class="verified-user-profile-content">
+					  
+				 
+					 <?php
+						  if(empty($user_profile_setting_details) || (isset($user_profile_setting_details['in_public']) && $user_profile_setting_details['in_public'] == 0))
+							{
+								$first ='yes';
+							}
+							else
+							{
+								$first ='no';
+							}			  
+						  
+						  if(isset($user_profile_setting_details['st_contact']) && $user_profile_setting_details['st_contact'] != '') { 			  
+								$contact = unserialize($user_profile_setting_details['st_contact']); 				   
+							} 
+							else {
+								$contact = '';
+							}		
+							
+							if(isset($user_profile_setting_details['st_driver']) && $user_profile_setting_details['st_driver'] !='') { 			  
+								$driver = unserialize($user_profile_setting_details['st_driver']); 				   
+							} else {
+								$driver = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_pilot'])	&& $user_profile_setting_details['st_pilot'] != '') {							  
+								$pilot = unserialize($user_profile_setting_details['st_pilot']); 				   
+							} else {
+								$pilot = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_org']) && $user_profile_setting_details['st_org'] != '') { 			  
+								$org = unserialize($user_profile_setting_details['st_org']); 				   
+							} else {
+								$org = '';
+							}
+							if(isset($user_profile_setting_details['st_foster']) && $user_profile_setting_details['st_foster'] != '') { 			  
+								$foster = unserialize($user_profile_setting_details['st_foster']); 				   
+							} else {
+								$foster = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_foster_home']) && $user_profile_setting_details['st_foster_home'] != '') { 			  
+								$foster_home_data = unserialize($user_profile_setting_details['st_foster_home']); 				   
+							} else {
+								$foster_home_data = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_foster_family']) && $user_profile_setting_details['st_foster_family'] != '') { 			  
+								$foster_family = unserialize($user_profile_setting_details['st_foster_family']); 				   
+							} else {
+								$foster_family = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_photographer']) && $user_profile_setting_details['st_photographer'] != '') { 			  
+								$photographer = unserialize($user_profile_setting_details['st_photographer']); 				   
+							} else {
+								$photographer = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_in_person_vol']) && $user_profile_setting_details['st_in_person_vol'] != '') { 			  
+								$volunteer = unserialize($user_profile_setting_details['st_in_person_vol']); 				   
+							} else {
+								$volunteer = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_in_virtual_vol']) && $user_profile_setting_details['st_in_virtual_vol'] != '') { 			  
+								$virtual_vol = unserialize($user_profile_setting_details['st_in_virtual_vol']); 				   
+							} else {
+								$virtual_vol = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_foster_ref']) && $user_profile_setting_details['st_foster_ref'] != '') { 			  
+								$foster_ref = unserialize($user_profile_setting_details['st_foster_ref']); 				   
+							} else {
+								$foster_ref = '';
+							}
+							
+							if(isset($user_profile_setting_details['st_lost_animal']) && $user_profile_setting_details['st_lost_animal']!='') { 			  
+								$lost_animal = unserialize($user_profile_setting_details['st_lost_animal']); 				   
+							} else {
+								$lost_animal = '';
+							}
+						  ?>
+				<div class="col-md-12 no-margin no-space">
+			  	<div class="user-profile-top-details clearfix">
+               		<div class="volunteer-pic ">
+				   <div class="change-img">
+				   	<?php
+				$profile_image = '';
+				if($user_profile['st_profile_image']!='' && file_exists($this->config->item('upload').'profile/140x140/'.$user_profile['st_profile_image'])) {
+					$profile_image = $user_profile['st_profile_image'];
+			?>
+			<img src="<?php echo $this->config->item('upload_url').'profile/140x140/'; ?><?php echo $profile_image; ?>" title="<?php echo $user_profile['st_display_name'].' '.$user_profile['st_last_name']; ?>" alt="<?php echo $user_profile['st_display_name'].' '.$user_profile['st_last_name']; ?>">
+			<?php 
+				} else {
+					$profile_image = 'doobert-user-no-image.gif';
+			?>
+			<img src="<?php echo $this->config->item('upload_url').'profile/140x140/'; ?><?php echo $profile_image; ?>" title="<?php echo $user_profile['st_display_name'].' '.$user_profile['st_last_name']; ?>" alt="<?php echo $user_profile['st_display_name'].' '.$user_profile['st_last_name']; ?>" width="165" height="165">
+			<?php } ?>
+			
+				   </div>
+				   <span class="active"><i class="material-icons">done</i></span>
+				   <button type="button" class="btn orange waves-effect waves-light mart10" id="contactme" name="contactme" style="border:none" href="javascript:void(0)" onClick="$('#user-contact').modal('show');"  data-toggle="modal" ><i class="fa fa-envelope-o "></i> Contact Me</button>
+					</div>
+					<div class="profile-details">
+						<div class="profile"><?php echo $user_profile['st_display_name'].' '.$user_profile['st_last_name']; ?></div>
+						<?php 
+								$profile_types = '';
+								if((isset($user_profile['st_driver']) && $user_profile['st_driver'] == 'Y') || (isset($user_profile['st_pilot']) && $user_profile['st_pilot'] == 'Y'))
+								{
+									$profile_types.= 'Transporter, ';
+								}
+								if(isset($user_profile['st_foster_home']) && $user_profile['st_foster_home'] == 'Y')
+								{
+									$profile_types.= 'Foster, ';
+								}
+								if(isset($user_profile['st_photographer']) && $user_profile['st_photographer'] == 'Y')
+								{
+									$profile_types.= 'Photographer, ';
+								}					
+								$profile_types = substr($profile_types, 0, -2);						
+								?>
+                              <p><?php echo $profile_types; ?> </p>
+                              
+			<?php if($first=='no'){ if(is_array($contact) && in_array('st_primary_phone',$contact)){?>   
+            <span class="phone"><i class="material-icons font-16">call</i> 
+			<a href="tel:+<?php echo $user_profile['st_primary_phone']; ?>"><?php echo $user_profile['st_primary_phone']; ?></a>&nbsp;/&nbsp;<?php if($user_profile['st_secondary_phone']){?>,<a style="padding-left:5px;" href="tel:+<?php echo $user_profile['st_secondary_phone']; ?>"><?php echo $user_profile['st_secondary_phone']; ?></a>&nbsp;/&nbsp;<?php } ?></span>
+			<?php if(isset($user_profile['st_fax']) && $user_profile['st_fax'] != '') { ?>
+			<span class="fax"><a href="tel:+<?php echo $user_profile['st_fax']; ?>"><?php echo $user_profile['st_fax']; ?></a>&nbsp;/&nbsp;</span>
+            <?php } ?>
+			<?php } } ?>
+
+			 <?php if($first=='no'){ if(is_array($contact) && in_array('st_email',$contact)){?> 
+			<span class="email"><i class="material-icons font-16">email</i> <a class="text-break" href="mailto:<?php echo $user_profile['st_email']; ?>"><?php echo $user_profile['st_email']; ?></a>&nbsp;/&nbsp;</span>
+			 <?php } } ?>
+
+			<?php if($first=='no'){ if(is_array($contact) && in_array('st_website',$contact)){?>
+			<span class="www">
+			<a href="http://<?php echo str_replace('http://','',$user_profile['st_website']); ?>" target="_blank"><?php echo str_replace('http://','',$user_profile['st_website']); ?></a>&nbsp;/&nbsp;</span>
+			<?php } } ?>
+			  
+							   <?php if($first=='no'){ if(is_array($contact) && in_array('st_address1',$contact)){?>
+			<span class="address-details"><i class="material-icons font-16">home</i> <?php 
+											$user_add = '';
+											if(isset($user_profile['st_city']) && $user_profile['st_city'] != ''){
+											$user_add .= $user_profile['st_city'].", ";
+											}
+											if(isset($user_profile['st_state']) && $user_profile['st_state'] != ''){
+											$user_add .= $user_profile['st_state'].", ";
+											}
+											if(isset($user_profile['st_zip']) && $user_profile['st_zip'] != ''){
+											$user_add .= $user_profile['st_zip'];
+											}				
+											echo $user_add;	?>
+											</span>
+											<div class="profile-verifed-img profile-feedback-ratings">
+									<span class="marl0"><?php if(isset($vol_user_count['count'])  && $vol_user_count['count'] > 0 ) { ?>
+										Volunteer Rating:
+										<?php for($i=0; $i<$vol_user_count['average_rating']; $i++){ ?>
+											<i class="fa fa-paw orange"></i>
+											<?php } for($j=0;$j<5-$vol_user_count['average_rating'];$j++) { ?>
+												<i class="fa fa-paw"></i>
+												<?php  }  ?><br />
+												<a href="<?php echo $base_url ?>feedback/feedback_transactions/<?php echo $user_profile['in_user_id']; ?>/vol/"><?php echo $vol_user_count['count']; ?>  Transactions</a>
+								<br /><br />	
+								<?php }?> 
+								<?php if(isset($tc_user_count['count']) && $tc_user_count['count'] > 0 ) { ?>
+								TC Rating:
+								 <?php for($i=0; $i<$tc_user_count['average_rating']; $i++){ ?>
+									   <i class="fa fa-paw orange"></i>
+								 <?php } for($j=0;$j<5-$tc_user_count['average_rating'];$j++) { ?>
+									  <i class="fa fa-paw"></i>
+								 <?php  } ?> <br /> 
+								<a href="<?php echo $base_url ?>feedback/feedback_transactions/<?php echo $user_profile['in_user_id']; ?>/tc/"><?php echo $tc_user_count['count']; ?>  Transactions</a>
+								<?php }  ?>
+			</span>
+			</div>
+			 <?php }} ?>
+			</div>
+				</div>
+				</div>
+			
+					  
+			<?php if($first=='no'){ if(is_array($contact) && in_array('st_about_me',$contact)){?>  
+								   <?php if(!empty($user_profile['st_about_me'])){?>		  
+			  <div class="about-user">
+			  	<div class="col-lg-12 no-margin no-space">
+					<h3>About <?php echo $user_profile['st_display_name'].' '.$user_profile['st_last_name']; ?></h3>
+					<div class="profile-inner-text"><p class="marb0"><?php echo $user_profile['st_about_me']; ?></p>
+							  <?php } ?>
+							  </div>
+				  </div>
+                    </div> 
+						<?php }  } ?>
+						
+			
+				  
+				  <?php if($first=='no' && unserialize($user_profile_setting_details['st_org'])!=''){?>     
+				  <div class="participat-org">
+                    <h3>Participating Organization</h3>
+					  <div class="profile-inner-text clearfix">
+							   <?php
+									//echo "<pre>";print_r(($user_org_dtls);die;
+									if(!empty($user_org_dtls)) {
+										foreach($user_org_dtls as $row) {
+							  ?>
+							  <?php if($first=='no'){ if(is_array($org) && in_array($row['in_organization_id'],$org)){?>
+						  <div class="section">
+						  <p><a href="javascript:void(0);" class="link"><?php echo (isset($row['st_org_name']))?$row['st_org_name']:''; ?></a></p>
+									<?php if(isset($row['st_transport_cood']) && $row['st_transport_cood'] == 'Y') { ?>
+									<span class="org-certificats"><i class="fa fa-check"></i> Transport Coordinator</span>
+									<?php } ?>
+									
+									<?php if(isset($row['st_fundraiser']) && $row['st_fundraiser'] == 'Y') { ?>
+									<span class="org-certificats"><i class="fa fa-check"></i> Fundraiser</span>
+									<?php } ?>
+									
+									<?php if(isset($row['st_animal_profile']) && $row['st_animal_profile'] == 'Y') { ?>
+									<span class="org-certificats"><i class="fa fa-check"></i> Animal Profile Manager</span>
+									<?php } ?>
+								</td>
+							  </tr>
+							  </div>
+							  <?php } } ?>
+							  <?php } ?>
+					  </div>
+			  		</div>
+				  <?php }  } ?> 
+					  
+					  	  
+					  <div class="col-md-12 no-margin no-space">
+					  	<?php  if(!empty($user_vehicle) && $first=='no' && is_array($driver)) { ?> 
+						  <div class="verified-driver-profile-details">
+						  	<?php if($first=='no' && is_array($driver)){ ?>
+						  	<h3 class="detailh3">Driver Profile Details</h3>
+						  	<?php if(in_array('st_driver_availability',$driver)){ ?>
+						  	<div class="profile-inner-text clearfix">
+					  <p class="avail-days"><strong>Availability Days:</strong>
+					  <?php
+									$avl_days = array();
+									$avl_days = isset($user_vehicle[0]['st_driver_availability'])?unserialize($user_vehicle[0]['st_driver_availability']):"";
+									echo (!empty($avl_days))?implode(', ',$avl_days):'';
+								  ?>
+								</p>
+								<div class="vehicle-box">
+									<div class="vehicle-type">
+										<?php } ?>
+									 <?php
+											$i=1;
+											foreach($user_vehicle as $vehicle) {
+									 ?>          
+									 <?php if(is_array($driver) && (in_array('st_vehicle_color',$driver) || in_array('st_vehicle_type',$driver) || in_array('st_vehicle_license_plate',$driver) ||   in_array('st_vehicle_license_state',$driver) || in_array('in_distance_to_drive',$driver))){ ?>
+									 <h3>Vehicle <?php echo $i; ?>: </h3>
+							<div class="col-md-3 col-lg-3 col-sm-3 no-margin no-space driver-image-gallery ">
+                             	<p class="font-w500">Vehicle Photos:</p>
+                             	<ul>
+										   <?php 
+											 if(!empty($vehicle['vehicle_images'])) {
+												foreach($vehicle['vehicle_images'] as $images) { 
+										?>
+									   <li><img src="<?php echo base_url(); ?>upload/vehicle/100x100/<?php echo $images['st_image']; ?>" alt="<?php echo $images['st_image']; ?>"></li>
+									   <?php } } ?>
+									  </ul>
+									  <?php  if(isset($vehicle['st_photos_url']) && $vehicle['st_photos_url'] != '') { ?>
+										<div class="clearfix"></div>
+										<p class="mart10"><a href="<?php echo $vehicle['st_photos_url']; ?>" target="_blank">View More</a></p>                               
+										<?php } ?>
+										</div>
+										<div class="col-md-9 col-lg-9 col-sm-9 no-margin no-right-space profile-vehicle-info">
+                             	<table cellspacing="0" cellpadding="0" border="0" width="100%" class="vehicle-info table list-animal-profile">
+									<tbody>
+										 <tr>
+									 <?php if(in_array('st_vehicle_type',$driver)){?>
+											 <td class="left-text"><span>Vehicle Type:</span></td>
+									 <td><?php echo $vehicle['st_vehicle_type']; ?></td>
+									 <?php } ?>
+									 </tr>                      
+									
+									<?php if(in_array('st_vehicle_color',$driver)){?>
+									<tr>
+										<td class="left-text"><span>Color:</span></td>
+									<td><?php echo $vehicle['st_vehicle_color']; ?></td>
+									</tr>
+									<?php } ?>  
+								  
+								  <?php if(in_array('st_vehicle_license_plate',$driver)){?>
+								  <tr>
+									  <td class="left-text"><span>License Plate:</span></td>
+								  <td><?php echo $vehicle['st_vehicle_license_plate']; ?></td>
+								  </tr>
+								  <?php } ?> 
+								  <?php if(in_array('st_vehicle_license_state',$driver)){?>
+								  <tr>
+									  <td class="left-text"><span>License State:</span></td>
+								  <td><?php echo $vehicle['st_vehicle_license_state']; ?></td>
+								  </tr>  
+									 
+								   <?php }  ?> 
+								   
+									<?php if(in_array('in_distance_to_drive',$driver)){?>
+								   <tr>
+									   <td class="left-text"><span>Max. One-Way Distance to Drive:</span></td>
+								   <td><?php echo $vehicle['in_distance_to_drive']; ?> Miles</td>
+								   </tr>
+									<?php } ?> 
+								 </tbody>
+								</table>
+								 </div>
+								 
+									 <?php 
+										$i++;	}
+										}
+									?> 
+								
+									</div>
+								</div>
+							  </div>
+                               <?php }  ?>
+						  </div>
+					  </div>  	  	  
+					
+					
+					    <?php }  ?>
+						  
+						<?php if($first=='no' && !empty($user_plane) && is_array($pilot)){ ?>
+						<div class="verified-driver-profile-details verified-airplane-details">
+						 <?php if(!empty($user_plane) && is_array($pilot)){ ?>
+						  <h3 class="pilot">Pilot Profile Details</h3>   	
+						   <?php if(in_array('st_pilot_availability',$pilot) && isset($user_plane[0]['st_pilot_availability']) && $user_plane[0]['st_pilot_availability'] != ''){
+							  ?>
+					 <div class="profile-inner-text clearfix">
+					  <table cellspacing="0" cellpadding="0" border="0" width="100%" class="vehicle-info table list-animal-profile table-convert">
+						  <tbody>
+						  	<tr>
+								<td width="15%" class="padr10"><span>Availability Days:</span></td>
+							  <td>
+							  <?php
+								$avl_days = array();
+								$avl_days = isset($user_plane[0]['st_pilot_availability'])?unserialize($user_plane[0]['st_pilot_availability']):"";
+								echo (!empty($avl_days))?implode(', ',$avl_days):'';
+							  ?>
+							  </td>
+							</tr>
+							<?php } ?>
+							
+							<?php if(in_array('st_pilot_zip',$pilot) && isset($user_plane[0]['st_pilot_zip']) && $user_plane[0]['st_pilot_zip'] != ''){ ?>
+							 <tr>
+								 <td class="padr10"><span>Zipcode:</span></td>
+								<td ><?php echo $user_plane[0]['st_pilot_zip']; ?></td>
+							  </tr>
+							  <?php } ?>
+							  <?php 
+							  if(in_array('st_identifier',$pilot) && isset($user_plane[0]['st_identifier']) && $user_plane[0]['st_identifier'] != ''){ ?>
+							  <tr>
+								  <td class="padr10"><span>Airport Identifier:</span></td>
+								<td><?php echo $user_plane[0]['st_identifier']; ?></td>
+								</tr>
+								<?php } ?>
+								<?php
+										$i=1;
+										foreach($user_plane as $user_plane) {
+								?>   
+							 <?php //if((in_array('st_pilot_zip',$pilot)) || (in_array('st_identifier',$pilot)) || (in_array('st_plane_color',$pilot)) || (in_array('st_plane_type',$pilot)) || (in_array('st_plane_number',$pilot)) || (in_array('in_plane_ifr',$pilot)) || (in_array('st_identifier',$pilot)) || (in_array('in_distance_to_pilot',$pilot))){ ?>
+							 
+							 
+							 
+							  <?php if($first=='no' && is_array($pilot) &&  (in_array('st_plane_color',$pilot) || in_array('st_plane_number',$pilot) || in_array('in_plane_ifr',$pilot) || in_array('in_distance_to_pilot',$pilot))) { ?>
+						  </tbody>
+					  </table>
+					  <div class="vehicle-box">
+							   <div class="vehicle-type">
+								   <h3>Plane <?php echo $i; ?>:</h3>
+								   <div class="col-md-3 col-lg-3 col-sm-3 no-margin no-space driver-image-gallery">
+								   	<p>Plane Photos:</p>
+								   	<ul>
+								 <?php 
+										 if(!empty($user_plane['plane_images'])) {
+											foreach($user_plane['plane_images'] as $images) { 
+									?>
+								   <li><img src="<?php echo base_url(); ?>upload/plane/100x100/<?php echo $images['st_image']; ?>" alt="<?php echo $images['st_image']; ?>"></li>
+								   <?php } } ?>     
+							  </ul>
+							  <?php  if(isset($user_plane['st_photos_url']) && $user_plane['st_photos_url'] != '') { ?>
+									<div class="clearfix"></div>
+									<p class="mart10"><a href="<?php echo $user_plane['st_photos_url']; ?>" target="_blank">View More</a></p>                               
+									<?php } ?>
+								   </div>
+								   <div class="col-md-9 col-lg-9 col-sm-9 no-margin no-right-space profile-vehicle-info">
+                                   <table cellspacing="0" cellpadding="0" border="0" width="100%" class="vehicle-info table list-animal-profile">
+									  <tbody>
+									  	<tr>
+							  <?php 
+							  if(in_array('st_plane_type',$pilot)){
+							  if(isset($user_plane['st_plane_type']) && $user_plane['st_plane_type'] != ''){?>
+								<td class="left-text"><span>Airplane Type:</span></td>
+								<td><?php echo ucfirst($user_plane['st_plane_type']); ?></td>
+							 <?php } ?>
+							  </tr>
+							  <?php }?>
+							  
+							  
+							   <?php if($first=='no' && is_array($pilot) && in_array('st_plane_color',$pilot)) { ?>
+							  <tr>
+								  <td class="left-text"><span>Color:</span></td>
+								<td><?php echo $user_plane['st_plane_color']; ?></td>
+							  </tr>
+							  <?php } ?>
+							  <?php 
+							  if(in_array('st_plane_number',$pilot) && isset($user_plane['st_plane_number']) && $user_plane['st_plane_number'] != '') { ?>
+							  <tr>
+								  <td class="left-text"><span>N-Number:</span></td>
+								<td><?php echo $user_plane['st_plane_number']; ?></td>
+							  </tr>
+							  <?php } ?>                      
+							  <?php 
+							  if(in_array('in_plane_ifr',$pilot) && isset($user_plane['in_plane_ifr']) && $user_plane['in_plane_ifr'] != '') { ?>
+							  <tr>
+								  <td class="left-text"><span>IFR Current:</span></td>
+								<td><?php  if($user_plane['in_plane_ifr'] == 1){ echo 'Yes';	}
+								else if($user_plane['in_plane_ifr'] == 0 || $user_plane['in_plane_ifr'] == 2) { echo 'No'; }	 ?></td>
+							  </tr>
+							  <?php } ?>                      
+							  <?php 
+							  if(in_array('in_distance_to_pilot',$pilot) && isset($user_plane['in_distance_to_pilot']) && $user_plane['in_distance_to_pilot'] != '') { ?>
+							  <tr>
+								  <td class="left-text"><span>Max. One-Way Distance to Fly:</span></td>
+								<td><?php echo $user_plane['in_distance_to_pilot']; ?> Miles</td>
+							  </tr>
+							  <?php } ?>
+							 <?php 
+									$i++;	}
+									}
+								?> 
+							 
+							  <?php }  ?>
+									  </tbody>
+								   </table>
+						  			</div>
+						  </div>
+						 </div>
+					 </div>
+					  </div>   	    	
+						     	    	    	
+						     	    	    	    	
+					<?php }  ?>   
+							
+						
+						<div class="clearfix"></div>
+					  
+					   <?php if($first=='no'){ if(isset($user_foster_animal_type_details) && !empty($user_foster_animal_type_details)) {  ?>
+					  <div class="foster-home-profile">
+						  <h3>Foster Home Profile Details</h3>
+						  <div class="profile-inner-text">
+						  <ul>
+						  <?php 
+								
+								foreach($user_foster_animal_type_details as $ani_val) { 
+						  ?>
+						  
+								<?php if(isset($ani_val['in_animal_type_id']) && $ani_val['in_animal_type_id'] != ''   && is_array($foster)  && in_array('st_animal_type_ids',$foster)) { ?>
+							<li>
+							<span class="profile-heading"><strong>Foster Home for:</strong> <?php echo $ani_val['st_animal_type_name']; ?></span>
+							<?php if(isset($ani_val['in_animal_type_id']) && $ani_val['in_duration_type_id'] != '' && in_array('in_duration_type',$foster)) { ?>
+							<span class="profile-left-cont">What duration(s) are you able to serve as a foster for?:</span>
+							<span class="profile-right-cont"><?php 
+							
+								$duration_type = '';
+								if($ani_val['in_duration_type_id'] == '1')
+								{
+									$duration_type = 'Overnight Only (<24 hours)';
+								}
+								if($ani_val['in_duration_type_id'] == '2')
+								{
+									$duration_type = 'Short Term (24 hours to 7 days)';
+								}
+								if($ani_val['in_duration_type_id'] == '3')
+								{
+									$duration_type = 'Long Term (7 days +)';
+								}
+								if($ani_val['in_duration_type_id'] == '4')
+								{
+									$duration_type = 'Weekend Only (Sat/Sun)';
+								}
+								if($ani_val['in_duration_type_id'] == '5')
+								{
+									$duration_type = 'Emergency Foster Only (cannot foster regularly, only in emergency situation for short term)';
+								}
+								if($ani_val['in_duration_type_id'] == '6')
+								{
+									$duration_type = 'Overnight';
+								}
+								if($ani_val['in_duration_type_id'] == '7')
+								{
+									$duration_type = '1 week';
+								}
+								if($ani_val['in_duration_type_id'] == '8')
+								{
+									$duration_type = '2 weeks';
+								}
+								if($ani_val['in_duration_type_id'] == '9')
+								{
+									$duration_type = '1 Month';
+								}
+								if($ani_val['in_duration_type_id'] == '10')
+								{
+									$duration_type = '3 Months';
+								}
+								if($ani_val['in_duration_type_id'] == '11')
+								{
+									$duration_type = '6 Months';
+								}
+								if($ani_val['in_duration_type_id'] == '12')
+								{
+									$duration_type = 'More than 6 Months';
+								}
+							  
+							echo $duration_type; ?></span>
+							<div class="clear"></div>
+							<?php } ?>
+							 <?php if(isset($ani_val['in_animal_type_id']) && $ani_val['st_maximum_foster_days'] != '' && in_array('st_max_foster_days',$foster)) { ?>
+							<span class="profile-left-cont">List the maximum number of days you can foster:</span>
+							<span class="profile-right-cont"><?php echo $ani_val['st_maximum_foster_days']; ?></span>
+							<div class="clear"></div>
+							<?php } ?>
+							
+							<?php if(isset($ani_val['in_animal_type_id']) && $ani_val['st_maximum_foster_size'] != '' && in_array('st_max_animal_size',$foster)) { ?>
+							<span class="profile-left-cont">Please list the maximum size (in lbs) animal that you can serve as foster for:</span>
+							<span class="profile-right-cont"><?php echo $ani_val['st_maximum_foster_size']; ?></span>
+							<div class="clear"></div>
+							<?php } ?>
+							
+							<?php if(isset($ani_val['in_animal_type_id']) && $ani_val['st_household_animal_ids'] != '' && in_array('st_household_animal_ids',$foster)) { ?>
+							<span class="profile-left-cont">Do you have other animals in your household?:</span>
+							<span class="profile-right-cont"><?php 
+							$animal_others = '';
+							$animal_other_ids = explode(',',$ani_val['st_household_animal_ids']);
+							//print_r($animal_other_ids);
+							foreach($animal_other_ids as $val)
+							{
+								if($val == 1)
+								{
+									$animal_others .= 'Cats'.',';
+								}
+								if($val == 2)
+								{
+									$animal_others .= 'Dogs'.',';
+								}
+								if($val == 3)
+								{
+									$animal_others .= 'Horse'.',';
+								}
+								if($val == 4)
+								{
+									$animal_others .= 'Other'.',';
+								}
+							}
+								
+							$animal_others = substr($animal_others,0,-1);
+							echo $animal_others; ?></span>
+							<?php } ?>
+							
+							</li>
+							<?php } ?>
+							<?php } ?>
+						  </ul>
+						  </div>
+						  </div>
+						  <?php } } ?>
+						  
+					   <?php if($first=='no'){ if((is_array($foster_home_data) && !empty($foster_home_data)) || (is_array($foster_family) && !empty($foster_family))){?>
+						<div class="foster-home-general-info">
+						  <h3>Foster Home General Information </h3>
+						  <div class="profile-inner-text clearfix">
+						  <?php if((is_array($foster_home_data) && !empty($foster_home_data))) { ?>
+						  <div class="foster-general-abouthome">
+						  <h4>About your Home:</h4>
+						  <ul>
+						  <?php if(in_array('in_type_of_residence',$foster_home_data) && isset($user_foster_detail['in_type_of_residence']) && $user_foster_detail['in_type_of_residence'] != '') { ?>
+						  <li>Type of Residence:<span>- <?php 
+						  $res_type_name = '';
+						  if($user_foster_detail['in_type_of_residence'] == '1')
+						  {
+						   $res_type_name = 'House';
+						  }
+						  if($user_foster_detail['in_type_of_residence'] == '2')
+						  {
+						   $res_type_name = 'Condo';
+						  }
+						  if($user_foster_detail['in_type_of_residence'] == '3')
+						  {
+						   $res_type_name = 'Apartment';
+						  }
+						  if($user_foster_detail['in_type_of_residence'] == '4')
+						  {
+						   $res_type_name = 'Mobile Home';
+						  }
+						  if($user_foster_detail['in_type_of_residence'] == '5')
+						  {
+						   $res_type_name = 'Boarding House';
+						  }
+						  if($user_foster_detail['in_type_of_residence'] == '6')
+						  {
+						   $res_type_name = 'Dormitory';
+						  }
+						  if($user_foster_detail['in_type_of_residence'] == '7')
+						  {
+						   $res_type_name = 'Other';
+						  }			  
+						  echo $res_type_name; ?>
+						  </span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_renter_or_condo',$foster_home_data) && isset($user_foster_detail['in_renter_or_condo']) && $user_foster_detail['in_renter_or_condo'] != '') { ?>
+						  <li>If you are a renter or live in a condo, does your landlord/association allow animals?:<span>- <?php 
+						  $rent_val = '';
+						  if($user_foster_detail['in_renter_or_condo'] == '1')
+						  {
+						   $rent_val = 'Yes';
+						  }
+						  if($user_foster_detail['in_renter_or_condo'] == '2')
+						  {
+						   $rent_val = 'No';
+						  }
+						  if($user_foster_detail['in_renter_or_condo'] == '3')
+						  {
+						   $rent_val = 'Not Sure';
+						  }		  
+						  echo $rent_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_will_animal_live',$foster_home_data) && isset($user_foster_detail['in_will_animal_live']) && $user_foster_detail['in_will_animal_live'] != '') { ?>
+						  <li>Will the animal live:<span>- <?php 
+						  $will_animal_val = '';
+						  if($user_foster_detail['in_will_animal_live'] == '1')
+						  {
+						   $will_animal_val = 'Indoors mostly/Outdoors for elimination and exercise';
+						  }
+						  if($user_foster_detail['in_will_animal_live'] == '2')
+						  {
+						   $will_animal_val = 'Outdoors only';
+						  }
+						  if($user_foster_detail['in_will_animal_live'] == '3')
+						  {
+						   $will_animal_val = 'Outdoors mostly/Indoors on occasion';
+						  }	
+						  if($user_foster_detail['in_will_animal_live'] == '4')
+						  {
+						   $will_animal_val = 'Not Sure';
+						  }		  
+						  echo $will_animal_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_nobody_is_home',$foster_home_data) && isset($user_foster_detail['in_nobody_is_home']) && $user_foster_detail['in_nobody_is_home'] != '') { ?>
+						  <li>Where will the animal be when nobody is home?<span>- <?php 
+						  $nobody_is_val = '';
+						  if($user_foster_detail['in_nobody_is_home'] == '1')
+						  {
+						   $nobody_is_val = 'Crated';
+						  }
+						  if($user_foster_detail['in_nobody_is_home'] == '2')
+						  {
+						   $nobody_is_val = 'Free Indoors';
+						  }
+						  if($user_foster_detail['in_nobody_is_home'] == '3')
+						  {
+						   $nobody_is_val = 'Outdoors';
+						  }	
+						  if($user_foster_detail['in_nobody_is_home'] == '4')
+						  {
+						   $nobody_is_val = 'Either Indoors or Outdoors';
+						  }		  
+						  echo $nobody_is_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_have_yard',$foster_home_data) && isset($user_foster_detail['in_have_yard']) && $user_foster_detail['in_have_yard'] != '') { ?>
+						  <li>Do you have a yard, and is it fenced?<span>- <?php 
+						  $have_yard_val = '';
+						  if($user_foster_detail['in_have_yard'] == '1')
+						  {
+						   $have_yard_val = 'Yes';
+						  }
+						  if($user_foster_detail['in_have_yard'] == '2')
+						  {
+						   $have_yard_val = 'No';
+						  }
+						  if($user_foster_detail['in_have_yard'] == '3')
+						  {
+						   $have_yard_val = 'We have a yard but it\'s not fenced';
+						  }	  
+						  echo $have_yard_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_air_condition',$foster_home_data) && isset($user_foster_detail['in_air_condition']) && $user_foster_detail['in_air_condition'] != '') { ?>
+						  <li>Does your home have air conditioning?<span>-  <?php 
+						  $air_condition_val = '';
+						  if($user_foster_detail['in_air_condition'] == '1')
+						  {
+						   $air_condition_val = 'Yes';
+						  }
+						  if($user_foster_detail['in_air_condition'] == '2')
+						  {
+						   $air_condition_val = 'No';
+						  }
+						  echo $air_condition_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_animal_care',$foster_home_data) && isset($user_foster_detail['in_animal_care']) && $user_foster_detail['in_animal_care'] != '') { ?>
+						  <li>If the rescue does not fund the animal's care, are you able/willing to pay for any vet care, supplies, toys, boarding, grooming, food, etc?<span>- <?php 
+						  $animal_care_val = '';
+						  if($user_foster_detail['in_animal_care'] == '1')
+						  {
+						   $animal_care_val = 'Yes';
+						  }
+						  if($user_foster_detail['in_animal_care'] == '2')
+						  {
+						   $animal_care_val = 'No';
+						  }
+						  if($user_foster_detail['in_animal_care'] == '3')
+						  {
+						   $animal_care_val = 'Not Sure';
+						  }		  
+						  echo $animal_care_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_adoption_events',$foster_home_data) && isset($user_foster_detail['in_adoption_events']) && $user_foster_detail['in_adoption_events'] != '') { ?>
+						  <li>Are you willing to bring or make available the animal for Adoption events?<span>- <?php 
+						  $adoption_events_val = '';
+						  if($user_foster_detail['in_adoption_events'] == '1')
+						  {
+						   $adoption_events_val = 'Yes';
+						  }
+						  if($user_foster_detail['in_adoption_events'] == '2')
+						  {
+						   $adoption_events_val = 'No';
+						  }
+						  if($user_foster_detail['in_adoption_events'] == '3')
+						  {
+						   $adoption_events_val = 'Not Sure';
+						  }		  
+						  echo $adoption_events_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('st_animal_alone',$foster_home_data) && isset($user_foster_detail['st_animal_alone']) && $user_foster_detail['st_animal_alone'] != '') { ?>
+						  <li>For how many hours would the animal be alone during the day?<span>- <?php echo $user_foster_detail['st_animal_alone']; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_animal_behavioral',$foster_home_data) && isset($user_foster_detail['in_animal_behavioral']) && $user_foster_detail['in_animal_behavioral'] != '') { ?>
+						  <li>If the animal exhibits behavioral/ adjustment issues, are you willing to seek advice of the rescue?<span>- <?php 
+						  $animal_behavioral_val = '';
+						  if($user_foster_detail['in_animal_behavioral'] == '1')
+						  {
+						   $animal_behavioral_val = 'I would be willing to attend behavioral/obedience classes';
+						  }
+						  if($user_foster_detail['in_animal_behavioral'] == '2')
+						  {
+						   $animal_behavioral_val = 'I would be willing to pay for behavioral/obedience classes';
+						  }
+						  if($user_foster_detail['in_animal_behavioral'] == '3')
+						  {
+						   $animal_behavioral_val = 'No';
+						  }	
+						  if($user_foster_detail['in_animal_behavioral'] == '4')
+						  {
+						   $animal_behavioral_val = 'Not Sure';
+						  }		  
+						  echo $animal_behavioral_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('st_org_worked_with',$foster_home_data) && isset($user_foster_detail['st_org_worked_with']) && $user_foster_detail['st_org_worked_with'] != '') { ?>
+						  <li>Have you fostered animals in the past? If so, please list the organizations you worked with.<span><?php echo $user_foster_detail['st_org_worked_with']; ?></span></li>
+						  <?php } ?>	
+						  <?php if(in_array('in_feeding_experience',$foster_home_data) && isset($user_foster_detail['in_feeding_experience']) && $user_foster_detail['in_feeding_experience'] != '') { ?>
+						  <li>Do you have experience bottle feeding animals?<span>- <?php 
+						  $feeding_exp_val = '';
+						  if($user_foster_detail['in_adoption_events'] == '1')
+						  {
+						   $feeding_exp_val = 'Yes';
+						  }
+						  if($user_foster_detail['in_adoption_events'] == '2')
+						  {
+						   $feeding_exp_val = 'No';
+						  }
+						  echo $feeding_exp_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('in_foster_willing',$foster_home_data) && isset($user_foster_detail['in_foster_willing']) && $user_foster_detail['in_foster_willing'] != '') { ?>
+						  <li>Are you willing to foster a mother and her litter?<span>- <?php 
+						  $foster_will_val = '';
+						  if($user_foster_detail['in_foster_willing'] == '1')
+						  {
+						   $foster_will_val = 'Yes';
+						  }
+						  if($user_foster_detail['in_foster_willing'] == '2')
+						  {
+						   $foster_will_val = 'No';
+						  }
+						  echo $foster_will_val; ?></span></li>
+						  <?php } ?>
+						  <?php if(in_array('st_reason_foster_back_ids',$foster_home_data) && isset($user_foster_detail['st_reason_foster_back_ids']) && $user_foster_detail['st_reason_foster_back_ids'] != '') { $back_ids_array = explode(",",$user_foster_detail['st_reason_foster_back_ids']); ?>
+						  <li>What reasons would you ask a rescue to take a foster animal back?
+						  <?php foreach($back_ids_array as $values){ 
+						  $forster_back_val = '';
+						  if($values == '1')
+						  {
+							 $forster_back_val = 'New baby';
+						  }
+						  if($values == '2')
+						  {
+							 $forster_back_val = 'Divorce';
+						  }
+						  if($values == '3')
+						  {
+							 $forster_back_val = 'Animal not getting along with other pets';
+						  }
+						  if($values == '4')
+						  {
+							 $forster_back_val = 'Allergies';
+						  }
+						  if($values == '5')
+						  {
+							 $forster_back_val = 'New household member dislikes animal';
+						  }
+						  if($values == '6')
+						  {
+							 $forster_back_val = 'Shedding';
+						  }
+						  if($values == '7')
+						  {
+							 $forster_back_val = 'Behavior problems';
+						  }
+						  if($values == '8')
+						  {
+							 $forster_back_val = 'House soiling/urine marking';
+						  }
+						  if($values == '9')
+						  {
+							 $forster_back_val = 'Animal becomes ill';
+						  }
+						  if($values == '10')
+						  {
+							 $forster_back_val = 'Destructive';
+						  }
+						  if($values == '11')
+						  {
+							 $forster_back_val = 'Other';
+						  }
+						  ?>
+						  <span>- <?php echo $forster_back_val; ?></span>
+						  <?php } ?>
+						  </li>
+						  <?php } ?>
+						  </ul>
+						  </div>
+						  <?php } ?>
+						  <?php if((is_array($foster_family) && !empty($foster_family))) { ?>
+						  <div class="foster-general-aboutfamily">
+						  <h4>About Family:</h4>
+						  <ul>
+							<?php if(in_array('st_no_of_adults',$foster_family) && isset($user_foster_detail['st_no_of_adults']) && $user_foster_detail['st_no_of_adults'] != '') { ?>
+							<li>How many adults live in this household?:<span>- <?php echo $user_foster_detail['st_no_of_adults']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_no_of_children',$foster_family) && isset($user_foster_detail['st_no_of_children']) && $user_foster_detail['st_no_of_children'] != '') { ?>
+							<li>How many children live in this household?:<span>- <?php echo $user_foster_detail['st_no_of_children']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_ages_of_children',$foster_family) && isset($user_foster_detail['st_ages_of_children']) && $user_foster_detail['st_ages_of_children'] != '') { ?>
+							<li>Ages of children in this household?:<span>- <?php echo $user_foster_detail['st_ages_of_children']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_ages_of_children_visit',$foster_family) && isset($user_foster_detail['st_ages_of_children_visit']) && $user_foster_detail['st_ages_of_children_visit'] != '') { ?>
+							<li>Ages of children who visit?:<span>- <?php echo $user_foster_detail['st_ages_of_children_visit']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_guidance_children',$foster_family) && isset($user_foster_detail['st_guidance_children']) && $user_foster_detail['st_guidance_children'] != '') { ?>
+							<li>Are you prepared to provide the level of guidance and supervision needed for children (in the household or visitors) who are interacting with the animal?<span><?php echo $user_foster_detail['st_guidance_children']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_noise_level',$foster_family) && isset($user_foster_detail['st_noise_level']) && $user_foster_detail['st_noise_level'] != '') { ?>
+							<li>Describe your household activity/noise level:<span><?php echo $user_foster_detail['st_noise_level']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_describe_animal_exp',$foster_family) && isset($user_foster_detail['st_describe_animal_exp']) && $user_foster_detail['st_describe_animal_exp'] != '') { ?>
+							<li>Describe your experience with animal care:<span><?php echo $user_foster_detail['st_describe_animal_exp']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_often_travel',$foster_family) && isset($user_foster_detail['st_often_travel']) && $user_foster_detail['st_often_travel'] != '') { ?>
+							<li>How often do you travel?:<span><?php echo $user_foster_detail['st_often_travel']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_responsible_care',$foster_family) && isset($user_foster_detail['st_responsible_care']) && $user_foster_detail['st_responsible_care'] != '') { ?>
+							<li>Can someone responsible care for your animal when you travel and if so, who?:<span>- <?php echo $user_foster_detail['st_responsible_care']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('st_help_emergency',$foster_family) && isset($user_foster_detail['st_help_emergency']) && $user_foster_detail['st_help_emergency'] != '') { ?>
+							<li>Who would help you in an emergency (eg if you couldn't get a hold of the rescue immediately)?:<span>- <?php echo $user_foster_detail['st_help_emergency']; ?></span></li>
+							<?php } ?>
+							<?php if(in_array('in_interested_in_fostering',$foster_family) && isset($user_foster_detail['in_interested_in_fostering']) && $user_foster_detail['in_interested_in_fostering'] != '') { ?>
+							<li>Would you be interested in fostering our 'special needs' or 'long-term resident' animals?:<span>- <?php 
+							  $interested_val = '';
+							  if($user_foster_detail['in_interested_in_fostering'] == '1')
+							  {
+							   $interested_val = 'Yes';
+							  }
+							  if($user_foster_detail['in_interested_in_fostering'] == '2')
+							  {
+							   $interested_val = 'No';
+							  }
+							  if($user_foster_detail['in_interested_in_fostering'] == '3')
+							  {
+							   $interested_val = 'Not Sure';
+							  }
+							  echo $interested_val; ?></span></li>
+							<?php } ?>                
+						  </ul>
+						  </div>
+							</div>
+						<?php } ?>
+						</div>
+						<?php } } ?>
+						
+						
+						<?php if(($display_all_data == 'yes' && !empty($user_foster_reference_details)) || ($first=='no' && !empty($user_foster_reference_details) && is_array($foster_ref) && !empty($foster_ref))) { ?> 
+						<div class="foster-home-profile foster-references">
+						  <h3>Foster Home References</h3>
+						   <div class="profile-inner-text clearfix">			  
+						  <ul>
+						   <?php $ref= 0; 
+								foreach($user_foster_reference_details as $ref_val) {
+								if(array_key_exists($ref_val['in_fosters_ref_id'],$foster_ref)) { 					
+								$foster_data = $foster_ref[$ref_val['in_fosters_ref_id']];
+						   ?>
+						  <li>
+						   <?php if($display_all_data == 'yes' || (is_array($foster_ref))){ ?>
+							<span class="profile-heading"><strong>Reference <?php echo ($ref+1); ?>:</strong></span>
+							 <?php if($display_all_data == 'yes' || (is_array($foster_ref) && in_array('st_ref_name',$foster_data))) { ?>
+							<span class="profile-left-cont">Name:</span>
+							<span class="profile-right-cont"><?php echo $ref_val['st_ref_name']; ?></span>
+							<div class="clear"></div>
+							<?php } ?>
+							 <?php if($display_all_data == 'yes' || (is_array($foster_ref) && in_array('st_ref_relation',$foster_data))) { ?>
+							<span class="profile-left-cont">Relationship:</span>
+							<span class="profile-right-cont"><?php echo $ref_val['st_ref_relation']; ?></span>
+							<div class="clear"></div>
+							<?php } ?>
+							 <?php if($display_all_data == 'yes' || (is_array($foster_ref) && in_array('st_ref_contact',$foster_data))) { ?>
+							<span class="profile-left-cont">Contact Number:</span>
+							<span class="profile-right-cont"><?php echo $ref_val['st_ref_contact']; ?></span>
+							<div class="clear"></div>
+							<?php } ?>
+						 <?php } ?>   
+							</li>
+						  <?php } $ref++; } ?>
+						  
+							</ul>
+							</div>
+						  </div>
+						 <?php } ?> 
+						
+						
+						
+						
+						
+						
+						
+						
+						
+					  
+					   <?php if($first=='no'){ if(is_array($photographer) && !empty($photographer)){ ?>
+						<div class="photographer-profile-info">
+					  <div class="photographer-block-info">
+						  <h3>Photographer Profile Information</h3>
+						  <div class="profile-inner-text clearfix">
+						  <div class="photo-profile-col1">
+						  <?php if(in_array('st_photographer_availability',$photographer)){ ?>
+						  <span class="left-cont text15">Availability Days:</span>
+						  <span class="right-cont text15">
+						  <?php $avl_days = array();
+								$avl_days = isset($user_photographer['st_photographer_availability'])?unserialize($user_photographer['st_photographer_availability']):"";
+								echo (!empty($avl_days))?implode(', ',$avl_days):''; ?>
+						  </span>
+						  <div class="clear"></div>
+						  <?php } ?>
+						  <?php if(in_array('st_photographer_zipcode',$photographer)){ ?>
+						  <span class="left-cont">Zipcode:</span>
+						  <span class="right-cont"><?php echo (isset($user_photographer['st_photographer_zipcode']) && $user_photographer['st_photographer_zipcode'] != '') ? $user_photographer['st_photographer_zipcode'] : '' ; ?></span>
+						  <div class="clear"></div>
+						  <?php } ?>
+						   <?php if(in_array('in_distance_to_travel',$photographer)){ ?>
+						  <span class="left-cont">Max. Distance from Zip to Travel:</span>
+						  <span class="right-cont"><?php echo (isset($user_photographer['in_distance_to_travel']) && $user_photographer['in_distance_to_travel'] != '' ) ? $user_photographer['in_distance_to_travel'] : ''; ?> Miles</span>
+						  <div class="clear"></div>
+						   <?php } ?>
+						   <?php if(in_array('st_website_url',$photographer)){ ?>
+						  <span class="left-cont">My Website:</span>
+						  <span class="right-cont">
+						  <?php if(isset($user_photographer['st_website_url']) && $user_photographer['st_website_url'] != '') { ?>
+						  <a href="<?php echo isset($user_photographer['st_website_url']) ? $user_photographer['st_website_url'] : ''; ?>" target="_blank"><?php echo isset($user_photographer['st_website_url']) ? $user_photographer['st_website_url'] : ''; ?></a>
+						  <?php } ?></span>
+						  
+						  <div class="clear"></div>
+						   <?php } ?>
+						   
+						   <?php if(in_array('in_pro_bono_ser',$photographer)){ ?>
+						  <span class="left-cont">Pro Bono Services Offered:</span>
+						  <span class="right-cont"><?php echo isset($user_photographer['in_pro_bono_ser']) && $user_photographer['in_pro_bono_ser'] == '1' ? 'Yes' : 'No'; ?></span>
+						  <div class="clear"></div>			  
+						  <?php } ?>
+						   </div>
+						   
+						<?php if(in_array('st_about',$photographer)){ ?>
+						 <div class="photo-profile-col2"><span class="heading-photo">About My Photography:</span>
+						  <span><?php echo (isset($user_photographer['st_about']) && $user_photographer['st_about'] != '') ? $user_photographer['st_about'] : ''; ?></div>
+						  <div class="clear"></div>
+							  </div></div></div>
+						   <?php } ?>
+						  <?php } } ?>
+					  
+					   
+						  <?php if($first=='no'){ if(is_array($volunteer) && !empty($volunteer)){?> 
+						<div class="person-volunteer-profile-info">
+						  <h3>In Person Volunteer Profile Information</h3>
+						  <div class="profile-inner-text clearfix">
+						  <ul>
+							<?php if(in_array('in_home_visit',$volunteer) && isset($user_in_person_vol['in_home_visit']) && $user_in_person_vol['in_home_visit'] == '1'){  ?>
+							<li>Adoption/Foster home visit inspector</li>
+							<?php } ?>
+							<?php if(in_array('in_app_reviewer',$volunteer) && isset($user_in_person_vol['in_app_reviewer']) && $user_in_person_vol['in_app_reviewer'] == '1'){  ?>
+							<li>Adoption application reviewer</li>
+							<?php } ?>
+							<?php if(in_array('in_physical_fundraiser',$volunteer) && isset($user_in_person_vol['in_physical_fundraiser']) && $user_in_person_vol['in_physical_fundraiser'] == '1'){  ?>
+							<li>Physical fundraiser</li>
+							<?php } ?>
+							<?php if(in_array('in_animal_care',$volunteer) && isset($user_in_person_vol['in_animal_care']) && $user_in_person_vol['in_animal_care'] == '1'){  ?>
+							<li>Animal care at a facility</li>
+							<?php } ?>
+						  </ul>
+							</div>
+						  </div>
+						  <?php } } ?>
+						  
+						   <?php if($first=='no'){ if(is_array($virtual_vol) && !empty($virtual_vol)){?>   
+						<div class="virtual-support-profile-info">
+						  <h3>Virtual Support Volunteer Profile Information</h3>
+						  <div class="profile-inner-text clearfix">
+						  <div class="social-media">
+							  <h4>Social Media:</h4>
+						  <?php 
+								$fb_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_facebook_exp']) && $user_virtual_sup_vol['in_manage_facebook_exp'] == '1')
+								{
+									$fb_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_facebook_exp']) && $user_virtual_sup_vol['in_manage_facebook_exp'] == '2')
+								{
+									$fb_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_facebook_exp']) && $user_virtual_sup_vol['in_manage_facebook_exp'] == '3')
+								{
+									$fb_exp = 'Expert';
+								}
+								$twit_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_twitter_exp']) && $user_virtual_sup_vol['in_manage_twitter_exp'] == '1')
+								{
+									$twit_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_twitter_exp']) && $user_virtual_sup_vol['in_manage_twitter_exp'] == '2')
+								{
+									$twit_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_twitter_exp']) && $user_virtual_sup_vol['in_manage_twitter_exp'] == '3')
+								{
+									$twit_exp = 'Expert';
+								}
+								$gplus_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_gplus_exp']) && $user_virtual_sup_vol['in_manage_gplus_exp'] == '1')
+								{
+									$gplus_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_gplus_exp']) && $user_virtual_sup_vol['in_manage_gplus_exp'] == '2')
+								{
+									$gplus_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_gplus_exp']) && $user_virtual_sup_vol['in_manage_gplus_exp'] == '3')
+								{
+									$gplus_exp = 'Expert';
+								}
+								$pinb_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_pin_board_exp']) && $user_virtual_sup_vol['in_manage_pin_board_exp'] == '1')
+								{
+									$pinb_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_pin_board_exp']) && $user_virtual_sup_vol['in_manage_pin_board_exp'] == '2')
+								{
+									$pinb_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_pin_board_exp']) && $user_virtual_sup_vol['in_manage_pin_board_exp'] == '3')
+								{
+									$pinb_exp = 'Expert';
+								}
+								$insta_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_instagram_exp']) && $user_virtual_sup_vol['in_manage_instagram_exp'] == '1')
+								{
+									$insta_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_instagram_exp']) && $user_virtual_sup_vol['in_manage_instagram_exp'] == '2')
+								{
+									$insta_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_instagram_exp']) && $user_virtual_sup_vol['in_manage_instagram_exp'] == '3')
+								{
+									$insta_exp = 'Expert';
+								}
+								$yout_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_video_exp']) && $user_virtual_sup_vol['in_manage_video_exp'] == '1')
+								{
+									$yout_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_video_exp']) && $user_virtual_sup_vol['in_manage_video_exp'] == '2')
+								{
+									$yout_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_manage_video_exp']) && $user_virtual_sup_vol['in_manage_video_exp'] == '3')
+								{
+									$yout_exp = 'Expert';
+								}
+								$social_other = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['st_social_media_other']) && $user_virtual_sup_vol['st_social_media_other'] != '')
+								{
+									$social_other = $user_virtual_sup_vol['st_social_media_other'];
+								}
+						  ?>
+						  <table width="100%" border="0" cellspacing="0" cellpadding="0" id="card-table" class="table list-animal-profile table-convert">
+							  <?php if(in_array('in_manage_facebook',$virtual_vol) && isset($user_virtual_sup_vol['in_manage_facebook']) && $user_virtual_sup_vol['in_manage_facebook'] == '1'){  ?>  
+							  <tr>
+								<td class="w80p">Managing Facebook Page(s):</td>
+								<td class="virtual-left-cont"><?php  echo $fb_exp; ?></td>
+							  </tr>
+							  <?php } ?>
+							  <?php if(in_array('in_manage_twitter',$virtual_vol) && isset($user_virtual_sup_vol['in_manage_twitter']) && $user_virtual_sup_vol['in_manage_twitter'] == '1'){  ?>  
+							  <tr>
+								<td class="w80p">Tweeting (Twitter):</td>
+								<td class="virtual-left-cont"><?php  echo $twit_exp; ?></td>
+							  </tr>
+							  <?php } ?>
+							  <?php if(in_array('in_manage_gplus',$virtual_vol) && isset($user_virtual_sup_vol['in_manage_gplus']) && $user_virtual_sup_vol['in_manage_gplus'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Google+ Pages (Google+):</td>
+								<td class="virtual-left-cont"><?php  echo $gplus_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							  <?php if(in_array('in_manage_pin_board',$virtual_vol) && isset($user_virtual_sup_vol['in_manage_pin_board']) && $user_virtual_sup_vol['in_manage_pin_board'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Managing Pin Boards (Pinterest):</td>
+								<td class="virtual-left-cont"><?php  echo $pinb_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							  <?php if(in_array('in_manage_instagram',$virtual_vol) && isset($user_virtual_sup_vol['in_manage_instagram']) && $user_virtual_sup_vol['in_manage_instagram'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Instagram Posting:</td>
+								<td class="virtual-left-cont"><?php  echo $insta_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							  <?php if(in_array('in_manage_video',$virtual_vol) && isset($user_virtual_sup_vol['in_manage_video']) && $user_virtual_sup_vol['in_manage_video'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Managing Videos (YouTube):</td>
+								<td class="virtual-left-cont"><?php  echo $yout_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							  <?php if(in_array('in_social_media',$virtual_vol) && isset($user_virtual_sup_vol['in_social_media']) && $user_virtual_sup_vol['in_social_media'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">OTHER:</td>
+								<td><?php  echo $social_other; ?></td>
+							  </tr>
+							   <?php } ?>
+							</table>
+							</div>
+									
+							<div class="animal-profile-post">
+								<h4>Animal Profile Posting:</h4>
+							<?php 
+								$petfinder_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petfinder_exp']) && $user_virtual_sup_vol['in_petfinder_exp'] == '1')
+								{
+									$petfinder_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petfinder_exp']) && $user_virtual_sup_vol['in_petfinder_exp'] == '2')
+								{
+									$petfinder_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol)&& isset($user_virtual_sup_vol['in_petfinder_exp'])  && $user_virtual_sup_vol['in_petfinder_exp'] == '3')
+								{
+									$petfinder_exp = 'Expert';
+								}
+								$adoptapet_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_adoptapet_exp']) && $user_virtual_sup_vol['in_adoptapet_exp'] == '1')
+								{
+									$adoptapet_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_adoptapet_exp']) && $user_virtual_sup_vol['in_adoptapet_exp'] == '2')
+								{
+									$adoptapet_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_adoptapet_exp']) && $user_virtual_sup_vol['in_adoptapet_exp'] == '3')
+								{
+									$adoptapet_exp = 'Expert';
+								}
+								$petharbor_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petharbor_exp']) && $user_virtual_sup_vol['in_petharbor_exp'] == '1')
+								{
+									$petharbor_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petharbor_exp']) && $user_virtual_sup_vol['in_petharbor_exp'] == '2')
+								{
+									$petharbor_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petharbor_exp']) && $user_virtual_sup_vol['in_petharbor_exp'] == '3')
+								{
+									$petharbor_exp = 'Expert';
+								}
+								$petango_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petango_exp']) && $user_virtual_sup_vol['in_petango_exp'] == '1')
+								{
+									$petango_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petango_exp']) && $user_virtual_sup_vol['in_petango_exp'] == '2')
+								{
+									$petango_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petango_exp']) && $user_virtual_sup_vol['in_petango_exp'] == '3')
+								{
+									$petango_exp = 'Expert';
+								}
+								$rescuegroups_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_rescuegroups_exp']) && $user_virtual_sup_vol['in_rescuegroups_exp'] == '1')
+								{
+									$rescuegroups_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_rescuegroups_exp']) && $user_virtual_sup_vol['in_rescuegroups_exp'] == '2')
+								{
+									$rescuegroups_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_rescuegroups_exp']) && $user_virtual_sup_vol['in_rescuegroups_exp'] == '3')
+								{
+									$rescuegroups_exp = 'Expert';
+								}
+								$shelterexchange_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_shelterexchange_exp']) && $user_virtual_sup_vol['in_shelterexchange_exp'] == '1')
+								{
+									$shelterexchange_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_shelterexchange_exp']) && $user_virtual_sup_vol['in_shelterexchange_exp'] == '2')
+								{
+									$shelterexchange_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_shelterexchange_exp']) && $user_virtual_sup_vol['in_shelterexchange_exp'] == '3')
+								{
+									$shelterexchange_exp = 'Expert';
+								}
+								$dogtime_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_dogtime_exp']) && $user_virtual_sup_vol['in_dogtime_exp'] == '1')
+								{
+									$dogtime_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_dogtime_exp']) && $user_virtual_sup_vol['in_dogtime_exp'] == '2')
+								{
+									$dogtime_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_dogtime_exp']) && $user_virtual_sup_vol['in_dogtime_exp'] == '3')
+								{
+									$dogtime_exp = 'Expert';
+								}
+								$petsoverstock_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petsoverstock_exp']) && $user_virtual_sup_vol['in_petsoverstock_exp'] == '1')
+								{
+									$petsoverstock_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petsoverstock_exp']) && $user_virtual_sup_vol['in_petsoverstock_exp'] == '2')
+								{
+									$petsoverstock_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_petsoverstock_exp']) && $user_virtual_sup_vol['in_petsoverstock_exp'] == '3')
+								{
+									$petsoverstock_exp = 'Expert';
+								}
+								$animal_other = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['st_animal_profile_other']) && $user_virtual_sup_vol['st_animal_profile_other'] != '')
+								{
+									$animal_other = $user_virtual_sup_vol['st_animal_profile_other'];
+								}
+							?>
+							<table width="100%" border="0" cellspacing="0" cellpadding="0" id="card-table" class="table list-animal-profile table-convert">
+							  <?php if(in_array('in_petfinder',$virtual_vol) && isset($user_virtual_sup_vol['in_petfinder']) && $user_virtual_sup_vol['in_petfinder'] == '1'){  ?>                  <tr>
+								<td class="w80p">Petfinder.com:</td>
+								<td class="virtual-left-cont"><?php  echo $petfinder_exp; ?></td>
+							  </tr>
+							  <?php } ?>
+							   <?php if(in_array('in_adoptapet',$virtual_vol) && isset($user_virtual_sup_vol['in_adoptapet']) && $user_virtual_sup_vol['in_adoptapet'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">AdoptaPet.com:</td>
+								<td class="virtual-left-cont"><?php  echo $adoptapet_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							   <?php if(in_array('in_petharbor',$virtual_vol) && isset($user_virtual_sup_vol['in_petharbor']) && $user_virtual_sup_vol['in_petharbor'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Pet Harbor.com:</td>
+								<td class="virtual-left-cont"><?php  echo $petharbor_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							   <?php if(in_array('in_petango',$virtual_vol) && isset($user_virtual_sup_vol['in_petango']) && $user_virtual_sup_vol['in_petango'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Petango:</td>
+								<td class="virtual-left-cont"><?php  echo $petango_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							   <?php if(in_array('in_rescuegroups',$virtual_vol) && isset($user_virtual_sup_vol['in_rescuegroups']) && $user_virtual_sup_vol['in_rescuegroups'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">RescueGroups.org:</td>
+								<td class="virtual-left-cont"><?php  echo $rescuegroups_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							   <?php if(in_array('in_shelterexchange',$virtual_vol) && isset($user_virtual_sup_vol['in_shelterexchange']) && $user_virtual_sup_vol['in_shelterexchange'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">ShelterExchange.org:</td>
+								<td class="virtual-left-cont"><?php  echo $shelterexchange_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							   <?php if(in_array('in_dogtime',$virtual_vol) && isset($user_virtual_sup_vol['in_dogtime']) && $user_virtual_sup_vol['in_dogtime'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Dogtime.com:</td>
+								<td class="virtual-left-cont"><?php  echo $dogtime_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							   <?php if(in_array('in_petsoverstock',$virtual_vol) && isset($user_virtual_sup_vol['in_petsoverstock']) && $user_virtual_sup_vol['in_petsoverstock'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Pets.overstock.com:</td>
+								<td class="virtual-left-cont"><?php  echo $petsoverstock_exp; ?></td>
+							  </tr>
+							   <?php } ?>
+							   <?php if(in_array('st_animal_profile_other',$virtual_vol) && isset($user_virtual_sup_vol['st_animal_profile_other']) && $user_virtual_sup_vol['st_animal_profile_other'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">OTHER:</td>
+								<td><?php  echo $animal_other; ?></td>
+							  </tr>
+							   <?php } ?>
+							</table>
+							</div>
+										  
+							<div class="additional-support">
+								<h4>Additional Support Possibilities:</h4>
+							 <?php 
+								$transport_monitor_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_transport_monitor_exp']) && $user_virtual_sup_vol['in_transport_monitor_exp'] == '1')
+								{
+									$transport_monitor_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_transport_monitor_exp']) && $user_virtual_sup_vol['in_transport_monitor_exp'] == '2')
+								{
+									$transport_monitor_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_transport_monitor_exp']) && $user_virtual_sup_vol['in_transport_monitor_exp'] == '3')
+								{
+									$transport_monitor_exp = 'Expert';
+								}
+								$adoption_application_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_adoption_application_exp']) && $user_virtual_sup_vol['in_adoption_application_exp'] == '1')
+								{
+									$adoption_application_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_adoption_application_exp']) && $user_virtual_sup_vol['in_adoption_application_exp'] == '2')
+								{
+									$adoption_application_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_adoption_application_exp']) && $user_virtual_sup_vol['in_adoption_application_exp'] == '3')
+								{
+									$adoption_application_exp = 'Expert';
+								}
+								$onlinefundraiser_exp = '';
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_onlinefundraiser_exp']) && $user_virtual_sup_vol['in_onlinefundraiser_exp'] == '1')
+								{
+									$onlinefundraiser_exp = 'Beginner';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_onlinefundraiser_exp']) && $user_virtual_sup_vol['in_onlinefundraiser_exp'] == '2')
+								{
+									$onlinefundraiser_exp = 'Intermediator';
+								}
+								if(isset($user_virtual_sup_vol) && isset($user_virtual_sup_vol['in_onlinefundraiser_exp']) && $user_virtual_sup_vol['in_onlinefundraiser_exp'] == '3')
+								{
+									$onlinefundraiser_exp = 'Expert';
+								}
+							?>
+							<table width="100%" border="0" cellspacing="0" cellpadding="0" id="card-table" class="table list-animal-profile table-convert">
+							  <?php if(in_array('in_transport_monitor',$virtual_vol) && isset($user_virtual_sup_vol['in_transport_monitor']) && $user_virtual_sup_vol['in_transport_monitor'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Transport monitor (monitoring progress, updating volunteers):</td>
+								<td class="virtual-left-cont"><?php  echo $transport_monitor_exp; ?></td>
+							  </tr>
+							  <?php } ?>
+							  <?php if(in_array('in_adoption_application',$virtual_vol) && isset($user_virtual_sup_vol['in_adoption_application']) && $user_virtual_sup_vol['in_adoption_application'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Adoption application reviewer (reviewing online applications):</td>
+								<td class="virtual-left-cont"><?php  echo $adoption_application_exp; ?></td>
+							  </tr>
+							  <?php } ?>
+							  <?php if(in_array('in_onlinefundraiser',$virtual_vol) && isset($user_virtual_sup_vol['in_onlinefundraiser']) && $user_virtual_sup_vol['in_onlinefundraiser'] == '1'){  ?>
+							  <tr>
+								<td class="w80p">Online fundraiser:</td>
+								<td class="virtual-left-cont"><?php  echo $onlinefundraiser_exp; ?></td>
+							  </tr>
+							  <?php } ?>
+							</table>
+							</div>
+							</div>
+							</div>
+							<?php } } ?> 
+							
+							
+							
+							<?php if(($display_all_data == 'yes' && !empty($user_st_lost_animal)) || ($first=='no' && is_array($lost_animal) && !empty($lost_animal))){?>   
+						<div class="person-volunteer-profile-info">
+						  <h3>Lost Animal Support Profile Information</h3> 
+						  <div class="profile-inner-text clearfix">  
+						 <ul>
+						 
+						  <?php if($display_all_data == 'yes' || (is_array($lost_animal) && in_array('in_caseworker',$lost_animal) && isset($user_st_lost_animal['in_caseworker']) && $user_st_lost_animal['in_caseworker'] == '1')){  ?>
+							<li>Caseworker</li>
+							<?php } ?>
+							<?php if($display_all_data == 'yes' || (is_array($lost_animal) && in_array('in_monitor',$lost_animal) && isset($user_st_lost_animal['in_monitor']) && $user_st_lost_animal['in_monitor'] == '1')){  ?>
+							
+							<li>Craigslist Monitor</li>
+							<?php } ?>
+							<?php if($display_all_data == 'yes' || (is_array($lost_animal) && in_array('in_networker',$lost_animal) && isset($user_st_lost_animal['in_networker']) && $user_st_lost_animal['in_networker'] == '1')){  ?>
+							<li>Facebook Liason/Networker</li>
+							<?php } ?>
+							
+							<?php if($display_all_data == 'yes' || (is_array($lost_animal) && in_array('in_admin',$lost_animal) && isset($user_st_lost_animal['in_admin']) && $user_st_lost_animal['in_admin'] == '1')){  ?>
+							<li>Facebook Admins/Flyermakers</li>
+							  <?php } ?>
+							  
+							  
+							  
+							   <?php if($display_all_data == 'yes' || (is_array($lost_animal) && in_array('in_matcher',$lost_animal) && isset($user_st_lost_animal['in_matcher']) && $user_st_lost_animal['in_matcher'] == '1')){  ?>
+							<li>Matchers</li>
+							  <?php } ?>
+							  
+							  <?php if($display_all_data == 'yes' || (is_array($lost_animal) && in_array('in_volunteer',$lost_animal) && isset($user_st_lost_animal['in_volunteer']) && $user_st_lost_animal['in_volunteer'] == '1')){  ?>
+							<li>Dead End Microchip Volunteers</li>
+							  <?php } ?>
+						  </ul>
+							</div>
+						  </div>
+						  <?php } ?>					
+
+			<div class="modal fade" id="per_frm" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+			<div class="modal-dialog">
+				<div class="modal-content">
+				  <div class="modal-header"> 
+					<a href="javascript:void(0);" aria-hidden="true" data-dismiss="modal" class="close" type="button" title="Close"></a>
+					<h4 class="modal-title">Access Levels</h4>
+				  </div>
+				  
+				  <div class="modal-body border-bottom">
+					<form class="horizontal-form" role="form" method="post" action="" name="invite_frm" id="invite_frm">
+					
+					<input type="hidden" name="user_value" id="user_value" value="<?php echo $user_profile['in_user_id']; ?>" />
+					  <div class="form-body doobert-form no-space"> 
+					  
+						  <?php
+						$user_permission = unserialize($user_profile['st_permission']);				
+					  ?>
+						  <div class="row no-space margin-bottom-10 roll-wrapp"><span class="org-certificats">Transport Coordinator</span> 
+													<div class="custom-checkbox margin-top-6">
+														
+														<input type="checkbox" name="transport[]" class="access_level" id="tr_create" value="transport_cr" <?php echo (isset($user_permission['transport']) && $user_permission['transport'] != '' && in_array('transport_cr',$user_permission['transport']))?"checked":''; ?>><label for="tr_create">Create </label>
+														
+														<input type="checkbox" name="transport[]" class="access_level" id="tr_edit" value="transport_ed" <?php echo (isset($user_permission['transport']) && $user_permission['transport'] != '' && in_array('transport_ed',$user_permission['transport']))?"checked":''; ?>><label for="tr_edit">Edit </label>
+														
+														<input type="checkbox" name="transport[]" class="access_level" id="tr_confirm" value="transport_cnf" <?php echo (isset($user_permission['transport']) && $user_permission['transport'] != '' && in_array('transport_cnf',$user_permission['transport']))?"checked":''; ?>><label for="tr_confirm" >Confirm </label>
+														
+														<input type="checkbox" name="transport[]" class="access_level" id="tr_delete" value="transport_del" <?php echo (isset($user_permission['transport']) && $user_permission['transport'] != '' && in_array('transport_del',$user_permission['transport']))?"checked":''; ?>><label for="tr_delete">Cancel </label>
+													</div>
+													</div>
+					   <?php // } ?>
+					   <?php //if($user_profile['st_fundraiser'] == 'Y') { ?> 
+						 <div class="row no-space margin-bottom-10 roll-wrapp"><span class="org-certificats">Fundraiser</span> <div class="custom-checkbox margin-top-6">
+														
+														<input type="checkbox" name="fundraiser[]" class="access_level" id="fn_create" value="fundraiser_cr" <?php echo (isset($user_permission['fundraiser']) && $user_permission['fundraiser'] != '' && in_array('fundraiser_cr',$user_permission['fundraiser']))?"checked":''; ?>><label for="fn_create">Create </label>
+														
+														<input type="checkbox" name="fundraiser[]" class="access_level" id="fn_edit" value="fundraiser_ed" <?php echo (isset($user_permission['fundraiser']) && $user_permission['fundraiser'] != '' && in_array('fundraiser_ed',$user_permission['fundraiser']))?"checked":''; ?>><label for="fn_edit">Edit </label>
+														
+														<input type="checkbox" name="fundraiser[]" class="access_level" id="fn_confirm" value="fundraiser_cnf" <?php echo (isset($user_permission['fundraiser']) && $user_permission['fundraiser'] != '' && in_array('fundraiser_cnf',$user_permission['fundraiser']))?"checked":''; ?>><label for="fn_confirm">Confirm </label>
+														
+														<input type="checkbox" name="fundraiser[]" class="access_level" id="fn_delete" value="fundraiser_del" <?php echo (isset($user_permission['fundraiser']) && $user_permission['fundraiser'] != '' && in_array('fundraiser_del',$user_permission['fundraiser']))?"checked":''; ?>><label for="fn_delete">Delete </label>
+													</div></div>
+						<?php //} ?>
+						<?php //if($user_profile['st_animal_profile'] == 'Y') { ?>
+						  <div class="row no-space margin-bottom-10 roll-wrapp"><span class="org-certificats">Animal Profile Manager</span> <div class="custom-checkbox margin-top-6">
+														
+														<input type="checkbox" name="profile_manager[]" class="access_level" id="pr_create" value="pr_manager_cr" <?php echo (isset($user_permission['profile_manager']) && $user_permission['profile_manager'] != '' && in_array('pr_manager_cr',$user_permission['profile_manager']))?"checked":''; ?>><label for="pr_create">Create </label>
+														
+														<input type="checkbox" name="profile_manager[]" class="access_level" id="pr_edit" value="pr_manager_ed" <?php echo (isset($user_permission['profile_manager']) && $user_permission['profile_manager'] != '' && in_array('pr_manager_ed',$user_permission['profile_manager']))?"checked":''; ?>><label for="pr_edit">Edit </label>
+														
+														<input type="checkbox" name="profile_manager[]" class="access_level" id="pr_confirm" value="pr_manager_cnf" <?php echo (isset($user_permission['profile_manager']) && $user_permission['profile_manager'] != '' && in_array('pr_manager_cnf',$user_permission['profile_manager']))?"checked":''; ?>><label for="pr_confirm">Confirm </label>
+														
+														<input type="checkbox" name="profile_manager[]" class="access_level" id="pr_delete" value="pr_manager_del" <?php echo (isset($user_permission['profile_manager']) && $user_permission['profile_manager'] != '' && in_array('pr_manager_del',$user_permission['profile_manager']))?"checked":''; ?>><label for="pr_delete">Delete </label>
+														
+														
+														<input type="checkbox" name="profile_manager[]" class="access_level" id="pr_transefer" value="pr_manager_trf" <?php echo (isset($user_permission['profile_manager']) && $user_permission['profile_manager'] != '' && in_array('pr_manager_trf',$user_permission['profile_manager']))?"checked":''; ?>><label for="pr_transefer">Transfer </label>
+														
+													</div></div>
+						 <?php //} ?>
+						 <?php //if($user_profile['st_transport_cood'] != 'Y' && $user_profile['st_fundraiser'] != 'Y' && $user_profile['st_animal_profile'] != 'Y') { ?>
+						 <br />
+						   <div class="row no-space margin-bottom-10 roll-wrapp">
+							<span class="org-certificats">VIEW ONLY</span>
+								<div class="custom-checkbox margin-top-6">
+								<input type="checkbox" name="view_only" class="view_only access_level" id="view_only" value="view_only" <?php echo (isset($user_permission['user_access_level'])) ? "checked" : ''; ?>><label for="view_only">View Only </label>
+								</div>
+						  </div>
+						 
+						  </div>
+						  <input type="hidden" name="invite_frm_action" value="invite_frm_value" />
+						  <input type="hidden" name="invite_user_id" id="invite_user_id" value="<?php echo $user_profile['in_user_id']; ?>" />
+						  <input type="hidden" name="display_name" id="display_name" value="" />
+						  <input type="hidden" name="user_email" id="user_email" value="" />
+						  <input type="hidden" name="sess_org_id" id="sess_org_id" value="<?php echo $this->session->userdata('org_id'); ?>" />
+						  
+						  <input type="hidden" name="user_access_level" id="user_access_level" value="" />
+						  </form> 
+						  </div>
+				  <div class="modal-footer no-border dobt-text-center"> 
+				  <?php /*?><a class="btn orange dobt-btn margin-bottom-15 level-acc view_user_profile" href="javascript:void(0);" title="View Profile">View Profile</a> <?php */?>
+				  <a class="btn orange waves-effect waves-light level-acc send_invitation marr0" href="javascript:void(0);">Invite User</a>
+				 <?php /*?> <a class="btn grey-btn dobt-btn level-acc block_user tooltips" href="javascript:void(0);" data-placement="top" data-original-title="Blocking a user will prevent them from receiving e-mails
+			regarding new animals or new transports that your organization creates.">Block User</a><?php */?>
+				  <span class="display_loader" style="display:none;"> <img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /> </span>
+				  
+				  
+				  </div> </div>
+				</div>
+			</div>				
+								
+					  <form name="insert_per" id="insert_per" action="<?php echo base_url().'org_info/insert_invite_user'; ?>" method="post">
+					  <input type="hidden" name="frm_action" id="frm_action" value="frm_post_value" />
+					  <input type="hidden" name="usr_per" id="usr_per" value='<?php echo (isset($permission_array[0]))?$permission_array[0]:''; ?>' />
+					  <input type="hidden" name="usr_id" id="usr_id" value='<?php echo $user_profile['in_user_id']; ?>' />
+					  <input type="hidden" name="display_name" id="display_name" value='<?php echo $user_profile['st_display_name']; ?>' />
+					  <input type="hidden" name="user_email" id="user_email" value='<?php echo $user_profile['st_email']; ?>' />
+					  </form>
+					<?php if(!$this->session->userdata('invitation_success')) { ?>
+					  <div class="text-center mart15"><a class="btn orange waves-effect waves-light marr5 marb10" id="back_to_search" href="<?php echo base_url(); ?>org_info/invite_user">Back to Search</a>          
+					  <a class="btn orange waves-effect waves-light marr5 marb10" id="invite_user_btn" href="javascript:void(0);">Invite User</a>
+					  <a class="btn black waves-effect waves-light marr5 marb10" id="block_user_btn" href="javascript:void(0);" data-placement="top" data-original-title="Blocking a user will prevent them from receiving e-mails
+			regarding new animals or new transports that your organization creates.">Block User</a>
+					  <img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" style="display:none;" /></div>
+					<?php } ?> 
+					  </div>
+				  </div>
+				  <!-- END PAGE CONTENT--> 
+				   </div></div>
+<!-- END CONTENT --> 
+	
+						</div>
+                          
+        		</article>
+      <!-- END PAGE CONTENT--> 
+   			</div>
+  		</div>
+  <!-- END CONTENT --> 
+	</div>
+</section>
+<!-- END CONTAINER -->
+
+
+
+
+<div id="responsive">
+<div class="modal fade" id="user-contact" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <form class="horizontal-form" role="form" id="send_request" name="send_request" enctype="multipart/form-data" action="" method="post">
+    <input type="hidden" id="contact_name" name="contact_name" value="<?php echo $user_profile['st_display_name']; ?>">
+    <input type="hidden" id="contact_email" name="contact_email" value="<?php echo $user_profile['st_email']; ?>">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button aria-hidden="true" data-dismiss="modal" class="close empty_dates" type="button" title="Close"></button>
+          <h4 class="modal-title">Contact Request to <?php echo $user_profile['st_display_name']; ?></h4>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+          <div class="col-md-12 no-space">
+             <textarea id="contactmessage" name="contactmessage" rows="3" class="form-control" maxlenght="500" Placeholder="Enter Your Message" ></textarea>
+             </div>
+             <div class="col-md-12 btm-button no-space">
+             <a href="javascript:void(0);" class="btn orange mart20 fr" id="send_request_btn" title="Send">Send</a>
+             </div>
+            </div>
+          <div class="clearfix"></div>
+        </div>
+        
+      </div>
+    </form>
+    <!-- /.modal-content --> 
+  </div>
+  <!-- /.modal-dialog --> 
+</div>
+</div>
+
+<?PHP //include "includes/footer.php" ?>
+<?php include 'inc/footer-dashboard.php';?>
+<script>
+
+if ($(window).width() > 700) {
+	$('.user-table-details').css('width', $(".page-content").width() - 23 - $(".user-logo").width() );
+}else{$('.user-table-details').css('width', '100%')}
+
+$( window ).resize(function() {
+if ($(window).width() > 700) {
+	$('.user-table-details').css('width', $(".page-content").width() - 23 - $(".user-logo").width() );
+}else{$('.user-table-details').css('width', '100%')}
+})
+
+if ($(window).width() < 390) {
+    $(".table-scrollable-mobile").addClass("table-scrollable");
+}
+else {
+    $(".table-scrollable-mobile").removeClass("table-scrollable");
+}  
+
+  
+$( window ).resize(function() {
+  if ($(window).width() < 390) {
+    $(".table-scrollable-mobile").addClass("table-scrollable");
+}
+else {
+    $(".table-scrollable-mobile").removeClass("table-scrollable");
+}
+});
+
+$(document).ready(function(e) {
+	/*$('#invite_user_btn').live('click',function() {
+		$('#loadimg').show();
+		$('#invite_user_btn').hide();
+		$('#back_to_search').hide();
+		$('#block_user_btn').hide();
+		 
+		$('#insert_per').submit();
+	});*/
+	
+	//$('#invite_user_btn').live('click',function() {
+	 $('#invite_user_btn').click(function() {	
+	    $('#per_frm').modal('show');	   
+   });
+		
+	//$('.send_invitation').live('click',function(){
+	  $('.send_invitation').click(function(){	
+		var access_level = $('.access_level').is(':checked');
+		
+		//alert($('#user_value').val());return false;
+		
+		if(access_level == false) {
+			alert('Please select atleast one access to proceed.');
+			return false;
+		} else {
+			$('#user_access_level').val('true');
+			
+		}
+		
+	   $('#invite_frm').attr('action','<?php echo base_url(); ?>org_info/invite_user_direct/'+$('#user_value').val());
+	   $('#per_frm').modal('hide');
+	   
+	   if($.browser.msie) {
+				$('.display_loader').html('<img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" />');
+		}
+		$('.display_loader').show();
+		
+	   $('#loadimg').show();
+	   $('.view_user_profile').hide();
+	   $('.send_invitation').hide();
+	   
+	   $('#block_user_btn').hide();
+	   $('#back_to_search').hide();
+	   $('#invite_user_btn').hide();
+	   
+	   
+	   $('#invite_frm').submit();
+   });
+	
+	// added by sadiq
+	//$('#block_user_btn').live('click',function() {
+	  $('#block_user_btn').click(function() {	
+		if(confirm("Are you sure you want to block this person from your organization?\nThey will no longer receive e-mails regarding your animals and transports."))
+		{
+			if($.browser.msie) {
+				$('.display_loader').html('<img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" />');
+			}
+			$('.display_loader').show();
+			
+			$('#loadimg').show();
+			$('#invite_user_btn').hide();
+			$('#back_to_search').hide();
+			$('#block_user_btn').hide();
+			
+			$('#insert_per').attr('action','<?php echo base_url(); ?>org_info/block_usr/');
+			$('#insert_per').submit();
+		}
+		else
+		{
+			return false;
+		}
+	});
+	
+	// added by sadiq
+	
+	//$('#send_request_btn').live('click',function(){
+	  $('#send_request_btn').click(function(){	
+		var msg = $('#contactmessage').val();
+		var contact_name = $('#contact_name').val();
+		var contact_email = $('#contact_email').val();
+		 if(msg == '')
+		 {
+		 	alert('Please enter your message.');
+			return false;
+		 }
+		 else{
+		$.ajax({
+			type: "POST",
+				  url: '<?php echo base_url(); ?>org_info/request_user_details',
+				  beforeSend: function() {
+					$('#loader').show();
+				  },
+				  data: {
+					  message : msg,
+					  name	: contact_name,
+					  email : contact_email
+				  },
+				  dataType:"html",
+				  complete: function() {
+					 $('#loader').hide();
+				  },
+				  success:function(data) {
+					  //alert(data);
+					  if(data != '') {
+						  $('#user-contact').modal('hide');	  
+						  alert('Your contact request was sent successfully.');
+						  } else {
+						  alert('Some problem occurred.');
+					  }
+					  
+					  
+				  }
+			});
+		 }
+	});
+	
+});
+</script>
+</body>
+<!-- END BODY -->
+</html>

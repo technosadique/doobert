@@ -1,0 +1,441 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+class Manage_affiliate_banner extends CI_Controller {
+
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->model('manage_affiliate_banner_model');			
+		$this->load->helper(array('form', 'url')); 
+		$this->load->library('pagination');				
+	}
+	
+	
+	function index()
+	{  
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$this->page();		  
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{   
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 		
+		
+		if(!$sort)
+			$sort='id';
+		if(!$order)
+			$order = 'desc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+			
+
+		$rec_per_page =	 $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord			= $this->manage_affiliate_banner_model->get_total_affiliate();
+		// GET PAGE LIST RESULT HERE
+		
+		$data['affiliate_list']	= $this->manage_affiliate_banner_model->get_affiliate($sort,$order,$limit,$rec_per_page);
+		
+		echo '<pre>'; print_r($data['affiliate_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'manage_affiliate_banner/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open']  = "<li class=\"prev\">";
+		$config['prev_link']      = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open']  = "<li class=\"next\">";
+		$config['next_link']  	  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open']  = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']	 =	'<li>';
+		$config['num_tag_close'] =	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] 	= $this->pagination->create_links();
+		$data['total_rows'] 	= $config['total_rows'];
+		$data['currrent_page'] 	= floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] 	= ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	(($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   		= $from;
+		$data['to']	  	   		= $to;
+					
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No record found.';
+		}
+		
+		$this->load->view('manage-affiliate-banner',$data);
+	}
+	
+	
+	
+	function add_affiliate()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		 
+		 $banner_data = $this->manage_affiliate_banner_model->get_banner_data();
+		 $data['banner_data'] = $banner_data;
+		 
+		 if($this->input->post('action')=='Add')
+		{  	
+				$this->load->library('upload');
+				if(isset($_FILES['image']['name']) && $_FILES['image']['name']!=''){ 							
+							//upload image start
+							
+							if($_POST['position']=='L' && $_POST['type']=='2' )
+							{ 
+								$image_dim = getimagesize($_FILES["image"]['tmp_name']);
+								//echo '<pre>'; print_r($image_dim); die;
+								$image_width = $image_dim[0];
+								$image_height = $image_dim[1];								
+								$width='120'; $height='420';
+							}
+							
+							if($_POST['position']=='R' && $_POST['type']=='2' )
+							{ 
+								$image_dim = getimagesize($_FILES["image"]['tmp_name']);
+								//echo '<pre>'; print_r($image_dim); die;
+								$image_width = $image_dim[0];
+								$image_height = $image_dim[1];								
+								$width='120'; $height='420';
+							}
+							
+							if($_POST['position']=='C' && $_POST['type']=='2' )
+							{  
+								$image_dim = getimagesize($_FILES["image"]['tmp_name']);
+								//echo '<pre>'; print_r($image_dim); die;
+								$image_width = $image_dim[0];
+								$image_height = $image_dim[1];								
+								$width='460'; $height='120';
+							}
+							
+							
+							if($image_width <= $width && $image_height <= $height)
+							{   
+							    
+								$config['upload_path']  	= $this->config->item('upload').'affiliate_images/orig/';
+								$config['max_size']			= '5120';  // 5 MB
+								//$config['width']	 		= 60;
+								//$config['height']			= 60;
+								$config['allowed_types']	= 'jpg|jpeg|png|gif';
+								$config['remove_spaces']  	= TRUE;
+								$lastDot = strrpos($_FILES['image']['name'], ".");
+								$_FILES['image']['name'] = str_replace(".", "", substr($_FILES['image']['name'], 0, $lastDot)) . substr($_FILES['image']['name'], $lastDot);
+								$config['file_name'] = preg_replace('/[^A-Za-z0-9\-.]/', '', str_replace(" ", "_", mt_rand() . $_FILES['image']['name']));
+								
+								//Initialization
+								$this->upload->initialize($config);							
+								
+								$this->upload->do_upload("image"); 
+								
+										
+								//Resize the image with ratio (Thumbnail)
+								$config['image_library'] 	= 'gd2';
+								$config['source_image']		= $this->config->item('upload').'affiliate_images/orig/'.$config['file_name'];
+								$config['new_image']		= $this->config->item('upload').'affiliate_images/thumb/'.$config['file_name'];
+								$config['maintain_ratio'] 	= TRUE;
+								$config['width']	 		= 60;
+								$config['height']			= 60;
+								
+								$this->load->library('image_lib');
+								$this->load->library('image_lib', $config);
+								$this->image_lib->initialize($config);
+								$this->image_lib->resize();	
+								
+								
+							}
+							else{								
+								$this->session->set_flashdata('err','Please upload 120px X 420px size image');
+								redirect(site_url('manage_affiliate_banner/add_affiliate'));
+							}
+							
+							$file_errors = array('errors' => $this->upload->display_errors());
+							
+							
+							
+							
+							//Display errors of file upload.
+							if(!empty($file_errors['errors'])) {   								
+								$data = array('upload_error' => strip_tags($file_errors['errors']));					
+								$this->session->set_flashdata($data);	
+								redirect(site_url('manage_affiliate_banner/add_affiliate'));
+							}			
+							
+												
+													
+						}
+				
+							$banner_info['st_url'] 					=	$this->input->post('url');	
+							$banner_info['in_type'] 				=	$this->input->post('type');	
+							$banner_info['st_code'] 				=	$this->input->post('code');				
+							$banner_info['in_modified_by']			=   $this->session->userdata('sess_admin_id');			
+							$banner_info['dt_created'] 			    = 	date('Y-m-d H:i:s');
+							$banner_info['dt_modified'] 			= 	'';		
+							$banner_info['in_status'] 				=	$this->input->post('active');		
+							if($_FILES['image']['name']!=''){
+							$banner_info['st_image'] 				=	$config['file_name'];										
+							}
+							$emailid			 					=	implode(',',$this->input->post('email_id'));	
+							$banner_info['st_email_id'] 			=	$emailid;
+							$banner_info['st_position'] 			=	$this->input->post('position');				
+			
+							$this->manage_affiliate_banner_model->insert_affiliate_banner_info($banner_info,'tbl_affiliate_banner');	
+							
+							$this->session->set_flashdata('message', 'You have successfully added affiliate marketing banner!');					
+							redirect(site_url('manage_affiliate_banner/add_affiliate'));	
+		}
+		else{
+		
+							$this->load->view('add_affiliate_banner', $data);	
+		
+		}
+		 
+	
+	}
+	
+	
+	function delete_affiliate($id)
+	{	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+			$this->manage_affiliate_banner_model->delete_affiliate($id);			
+			$this->session->set_flashdata('success', 'Record has been deleted successfully.');			
+			redirect($this->config->item('admin_base_url').'manage_affiliate_banner');
+		
+	}	
+	
+	function delete_multiple_affiliate()
+	{   
+	    
+		$ids = $this->input->post('id');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->manage_affiliate_banner_model->delete_multiple_affiliate($ids);
+			
+			$this->session->set_flashdata('success', 'Record has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'manage_affiliate_banner/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	
+	function edit_affiliate($id=false)
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		 $banner_data = $this->manage_affiliate_banner_model->get_banner_data($id);
+		 $data['banner_data'] = $banner_data;
+		 
+		 if($this->input->post('action')=='Edit')
+		{  			
+			
+			$banner_id	=	$this->input->post('banner_id');
+			$this->load->library('upload');
+			if(isset($banner_id) && !empty($banner_id)){
+			
+			
+			//echo $_FILES['image']['name'];die;
+			
+							if($_POST['position']!=$_POST['position1'] && $_POST['type']=='2' && $_FILES['image']['name']=='' && $_POST['position']=='C')
+							{  
+								$this->session->set_flashdata('err','Please upload 460px X 120px size image');
+								redirect(site_url('manage_affiliate_banner/edit_affiliate/'.$banner_id));
+							}	
+							
+							if($_POST['position']!=$_POST['position1'] && $_POST['type']=='2' && $_FILES['image']['name']=='' && $_POST['position']=='L' && $_POST['position1']=='C' )
+							{  
+								$this->session->set_flashdata('err','Please upload 120x420 size image');
+								redirect(site_url('manage_affiliate_banner/edit_affiliate/'.$banner_id));
+							}
+							
+							if($_POST['position']!=$_POST['position1'] && $_POST['type']=='2' && $_FILES['image']['name']=='' && $_POST['position']=='R' && $_POST['position1']=='C' )
+							{  
+								$this->session->set_flashdata('err','Please upload 120x420 size image');
+								redirect(site_url('manage_affiliate_banner/edit_affiliate/'.$banner_id));
+							}	
+			
+			
+				if(isset($_FILES['image']['name']) && $_FILES['image']['name']!=''){
+							
+							//upload image start
+							
+							if($_POST['position']=='L' && $_POST['type']=='2' )
+							{  
+								$image_dim = getimagesize($_FILES["image"]['tmp_name']);
+								//echo '<pre>'; print_r($image_dim); die;
+								$image_width = $image_dim[0];
+								$image_height = $image_dim[1];								
+								$width='120'; $height='420';
+							}
+							
+							if($_POST['position']=='R' && $_POST['type']=='2' )
+							{ 
+								$image_dim = getimagesize($_FILES["image"]['tmp_name']);
+								//echo '<pre>'; print_r($image_dim); die;
+								$image_width = $image_dim[0];
+								$image_height = $image_dim[1];								
+								$width='120'; $height='420';
+							}
+							
+							if($_POST['position']=='C' && $_POST['type']=='2' )
+							{  
+								$image_dim = getimagesize($_FILES["image"]['tmp_name']);
+								//echo '<pre>'; print_r($image_dim); die;
+								$image_width = $image_dim[0];
+								$image_height = $image_dim[1];								
+								$width='460'; $height='120';
+							}
+							
+							if($image_width <= $width && $image_height <= $height)
+							{   
+							    
+								$config['upload_path']  	= $this->config->item('upload').'affiliate_images/orig/';
+								$config['max_size']			= '5120';  // 5 MB
+								//$config['width']	 		= 60;
+								//$config['height']			= 60;
+								$config['allowed_types']	= 'jpg|jpeg|png|gif';
+								$config['remove_spaces']  	= TRUE;
+								$lastDot = strrpos($_FILES['image']['name'], ".");
+								$_FILES['image']['name'] = str_replace(".", "", substr($_FILES['image']['name'], 0, $lastDot)) . substr($_FILES['image']['name'], $lastDot);
+								$config['file_name'] = preg_replace('/[^A-Za-z0-9\-.]/', '', str_replace(" ", "_", mt_rand() . $_FILES['image']['name']));
+								
+								//Initialization
+								$this->upload->initialize($config);							
+								
+								$this->upload->do_upload("image"); 
+								
+										
+								//Resize the image with ratio (Thumbnail)
+								$config['image_library'] 	= 'gd2';
+								$config['source_image']		= $this->config->item('upload').'affiliate_images/orig/'.$config['file_name'];
+								$config['new_image']		= $this->config->item('upload').'affiliate_images/thumb/'.$config['file_name'];
+								$config['maintain_ratio'] 	= TRUE;
+								$config['width']	 		= 60;
+								$config['height']			= 60;
+								
+								$this->load->library('image_lib');
+								$this->load->library('image_lib', $config);
+								$this->image_lib->initialize($config);
+								$this->image_lib->resize();				
+								
+							}
+							else{								
+								$this->session->set_flashdata('err','Please upload 120x420 size image');
+								redirect(site_url('manage_affiliate_banner/edit_affiliate/'.$banner_id));
+							}
+							
+							$file_errors = array('errors' => $this->upload->display_errors());
+							
+							//Display errors of file upload.
+							if(!empty($file_errors['errors'])) {  								
+								$data = array('upload_error' => strip_tags($file_errors['errors']));								
+								$this->session->set_flashdata($data);	
+								redirect(site_url('manage_affiliate_banner/edit_affiliate/'.$banner_id));
+							}			
+													
+						}
+			   //echo $_POST['type'];die;
+			 
+				if($_POST['type'] == '1'){ 		  $banner_info['st_image']=''; $_POST['url']=''; }
+				else if($_POST['type'] == '2'){   $banner_info['st_code']=''; }
+				
+							$banner_info['st_url'] 					=	$this->input->post('url');	
+							$banner_info['in_type'] 				=	$this->input->post('type');	
+							$banner_info['st_code'] 				=	$this->input->post('code');	
+							$banner_info['in_status'] 				=	$this->input->post('active');				
+							$banner_info['in_modified_by']			=   $this->session->userdata('sess_admin_id');					
+							$banner_info['dt_modified'] 			= 	date('Y-m-d H:i:s');
+							if($_FILES['image']['name']!=''){
+							$banner_info['st_image'] 				=	$config['file_name'];				
+							}
+							$emailid			 					=	implode(',',$this->input->post('email_id'));	
+							$banner_info['st_email_id'] 			=	$emailid;	
+							$banner_info['st_position'] 			=	$this->input->post('position');	
+							
+							$this->manage_affiliate_banner_model->update_affiliate_banner_info($banner_info,$banner_id,'tbl_affiliate_banner');	
+			}
+						
+							$this->session->set_flashdata('message', 'You have successfully updated affiliate marketing banner!');					
+							redirect(site_url('manage_affiliate_banner/edit_affiliate/'.$banner_id));	
+		}
+		else{
+		
+							$this->load->view('edit_affiliate_banner', $data);	
+		
+		}
+		 
+	
+	}	
+	
+}

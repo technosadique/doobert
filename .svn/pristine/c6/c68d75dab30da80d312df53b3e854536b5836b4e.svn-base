@@ -1,0 +1,3527 @@
+<?php
+$get_legs_participants_user = $this->orgtrasnportation_model->get_legs_participants_user();
+$base_url = $this->config->item('base_url');
+$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+
+$make_array_user = array();
+$check_per_flag = '';
+$user_permission = $this->common_function->get_permission($this->session->userdata('userid'),$this->session->userdata('org_id'));
+
+$transport_coordinator = '';
+if($owner_id != $this->session->userdata('userid')) {
+	if(isset($user_permission['transport'])) {
+		$transport_coordinator = 1;
+	}
+}
+					
+if(!empty($user_permission)) {
+	$make_array_user = unserialize($user_permission);
+}
+if(empty($profile_setting))
+				{
+					$first ='yes';
+				}
+				else
+				{
+					$first ='no';
+				}
+
+if(isset($profile_setting['st_contact'])!='') { 			  
+			  		$contact = unserialize($profile_setting['st_contact']); 							   
+				} 
+				else {
+					$contact = '';
+				}
+
+// Added By Nirav
+if($transport_details['st_trans_type']=='P')
+{
+	$legs_filled=0;
+	if(isset($leg_details) && !empty($leg_details)) 
+	{
+		foreach($leg_details as $key=>$value){
+			/*if($value['route_type_id'] == '0' || $value['route_type_id'] == '1' || $value['route_type_id'] == '2' )
+			{*/
+				if($value['in_multi_user'] == '0')
+				{
+					if($value['participants_cnt'] != 0 || $value['non_doobert_participants_cnt'] != 0)
+					{
+						$legs_filled++;
+					}
+				} else if($value['in_multi_user'] == '1'){
+					if($value['participants_cnt']  ==  $value['in_user_num'] || $value['non_doobert_participants_cnt'] == $value['in_user_num'] || ($value['participants_cnt'] + $value['non_doobert_participants_cnt']) ==  $value['in_user_num'])
+					{
+						$legs_filled++;
+					}
+				}
+			/*}*/ 
+		}
+		$legs_covered =  $legs_filled/count($leg_details)*100;
+	} else {	
+		$legs_covered = 0;
+	} 
+}else{
+	$legs_covered = ($transport_details['cover_dis_per']>100) ? "100" : $transport_details['cover_dis_per'];
+}	
+$cover_dist = ($transport_details['cover_dis_per']>100) ? "100" : $transport_details['cover_dis_per'];							
+				
+?>
+<!DOCTYPE html>
+<!--[if IE 8]> <html lang="en" class="ie8 no-js"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie9 no-js"> <![endif]-->
+<!--[if !IE]><!-->
+<html lang="en" class="no-js">
+<!--<![endif]-->
+<!-- BEGIN HEAD --><head>
+<meta charset="utf-8"/>
+<title>Confirmed Transportation1 - <?php echo $this->session->userdata('org_name'); ?>'s Transportations - Transportation - Doobert</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="" name="description"/>
+<meta content="" name="author"/>
+<?PHP //include APPPATH."views/includes/head-links.php"; ?>
+<?PHP include APPPATH."views/includes/head-links-inside.php"; ?>
+<!-- BEGIN PAGE LEVEL STYLES -->
+<link href="<?php echo base_url(); ?>assets/css/pages/timeline.css?version=14022017" rel="stylesheet" type="text/css"/>
+<link href="<?php echo base_url(); ?>assets/css/animalvcard.css" rel="stylesheet" type="text/css"/>
+
+<!-- Multiple file upload start -->
+<!-- Generic page styles -->
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/style.css">
+<!-- CSS to style the file input field as button and adjust the Bootstrap progress bars -->
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload.css">
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload-ui.css">
+<!-- CSS adjustments for browsers with JavaScript disabled -->
+
+
+
+<noscript>
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload-noscript.css">
+</noscript>
+<noscript>
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/css/jquery.fileupload-ui-noscript.css">
+</noscript>
+<!-- Multiple file upload end -->
+
+<link rel="stylesheet" type="text/css" href="<?php echo base_url();  ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+<style type="text/css">
+ul#ui-id-1 {
+	background: #fff;
+	font: 600 14px/20px 'Open Sans', Helvetica, Arial, sans-serif;
+	color: #c51f53;
+	z-index: 999;
+	max-height: 140px !important;
+	overflow-x: hidden !important;
+}
+</style>
+<link rel="stylesheet" type="text/css"  href="<?php echo base_url(); ?>assets/css/tipso.css">
+<?PHP include APPPATH."views/includes/fb_share_meta.php"; ?>
+<!-- END PAGE LEVEL STYLES -->
+<script type="text/javascript">
+var page_id = "<?php echo isset($legs_page)?$legs_page:"1"; ?>";
+</script>
+<link rel="stylesheet" type="text/css" href="<?php echo base_url();  ?>assets/plugins/jquery-ui/jquery-ui-1.10.3.custom.min.css"/>
+<style type="text/css">
+ul#ui-id-1 {background:#fff;font: 600 14px/20px 'Open Sans',Helvetica,Arial,sans-serif;color:#c51f53;z-index:999;max-height:140px !important;overflow-x:hidden !important;}
+</style>
+<link rel="stylesheet" type="text/css"  href="<?php echo base_url(); ?>assets/css/tipso.css">
+
+</head>
+<!-- BEGIN BODY -->
+<body class="page-header-fixed transportations transportations-show">
+<div id="loader" style="display: none;"><img src="<?php echo base_url(); ?>assets/img/ajax-modal-loading.gif" width="32" height="32" align="absmiddle">&nbsp;<span id="loadertext">Loading...</span></div>
+<!--Menu Active Link-->
+<?php $tab = 3; $subtab = 3.1; ?>
+<?php if(isset($permission['transport']) && in_array('transport_ed',$permission['transport'])){ ?>
+<?PHP $display_menu =  2; 
+	   } else { ?>
+<?PHP $display_menu =  1; }?>
+<?PHP include APPPATH."views/includes/head-content-inside.php" ?>
+<!-- BEGIN HEADER -->
+<?PHP //include APPPATH."views/includes/head-content-login.php"; ?>
+<!-- END HEADER -->
+<div class="clearfix"> </div>
+<!-- BEGIN CONTAINER -->
+<div class="page-container">
+  <div class="row no-margin">
+    <div class="top-searchbar">
+       <?PHP include APPPATH."views/includes/quick-links.php"; ?>
+      <?PHP include APPPATH."views/includes/app-search.php"; ?>
+    </div>
+  </div>
+  <div class="clearfix"></div>
+  <div class="row page-title-bg no-margin">
+    <div class="pull-left inner-bg"> 
+      <!-- BEGIN PAGE TITLE & BREADCRUMB-->
+      <div class="col-lg-6 col-md-6 myaccount no-space">
+        <h3 class="page-title">Transportation Details</h3>
+      </div>
+      <div class="app-breadcrumb col-lg-6 col-md-6 no-space">
+        <ul class="breadcrumb">
+          <li> <a href="<?php echo base_url(); ?>dashboard/">My Account</a> <i class="fa fa-angle-right"></i> </li>
+          <li> <a href="<?php echo base_url(); ?>org-dashboard/<?php echo $this->session->userdata('org_id'); ?>/">Organization</a> <i class="fa fa-angle-right"></i> </li>
+          <li> <a href="<?php echo base_url()."organization-transportation/";?>">Transportation</a> <i class="fa fa-angle-right"></i> </li>
+          <li>Confirmed Transportation</li>
+        </ul>
+      </div>
+      <!-- END PAGE TITLE & BREADCRUMB--> 
+    </div>
+  </div>
+  <div class="clearfix"> </div>
+  <!-- BEGIN HORIZONTAL MENU PAGE SIDEBAR -->
+  <div class="page-sidebar-wrapper">
+  <?PHP include APPPATH."views/includes/sidebar_menu-organization.php"; ?>
+  </div>
+  <!-- END BEGIN HORIZONTAL MENU PAGE SIDEBAR --> 
+  <!-- BEGIN CONTENT -->
+  <div class="page-content-wrapper">
+    <div class="page-content marl0" id="create-legs"> 
+      <!-- BEING PAGE CONTENT-->
+     <form class="horizontal-form" role="form" id="message_frm" name="message_frm" action="" method="post">
+        <div class="row content-wrapper marlr0">
+        <div class="row dobt-form no-margin">
+        <div class="gr-wrap col-lg-3 col-md-4 col-sm-12 column1" id="leftcolumn">
+        <div class="transport-top-left-heading">
+          <div class="id">#DBT<?php echo $transport_details['in_transportation_id'];?></div>
+          <div class="calendar"><i class="fa fa-calendar"></i><?php echo date("l, M d",strtotime($transport_details['dt_target']));?></div>
+          <div class="clearfix"></div>
+        </div>
+        <div id="leftheight">
+        <div class="fromtolocation">
+          <div class="row no-margin">
+            <div class="gr-wrap col-lg-12 col-md-12 col-sm-12">
+              <p class="trans-from-info"><span>From: </span><?php echo ($transport_details['st_from_street']?$transport_details['st_from_street']."<br>":"").($transport_details['st_from_city']?$transport_details['st_from_city'].", ":"").($transport_details['st_from_state']?$transport_details['st_from_state']:""); ?> on <span class="date"><?php echo date("M d",strtotime($transport_details['dt_pickup_date']));?></span> 
+            </div>
+            <div class="gr-wrap col-lg-12 col-md-12 col-sm-12">
+              <p class="trans-to-info"><span>To: </span><?php echo ($transport_details['st_to_street']?$transport_details['st_to_street']."<br>":"").($transport_details['st_to_city']?$transport_details['st_to_city'].", ":"").($transport_details['st_to_state']?$transport_details['st_to_state']:""); ?> on <span class="date"><?php echo date("M d",strtotime($transport_details['dt_target']));?></span></p>
+            </div>
+          </div>
+        </div>
+        <div class="milescovered"><i class="fa fa-thumbs-up"></i>
+          <?php /*?><a href="http://www.facebook.com" target="_blank" title="Share"></a> <?php*/?>
+          <a href="javascript:void(0);" title="Facebook" onClick="window.open('https://www.facebook.com/sharer/sharer.php?s=100&p[url]=<?php echo $UrlTopass; ?>&p[images][0]=<?php echo $fb_image;?>&p[title]=Doobert&p[summary]=<?php echo addslashes(substr($transport_details['st_additional_info'],0,60)); ?>','popup','height=300,width=450,left=400,top=300,resizable=no,scrollbars=no,toolbar=no,menubar=no,location=no,directories=no,status=no');"></a><span class="completed"><?php echo number_format($legs_covered,"2",".","");  ?>%</span> of <?php echo number_format($transport_details['in_tot_distance'],"2",".","");?> miles covered</div>
+        <div class="clearfix"></div>
+        <div class="transport-coordinator-info">
+          <h3>Transport Coordinator</h3>
+          <div class="transport-detail coord">
+            <?php 
+			  		  //echo "<pre>";print_r($transport_details);die;
+                      if($transport_details['st_profile_image']!='' && file_exists($this->config->item('upload')."profile/63x63/".$transport_details['st_profile_image']))
+                      {
+                          $image_url  = $this->config->item('upload_url')."profile/63x63/".$transport_details['st_profile_image'];
+                      }
+                      else
+                      {
+                          $image_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+                      }
+					    $check_user_arpa = $this->common_model->check_arpa_certifcate_status($transport_details['in_user_id']);
+						if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert'] =='Y') { 
+							$arpa_title = date('F j, Y',strtotime($check_user_arpa['dt_arpa_cert']));
+							$image_cert_url = base_url().'assets/img/arpa-certified.png'; 
+						} else {
+							$arpa_title = '';
+							$image_cert_url = base_url().'assets/img/arpa-certified-grey.png'; 
+						} 
+				?>
+            <div class="logo"><img src="<?php echo $image_url; ?>" alt="<?php echo $this->session->userdata('org_name'); ?>" title="<?php echo $this->session->userdata('org_name'); ?>"></div>
+            <?php $check_user = $this->common_model->get_user_verified($transport_details['in_user_id']);
+                    if(!empty($check_user)) 
+					{ 
+					   $class = 'bg-green-logo get-verified-logo'; 
+					   $style='background-position:90% 0%; padding-right:75px;';
+					   $title = date('F j, Y',strtotime($check_user['dt_doobert_verified']));
+					   $verify_tag = '<img src="'.base_url().'assets/img/green_logo.png" title="'.$title.'" />';
+				   } else { 
+						$class = 'bg-gray-logo'; 
+						$title = ''; 
+						$style='';
+						$verify_tag = '<img src="'.base_url().'assets/img/gray_logo.png" title="'.$title.'" />';	
+				   }
+			?>
+			<div class="cocordinator-info" style="position:relative; background:none;">
+                <?php /*?><?php $check_user = $this->common_model->get_user_verified($transport_details['in_user_id']);
+					if($check_user == 1) {
+				?>
+                <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" /></span>
+				<?php } else { ?>
+				<span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+				<?php } ?> <?php */?>
+                <?php
+				$link_name 	= $this->common_function->get_filtered_name($transport_details['st_display_name']);
+				$url_link 	= base_url()."user-".$transport_details['in_user_id']."-".$link_name."/";
+				?>
+                <span><a href="<?php echo $url_link;?>" target="_blank"><?php echo $transport_details['st_display_name'];?></a></span>
+                 <div class="right-verified-logo">	
+					<?php echo $verify_tag; ?>
+					<img src='<?php echo $image_cert_url;  ?>' title='<?php echo $arpa_title; ?>' />
+				</div>
+				
+				<?php if($transport_details['in_public']=='1'){?>
+                <?php if(($first=='no' && is_array($contact) && in_array('st_address1',$contact)) || $first=='yes'){ ?>
+                <p class="map marb0"><i class="fa fa-map-marker"></i>
+                  <?php 
+				$trans_add = '';
+				if(isset($transport_details['st_city']) && $transport_details['st_city'] != ''){
+				$trans_add .= $transport_details['st_city'].", ";
+				}
+				if(isset($transport_details['st_state']) && $transport_details['st_state'] != ''){
+				$trans_add .= $transport_details['st_state'].", ";
+				}
+				if(isset($transport_details['st_zip']) && $transport_details['st_zip'] != ''){
+				$trans_add .= $transport_details['st_zip'];
+				}				
+				echo $trans_add;?>
+                </p>
+                <?php } ?>
+                <?php } ?>
+              </div>
+              <div class="clearfix"></div>
+            </div>
+          </div>
+          
+          <!--New Block starts here-->
+          <?php if(isset($transport_details['in_need_trans_monitor']) && $transport_details['in_need_trans_monitor'] == 1) { ?>
+           <div class="transport-monitor-info">
+          <h3>Transport Monitor <span class="title-tipso" title="The Transport Monitor is a virtual role for monitoring and reporting on this transport on the day the transport takes place.  The Transport Monitor communicates with the volunteer drivers/pilots and the Transport Organization Coordinator regarding the status of the transport overall including adjusting departure and arrival times based upon status received from the volunteers.  The Transport Monitor needs to have access to the internet and a phone so that they can update the participants in the transport.  If you would like to sign-up for this role but have never served in this capacity before, please contact the Transport Coordinator first to discuss what is required. A Transportation can have up to 2 monitors."><i class="fa fa-info-circle info"></i></span></h3>
+          <div class="transport-detail monitor">
+            <?php //echo '<pre/>'; print_r($transport_monitors_details);
+			  //echo "<pre>";print_r($transport_details);die;
+			 if(isset($transport_monitors_details))
+			 {
+				foreach($transport_monitors_details as $trans_key=>$trans_monitor_values)
+				{
+			  
+                      if($trans_monitor_values['st_profile_image']!='' && file_exists($this->config->item('upload')."profile/63x63/".$trans_monitor_values['st_profile_image']))
+                      {
+                          $image_url  = $this->config->item('upload_url')."profile/63x63/".$trans_monitor_values['st_profile_image'];
+                      }
+                      else
+                      {
+                          $image_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+                      }
+					  
+					  $check_user_arpa = $this->common_model->check_arpa_certifcate_status($trans_monitor_values['in_user_id']);
+					  if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert'] =='Y') { 
+							$arpa_title = date('F j, Y',strtotime($check_user_arpa['dt_arpa_cert']));
+							$image_cert_url = base_url().'assets/img/arpa-certified.png'; 
+					  } else {
+							$arpa_title = '';
+							$image_cert_url = base_url().'assets/img/arpa-certified-grey.png'; 
+					  }
+					  
+				?>
+            <div <?php if($trans_key != count($transport_monitors_details)-1) { ?> class="monitor_space" <?php } ?>>
+              <div class="logo"> <img src="<?php echo $image_url; ?>" alt="<?php echo $this->session->userdata('org_name'); ?>" title="<?php echo $this->session->userdata('org_name'); ?>"> </div>
+              <?php $check_user = $this->common_model->get_user_verified($trans_monitor_values['in_user_id']);
+                    if(!empty($check_user)) {
+						 $class = 'bg-green-logo'; 
+					   $title = date('F j, Y',strtotime($check_user['dt_doobert_verified']));
+					   $verify_tag = '<img src="'.base_url().'assets/img/green_logo.png" title="'.$title.'" />';
+				   }else { $class = 'bg-gray-logo'; $title = '';
+						   $verify_tag = '<img src="'.base_url().'assets/img/gray_logo.png" title="'.$title.'" />';	
+				   }
+                ?>
+             <div class="monitor-info" title="" style="position:relative;">
+                
+                  <?php
+				$link_name 	= $this->common_function->get_filtered_name($trans_monitor_values['st_display_name']);
+				$url_link 	= base_url()."user-".$trans_monitor_values['in_user_id']."-".$link_name."/";
+				?>
+                  <span class="name"> <a href="<?php echo $url_link;?>" target="_blank"><?php echo $trans_monitor_values['st_display_name'];?></a> </span>
+                  <div class="right-verified-logo">	
+					<?php echo $verify_tag; ?>
+					<img src='<?php echo $image_cert_url;  ?>' title='<?php echo $arpa_title; ?>' />
+				  </div>
+				  <?php if($trans_monitor_values['in_public']=='1'){?>
+                  <?php if(($first=='no' && is_array($contact) && in_array('st_address1',$contact)) || $first=='yes'){ ?>
+                  <p class="map"><i class="fa fa-map-marker"></i>
+                    <?php 
+				$trans_add = '';
+				if(isset($trans_monitor_values['st_city']) && $trans_monitor_values['st_city'] != ''){
+				$trans_add .= $trans_monitor_values['st_city'].", ";
+				}
+				if(isset($trans_monitor_values['st_state']) && $trans_monitor_values['st_state'] != ''){
+				$trans_add .= $trans_monitor_values['st_state'].", ";
+				}
+				if(isset($trans_monitor_values['st_zip']) && $trans_monitor_values['st_zip'] != ''){
+				$trans_add .= $trans_monitor_values['st_zip'];
+				}				
+				echo $trans_add;?>
+                  </p>
+                  <?php }  ?>
+                  <?php } ?>
+                </div>
+                </div>
+             <?php } } ?>
+          </div>
+		  </div>
+          <?php } ?>
+          <!--New Block ends here-->
+          
+		  
+         <?php /*?> <p class="transport-coord mart15">
+            <?php
+			if((isset($permission['transport']) && in_array('transport_ed',$permission['transport']) )|| isset($permission['transport']) && in_array('transport_cr',$permission['transport']))
+			  {
+				?>
+            <span class="edit-shedule-legs"><a href="<?php echo base_url(); ?>transport-create-legs/">Edit Legs</a></span>
+            <?php  
+			  }
+			  ?>
+          </p>
+          <div class="clearfix"></div><?php */?>
+          <!--fl--> 
+          
+        </div></div>
+		
+        <div class="gr-wrap col-lg-9 col-md-8 col-sm-12 tabs">
+        <div class="bg">
+          <ul class="nav nav-pills" style="margin-bottom:0;">
+            <li class="<?php if($legs_page==''){ echo " active "; }  ?>"><a href="#tab_2_1" data-toggle="tab">Info</a></li>
+            <?php if(empty($leg_page_link)){ ?>
+            <li><a href="#tab_2_2" id='route_tab' data-toggle="tab">Route</a></li>
+            <?php }else{for($m=1;$m<=count($leg_page_link);$m++)
+						{ ?>
+            <li id="r_map<?php echo $m;?>"   <?php if($leg_page_link[$m]['selected']==$m && $legs_page!=''){ echo "class=\"active\""; }  ?>><a href="<?php echo $this->config->item('base_url')."org-confirm-transport/".$this->session->userdata('transport_id')."/".$m; ?>" id="route_tab_<?php echo $m;?>"><?php echo ($m=='1')?"Legs":"";?> <?php echo $leg_page_link[$m]['text'];?></a> </li>
+            <?php } }?>
+            <li><a href="#tab_2_3" data-toggle="tab">Feed</a></li>
+            <li><a href="#tab_4_3" data-toggle="tab">Photos/Story</a></li>
+          </ul>
+          <?php if($legs_page != '') { ?>
+          <?php if ($transport_details['st_trans_type']=='P') { ?>
+          <span class="btn light-green transport-view-map map"><i class="fa fa-eye"></i> View Map</span>
+          <?php }else{ ?>
+          <span class="btn light-green transport-view-map map"><i class="fa fa-eye-slash"></i> Hide Map</span>
+          <?php } ?>
+          <?php } ?>
+		   <?php 
+		   			$tc_permission = ''; 
+					if(isset($make_array_user) && !empty($make_array_user))
+					{ 
+						if(array_key_exists('transport',$make_array_user))
+						{
+							$tc_permission = 'Y';								 
+						}
+					 }
+		   if(($transport_details['in_trans_coods_id']==$this->session->userdata('userid')) || ($owner_id == $this->session->userdata('userid')) || ($tc_permission == 'Y')) { ?>
+			 <span class="btn orange" style='float: right;margin-top: 5px;margin-left: 5px;' title="Print Run Sheet"><a href="<?php echo base_url(); ?>org_transportation/download_transportation_pdf/"  title="Print Run Sheet" style='color: white !important; text-decoration: none;' target="_blank" id="pdf">Print Run Sheet</a></span>  
+			   <?php } ?>
+          <?php //echo $transport_details['in_status'];
+			if($transport_details['in_status']=='2')
+			{
+				 if(isset($permission['transport']) && in_array('transport_cnf',$permission['transport'])){ 					
+				 ?>
+          <a data-original-title="If you unconfirm the transport it will put it back in edit mode and the volunteers can join or leave and you can change the transport." data-placement="top"  onClick="$('#unconfirm_transport_popup').modal('show');" class="btn orange fr" name="uc_trans" id="uc_trans" title="Un-Confirm Transportation"><i class="fa fa-check"></i> Un-Confirm Transportation</a>
+          <?php 
+				 }
+			 }
+			  ?>
+          <div class="clearfix"></div>
+        </div>
+        <div class="clearfix"></div>
+        <div class="tab-content">
+        <div id="tab_2_1" class="tab-pane info <?php if($legs_page==''){ echo "active in"; }  ?>  fade">
+          <?php if($this->session->flashdata('success')): ?>
+          <div class="alert">By confirming the transport the date, legs and animals will be locked in and cannot be edited further</div>
+          <?php endif; ?>
+          
+          <div class="gr-wrap col-lg-6 col-md-6 col-sm-6 coordinator">
+              <div class="form-group coordinator-details">
+                <h4><i class="fa fa-user"></i> Coordinator Contact Details</h4>
+                <div class="inner-cont">
+                  <div class="left-col">
+                    <div><img src="<?php echo $image_url; ?>" alt="<?php echo $this->session->userdata('org_name'); ?>" title="<?php echo $this->session->userdata('org_name'); ?>"></div>
+                  </div>
+                  <div class="right-col">
+                    <p>Contact To: <span><?php echo $transport_details['st_display_name'];?></span></p>
+                    <p>Cell: <span><?php echo $transport_details['st_primary_phone'];?></span></p>
+                    <p>Email: <span><a href="mailto:<?php echo $transport_details['st_email'];?>"><?php echo $transport_details['st_email'];?></a></span></p>
+                    <p>Organization: <span>
+                      <?php $link_name = $this->common_function->get_filtered_name($transport_details['st_org_name']);?>
+                      <a  href="<?php echo base_url(); ?>organization-<?php echo $transport_details['in_organization_id']; ?>-<?php echo $link_name; ?>"><?php echo $transport_details['st_org_name'];?></a></span></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+			
+			
+			<div class="gr-wrap col-lg-6 col-md-6 col-sm-6 coordinator coordinator-right0">
+  <div class="form-group coordinator-animals-details" id="all_animal_list" style="display:none;">
+    <h4><i class="fa fa-paw"></i> <?php echo count($transport_animals);?> Animal(s) In This Transportation</h4>
+    <?php if(isset($transport_animals) &&!empty($transport_animals))
+{
+	?>
+    <?php for($a=0;$a<count($transport_animals);$a++)
+{
+	//echo "<pre>";print_r($transport_animals);//die;
+	if(isset($transport_animals[$a]) && !empty($transport_animals[$a]))
+	{
+?>
+    <?php
+	$link_name 	= $this->common_function->get_filtered_name($transport_animals[$a]['st_animal_name']);
+	$url_link 	= base_url()."animal-".$transport_animals[$a]['in_animal_id']."-".$link_name."/";
+	?>
+    <?php 		  $st_file_name = $this->common_model->get_animal_photo($transport_animals[$a]['in_animal_id']);
+	  
+                      if($st_file_name!='' && file_exists($this->config->item('upload')."animal_images/140x140/".$st_file_name))
+                      {
+                          $image_url  = $this->config->item('upload_url')."animal_images/140x140/".$st_file_name;
+                      }
+                      else
+                      {
+                          $image_url  = $this->config->item('upload_url')."animal_images/140x140/no_photo_icon.png";
+                      }
+     ?>
+    <?php 
+            if(file_exists($this->config->item('upload')."demeanor/31x31/".$transport_animals[$a]['st_demeanor_image']) && file_exists($this->config->item('upload')."demeanor/60x60/".$transport_animals[$a]['st_demeanor_image']))
+            {
+              $demenor_url = $this->config->item('upload_url')."demeanor/31x31/".$transport_animals[$a]['st_demeanor_image'];
+              $demenor_thumb_url = $this->config->item('upload_url')."demeanor/60x60/".$transport_animals[$a]['st_demeanor_image'];
+            }
+            else
+            {
+              $demenor_url = $this->config->item('upload_url')."demeanor/31x31/no_photo_icon.png";
+              $demenor_thumb_url = $this->config->item('upload_url')."demeanor/60x60/no_photo_icon.png";
+            }
+            ?>
+    <div class="animal-list">
+      <div class="animal-img"><img alt="<?php echo $transport_animals[$a]['st_animal_name'];?>" title="<?php echo $transport_animals[$a]['st_animal_name'];?>" class="primary-photo small_square" src="<?php echo $image_url; ?>"></div>
+      <p><?php echo $transport_animals[$a]['st_animal_name'];?><br>
+        <span><?php echo $transport_animals[$a]['st_animal_breed_name']." ".$transport_animals[$a]['st_animal_type_name'];?></span></p>
+      <span class="info-icons"><a href="javascript:void(0);" class="preview" rel="popover" data-class="bdrt-tip <?php echo $transport_animals[$a]['st_css_class'];?>" data-placement="left" data-original-title="Couch Potato" data-content="<img src='<?php echo $demenor_thumb_url; ?>'/> <?php echo $transport_animals[$a]['st_demeanor_desc'];?>"><img src="<?php echo $demenor_url; ?>"></a></span> </div>
+    <?php } }?>
+    <div class="view-more-animal-trasport"><a href="javascript:void(0);" onClick="$('#all_animal_list').hide();$('#two_animal_list').show();">View less<i class="fa fa-angle-double-down"></i></a></div>
+    <?php } ?>
+    <!-- <div class="view-more-animal-trasport"><a href="">View More<i class="fa fa-angle-double-down"></i></a></div>-->
+  </div>
+  <div class="form-group coordinator-animals-details" id="two_animal_list">
+    <h4><i class="fa fa-paw"></i> <?php echo count($transport_animals);?> Animal(s) In This Transportation</h4>
+    <?php if(isset($transport_animals) &&!empty($transport_animals))
+{
+	?>
+    <?php for($a=0;$a<2;$a++)
+{
+	//echo "<pre>";print_r($transport_animals);//die;
+	if(isset($transport_animals[$a]) && !empty($transport_animals[$a]))
+	{
+?>
+    <?php
+	$link_name 	= $this->common_function->get_filtered_name($transport_animals[$a]['st_animal_name']);
+	$url_link 	= base_url()."animal-".$transport_animals[$a]['in_animal_id']."-".$link_name."/";
+	?>
+    <?php 		  $st_file_name = $this->common_model->get_animal_photo($transport_animals[$a]['in_animal_id']);
+	  
+                      if($st_file_name!='' && file_exists($this->config->item('upload')."animal_images/140x140/".$st_file_name))
+                      {
+                          $image_url  = $this->config->item('upload_url')."animal_images/140x140/".$st_file_name;
+                      }
+                      else
+                      {
+                          $image_url  = $this->config->item('upload_url')."animal_images/140x140/no_photo_icon.png";
+                      }
+     ?>
+    <?php 
+            if(file_exists($this->config->item('upload')."demeanor/31x31/".$transport_animals[$a]['st_demeanor_image']) && file_exists($this->config->item('upload')."demeanor/60x60/".$transport_animals[$a]['st_demeanor_image']))
+            {
+              $demenor_url = $this->config->item('upload_url')."demeanor/31x31/".$transport_animals[$a]['st_demeanor_image'];
+              $demenor_thumb_url = $this->config->item('upload_url')."demeanor/60x60/".$transport_animals[$a]['st_demeanor_image'];
+            }
+            else
+            {
+              $demenor_url = $this->config->item('upload_url')."demeanor/31x31/no_photo_icon.png";
+              $demenor_thumb_url = $this->config->item('upload_url')."demeanor/60x60/no_photo_icon.png";
+            }
+            ?>
+    <div class="animal-list">
+      <div class="animal-img"><img alt="<?php echo $transport_animals[$a]['st_animal_name'];?>" title="<?php echo $transport_animals[$a]['st_animal_name'];?>" class="primary-photo small_square" src="<?php echo $image_url; ?>"></div>
+      <p><?php echo $transport_animals[$a]['st_animal_name'];?><br>
+        <span><?php echo $transport_animals[$a]['st_animal_breed_name']." ".$transport_animals[$a]['st_animal_type_name'];?></span></p>
+      <span class="info-icons"><a href="javascript:void(0);" class="preview" rel="popover" data-class="bdrt-tip <?php echo $transport_animals[$a]['st_css_class'];?>" data-placement="left" data-original-title="Couch Potato" data-content="<img src='<?php echo $demenor_thumb_url; ?>'/> <?php echo $transport_animals[$a]['st_demeanor_desc'];?>"><img src="<?php echo $demenor_url; ?>"></a></span> </div>
+    <?php } } ?>
+    <div class="view-more-animal-trasport"><a href="javascript:void(0);" onClick="$('#two_animal_list').hide();$('#all_animal_list').show();">View More<i class="fa fa-angle-double-down"></i></a></div>
+    <?php } ?>
+  </div>
+</div>
+
+
+<div class="gr-wrap col-lg-12 col-md-12 col-sm-12 no-space">
+  <div class="form-group">
+    <div class="attachemnt-additional-info">
+      <h4><i class="fa fa-ioxhost"></i> Additional Information <span> <a title="Edit Info / Attach Documents" href="#edit-additional-info" data-toggle="modal">Edit Info / Attach Documents</a> </span>
+        <div class="clearfix"></div>
+      </h4>
+      <p><?php echo isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '' ? nl2br($transport_details['st_add_comments']) : '';   ?></p>
+      <div class="attachments">
+        <p class="info"><i class="fa fa-copy"></i> Attached Documents</p>
+        <?php
+if(isset($transport_files) && !empty($transport_files))
+{
+?>
+        <?php	
+foreach($transport_files as $key=>$value)
+	{
+?>
+        <span>
+        <button class="btn default" type="button" onClick="window.open('<?php echo base_url().'org_transportation/generate_download/'.$this->common_function->encode_base64($value['st_file_name']); ?>/','_blank');"><i class="fa fa-file"></i><?php echo $value['st_file_name']; ?></button>
+        <?php if($this->session->userdata('userid')==$transport_details['in_trans_coods_id']) { ?>
+        <a id="<?php echo $value['in_transport_file_id']; ?>" href="<?php echo base_url().'org_transportation/delete_transport_files/'?><?php echo $value['in_transport_file_id']; ?>/<?php echo $transport_details['in_transportation_id'];?>" onClick="javascript:return confirm('Are you sure you want to delete it?');"  title="Delete" class="close-attachment"> <i class="fa fa-close"></i></a>
+        <?php } ?>
+        </span>
+        <?php } } ?>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="gr-wrap col-lg-12 col-md-12 col-sm-12 no-space volunteer-slider-block">
+  <div class="form-group">
+    <div class="volunteered-drivers-pilot">
+      <h4><i class="fa fa-users"></i> Volunteered Drivers / Pilots <span id="volunteer_counts" class="volunteer_counts">()</span></h4>
+    </div>
+    <div class="volunteered-slider">
+      <div class="prenex nex1 volunteered-prev"><i class="fa fa-angle-left"></i></div>
+      <div class="prenex pre1 volunteered-next"><i class="fa fa-angle-right"></i></div>
+      <div class="div1">
+        <?php 
+		if(!empty($leg_details))
+		{
+			$cnt = 0;
+			$i=0;
+			
+			$leg_ids_array = array();
+			foreach($leg_details as $key=>$values)
+			{  
+				$contct_info = unserialize($values['st_contact']);
+				if(empty($values['st_contact']))
+				{
+					$first_info ='yes';
+				}
+				else
+				{
+					$first_info ='no';
+				}
+				?>
+        <?php	
+			if(isset($values['leg_participant_details']) && count($values['leg_participant_details']) > 0)
+			{
+	  		foreach($values['leg_participant_details'] as $key_user=>$participants_data)
+			{	//echo '$cnt doobert'.$cnt;	
+				$pr_add = '';
+				if(isset($participants_data['pr_st_city']) && $participants_data['pr_st_city'] != ''){
+				$pr_add .= $participants_data['pr_st_city'].", ";
+				}
+				if(isset($participants_data['pr_st_state']) && $participants_data['pr_st_state'] != ''){
+				$pr_add .= $participants_data['pr_st_state'].", ";
+				}
+				if(isset($participants_data['pr_st_zip']) && $participants_data['pr_st_zip'] != ''){
+				$pr_add .= $participants_data['pr_st_zip'];
+				}
+
+				$link_name 	= $this->common_function->get_filtered_name($participants_data['st_display_name']);
+				$url_link 	= base_url()."user-".$participants_data['in_user_id']."-".$link_name."/";
+				
+			if($cnt == 0 || $cnt%3 == 0) { ?>
+			<div>
+			<div class="slide">
+            <?php } ?>
+            <?php
+				 if($participants_data['st_profile_image']!='' && file_exists($this->config->item('upload')."profile/63x63/".$participants_data['st_profile_image']))
+				  {
+					  $pic_url  = $this->config->item('upload_url')."profile/63x63/".$participants_data['st_profile_image'];
+				  }
+				  else
+				  {
+					  $pic_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+				  } ?>
+            <div class="gr-wrap col-lg-4 col-md-4 col-sm-4">
+              <div class="form-group">
+                <div class="volunteered-box-info">
+                  <div class="top-part">
+                    <a href="<?php echo $url_link; ?>" target="_blank" style="text-decoration:none;" onmouseover='this.style.textDecoration="underline"' onmouseout='this.style.textDecoration="none"' ><h4><i class="fa fa-user"></i> <?php echo $participants_data['st_display_name']; ?></h4></a>
+                    <span class="leg-number"><?php echo "Leg #".$values['in_sort_order']; ?></span>
+                  </div>
+                  <div class="middle-part volunteer-middle-slider-part">
+                    <div class="logo"> <img title="" alt="" src="<?php echo $pic_url; ?>"> </div>
+					<?php 
+					$class_logo = '';
+					$check_user = $this->common_model->get_user_verified($participants_data['in_user_id']);
+                    if(!empty($check_user)) {
+						$class_logo = 'green-logo';
+						$title = date('F j, Y',strtotime($check_user['dt_doobert_verified']));
+						 $verify_tag = '<img src="'.base_url().'assets/img/green_logo.png" title="'.$title.'" />';
+					}else{
+						$class_logo = 'gray-logo';
+						$title = '';
+						 $verify_tag = '<img src="'.base_url().'assets/img/gray_logo.png" title="'.$title.'" />';
+					}
+					
+					 $check_user_arpa = $this->common_model->check_arpa_certifcate_status($participants_data['in_user_id']);	
+					   if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert'] =='Y') {
+									 $arpa_title = date('F j, Y',strtotime($check_user_arpa['dt_arpa_cert']));
+									 $image_cert_url = base_url().'assets/img/arpa-certified.png'; 
+						} else {
+									 $arpa_title = '';
+									 $image_cert_url = base_url().'assets/img/arpa-certified-grey.png'; 
+							}	
+					
+					?>
+                    <div class="cocordinator-info" style="min-height:40px; position:relative; background:none;">
+					
+					<?php
+					$user_profile_setting_details = $this->common_model->get_user_profile_setting($participants_data['in_user_id']);
+					if(empty($user_profile_setting_details) || (isset($user_profile_setting_details['in_public']) && $user_profile_setting_details['in_public'] == 0)) 						{
+							$first ='yes';
+					  } else {
+							$first ='no';
+					  }
+					  
+					  if(isset($user_profile_setting_details['st_contact']) && $user_profile_setting_details['st_contact']!='') { 			  
+							$contact = unserialize($user_profile_setting_details['st_contact']); 
+							$contact_array = (isset($contact) && !empty($contact)) ? $contact : '';
+					  } else {
+							$contact_array = '';
+					  }
+
+					//echo '<pre/>'; print_r($contact_array);
+					?>
+					<div class="driver-pilot-info">
+					<?php if(($first=='no' && is_array($contact_array) && in_array('st_primary_phone',$contact_array)) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid')) || ($participants_data['in_user_id']==$this->session->userdata('userid')) || $get_legs_participants_user > 0){ ?>
+						<i class="fa fa-phone"></i> <?php echo $participants_data['st_primary_phone']; ?><br>
+					<?php } ?>
+					
+   				<?php if(($first=='no' && is_array($contact_array) && in_array('st_email',$contact_array)) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid')) || ($participants_data['in_user_id']==$this->session->userdata('userid')) || $get_legs_participants_user > 0){ ?>
+                      <a href="mailto:<?php echo $participants_data['user_email'];?>"><i class="fa fa-envelope-o"></i><?php echo $participants_data['user_email'];?></a> 
+					<?php } ?>
+					
+					 <?php if(($first=='no' && is_array($contact_array) && in_array('st_address1',$contact_array)) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid')) || ($participants_data['in_user_id']==$this->session->userdata('userid')) || $get_legs_participants_user > 0){ ?>
+					  <p><i class="fa fa-map-marker"></i> <?php echo $pr_add; ?></p>
+					<?php } ?>
+					 </div>
+					 <div class="right-verified-logo">	
+							<?php echo $verify_tag; ?>
+							<img src='<?php echo $image_cert_url;  ?>' title='<?php echo $arpa_title; ?>' />
+					  </div>	
+					</div>
+                    
+                    <div class="cocordinator-address">
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>From:</span> <?php echo ($values['pick_street']?$values['pick_street'].", ":"").($values['pick_city']?$values['pick_city'].", ":"").($values['pick_state']?$values['pick_state']:"").($values['pick_zip']?", ".$values['pick_zip']:""); ?></p>
+                      <?php } ?>
+                      <?php if($values['route_type_id']=='2') { ?>
+                      <p><span>From:</span> <?php echo ($values['st_street']?$values['st_street'].", ":"").($values['st_city']?$values['st_city'].", ":"").($values['st_state']?$values['st_state']:"").($values['st_zip']?", ".$values['st_zip']:""); ?></p>
+					  <p><span>To:</span> <?php echo ($values['st_street']?$values['st_street'].", ":"").($values['st_city']?$values['st_city'].", ":"").($values['st_state']?$values['st_state']:"").($values['st_zip']?", ".$values['st_zip']:""); ?></p>
+                      <?php } ?>
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>To:</span> <?php echo ($values['drop_street']?$values['drop_street'].", ":"").($values['drop_city']?$values['drop_city'].", ":"").($values['drop_state']?$values['drop_state']:"").($values['drop_zip']?", ".$values['drop_zip']:""); ?></p>
+                      <?php } ?>
+                    </div>
+                    <div class="cocordinator-location">
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>	
+                      <p class="data"><i class="fa fa-clock-o"></i><?php echo date("d M Y - h:i A",strtotime($values['pick_start_time']))." - ".$values['pick_timezone'];?> </p>
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>Start:</span> <?php echo date("d M Y - h:i A",strtotime($values['pick_start_time']))." - ".$values['pick_timezone'];?></p>
+                      <?php } ?>
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>End:</span> <?php echo date("d M Y - h:i A",strtotime($values['drop_start_time']))." - ".$values['drop_timezone'];?></p>
+                      <?php } ?>
+                      <?php } ?>
+					  <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <?php //if($participants_data['in_user_id'] == $this->session->userdata('userid') || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid'))){ ?>
+                      <p><span>Meeting Location:</span> <?php echo (isset($values['st_meeting_location']) && $values['st_meeting_location'] != '') ? stripslashes($values['st_meeting_location']) : '-'; ?> <?php /*?><a href="javascript:void(0);" onClick="$('#txt_edit_leg_id').val('<?php echo $values['leg_id']; ?>');$('#txt_edit_meeting_location').val('<?php echo addslashes($values['st_meeting_location']); ?>');$('#open_tab_info').val('1');$('#edit_meeting_location').modal('show');">Edit</a><?php */?></p>
+                      <?php //} ?>
+					  <?php } ?>
+                      <?php if($values['route_type_id']=='2') { ?>
+                      <p><span>Comments: </span><span class="edit-meeting-loc"><?php echo (isset($values['st_meeting_location']) && $values['st_meeting_location'] != '') ? stripslashes($values['st_meeting_location']) : '-'; ?></span>
+                        <?php //if((isset($participants_data['in_user_id']) && $participants_data['in_user_id'] == $this->session->userdata('userid')) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid'))){ ?>
+                       <?php /*?> <a href="javascript:void(0);" onClick="$('#txt_edit_comments').val('<?php echo addslashes($values['st_meeting_location']); ?>');$('#txt_edit_comments_leg_id').val('<?php echo $values['leg_id']; ?>');$('#open_tab_comments_info').val('1');
+                $('#edit_comments').modal('show');">Edit</a><?php */?>
+                        <?php //} ?>
+                      </p>
+                      <?php } ?>
+                    </div>
+                  </div>
+                  <div class="bottom-part">
+                  <?php if($values['route_type_id']=='1')
+						 {
+						 	$plane_details = $this->common_function->get_plane_detail_by_id($participants_data['leg_plane_id']); 
+							$plane_data['images'] 	= $this->common_function->plane_images_by_id($participants_data['leg_plane_id']);								
+						?>                  
+                    <h4 class="volunteered-name"><i class="fa fa-car"></i> <?php echo ucfirst($plane_details[0]['st_plane_type']);?> <?php echo $plane_details[0]['st_plane_number'];?> </h4>
+                    <?php if(isset($plane_data['images']) && !empty($plane_data['images'])){ ?>
+                    <ul>
+                      <?php
+					   		foreach($plane_data['images'] as $value)
+								{
+								if($value['plane_image']!='' && file_exists($this->config->item('upload')."plane/100x100/".$value['plane_image']))
+								{
+								?>
+                      <li><img src="<?php echo base_url()."upload/plane/100x100/".$value['plane_image']; ?>" alt="" title="" /></li>
+                      <?php } } ?>
+                    </ul>
+                    <?php } ?>
+                    <div class="clearfix"></div>
+                  <?php } else{ 
+								$vehicle_details = $this->common_function->get_vehicle_detail_by_id($participants_data['leg_vehicle_id']); 
+								$vehicle_data['images'] 	= $this->common_function->vehicle_images_by_id($participants_data['leg_vehicle_id']);								
+						?>
+                    <h4 class="volunteered-name"><i class="fa fa-car"></i> <?php echo $vehicle_details[0]['st_vehicle_type'];?> <?php echo ($vehicle_details[0]['st_vehicle_license_plate']?$vehicle_details[0]['st_vehicle_license_plate']." - ":"").$vehicle_details[0]['st_vehicle_license_state'];?> </h4>
+                    <?php if(isset($vehicle_data['images']) && !empty($vehicle_data['images'])){ ?>
+                    <ul>
+                      <?php
+							foreach($vehicle_data['images'] as $value)
+								{
+								if($value['vehicle_image']!='' && file_exists($this->config->item('upload')."vehicle/100x100/".$value['vehicle_image'])) {
+									?>
+                      <li><img src="<?php echo base_url()."upload/vehicle/100x100/".$value['vehicle_image']; ?>" alt="" title="" /></li>
+                      <?php  } }?>
+                    </ul>
+                    <?php } ?>
+                    <div class="clearfix"></div>                 
+                  <?php } ?>
+                </div>
+              </div>
+            </div>
+           </div>
+            <?php  $cnt++; ?>
+			<?php if($cnt % 3 == 0) { ?>
+              </div>
+              </div>        
+            <?php } ?>
+        <?php } ?>
+        <?php } ?>
+        
+        <?php	
+			if(isset($values['non_doobert_leg_participant_details']) && !empty($values['non_doobert_leg_participant_details']))
+			{				
+	  		foreach($values['non_doobert_leg_participant_details'] as $key_user=>$participants_data)
+			{ ?>
+            <?php  //echo '$cnt nondoobert'.$cnt;
+			if($cnt == 0 || $cnt%3 == 0) { ?>
+        	<div>
+         	 <div class="slide">
+            <?php } ?>
+            <?php
+				 $pic_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+				 ?>
+            <div class="gr-wrap col-lg-4 col-md-4 col-sm-4">
+              <div class="form-group">
+                <div class="volunteered-box-info">
+                  <div class="top-part">
+                    <h4><i class="fa fa-user"></i> <?php echo $participants_data['st_name']; ?></h4>
+                    <span class="leg-number"><?php echo "Leg #".$values['in_sort_order']; ?></span>
+                  </div>
+                  <div class="middle-part volunteer-middle-slider-part">
+                    <div class="logo"> <img title="" alt="" src="<?php echo $pic_url; ?>"> </div>
+                    <div class="cocordinator-info" style='position:relative;'><div class="driver-pilot-info"><i class="fa fa-phone"></i> <?php echo $participants_data['st_phone']; ?><br>
+                      <a href="mailto:<?php echo $participants_data['st_email'];?>"><i class="fa fa-envelope-o"></i><?php echo $participants_data['st_email'];?></a> 
+					  </div>	
+					<div class="right-verified-logo"> <img title="" alt="" src="<?php echo base_url(); ?>assets/img/gray_logo.png"> 
+					<img src="<?php echo base_url().'assets/img/arpa-certified-grey.png'; ?>"  />	
+					</div> 
+					</div>	
+                    <div class="cocordinator-address">
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>From:</span> <?php echo ($values['pick_street']?$values['pick_street'].", ":"").($values['pick_city']?$values['pick_city'].", ":"").($values['pick_state']?$values['pick_state']:"").($values['pick_zip']?", ".$values['pick_zip']:""); ?></p>
+                      <?php } ?>
+                      <?php if($values['route_type_id']=='2') { ?>
+                      <p><span>From:</span> <?php echo ($values['st_street']?$values['st_street'].", ":"").($values['st_city']?$values['st_city'].", ":"").($values['st_state']?$values['st_state']:"").($values['st_zip']?", ".$values['st_zip']:""); ?></p>
+                      <p><span>To:</span> <?php echo ($values['st_street']?$values['st_street'].", ":"").($values['st_city']?$values['st_city'].", ":"").($values['st_state']?$values['st_state']:"").($values['st_zip']?", ".$values['st_zip']:""); ?></p>
+                      <?php } ?>
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>To:</span> <?php echo ($values['drop_street']?$values['drop_street'].", ":"").($values['drop_city']?$values['drop_city'].", ":"").($values['drop_state']?$values['drop_state']:"").($values['drop_zip']?", ".$values['drop_zip']:""); ?></p>
+                      <?php } ?>
+                    </div>
+                    <div class="cocordinator-location">
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>	
+                      <p class="data"><i class="fa fa-clock-o"></i><?php echo date("d M Y - h:i A",strtotime($values['pick_start_time']))." - ".$values['pick_timezone'];?> </p>
+                      <?php } ?>
+					  <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>Start:</span> <?php echo date("d M Y - h:i A",strtotime($values['pick_start_time']))." - ".$values['pick_timezone'];?></p>
+                      <?php } ?>
+                      <?php if($values['route_type_id']=='1' || $values['route_type_id']=='0') { ?>
+                      <p><span>End:</span> <?php echo date("d M Y - h:i A",strtotime($values['drop_start_time']))." - ".$values['drop_timezone'];?></p>
+                      <?php } ?>
+                      <?php if(($transport_details['in_trans_coods_id'] == $this->session->userdata('userid'))){ ?>
+                      <p><span>Meeting Location:</span> <?php echo (isset($values['st_meeting_location']) && $values['st_meeting_location'] != '') ? stripslashes($values['st_meeting_location']) : '-'; ?> <a href="javascript:void(0);" onClick="$('#txt_edit_leg_id').val('<?php echo $values['leg_id']; ?>');$('#txt_edit_meeting_location').val('<?php echo addslashes($values['st_meeting_location']); ?>');$('#open_tab_info').val('1');$('#edit_meeting_location').modal('show');">Edit</a></p>
+                      <?php } ?>
+                      <?php if($values['route_type_id']=='2') { ?>
+                      <p><span>Comments: </span><span class="edit-meeting-loc"><?php echo (isset($values['st_meeting_location']) && $values['st_meeting_location'] != '') ? stripslashes($values['st_meeting_location']) : '-'; ?></span>
+                        <?php if((isset($participants_data['in_user_id']) && $participants_data['in_user_id'] == $this->session->userdata('userid')) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid'))){ ?>
+                        <a href="javascript:void(0);" onClick="$('#txt_edit_comments').val('<?php echo addslashes($values['st_meeting_location']); ?>');$('#txt_edit_comments_leg_id').val('<?php echo $values['leg_id']; ?>');$('#open_tab_comments_info').val('1');$('#edit_comments').modal('show');">Edit</a>
+                        <?php } ?>
+                      </p>
+                      <?php } ?>
+                    </div>
+                  </div>
+                  <div class="bottom-part">
+                  <?php 
+				  	if($transport_details['in_status']=='1' || $transport_details['in_status']=='2')
+					{
+					?>                 
+                    <h4 class="volunteered-name"><i class="fa fa-car"></i> <?php echo ucfirst($participants_data['st_vehicle_type']);?> <?php echo ($participants_data['st_license_plate']?$participants_data['st_license_plate']." - ":"").$participants_data['st_license_state'];?> </h4>
+                    <div class="clearfix"></div>
+                  <?php } ?>
+                  </div>
+                </div>
+              </div>
+             </div>
+            <?php  $cnt++; ?>
+			<?php if($cnt % 3 == 0) { ?>
+    	          </div>
+	            </div>
+            <?php } ?>
+		
+        <?php } ?>
+        <?php } ?>
+        
+        <?php } ?>
+        
+         <?php if($cnt > 0 && $cnt%3 != 0 ) { //echo '$cnt is not divisible by 3 start '.$cnt.'$cnt is not divisible by 3 end '; ?>
+    	          </div>
+	            </div>
+            <?php } ?>
+            
+		<?php } ?>        
+		
+      </div>      
+    </div>
+  </div>
+</div>
+
+</div>
+
+
+        <div id="tab_2_2" class="tab-pane fade map01 column2 <?php if($legs_page!=''){ echo " active in"; }  ?>">
+          <div id="main-transportation-route" class="view-map-cont">
+            <div id="mylegs_s">
+              <div id="my-leg">
+                <div id="origin-address" style="display:none">
+                  <input placeholder="Pick Up Address" />
+                </div>
+                <div id="destination-address" style="display:none">
+                  <input placeholder="Drop Off Address" />
+                </div>
+                <div id="distance" style="display:none">Distance:&nbsp;<b><span id="miles">0</span>&nbsp;miles</b></div>
+              </div>
+              <div id="map-seach-wrap">
+                <?php /*?><form name="map_search" id="map_search" action="" method="post" class="form-horizontal form-row-seperated"><?php */?>
+                <div class="col-md-3 no-space select-box-wrp">
+                  <div class="form-group">
+                    <label class="show">Show:</label>
+                    <div class="user-type">
+                      <select class="bs-select form-control white-btn" id="recent_activity" name="recent_activity">
+                        <option <?php if($this->session->userdata('recent_activity')=='1'){?> selected="selected" <?php } ?> value="1">All User Types</option>
+                        <option <?php if($this->session->userdata('recent_activity')=='D'){?> selected="selected" <?php } ?> value="D">Driver</option>
+                        <?php /*?><option value="V">Volunteer</option><?php */?>
+                        <option <?php if($this->session->userdata('recent_activity')=='P'){?> selected="selected" <?php } ?> value="P">Pilot</option>
+                        <?php /*?><option value="F">Foster Home</option>
+                    <option value="S">Shelters</option>
+                    <option value="M">Multi Role User</option><?php */?>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <input type="submit" title="Go" value="Go" name="go" id="go" class="go-button">
+                <div class="clearfix"></div>
+                <?php /*?></form><?php */?>
+              </div>
+            </div>
+            <div data-current-user-can-join="<?php if($transport_details['st_trans_type']=='P'){echo "false";}else{ echo isset($join)?"true":"false";}?>" data-destination-address="<?php echo $transport_details['st_to_street'].",".$transport_details['st_to_city'].",".$transport_details['st_to_state'].",".$transport_details['st_to_zip']; ?>" data-origin-address="<?php echo $transport_details['st_from_street'].",".$transport_details['st_from_city'].",".$transport_details['st_from_state'].",".$transport_details['st_from_zip']; ?>" id="route-map"  ></div>
+            <div class="transport_legend">
+              <div id="leg-legend">
+                <div id="legend-data"> <span class="legend-text">Legend:</span>
+                  <ul>
+                    <li><span>Driver</span></li>
+                    <li class="pilot active"><span>Pilot</span></li>
+                    <li class="multi-role-user"><span>Multi Role User</span></li>
+                    <li class="yellow-pins"><span>Zoom to View</span></li>
+                    <li class="blue-pins"><span>Zoom to View</span></li>
+                    <li class="red-pins"><span>Zoom to View</span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="map-hide" class="gr-wrap col-lg-12 col-md-12 col-sm-12 view_map_tg">
+            <div class="clearfix"></div>
+            <?php 
+			  $count_driver = 0;
+			if(isset($leg_details) && !empty($leg_details))
+			{
+			?>
+            <div class="transport-legs-detail">
+              <ul>
+                <?php
+				$i=1;
+				$leave='n';
+				$a = 1;
+				$leave_mark = "";
+				foreach($leg_details as $key=>$value)
+				{
+					$non_doobert_cnt = (isset($value['non_doobert_leg_participant_details']) && !empty($value['non_doobert_leg_participant_details'])) ? count($value['non_doobert_leg_participant_details']) : 0;
+					
+					$contct_legs=unserialize($value['st_contact']);
+					//echo "<pre>-----";print_r($contct);die;
+						if(empty($value['st_contact']))
+						{
+							$first_legs ='yes';
+						}
+						else
+						{
+							$first_legs ='no';
+						}
+					
+					$class= $this->common_function->color_class[$a];
+					if($a==8)
+					{
+						$a=1;
+					}
+					else
+					{
+						$a++;
+					}
+					if($value['user_id']==$this->session->userdata('userid'))
+					{
+						$leave='y';
+					}
+				?>
+                <li>
+                  <h3><i class="fa fa-flag <?php  echo $class;?>"></i> Leg-<?php echo $i ;?> <span class="floatr">
+                    <input type="hidden" class="leg_number" name="leg_number" id="leg_number_<?php echo $i; ?>" value="<?php echo $i; ?>" />
+                    <?php 
+					  if($value['mark_completed']!='1' && ($value['user_id']==$this->session->userdata('userid') || $transport_details['in_trans_coods_id']==$this->session->userdata('userid')) && ($value['user_id']!='' || $non_doobert_cnt > 0)){ ?>
+                    <span class="completed-status">
+                    <input id="completed_<?php echo $value['leg_id'] ;?>" type="checkbox" name="completed[]" class="mark_completed" data-id="<?php echo $i ;?>" value="<?php echo $value['leg_id'] ;?>" onClick="mark_as_completed('<?php echo $value['leg_id'] ;?>');" >
+                    <label for="completed_<?php echo $value['leg_id'] ;?>" >Completed</label>
+                    </span>
+                    <?php }elseif($value['mark_completed']=='1'){ ?>
+                    <span class="completed-status">
+                    <input id="completed_<?php echo $value['leg_id'] ;?>" type="checkbox" name="completed_mrk[]" value="<?php echo $value['leg_id'] ;?>" disabled checked>
+                    <label for="completed_<?php echo $value['leg_id'] ;?>" >Completed</label>
+                    </span>
+                    <?php } ?>
+                    </span> </h3>
+                  <div class="leg-inner-cont">
+                    <?php if($value['route_type_id'] == '1' || $value['route_type_id'] == '0') { ?>
+                    <p><span>From:</span> <?php echo ((isset($value['pick_street']) && $value['pick_street'] != '') ?$value['pick_street'].", ":"").(isset($value['pick_city']) ?$value['pick_city'].", ":"").(isset($value['pick_state'])?$value['pick_state']:"").(isset($value['pick_zip'])?", ".$value['pick_zip']:""); ?> </p>
+                    <p><span>To:</span> <?php echo ((isset($value['drop_street']) && $value['drop_street'] != '') ?$value['drop_street'].", ":"").(isset($value['drop_city'])?$value['drop_city'].", ":"").(isset($value['drop_state'])?$value['drop_state']:"").(isset($value['drop_zip'])?", ".$value['drop_zip']:""); ?></p>
+                    <?php } ?>
+                    <?php if($value['route_type_id'] == '2') { ?>
+                    <p><strong>Overnight Leg: </strong></b><?php echo (isset($value['st_street']) && $value['st_street'] != '' ?$value['st_street'].", ":"").(isset($value['st_city']) ?$value['st_city'].", ":"").(isset($value['st_state'])?$value['st_state']:"").(isset($value['st_zip'])?", ".$value['st_zip']:""); ?></p>
+                    <p class="inline"><strong>Comments: </strong><?php echo (isset($value['st_meeting_location']) && $value['st_meeting_location'] != '') ? stripslashes($value['st_meeting_location']) : '-'; ?></p>
+                    <?php } ?>
+                    <?php if(isset($value['pick_start_time']) || isset($value['pick_timezone'])) { ?>
+                    <p><strong>Start:</strong> <?php echo date("M d - h:i A",strtotime($value['pick_start_time']))." - ".$value['pick_timezone'];?> </p>
+                    <?php } ?>
+                    <?php if(isset($value['drop_start_time']) || isset($value['drop_timezone'])) { ?>
+                    <p><strong>End:</strong> <?php echo date("M d - h:i A",strtotime($value['drop_start_time']))." - ".$value['drop_timezone'];?></p>
+                    <?php } ?>
+                    <?php if($value['route_type_id'] == '1' || $value['route_type_id'] == '0') { ?>
+                    <p class="inline"><strong>Meeting Location: </strong><?php echo (isset($value['st_meeting_location']) && $value['st_meeting_location'] != '') ?stripslashes($value['st_meeting_location']) : '-'; ?></p>
+                    <?php } ?>
+                  </div>
+                  <div class="bottom-part">
+                  
+                  <div class="prenex slider-next nex-<?php echo $value['leg_id'];?>"></div>
+                    <div class="prenex slider-prev pre-<?php echo $value['leg_id'] ;?>"></div>
+                     <div class="slider-div slider-<?php echo $value['leg_id'] ;?>">
+                    
+                    <?php //print_r($value['leg_participant_details']);
+					
+					foreach($value['leg_participant_details'] as $user_key=>$participants)
+					{
+						//echo '<pre/>';print_r($participants);	
+						if($participants['st_profile_image']!='' && file_exists($this->config->item('upload')."profile/63x63/".$participants['st_profile_image']))
+						  {
+							  $image_url  = $this->config->item('upload_url')."profile/63x63/".$participants['st_profile_image'];
+						  }
+						  else
+						  {
+							  $image_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+						  }
+						  ?>
+                  <div>
+                    <div class="slide">
+                      <div class="logo"> <img src="<?php echo $image_url; ?>" alt="<?php echo $participants['st_display_name']; ?>" title="<?php echo $participants['st_display_name']; ?>"> </div>
+                      <?php
+							$link_name 	= $this->common_function->get_filtered_name($participants['st_display_name']);
+							$url_link 	= base_url()."user-".$participants['in_user_id']."-".$link_name."/";
+							
+							$pr_add = '';
+							if(isset($participants['pr_st_city']) && $participants['pr_st_city'] != ''){
+							$pr_add .= $participants['pr_st_city'].", ";
+							}
+							if(isset($participants['pr_st_state']) && $participants['pr_st_state'] != ''){
+							$pr_add .= $participants['pr_st_state'].", ";
+							}
+							if(isset($participants['pr_st_zip']) && $participants['pr_st_zip'] != ''){
+							$pr_add .= $participants['pr_st_zip'];
+							}
+							
+							$check_driver_verification = $this->common_model->get_user_verified($participants['in_user_id']); 
+							if(!empty($check_driver_verification)) {
+								 $class = 'bg-green-logo'; 
+							     $image_url = base_url().'assets/img/green_logo.jpg'; 
+							     $title = date('F j, Y',strtotime($check_driver_verification['dt_doobert_verified']));
+
+									  //$image_url = '<img src="'.base_url().'assets/img/gray_logo.png" />';
+								  } else {
+									   $image_url = base_url().'assets/img/gray_logo.png'; 
+									   $class = 'bg-green-logo'; $title = '';
+								  }	
+								 $check_user_arpa = $this->common_model->check_arpa_certifcate_status($participants['in_user_id']);	
+								 if(!empty($check_user_arpa) && $check_user_arpa['st_arpa_cert'] =='Y') {
+									   //$class = 'bg-green-logo'; 
+									   $arpa_title = date('F j, Y',strtotime($check_user_arpa['dt_arpa_cert']));
+									   $image_cert_url = base_url().'assets/img/arpa-certified.png'; 
+									   //$title = date('F j, Y',strtotime($check_driver_verification['dt_doobert_verified']));
+
+									  //$image_url = '<img src="'.base_url().'assets/img/gray_logo.png" />';
+								  } else {
+									   $arpa_title = '';
+									   $image_cert_url = base_url().'assets/img/arpa-certified-grey.png'; 
+									   //$class = 'bg-green-logo'; $title = '';
+								  }		
+						?>
+                      <?php 
+						$user_profile_setting_details = $this->common_model->get_user_profile_setting($participants['in_user_id']);
+						if(empty($user_profile_setting_details) || (isset($user_profile_setting_details['in_public']) && $user_profile_setting_details['in_public'] == 0)) 						{
+								$first ='yes';
+						  } else {
+								$first ='no';
+						  }
+						  
+						  if(isset($user_profile_setting_details['st_contact']) && $user_profile_setting_details['st_contact']!='') { 			  
+								$contact = unserialize($user_profile_setting_details['st_contact']); 
+								$contact_array = (isset($contact) && !empty($contact)) ? $contact : '';
+						  } else {
+								$contact_array = '';
+						  }
+					   ?>
+                      
+                      <div class="transport-driver-info"> 
+					  <?php if(($first=='no' && is_array($contact_array) && in_array('st_primary_phone',$contact_array)) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid')) || ($participants['in_user_id']==$this->session->userdata('userid')) || $get_legs_participants_user > 0){ ?>
+					  <span><a href="<?php echo $url_link;?>" target="_blank"><?php echo $participants['st_display_name']; ?></a>
+					  <img src='<?php echo $image_url; ?>' title='<?php echo $title; ?>' />
+					  <img src='<?php echo $image_cert_url; ?>' title='<?php echo $arpa_title; ?>'  />
+					  </span> 
+					  <?php } ?>
+					  
+					  <?php if(($first=='no' && is_array($contact_array) && in_array('st_email',$contact_array)) || ($transport_details['in_trans_coods_id'] == $this->session->userdata('userid')) || ($participants['in_user_id']==$this->session->userdata('userid')) || $get_legs_participants_user > 0){ ?>
+					  <i class="fa fa-map-marker"></i> <?php echo (isset($pr_add) && $pr_add!= '') ? $pr_add :''; ?> <br>
+					  <?php } ?>
+                        <?php 
+						if($value['route_type_id'] == '0')
+						{
+						 
+						if($transport_details['in_status']=='1' && $value['mark_completed']!='1'){     ?>
+                        <p class="change-vehi-wrap"><strong>Vehicle:</strong>
+                          <?php 
+						 $vehicle_details = $this->common_function->get_vehicle_detail_by_id($participants['leg_vehicle_id']);
+						 //print_r($vehicle_details);
+						 $vehicle_name = $vehicle_details[0]['st_vehicle_type'].' - '.$vehicle_details[0]['st_vehicle_license_plate'];
+						 echo $vehicle_name;
+						 ?>
+                          <?php if($participants['in_user_id']==$this->session->userdata('userid'))
+						{ ?>
+                          <a href="javascript:void(0);" onClick="$('#select_vehicle').val('<?php echo $vehicle_details[0]['in_vehicle_id']; ?>');$('#current_leg_id').val('<?php echo $value['leg_id']; ?>');$('#change_vehicle_div').modal('show');"  name="change_vehicle" class="change-vehicle" id="change_vehicle">Change Vehicle</a>
+                          <?php } ?>
+                        </p>
+                        <?php } } ?>
+                      </div>
+                    </div>
+                  </div>
+                  <?php }	?>
+                  <?php //echo '<pre/>';print_r($value['non_doobert_leg_participant_details']);	
+                        foreach($value['non_doobert_leg_participant_details'] as $user_key=>$participants)
+						{
+						$image_url  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+						 
+						$pr_add = '';
+						if(isset($participants['st_city']) && $participants['st_city'] != ''){
+						$pr_add .= $participants['st_city'].", ";
+						}
+						if(isset($participants['st_state_prefix']) && $participants['st_state_prefix'] != ''){
+						$pr_add .= $participants['st_state_prefix'].", ";
+						}
+						if(isset($participants['st_zipcode']) && $participants['st_zipcode'] != ''){
+						$pr_add .= $participants['st_zipcode'];
+						}	
+						?>
+                  <div>
+                    <div class="slide">
+                      <div class="logo"> <img src="<?php echo $image_url; ?>" alt="<?php echo $participants['st_name']; ?>" title="<?php echo $participants['st_name']; ?>"> </div>
+                      <div class="transport-driver-info"> <span><?php echo $participants['st_name']; ?>
+					  <img src="<?php echo base_url().'assets/img/gray_logo.png'; ?>"  />
+					  <img src="<?php echo base_url().'assets/img/arpa-certified-grey.png'; ?>" /> 
+					  </span> <i class="fa fa-map-marker"></i> <?php echo $pr_add; ?> <br>
+					   <?php 
+							if($value['route_type_id'] == '0')
+							{						 
+							if($transport_details['in_status']=='1' && $value['mark_completed']!='1'){     ?>
+                        <p class="change-vehi-wrap">Vehicle:
+                          <?php 
+							 $vehicle_name = $participants['st_vehicle_type'];
+							 if(isset($participants['st_license_plate']) && $participants['st_license_plate'] != '')
+							 {
+								 $vehicle_name = $participants['st_vehicle_type'].' - '.$participants['st_license_plate'];
+							 }
+							 echo $vehicle_name;
+							 ?>
+                        </p>
+                        <?php } } ?>
+                      </div>
+                    </div>
+                  </div>
+                  <?php }	
+						?>
+                        
+                        </div>
+                        
+                </li>
+                <?php 
+					$i++;
+				}
+				?>
+              </ul>
+            </div>
+            <?php
+			} ?>
+          </div>
+        </div>
+        <script src="<?php echo base_url(); ?>map/application.js?version=030320171"></script> 
+        <script type="text/javascript">
+jQuery.noConflict(); 
+</script> 
+<?php /*?><script type="text/javascript" src="//maps.googleapis.com/maps/api/js?v=3.14&key=AIzaSyCDPF-QVSk3S01ASoLgT-bQgpgMIZmaDl8&sensor=false&libraries=geometry&language=en"></script><?php */?>
+<script type="text/javascript" src="//maps.googleapis.com/maps/api/js?v=3.14&key=AIzaSyDHWsjEomsjGFW3rtDig5MjC5Ydi63Lj_Q&sensor=false&libraries=geometry&language=en"></script>
+
+<script src="<?php echo base_url(); ?>assets/scripts/custom/infobox.js"></script>
+<script type="text/javascript">
+$.noConflict(); 
+</script>
+
+					<div id="tab_2_3" class="tab-pane fade feedsbox">
+<?php if($Err_Msg!='')
+{
+	?>
+<div class="alert alert-danger"><strong><?php 
+                echo $Err_Msg; 
+            ?></strong><br><br></div>
+<?php } ?> 
+<?php
+if(isset($picture) && $picture!='' && file_exists($this->config->item('upload')."profile/63x63/".$picture))
+{
+	$user_image  = $this->config->item('upload_url')."profile/63x63/".$picture;
+}
+else
+{
+	$user_image  = $this->config->item('upload_url')."profile/63x63/no_photo_icon.png";
+}
+?>
+<div class="row" style="margin:0;">
+                  <div class="gr-wrap col-lg-3 col-md-3 col-sm-3 w16p">
+                    <div class="feedprofile"><img src="<?php echo $user_image; ?>" alt=""></div>
+                  </div>
+                  
+                   <input type="hidden" name="feeds" id="feeds" value="action" />
+                  <div class="gr-wrap col-lg-7 col-md-6 col-sm-6 w55p">
+                    <div class="form-group feedcomment">
+                      <textarea id="message" name="message" class="form-control" rows="2" cols="2" placeholder="Message"></textarea>
+                      <span class="search-username">If you want us to notify another person about your comment, type @THEIR USER NAME and we'll send them an e-mail with your context of your comment here.</span>
+<input type="hidden" name="user_name_hidden" id="user_name_hidden" value="" />
+<input type="hidden" name="user_id" id="user_id" value="" />
+<input type="hidden" name="user_email" id="user_email" value="" />
+                    </div>
+                  </div>
+                  <div class="gr-wrap col-lg-2 col-md-2 col-sm-2 floatl">
+                    <div class="feedbutton padl88"><button aria-hidden="true" name="post_message" id="post_message" class="btn pink-btn" type="submit" title="Post Message">Post Message</button>
+<img id="loadimg_feed" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /></div>
+                  </div>
+                  <div class="clearfix"></div>
+                  <div class="col-md-12">
+                <?php if(!empty($feeds))
+						{ 
+				?>
+					<ul class="timeline">
+						<?php
+						
+						for($a=0;$a<count($feeds);$a++)
+						{
+							
+					if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image']))
+					{
+					  $org_image  = $this->config->item('upload_url')."org_doc/36x36/".$feeds[$a]['org_image'];
+					}
+					else
+					{
+					  $org_image  = $this->config->item('upload_url')."org_doc/36x36/no_photo_icon.png";
+					}
+					if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/36x36/".$feeds[$a]['user_image']))
+					{
+					  $profile_image  = $this->config->item('upload_url')."profile/36x36/".$feeds[$a]['user_image'];
+					}
+					else
+					{
+					  $profile_image  = $this->config->item('upload_url')."profile/36x36/no_photo_icon.png";
+					}
+					if($a%3==0)
+					{
+						$class ="timeline-red";
+					}
+					elseif($a%3==2)
+					{
+						$class ="timeline-green";
+					}
+					elseif($a%3==1)
+					{
+						$class ="timeline-yellow";
+					}
+					else
+					{
+						$class ="timeline-yellow";
+					}
+						?>
+                        <?php 
+							if($feeds[$a]['in_type'] == 5 || $feeds[$a]['in_type'] == 0) {
+								if($feeds[$a]['message'] != '' || $feeds[$a]['in_type'] == 0) {
+						?>
+                        <li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;	
+								} else {
+									
+									$org_photo = '';
+									if(isset($row['org_image']) && $row['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$row['org_image'])) {
+									$org_photo = $row['org_image'];
+									} else {
+									$org_photo = 'no_photo_icon.png';
+									}
+							?>
+						</li>
+                        <li class="<?php echo $class; ?>">
+                        <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+                                <h2>
+                                    <span><img src="<?php echo $this->config->item('upload_url')."org_doc/36x36/".$org_photo; ?>" alt=""  width="32"></span>
+                                    <a href="<?php echo base_url().'organization-'.$feeds[$a]['organization_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['org_name']); ?>" class="profile"><?php echo $feeds[$a]['org_name']; ?></a> created a new transportation.	
+                                </h2>
+                                <div class="timeline-content">
+                                    <p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></strong></p>
+                                    <div class="w175">
+                                    	<p><strong>From Location</strong>
+                                    	<br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p>
+                                    </div>
+                                    <div class="arrow">
+                                    	<img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+                                    <div class="w175">
+                                    	<p><strong>To Location</strong>
+                                    	<br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p>
+                                    </div>
+                                    <div class="clearfix"></div>
+                                </div>
+                            </div>
+                        </li>
+                        <?php }	?>
+                        		
+						<?php } else if($feeds[$a]['in_type'] == 6 || $feeds[$a]['in_type'] == 0) {
+								$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+									if($feeds[$a]['message'] != '') {
+						?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+							<li class="<?php echo $class; ?>">
+                        	<div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+									<h2><span><img src="<?php echo $this->config->item('upload_url')."org_doc/36x36/".$org_photo; ?>" width="32" alt=""></span><a href="<?php echo base_url().'organization-'.$feeds[$a]['organization_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['org_name']) ?>" class="profile"><?php echo $feeds[$a]['org_name']; ?></a> updated the list of animals.</h2>
+									<h2 class="last">
+                                    <?php
+								$transport_animals = $this->orgtrasnportation_model->get_transport_animals($feeds[$a]['transportation_id']);
+								$noti_msg = (count($transport_animals)>0)?count($transport_animals).' animal is now scheduled for transportation.': "No animal(s) are schedule.";
+								echo $noti_msg;
+									?>
+                                    </h2>
+									<div class="timeline-content">
+										<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+										<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+										<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+										<div class="clearfix"></div>
+								  </div>
+								</div>
+                               </li>
+							<?php
+									}
+								} else if($feeds[$a]['in_type'] == 7 || $feeds[$a]['in_type'] == 0) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+									if($feeds[$a]['message'] != '') {
+						?>
+                        <li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                        <div class="timeline-body border">
+						<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                        </span>Transport #DBT<?php echo $feeds[$a]['transportation_id']; ?> has been modified by <?php echo $feeds[$a]['user_name']; ?>.</h2>
+						<div class="timeline-content">
+										<p class="text17"><strong><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></strong></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+										<div class="arrow"><img src="##base_url##assets/img/arrow.png" alt=""></div>
+										<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+										<div class="clearfix"></div>
+								  </div>
+						</div>
+                        </li>
+						<?php
+									}
+								} else if($feeds[$a]['in_type'] == 8 || $feeds[$a]['in_type'] == 0) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+									if($feeds[$a]['message'] != '') {
+						?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            <div class="timeline-body border">
+					<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                    <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                    </span>Transport #DBT<?php echo $feeds[$a]['transportation_id']; ?> has been cancelled by <?php echo $feeds[$a]['user_name']; ?>.</h2>
+					<div class="timeline-content">
+									<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+									<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+									<div class="clearfix"></div>
+							  </div>
+					</div>
+                    	</li>
+                        <?php
+									}
+								} else if($feeds[$a]['in_type'] == 9 || $feeds[$a]['in_type'] == 0) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+									if($feeds[$a]['message'] != '') {
+						?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+								<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                                </span><a class="profile" href="<?php echo base_url().'user-'.$feeds[$a]['user_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['user_name']) ?>"><?php echo $feeds[$a]['user_name']; ?></a> joined the transportation.</h2>
+								<div class="timeline-content">
+									<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+									<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+									<div class="clearfix"></div>
+							  </div></div>
+                            </li>
+                            <?php
+									}
+								} else if($feeds[$a]['in_type'] == 10 || $feeds[$a]['in_type'] == 0) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+										if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            <div class="timeline-body border">
+									<h2 class="last">Transport #DBT<?php echo $feeds[$a]['transportation_id']; ?> has been confirmed.</h2>
+									<div class="timeline-content">
+										<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+										<div class="clearfix"></div>
+								  </div>
+									</div>
+                               </li>
+                            <?php
+									}
+								}  else if($feeds[$a]['in_type'] == 11 || $feeds[$a]['in_type'] == 0) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+										if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                           <li class="<?php echo $class; ?>"> 
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+									<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                                    </span><a class="profile" href="<?php echo base_url().'user-'.$feeds[$a]['user_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['user_name']) ?>"><?php echo $feeds[$a]['user_name']; ?></a> left the transportation.</h2>
+									<div class="timeline-content">
+										<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+										<div class="clearfix"></div>
+								  </div></div>
+                            </li>
+                            <?php		
+									}
+								} else if($feeds[$a]['in_type'] == 12 || $feeds[$a]['in_type'] == 0) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+										if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+							<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                            </span><a class="profile" href="<?php echo base_url().'user-'.$feeds[$a]['user_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['user_name']) ?>"><?php echo $feeds[$a]['user_name']; ?></a> created a leg and joined the transportation.</h2>
+							<div class="timeline-content">
+									<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+									<div class="clearfix"></div>
+							  </div></div>
+                             </li>
+							<?php
+									}
+								} else if($feeds[$a]['in_type'] == 13 || $feeds[$a]['in_type'] == 0) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+										if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+							<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                            </span><a class="profile" href="<?php echo base_url().'user-'.$feeds[$a]['user_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['user_name']) ?>"><?php echo $feeds[$a]['user_name']; ?></a> left leg from transportation.</h2>
+							<div class="timeline-content">
+									<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+									<div class="clearfix"></div>
+							  </div></div>
+                            </li>
+                            <?php
+									}
+								} else if($feeds[$a]['in_type'] == 14 || $feeds[$a]['in_type'] == 1) {
+								
+								$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+								<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                                </span><a class="profile" href="<?php echo base_url().'user-'.$feeds[$a]['user_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['user_name']) ?>"><?php echo $feeds[$a]['user_name']; ?></a>: <?php echo $feeds[$a]['message']; ?></h2></div></li>
+                           
+                            
+                            <?php
+								} else if($feeds[$a]['in_type'] == 21) {
+							?>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            <div class="timeline-body border">
+									<h2 class="last">Transport #DBT<?php echo $feeds[$a]['transportation_id']; ?> <?php echo $feeds[$a]['message']; ?> completed.</h2>
+									<div class="timeline-content">
+										<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+										<div class="clearfix"></div>
+								  </div>
+									</div>
+                               </li>
+                            <?php
+								}else if($feeds[$a]['in_type'] == 23) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+										if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+							<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                            </span><a class="profile" href="<?php echo base_url().'user-'.$feeds[$a]['user_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['user_name']) ?>">
+				   	<?php echo $feeds[$a]['user_name']; ?>
+                            </a> has been signed up as the transport monitor.</h2>
+							<div class="timeline-content">
+									<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+									<div class="clearfix"></div>
+							  </div></div>
+                            </li>
+                            <?php
+									}
+								}else if($feeds[$a]['in_type'] == 24) {
+									$user_photo = '';
+								if(isset($feeds[$a]['user_image']) && $feeds[$a]['user_image']!='' && file_exists($this->config->item('upload')."profile/29x29/".$feeds[$a]['user_image'])) {
+									$user_photo = $feeds[$a]['user_image'];
+								} else {
+									$user_photo = 'no_photo_icon.png';
+								}
+								
+								$org_photo = '';
+								if(isset($feeds[$a]['org_image']) && $feeds[$a]['org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$feeds[$a]['org_image'])) {
+									$org_photo = $feeds[$a]['org_image'];
+								} else {
+									$org_photo = 'no_photo_icon.png';
+								}
+										if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+							<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  <?php $check_user = $this->common_model->get_user_verified($feeds[$a]['user_id']);
+						if(!empty($check_user)) {
+				  ?>
+                  <span class="green-logo"><img src="<?php echo base_url(); ?>assets/img/green_logo.jpg" alt="verified" title="<?php echo date('F j, Y',strtotime($check_user['dt_doobert_verified'])); ?>" /></span>
+				  <?php } else { ?>
+                  <span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                  <?php } ?>
+                            </span><a class="profile" href="<?php echo base_url().'user-'.$feeds[$a]['user_id'].'-'.$this->common_function->get_filtered_name($feeds[$a]['user_name']) ?>">
+				   	<?php echo $feeds[$a]['user_name']; ?>
+                            </a> has been removed from the transport monitor.</h2>
+							<div class="timeline-content">
+									<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+									<div class="clearfix"></div>
+							  </div></div>
+                            </li>
+                            <?php
+									}
+								}
+								 else if($feeds[$a]['in_type'] == 25) {									
+									
+								$user_photo = 'no_photo_icon.png';
+								
+								$org_photo = 'no_photo_icon.png';
+								
+								if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                            <li class="<?php echo $class; ?>">
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+							<h2 class="last"><span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  			<span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+               
+                            </span>
+                            <?php echo $feeds[$a]['st_name']; ?> joined the transportation leg.</h2>
+							<div class="timeline-content">
+									<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+									<div class="clearfix"></div>
+							  </div></div>
+                             </li>
+							<?php
+									}								
+								}
+								 else if($feeds[$a]['in_type'] == 26) {
+										$user_photo = 'no_photo_icon.png';
+										$org_photo = 'no_photo_icon.png';
+										if($feeds[$a]['message'] != '') {
+							?>
+                        	<li class="<?php echo $class; ?>">
+							<div class="timeline-time">
+								<span class="date">
+                                    <?php echo date("m/d/y",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+								<span class="time">
+									 <?php echo date("H:i",strtotime($feeds[$a]['notification_date'])) ;?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+							<?php 
+									$notification_image = $org_image;
+									$msg = str_replace("##image_url##",$notification_image,$feeds[$a]['message']) ;
+									$msg = str_replace("##base_url##",$base_url,$msg) ;
+									$msg = str_replace("##base_url#",$base_url,$msg) ;
+									$msg = str_replace("##user_image##",$profile_image,$msg) ;
+									$msg = str_replace("##org_image##",$org_image,$msg) ;
+								echo $msg;
+								} else {	
+							?>
+							</li>
+                           <li class="<?php echo $class; ?>"> 
+                            <div class="timeline-time">
+								<span class="date">
+									 <?php echo date('m/d/y',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+								<span class="time">
+									 <?php echo date('H:i',strtotime($feeds[$a]['notification_date'])); ?>
+								</span>
+							</div>
+							<div class="timeline-icon">
+							  <i class="fa fa-road"></i>
+							</div>
+                            
+                            <div class="timeline-body border">
+									<h2 class="last">
+                 
+                  <span><img alt="" src="<?php echo $this->config->item('upload_url').'profile/29x29/'.$user_photo; ?>"  width="32">
+                  			<span class="gray-logo"><img src="<?php echo base_url(); ?>assets/img/gray_logo.jpg" alt="non-verified" /></span>
+                                    </span>
+				   	<?php echo $feeds[$a]['st_name']; ?>
+                                     left the transportation.</h2>
+									<div class="timeline-content">
+										<p class="text17"><?php echo date('l,M, d',strtotime($feeds[$a]['target_date'])); ?></p>
+										<div class="w175"><p><strong>From Location</strong><br><?php echo $feeds[$a]['from_city'].', '.$feeds[$a]['from_state'].', '.$feeds[$a]['from_zip'] ?></p></div>
+									<div class="arrow"><img src="<?php echo base_url(); ?>assets/img/arrow.png" alt=""></div>
+									<div class="w175"><p><strong>To Location</strong><br><?php echo $feeds[$a]['to_city'].', '.$feeds[$a]['to_state'].', '.$feeds[$a]['to_zip'] ?></p></div>
+										<div class="clearfix"></div>
+								  </div></div>
+                            </li>
+                            <?php		
+									}
+								}
+							} 
+							?>
+					</ul>
+  			<?php } ?>  
+              <div class="col-md-12 no-right-space">
+            <div class="dataTables_paginate dobt-pagination paging_bootstrap pull-right">
+               <?php //echo $pagination;?>
+                <div align="center" class="view_more" style="display:none"><a href="javascript:void(0);">View more >></a></div>
+                   <div align="center" class="not_found" style="display:none;">No more notifications !</div>
+            </div>
+          </div>
+				</div>
+                </div>
+                           
+
+					</div>
+                      </form>
+                     <div id="tab_4_3" class="tab-pane fade feedsbox">
+						<?PHP include APPPATH."views/includes/transport-photos.php"; ?>
+                      </div>
+              </div>
+              
+            </div>
+            <div class="clearfix"></div>
+          </div>
+
+        </div>
+         
+    </div>
+  </div>
+  <!-- END CONTENT --> 
+</div>
+<!-- END CONTAINER -->
+
+
+<div id="edit-additional-info" class="modal fade" tabindex="-1" aria-hidden="true">
+  <form class="horizontal-form" id="transport_update_info" name="transport_update_info" enctype="multipart/form-data" action="<?php echo base_url().'org_transportation/transport_info_update' ?>" method="post">
+    <input type="hidden" class="form-control" id="transport_id_update_info" name="transport_id_update_info" value="<?php echo $this->session->userdata('transport_id'); ?>">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-body">
+          <button type="button" class="close" data-dismiss="modal" aria-hidden="true" title="Close"></button>
+          <h4 class="modal-title">Additional Information</h4>
+          <div class="form-group">
+            <label for="additional-comments">Comments:</label>
+            <textarea class="form-control" id="additional-comments-update" name="additional-comments-update" rows="4" ><?php echo isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '' ? $transport_details['st_add_comments'] : '';   ?></textarea>
+          </div>
+          <div class="form-group">
+            <label for="attach-documents">Attach Documents:</label>
+            <div class="attach-doc-box"> <span class="btn btn-success fileinput-button"> <i class="glyphicon glyphicon-plus"></i> <span>Add files...</span>
+              <input type="file" name="files" multiple>
+              </span>
+              <button type="submit" class="btn btn-primary start"> <i class="glyphicon glyphicon-upload"></i> <span>Start upload</span> </button>
+              <span class="files">(Upload a .jpg, .jpe, .jpeg, .doc, .docx, .xls, .xlsx, .pdf file, 5MB Maximum)</span>
+              <input type="hidden"  class="form-control" id="image_file_update" name="image_file_update" value="" >
+              <!-- The global progress state -->
+              <div class="col-lg-12 fileupload-progress fade">
+                <!-- The global progress bar -->
+                <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar progress-bar-success" style="width:0%;"></div>
+                </div>
+                <!-- The extended global progress state -->
+                <div class="progress-extended">&nbsp;</div>
+              </div>
+              <table role="presentation" class="table table-striped">
+                <tbody class="files">
+                </tbody>
+              </table>
+              <!-- The template to display files available for upload -->
+              <script id="template-upload" type="text/x-tmpl">
+                    {% for (var i=0, file; file=o.files[i]; i++) { %}
+                        <tr class="template-upload fade">
+                            <td>
+                                <span class="preview"></span>
+                            </td>
+                            <td>
+                                <p class="name word-break">{%=file.name%}</p>
+                                <strong class="error text-danger"></strong>
+                            </td>
+                            <td>
+                                <p class="size">Processing...</p>
+                                <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar progress-bar-success" style="width:0%;"></div></div>
+                            </td>
+                            <td>
+                                {% if (!i && !o.options.autoUpload) { %}
+                                    <button class="btn btn-primary start" disabled>
+                                        <i class="glyphicon glyphicon-upload"></i>
+                                        <span>Start</span>
+                                    </button>
+                                {% } %}
+                                {% if (!i) { %}
+                                    <button class="btn btn-warning cancel">
+                                        <i class="glyphicon glyphicon-ban-circle"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                {% } %}
+                            </td>
+                        </tr>
+                    {% } %}
+                    </script>
+              <!-- The template to display files available for download -->
+              <script id="template-download" type="text/x-tmpl">
+                    {% for (var i=0, file; file=o.files[i]; i++) { %}
+                        <tr class="template-download fade">
+                            <td>
+                                <span class="preview">
+                                    {% if (file.thumbnailUrl) { %}
+                                        <a href="{%=file.url%}" title="{%=file.name%}" download="{%=file.name%}" data-gallery><img src="{%=file.thumbnailUrl%}"></a>
+                                    {% } %}
+                                </span>
+                            </td>
+                            <td>
+                                <p class="name word-break">
+                                    {% if (file.url) { %}
+                                        <a href="{%=file.url%}" title="{%=file.name%}" download="{%=file.name%}" {%=file.thumbnailUrl?'data-gallery':''%}>{%=file.name%}</a>
+                                    {% } else { %}
+                                        <span>{%=file.name%}</span>
+                                    {% } %}
+                                </p>
+                                {% if (file.error) { %}
+                                    <div><span class="label label-danger">Error</span> {%=file.error%}</div>
+                                {% } %}
+                            </td>
+                            <td>
+                                <span class="size">{%=o.formatFileSize(file.size)%}</span>
+                            </td>
+                            <td>
+                                {% if (file.deleteUrl) { %}
+                                    <button class="btn btn-danger delete" data-type="{%=file.deleteType%}" data-url="{%=file.deleteUrl%}"{% if (file.deleteWithCredentials) { %} data-xhr-fields='{"withCredentials":true}'{% } %}>
+                                        <i class="glyphicon glyphicon-trash"></i>
+                                        <span>Delete</span>
+                                    </button>
+                                    <input type="checkbox" name="delete" value="1" class="toggle">
+                                {% } else { %}
+                                    <button class="btn btn-warning cancel">
+                                        <i class="glyphicon glyphicon-ban-circle"></i>
+                                        <span>Cancel</span>
+                                    </button>
+                                {% } %}
+                            </td>
+                        </tr>
+                    {% } %}
+                    </script>
+            </div>
+          </div>
+          <div class="attachments">
+		  <input type="hidden" class="form-control" id="transport_info_files_cnt" name="transport_info_files_cnt" value="<?php echo count($transport_files); ?>">
+            <p class="info">Attachments (<?php echo count($transport_files); ?>)</p>
+            <?php
+		if(isset($transport_files) && !empty($transport_files))
+		{
+		?>
+            <div class="attached-file">
+              <?php	
+		foreach($transport_files as $key=>$value)
+			{
+		?>
+              <span class="del-icon"> <i class="fa fa-file"></i> <a href="<?php echo base_url().'org_transportation/generate_download/'?><?php echo $this->common_function->encode_base64($value['st_file_name']); ?>/" title="<?php echo $value['st_file_name']; ?>"><?php echo $value['st_file_name']; ?></a>
+              <?php if($this->session->userdata('userid')==$transport_details['in_trans_coods_id']) { ?>
+              <a id="<?php echo $value['in_transport_file_id']; ?>" href="<?php echo base_url().'org_transportation/delete_transport_files/'?><?php echo $value['in_transport_file_id']; ?>/<?php echo $transport_details['in_transportation_id'];?>" onClick="javascript:return confirm('Are you sure you want to delete it?');"  title="Delete"> <i class="fa fa-times close-attach-file"></i> </a>
+              <?php } ?>
+              </span>
+              <?php } 
+		  ?>
+            </div>
+            <div class="clearfix"></div>
+            <?php 
+		}
+		?>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn orange fl" title="Update" id="update_transport_info">Update</button>
+        </div>
+      </div>
+      <div class="clearfix"></div>
+      <img id="loadimg_upload" style="display:none" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" /> </div>
+  </form>
+</div>
+
+<!-- Transport confirmation MODAL POPUP-->
+<div class="modal fade unconfirm_transport_popup" id="unconfirm_transport_popup" tabindex="-1" role="basic" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" title="Close" aria-hidden="true"></button>
+                <h4 class="modal-title">INFORMATION</h4>
+            </div>
+            <div class="modal-body">
+            <p>If you unconfirm the transport it will put it back in edit mode and the volunteers can join or leave and you can change the transport.</p>
+            </div>
+            <div class="modal-footer text-center no-margin"> 
+          	<button class="btn light-green" title="Un-Confirm" type="button" id="modal_unconfirm_transport">Un-Confirm</button>
+            <button class="btn default" data-dismiss="modal" title="Cancel" type="button">Cancel</button>
+          </div>
+        </div>
+        
+         <form class="horizontal-form" role="form" id="unconfirm_transport" name="unconfirm_transport" enctype="multipart/form-data" action="<?php echo base_url().'org-confirm-transport/'.$this->session->userdata('transport_id').'/'; ?>" method="post" data-ajax="false">
+					<input type="hidden" name="unconf_transport" id="unconf_transport" value="unconfirm" />		
+                    </form>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+<!-- END Transport confirmation MODAL POPUP-->
+
+<!-- Contact US Form -->
+  <div class="modal fade" id="map-user-contact" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+                    <div class="modal-dialog">
+                        <form class="horizontal-form" role="form" id="send-request" name="send_request" action="" method="post">
+                            <input type="hidden" id="contact_name" name="contact_name" value="">
+                            <input type="hidden" id="contact_email" name="contact_email" value="">
+							<input type="hidden" id="org_id" name="org_id" value="">
+							<input id="user-name" name="user-name" type="hidden" value="<?php echo $this->session->userdata('user_name')." ".$this->session->userdata('last_name');  ?>" />
+							<input id="user-email" name="user-email" type="hidden" value="<?php echo $this->session->userdata('email'); ?>" />
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <button aria-hidden="true" data-dismiss="modal" class="close empty_dates" type="button" title="Close"></button>
+                                    <h4 class="modal-title">Contact Request</h4>
+                                </div>							
+                                <div class="modal-body">
+                                  
+                                    <div class="form-group col-md-12 padl0 padr0">
+                                       <textarea id="contactmessage" name="contactmessage" rows="3" class="form-control" maxlenght="500" Placeholder="Enter Your Message" ></textarea>
+                                    </div>
+                                    <div class="form-group col-md-12 padl0 padr0 btm-button marb0">
+                                            <a href="javascript:void(0);" class="btn orange fr" id="send_request_btn" title="Send">Send</a>
+                                           <!-- <input type="submit" class="btn orange mart20 fr wht"  id="send_request_btn" value="Send">-->
+                                    </div>
+                                    <div class="clearfix"></div>
+                                </div>
+                            </div>
+                        </form>
+                        <!-- /.modal-content --> 
+                        </div>
+                    </div>
+
+<!-- End Contact Us Form --> 
+
+	<!-- Start Thank You Message -->
+					 <div class="modal fade" id="thankyou-config" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header"> 
+                            <button aria-hidden="true" data-dismiss="modal" class="close" type="button"></button>
+                            <h4 class="modal-title">THANK YOU</h4>
+                        </div>
+                        <div class="modal-body"><h5>Mail sent successfully.</h5></div>
+                        <div class="modal-footer text-center no-margin"><a class="btn blue" data-dismiss="modal" title="Close">Close</a> </div>
+                    </div>
+                    <!-- /.modal-content --> 
+                </div>
+                <!-- /.modal-dialog --> 
+            </div>
+			<!-- End Thank you Message -->
+
+
+
+<a href="#" class="crunchify-top" id="crunchify-top" title="Top">↑Top</a>
+
+ <form class="horizontal-form" role="form" id="mark_complete" name="mark_complete" enctype="multipart/form-data" action="" method="post" >
+ <input type="hidden" value="submit" name="mark_leg_completed" id="mark_leg_completed"/>
+ <input type="hidden" value="" name="leg_completed_id" id="leg_completed_id"/>
+ <input type="hidden" name="leg_completed_no" id="leg_completed_no" value="" />
+ </form>
+ 
+<?PHP include APPPATH."views/includes/footer.php" ?>
+<!-- BEGIN JAVASCRIPTS --> 
+
+
+<!--Being Page Lavel CSS-->
+<link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/prettyPhoto/prettyPhoto.css" type="text/css" media="screen" title="prettyPhoto main stylesheet" charset="utf-8" />
+<!--End Page Lavel CSS-->
+
+<script src="<?php echo base_url(); ?>assets/plugins/prettyPhoto/jquery.prettyPhoto.js" type="text/javascript" charset="utf-8"></script>
+<script type="text/javascript">
+//Start media Gallery 
+$(document).ready(function(){
+$("area[rel^='prettyPhoto']").prettyPhoto();
+<?php
+if(isset($gallery) && !empty($gallery))
+{
+	foreach($gallery as $key)
+	{
+	?>	
+	$("#<?php echo $key;?>:first a[rel^='prettyPhoto']").prettyPhoto({animation_speed:'normal',theme:'light_square',slideshow:3000, autoplay_slideshow: false});
+	$("#<?php echo $key;?>:gt(0) a[rel^='prettyPhoto']").prettyPhoto({animation_speed:'fast',slideshow:10000, hideflash: true});
+	<?php	
+	}										
+}
+?>			
+});
+//End media Gallery 
+</script>
+
+<!-- BEGIN PAGE LEVEL SCRIPTS -->
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/clockface/js/clockface.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-datetimepicker/js/bootstrap-datetimepicker.min.js"></script> 
+<script src="<?php echo base_url(); ?>assets/scripts/custom/components-pickers.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-fileinput/bootstrap-fileinput.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/gritter/js/jquery.gritter.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/jquery.pulsate.min.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/jquery-bootpag/jquery.bootpag.min.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/holder.js"></script> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-validation/dist/jquery.validate.min.js" type="text/javascript"></script>
+<!-- END PAGE LEVEL PLUGINS --> 
+<!-- BEGIN PAGE LEVEL SCRIPTS --> 
+<script type="text/javascript">
+
+function mark_as_completed(leg_id)
+{
+	var checked = $("#completed_"+leg_id).is(':checked');
+		if(checked) {
+			var leg_number = $("#completed_"+leg_id).attr('data-id');
+			//alert(leg_number);return false;
+			//$("#completed_"+leg_id).attr("checked", "checked");
+			if(confirm('Are you sure, Do you want to mark this leg completed?')){         
+				$("#leg_completed_id").val(leg_id);
+				$('#leg_completed_no').val(leg_number);
+				document.mark_complete.submit();
+			}
+			else{
+				$("#completed_"+leg_id).removeAttr('checked');
+			}
+		} 
+}
+
+$(document).ready(function(){
+$('#loadimg_feed').hide();
+
+$('#send_request_btn').live('click',function(){
+					var mess='';
+					mess = $('#contactmessage').val(); 
+					var username = $("#user-name").val();
+					var useremail = $("#user-email").val();
+					var org_id = $("#org_id").val();
+					//var validatemail= 	validateEmail(useremail);
+					//alert(validatemail);	
+					//alert(mess);		
+                    //if(mess == '' || name == '' || email == '')
+					if(mess == '')
+                    {
+						alert('Please complete your information.');
+						//alert('Please complete the form details.');
+						//$.modal.close();
+                        return false;
+                    }else
+                    {
+					var name  = $('#contact_name').val();
+                    var email = $('#contact_email').val();
+					
+						 $.ajax({
+								type: "POST",
+								url: '<?php echo base_url(); ?>rescue_map/map_send_mail',
+								beforeSend: function(){
+								$('#map-user-contact').modal('toggle');	
+								//$.modal.close();
+								//$('#user-contact').hide();
+								//$.modal.close();
+								//$('#loader').show();
+								},
+								data: {contact_name:name , contact_email:email ,contactmessage:mess , username:username , useremail:useremail , org_id:org_id},
+			 // data : { },
+								dataType:'json',
+			  					complete: function(){
+								//$('#loader').hide();
+				    			},
+								  success:function(data){
+									if(data.success == 1)
+										$('.modal-title').html('Thank You')	
+										$('#contactmessage').val('');
+										$('#contact_name').val('');	
+										$('#contact_email').val('');
+										//$("#user-name").val('');
+										//$("#user-email").val('');
+										$("#org_id").val('');
+										$('#thankyou-config').modal('show');
+								}, 
+                        //return true;
+						 });
+                    }
+		}); //send_request_btn2	
+
+
+$('#message_frm').validate({
+		errorElement: 'span', //default input error message container
+		errorClass: 'help-block', // default input error message class
+		focusInvalid: true, // do not focus the last invalid input
+		rules: {
+			message: {
+				required: true
+			}
+		},
+
+		messages: {
+			message: {
+				required: 'Please enter message.'
+			}
+		},
+
+		invalidHandler: function (event, validator) { //display error alert on form submit   
+			$('#message_frm').show();
+		},
+
+		highlight: function (element) { // hightlight error inputs
+			$(element)
+				.closest('.form-group').addClass('has-error'); // set error class to the control group
+		},
+
+		success: function (label) { //alert(label);
+			label.closest('.form-group').removeClass('has-error');
+			label.remove();
+		},
+
+		errorPlacement: function (error, element) { 
+			//error.addClass('help-small no-left-padding').insertAfter(element.closest('.form-group'));
+			error.addClass('help-block').insertAfter(element.closest('.form-control'));
+		}
+
+	});
+});	
+	
+$('#post_message').live('click',function(){
+	if($('#message_frm').valid() == false) {
+		return false;
+	} else {
+		$('#post_message').hide();
+		$('#loadimg_feed').show();
+		return true;
+	}
+});
+
+heightFix ();			 
+function heightFix (){
+	var leftcol = $('#leftcolumn').height();
+	var mapheight = leftcol;
+	$('#tab_2_2, #tab_2_1, #tab_2_3, #route-map').height(mapheight);
+	$(".overlay").height(mapheight) 
+} 
+
+function initialize() {
+// create the map
+	//alert('display map');
+	 return Doobert.components.transportation_route.Base = flight.component(function () {
+            return this.after("initialize", function () {
+                var t = this;
+                return void 0 !== Doobert.components.Overlay && Doobert.components.Overlay.attachTo("#main-transportation-route"), this.on("legs.initializeAfter", function () {
+                    return t.trigger("legSelection.initialize")
+                }), this.on("legSelection.initializeAfter", function () {
+                    return t.trigger("overlay.hide")
+                }), this.on("directions.restoreRouteAfter", function () {
+                    return t.trigger("legs.initialize")
+                }), this.on("map.initializeAfter", function () {
+                    return t.trigger("routeLine.initialize")
+                }), this.trigger("map.initialize", {
+                    routeMapSelector: "#route-map"
+                })
+            })
+        }), Doobert.components.transportation_route.Base.attachTo("#main-transportation-route")
+	}
+</script> 
+<script type="text/javascript">
+$(document).ready(function(e) {
+	
+	<?php if($transport_details['st_trans_type']=='P') { ?>
+		$("#main-transportation-route").attr("style", "position:relative; display: none;"); 
+		$(".view_map_tg").attr('id' , 'grid-view');  // Set id for each div 
+	<?php } ?>
+	
+	<?php if($this->session->userdata('recent_activity') && ($this->session->userdata('recent_activity') == "P" || $this->session->userdata('recent_activity') == "D")) { ?>
+		$("#main-transportation-route").attr("style", "position:relative; display: block;");
+		$(".transport-view-map").html('<i class="fa fa-eye-slash"></i> Hide Map'); 
+		$(".view_map_tg").attr('id' , 'map-hide');  // Set id for each div 
+		initialize();
+	<?php } ?>
+	
+	if(page_id && page_id > 0)
+	{
+		$("#main-transportation-route").attr("style", "position:relative; display: block;");
+		$(".transport-view-map").html('<i class="fa fa-eye-slash"></i> Hide Map'); 
+		$(".view_map_tg").attr('id' , 'map-hide');  // Set id for each div 
+		initialize();
+	}
+
+
+	$( ".map" ).click(function() {
+	  $( ".view-map-cont" ).toggle();
+	  //alert($(".transport-view-map").html());
+			if($(".transport-view-map").html() == '<i class="fa fa-eye"></i> View Map')
+			{
+				$("#main-transportation-route").height($("#leftheight").height());
+				$(".transport-view-map").html('<i class="fa fa-eye-slash"></i> Hide Map'); 
+				$(".view_map_tg").attr('id' , 'map-hide');  // Set id for each div 
+				initialize();			
+			}
+			else if($(".transport-view-map").html() == '<i class="fa fa-eye-slash"></i> Hide Map')
+			{
+				$("#main-transportation-route").height($("#leftheight").height());
+				$(".transport-view-map").html('<i class="fa fa-eye"></i> View Map');
+				$(".view_map_tg").attr('id' , 'grid-view');
+			}
+	});
+	
+	$('.view_more').live('click',function(){
+	// $(window).scroll(function(){
+		var count_notification = $('.timeline-red').length;
+		 count_notification = parseInt(count_notification)+parseInt($('.timeline-yellow').length);
+		 count_notification = parseInt(count_notification)+parseInt($('.timeline-green').length);
+		$.ajax({
+			type: "POST",
+				  url: '<?php echo base_url(); ?>org_transportation/view_more_notification',
+				  beforeSend: function() {
+					$('#loader').show();
+				  },
+				  data: {
+					  start : count_notification,
+					  end : 10
+				  },
+				  dataType:"html",
+				  complete: function() {
+					 $('#loader').hide();
+				  },
+				  success:function(data) {
+					  if(data != '') {
+						var window_height = $(window).height();
+    					var document_height = $(document).height();
+					  	$('.timeline').append(data);
+						/*$('html,body').animate({ 
+								scrollTop: window_height + document_height 
+						}, 'slow', function (){ });*/
+						
+						$('html,body').animate({ 
+								scrollTop: window_height + document_height 
+						},2500);
+						
+					  } else {
+						  $('.not_found').show();
+						  $('.view_more').hide();
+					  }
+					  
+					  var current_notification = $('.timeline-red').length;
+		 				current_notification = parseInt(current_notification)+parseInt($('.timeline-yellow').length);
+		 				current_notification = parseInt(current_notification)+parseInt($('.timeline-green').length);
+					 var total_rows = '<?php echo $total_rows_tr; ?>';
+					  //console.log(total_rows+"_"+current_notification);
+					 if(current_notification == total_rows) {
+						$('.view_more').hide();
+					 } else {
+						$('.view_more').show();
+					 }
+				  }
+		});
+	});
+	
+	$('#modal_unconfirm_transport').live('click',function(){
+		//alert('modal_unconfirm_transport clicked');
+		$('#unconfirm_transport_popup').modal('hide');
+		//document.unconfirm_transport.submit();		
+		$('#unconfirm_transport').submit();
+	});	
+	
+});
+</script> 
+<script type="text/javascript">
+$(document).ready(function(){
+<?php
+  if(isset($leg_details) && !empty($leg_details))
+  {
+	$i=1;	
+	foreach($leg_details as $key=>$value)
+	{
+	?>
+	if( !$.trim( $('#slider1_<?php echo $value['leg_id'] ;?>').html() ).length ) {
+				$('#slider1_<?php echo $value['leg_id'] ;?>').parent('div').remove();
+				}
+	
+	var divs<?php echo $value['leg_id'];?> = $('.slider-<?php echo $value['leg_id'];?> > div');
+    var now = 0; // currently shown div
+    //console.log(divs<?php echo $value['leg_id'];?>);
+    divs<?php echo $value['leg_id'];?>.hide().first().show(); // hide all divs except first
+    $(".nex-<?php echo $value['leg_id'];?>").live('click',function(){
+		divs<?php echo $value['leg_id'];?>.eq(now).hide();		
+        now = (now + 1 < divs<?php echo $value['leg_id'];?>.length) ? now + 1 : 0;
+		divs<?php echo $value['leg_id'];?>.eq(now).show(); // show next
+    });
+    $(".pre-<?php echo $value['leg_id'] ;?>").live('click',function(){
+		divs<?php echo $value['leg_id'];?>.eq(now).hide();
+        now = (now > 0) ? now - 1 : divs<?php echo $value['leg_id'];?>.length - 1;
+        divs<?php echo $value['leg_id'];?>.eq(now).show(); // show previous
+    });
+				
+<?php } } ?>
+});
+</script>
+
+<script type="text/javascript">
+$(window).load(function(){
+	var current_notification = $('.timeline-red').length;
+		 current_notification = parseInt(current_notification)+parseInt($('.timeline-yellow').length);
+		 current_notification = parseInt(current_notification)+parseInt($('.timeline-green').length);
+	var total_rows = '<?php echo $total_rows_tr; ?>';
+	//alert(total_rows);
+	if(current_notification == total_rows) {
+		$('.view_more').hide();
+	} else {
+		$('.view_more').show();
+	}
+	
+});
+</script> 
+
+<!-- BEGIN PAGE LEVEL PLUGINS --> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/bootstrap-select/bootstrap-select.min.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/select2/select2.min.js"></script> 
+<script type="text/javascript" src="<?php echo base_url(); ?>assets/plugins/jquery-multi-select/js/jquery.multi-select.js"></script> 
+<!-- END PAGE LEVEL PLUGINS --> 
+<!-- BEGIN PAGE LEVEL SCRIPTS --> 
+
+<script src="<?php echo base_url(); ?>assets/scripts/custom/components-dropdowns.js"></script> 
+<!-- END PAGE LEVEL SCRIPTS --> 
+<script>
+function funPreview(){
+  
+$('.preview').popover({'trigger':'hover','html':true,'animation':false});
+
+/*
+$( ".info-icons a" ).hover(
+  function() {
+  $('.popover').addClass($(this).data("class"));
+  //if( $('.popover .popover-content').is(':empty') ) {
+//  $('.popover .popover-content').css('display','none');
+//  }else{$('.popover .popover-content').css('display','block');} 
+  });
+  */
+  $( ".info-icons a" ).live("hover",function(){
+      $('.popover').addClass($(this).data("class"));
+    
+    });
+}
+funPreview();
+</script>
+<script>
+$(document).ready(function () {
+	
+  function FirstSlider(){
+    var divs = $('.div1>div');
+    var now = 0; // currently shown div
+    console.log(divs);
+    divs.hide().first().show(); // hide all divs except first
+    $(".nex1").click(function () {
+        divs.eq(now).hide();
+		now = (now > 0) ? now - 1 : divs.length - 1;
+        //now = (now + 1 < divs.length) ? now + 1 : 0;
+        divs.eq(now).show(); // show next
+    });
+    $(".pre1").click(function () {
+        divs.eq(now).hide();
+		now = (now + 1 < divs.length) ? now + 1 : 0;
+        //now = (now > 0) ? now - 1 : divs.length - 1;
+        divs.eq(now).show(); // show previous
+    });
+  }
+
+  
+    FirstSlider();
+});
+
+jQuery(document).ready(function() {
+	var numVolunteers = $('.volunteered-box-info').length;
+	//alert('numVolunteers'+numVolunteers);
+	$("#volunteer_counts").html('('+numVolunteers+')');
+});
+
+</script>
+
+<script>
+        jQuery(document).ready(function() {       
+           // initiate layout and plugins
+           //App.init();
+          // ComponentsDropdowns.init();
+        });   
+</script> 
+
+
+<script src="<?php echo base_url(); ?>assets/scripts/core/app.js"></script>
+<script src="<?php echo base_url(); ?>assets/scripts/custom/ui-general.js"></script> 
+<script src="<?php echo base_url(); ?>assets/scripts/custom/components-pickers.js"></script> 
+<script>
+        $(document).ready(function() {       
+           ComponentsPickers.init();
+		    App.init();
+        });   
+</script>
+
+
+<script src="<?php echo base_url(); ?>assets/plugins/bootstrap-hover-dropdown/bootstrap-hover-dropdown.min.js" type="text/javascript"></script> 
+<script type="text/javascript">
+$(document).ready(function(){
+	
+	$('#message').autocomplete ({
+		source:"<?php echo base_url(); ?>org_transportation/get_transport_feed_users/", 
+		minLength:2,
+		autoFocus:true,
+		focus: function( event, ui ) {
+			var name = ui.item.label;
+			//var name = ui.item.value;
+			$( "#message" ).val(name);
+			
+			$("#user_name_hidden").val(name);
+			$('#user_email').val(ui.item.email);
+			$('#user_id').val(ui.item.user_id);
+			
+			return false;
+		},     
+		select: function( event, ui ) {
+			var name = ui.item.label;
+			//var name = ui.item.value;
+			$("#message" ).val('@'+name+': ');
+			$("#user_name_hidden").val(name);
+			$('#user_email').val(ui.item.email);
+			$('#user_id').val(ui.item.user_id);
+			return false;
+		}
+	}).data( "ui-autocomplete" )._renderItem = function( ul, item ) {
+        var inner_html = '<a><div class="list_item_container"><span class="image"><img src="<?php echo base_url(); ?>upload/profile/29x29/' + item.image + '"></span><span class="feed-name">' + item.label + '</span></div></a>';
+        return $( "<li></li>" )
+            .data( "item.autocomplete", item )
+            .append(inner_html)
+            .appendTo( ul );
+    };
+});
+$(window).resize(function() {
+	$('.ui-autocomplete').hide();
+});
+</script>
+<!-- END CORE PLUGINS --> 
+
+<!-- Multiple file upload start --> 
+<!-- The jQuery UI widget factory, can be omitted if jQuery UI is already included --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/vendor/jquery.ui.widget.js"></script> 
+<!-- The Templates plugin is included to render the upload/download listings --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/tmpl.min.js"></script> 
+<!-- The Load Image plugin is included for the preview images and image resizing functionality --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/load-image.min.js"></script> 
+<!-- The Canvas to Blob plugin is included for image resizing functionality --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/canvas-to-blob.min.js"></script> 
+<!-- Bootstrap JS is not required, but included for the responsive demo navigation -->
+<?php /*?><script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script> <?php */?>
+<!-- blueimp Gallery script --> 
+<script src="<?php echo base_url(); ?>assets/plugins/multi-files-upload/jquery.blueimp-gallery.min.js"></script> 
+<!-- The Iframe Transport is required for browsers without support for XHR file uploads --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.iframe-transport.js"></script> 
+<!-- The basic File Upload plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload.js"></script> 
+<!-- The File Upload processing plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-process.js"></script> 
+<!-- The File Upload image preview & resize plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-image.js"></script>
+<?php /*?><!-- The File Upload audio preview plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-audio.js"></script> 
+<!-- The File Upload video preview plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-video.js"></script> <?php */?>
+<!-- The File Upload validation plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-validate.js"></script> 
+<!-- The File Upload user interface plugin --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/jquery.fileupload-ui.js"></script> 
+<!-- The main application script --> 
+<script src="<?php echo base_url(); ?>assets/plugins/jquery-file-upload/js/file_upload_main.js"></script> 
+<script type="text/javascript">
+var upload_link = '<?php echo base_url(); ?>org_transportation/add_photos';
+var file_divid = 'transport_photos';
+var file_divid_update = 'transport_update_info';
+var rescue_divid = 'rescue_transport_story_frm';
+</script> 
+
+<script src="<?php echo base_url(); ?>assets/scripts/tipso.js" type="text/javascript" charset="utf-8"></script> 
+<script type="text/javascript" src="<?php echo $base_url;?>assets/ckeditor/ckeditor.js"></script>
+<script>
+  CKEDITOR.replace( 'rescue_story' );
+</script>
+<script>
+$(document).ready(function(){
+	
+	jQuery('.title-tipso').tipso();
+		
+	$("area[rel^='prettyPhoto']").prettyPhoto();
+	$(".gallery:first a[rel^='prettyPhoto']").prettyPhoto({animation_speed:'normal',theme:'light_square',slideshow:3000, autoplay_slideshow: false});
+	$(".gallery:gt(0) a[rel^='prettyPhoto']").prettyPhoto({animation_speed:'fast',slideshow:10000, hideflash: true});
+	
+	$('#'+file_divid).fileupload({
+		  url: upload_link,
+		  //maxNumberOfFiles: 5,
+		  maxFileSize : 5242880,
+		  acceptFileTypes :/(\.|\/)(jpe|jpg|jpeg|png|gif)$/i,
+		  sequentialUploads: true,
+		  autoUpload :true
+		});
+		
+		$('#'+file_divid_update).fileupload({
+		  url: upload_link,
+		  maxNumberOfFiles: 5,
+		  maxFileSize : 5242880,
+		  acceptFileTypes :/(\.|\/)(jpe?g|doc|docx|xls|xlsx|pdf)$/i,
+		  sequentialUploads: true,
+		  autoUpload :true
+		});	
+
+	$('#'+rescue_divid).fileupload({
+		  url: upload_link,
+		  //maxNumberOfFiles: 5,
+		  maxFileSize : 5242880,
+		  acceptFileTypes :/(\.|\/)(jpe|jpg|jpeg|png|gif)$/i,
+		  sequentialUploads: true,
+		  autoUpload :true
+		});
+		
+		
+});
+
+/*$('#submit_photos').live('click',function(){
+	var file_name = '';
+	$('#transport_photo').val('');
+	$('.table-striped tr').each(function() {
+    var transport_photos = $(this).find('td p a').text(); 
+	if(transport_photos!='')
+	{  
+		if (file_name == '') {
+				file_name += transport_photos;
+		}else{
+				file_name += ',' + transport_photos; 
+		}
+	}
+	});
+	$('#transport_photo').val(file_name);
+	if(file_name == "") {
+		alert("Please attach photo(s).")
+		return false;
+	} else {
+		$('#submit_photos').hide();
+		document.transport_photos.submit();
+		$('#loadimg_upload').show();
+		return true;
+	}
+});*/
+
+$('#update_transport_info').live('click',function(){
+	
+	var file_name = '';
+	$('#image_file_update').val('');
+	$('.table-striped tr').each(function() {
+	var image_files = $(this).find('td p a').text(); 
+	if(image_files!='')
+	{  
+		if (file_name == '') {
+				file_name += image_files;
+		}else{
+				file_name += ',' + image_files; 
+		}
+	}
+	});
+	$('#image_file_update').val(file_name);
+	
+	if($('#additional-comments-update').val() == "" && $('#image_file_update').val() == ""  && $('#transport_info_files_cnt').val() == 0) {
+		alert("Please enter comments/upload files.");
+		return false;
+	} else {
+		//alert('update comments');
+		$('#update_transport_info').hide();
+		
+		if($.browser.msie) {
+				$('.display_loader').html('<img id="loadimg" src="<?php echo base_url(); ?>assets/img/ajax-loading.gif" alt="loader" />');
+			}
+		$('.display_loader').show();
+		
+		$('#loadimg_mail').show();
+		$('#edit-additional-info').modal('hide');
+		
+		if($.browser.msie) {
+			$('.display_loader').html('<div id="loader" style="display: none;"><img src="<?php echo base_url(); ?>assets/img/ajax-modal-loading.gif" width="32" height="32" align="absmiddle">&nbsp;<span id="loadertext">Loading...</span></div>');
+		}
+		
+		$('.display_loader').show();
+		$('#loader').show();	
+		$('#transport_update_info').submit();
+	}
+	});  
+	
+</script> 
+
+<script>            
+	jQuery(document).ready(function() {
+		var offset = 220;
+		var duration = 500;
+		jQuery(window).scroll(function() {
+			if (jQuery(this).scrollTop() > offset) {
+				jQuery('.crunchify-top').fadeIn(duration);
+			} else {
+				jQuery('.crunchify-top').fadeOut(duration);
+			}
+		});
+ 
+		jQuery('.crunchify-top').click(function(event) {
+			event.preventDefault();
+			jQuery('html, body').animate({scrollTop: 0}, duration);
+			return false;
+		})
+		
+			var isMobile = {
+			Android: function() {
+				return navigator.userAgent.match(/Android/i);
+			},
+			BlackBerry: function() {
+				return navigator.userAgent.match(/BlackBerry/i);
+			},
+			iOS: function() {
+				return navigator.userAgent.match(/iPhone|iPad|iPod/i);
+			},
+			Opera: function() {
+				return navigator.userAgent.match(/Opera Mini/i);
+			},
+			Windows: function() {
+				return navigator.userAgent.match(/IEMobile/i);
+			},
+			any: function() {
+				return (isMobile.Android() || isMobile.BlackBerry() || isMobile.iOS() || isMobile.Opera() || isMobile.Windows());
+			}
+		};
+		
+		if(isMobile.any()) {
+			//alert('this is mobile');
+			$('#crunchify-top').addClass('crunchify-top-display-important');	
+			$('#crunchify-top').removeClass('crunchify-top-hide-important');	
+				
+		}else{
+			//alert('this is not mobile');
+			$('#crunchify-top').removeClass('crunchify-top-display-important');
+			$('#crunchify-top').addClass('crunchify-top-hide-important');			
+			} 
+	});
+</script> 
+<script>
+$(window).load(function() {
+	$("#main-transportation-route").height($("#leftheight").height());
+})
+$( window ).resize(function() {
+  $("#main-transportation-route").height($("#leftheight").height());
+})
+</script>
+<script>
+equalheight = function(container){
+
+var currentTallest = 0,
+     currentRowStart = 0,
+     rowDivs = new Array(),
+     $el,
+     topPosition = 0;
+ $(container).each(function() {
+
+   $el = $(this);
+   $($el).height('auto')
+   topPostion = $el.position().top;
+
+   if (currentRowStart != topPostion) {
+     for (currentDiv = 0 ; currentDiv < rowDivs.length ; currentDiv++) {
+       rowDivs[currentDiv].height(currentTallest);
+     }
+     rowDivs.length = 0; // empty the array
+     currentRowStart = topPostion;
+     currentTallest = $el.height();
+     rowDivs.push($el);
+   } else {
+     rowDivs.push($el);
+     currentTallest = (currentTallest < $el.height()) ? ($el.height()) : (currentTallest);
+  }
+   for (currentDiv = 0 ; currentDiv < rowDivs.length ; currentDiv++) {
+     rowDivs[currentDiv].height(currentTallest);
+   }
+ });
+}
+
+$(window).load(function() {
+  equalheight('.transport-legs-detail h3');
+});
+
+$(window).resize(function(){
+  equalheight('.transport-legs-detail h3');
+});
+</script>
+<script type="text/javascript">
+function equalHeight(group) {
+    tallest = 0;
+    group.each(function() {
+        thisHeight = $(this).height();
+        if(thisHeight > tallest) {
+            tallest = thisHeight;
+        }
+    });
+    group.height(tallest);
+}
+ 
+$(document).ready(function(){
+    equalHeight($(".leg-inner-cont"));
+});
+</script>
+<script>
+
+$(document).ready(function(){
+
+$('#submit_story').live('click',function(event) {
+	event.preventDefault();
+	if($('#rescue_transport_story_frm').valid() == false) {
+		return false;
+	} else {
+		//alert('submit form true');
+		var video_url = $('#story_video_link').val();
+		var video_check = true;
+		if(video_url != "")
+		{
+			video_check  = parseVideoURL(video_url);
+			//return false;		
+		}
+		if(video_check)
+		{	
+			var file_name = '';
+			$('#rescue_transport_photo').val('');
+			$('.table-striped tr').each(function() {
+			var rescue_transport_photos = $(this).find('td p a').text(); 
+			if(rescue_transport_photos!='')
+			{  
+				if (file_name == '') {
+						file_name += rescue_transport_photos;
+				}else{
+						file_name += ',' + rescue_transport_photos; 
+				}
+			}
+			});
+			$('#rescue_transport_photo').val(file_name);
+			$('#submit_story').hide();
+			$('#cancel_rescue_story').hide();
+			$('#loadimg').show();
+			$('#rescue_transport_story_frm').submit();
+			return true;
+		}
+	}
+});
+
+	
+function parseVideoURL(url) {
+
+    function getParm(url, base) {
+            var re = new RegExp("(\\?|&)" + base + "\\=([^&]*)(&|$)");
+            var matches = url.match(re);
+            if (matches) {
+                return(matches[2]);
+            } else {
+                return("");
+            }
+        }
+
+        var retVal = {};
+        var matches;
+        var success = false;
+
+        if ( url.match('http(s)?://(www.)?youtube|youtu\.be') ) {
+          if (url.match('embed')) { retVal.id = url.split(/embed\//)[1].split('"')[0]; }
+            else { retVal.id = url.split(/v\/|v=|youtu\.be\//)[1].split(/[?&]/)[0]; }
+            retVal.provider = "youtube";
+            var videoUrl = 'https://www.youtube.com/embed/' + retVal.id + '?rel=0';
+            $('#story_video_img_link').val(videoUrl);
+			$('#story_video_provider').val(retVal.provider);
+			$('#story_video_id').val(retVal.id); 
+			success = true;
+        } else if (matches = url.match(/vimeo.com\/(\d+)/)) {
+            retVal.provider = "vimeo";
+            retVal.id = matches[1];
+            var videoUrl = 'http://player.vimeo.com/video/' + retVal.id;
+			$('#story_video_img_link').val(videoUrl); 
+			$('#story_video_provider').val(retVal.provider);
+			$('#story_video_id').val(retVal.id); 
+			success = true;
+        }
+
+      if (success) {
+        //alert(retVal.id);
+		//var img_url = $.trim("http://i.ytimg.com/vi/"+$.trim(retVal.id)+"/1.jpg");
+		//$('#story_video_link').val(img_url);
+		//return retVal;
+		return true;		
+      }
+      else { 
+	  alert("Please enter valid video link."); 
+	  $('#story_video_link').val(''); 
+	  return false; 
+	  }
+}	
+	
+$('#rescue_transport_story_frm').validate({
+		errorElement: 'label', //default input error message container
+		errorClass: 'help-inline', // default input error message class
+		focusInvalid: true, // do not focus the last invalid input
+		ignore: [],
+		rules: {
+					story_title:{
+						required:true
+					},
+					rescue_story:{
+						required:true
+					},
+					rescue_story:{
+                         required: function() 
+                        {
+                         CKEDITOR.instances.rescue_story.updateElement();
+                        }                        
+                    }
+				},
+		messages: {
+			story_title: {
+				required: 'Please enter title.'
+			},
+			rescue_story:{
+				required: 'Please enter story.'
+			}
+		},
+		
+
+		invalidHandler: function (event, validator) { //display error alert on form submit   
+			$('#rescue_transport_story_frm').show();
+			
+			var errors = validator.numberOfInvalids();
+			if (errors) {
+			  var message = errors == 1
+				? 'You missed 1 field. It has been highlighted'
+				: 'You missed ' + errors + ' fields. They have been highlighted';
+			  alert(message);
+			}
+		},
+
+		highlight: function (element) { // hightlight error inputs
+			$(element)
+				.closest('.form-group').addClass('has-error'); // set error class to the control group
+		},
+		//onClose: function() {$(this).valid();},
+		success: function (label) { 
+			label.closest('.form-group').removeClass('has-error');
+			label.closest('.help-block').removeClass('has-error');
+			label.remove();		
+			
+		},errorPlacement: function (error, element) {
+			error.addClass('help-block').insertAfter(element.closest('.form-control'));//For Other Normal Fileds
+			error.addClass('help-inline').insertAfter(element.closest('.input-group'));//For HTTP Filed
+			
+			if(element.attr("id") == "rescue_story") {
+				error.insertAfter('#cke_rescue_story');
+			}
+			
+		}
+	});
+	
+});
+
+
+$('#cancel_rescue_story').live('click',function(){
+	$('#tab-photos-box').show();
+	$('#transport-story').hide();
+});
+
+$('#cancel_transport_photo').live('click',function(){
+	$('#tab-photos-box').show();
+	$('#transport-story').hide();
+	$('#photos-videos-box').hide();
+});
+
+$('#submit_photos').live('click',function(){
+	var file_name = '';
+	$('#transport_photo').val('');
+	var transport_video_link = $('#transport_video_link').val();
+	
+	$('.table-striped tr').each(function() {
+    var transport_photos = $(this).find('td p a').text(); 
+	if(transport_photos!='')
+	{  
+		if (file_name == '') {
+				file_name += transport_photos;
+		}else{
+				file_name += ',' + transport_photos; 
+		}
+	}
+	});
+	$('#transport_photo').val(file_name);
+	if(file_name == "" && transport_video_link == "") {
+		alert("Please attach photo(s)/video link.")
+		return false;
+	} else {
+		
+		var video_check = true;
+		if(transport_video_link != "")
+		{
+			video_check = parseTransportVideoURL(transport_video_link);
+		}
+		if(video_check)
+		{
+			$('#submit_photos').hide();
+			$('#cancel_transport_photo').hide();
+			//document.transport_photos.submit();
+			$('#loadimg_upload').show();
+			$('#loadimgphoto').show();
+			$("#transport_photos").submit();
+			return true;
+		}
+	}
+});
+
+function parseTransportVideoURL(url) {
+
+    function getParm(url, base) {
+            var re = new RegExp("(\\?|&)" + base + "\\=([^&]*)(&|$)");
+            var matches = url.match(re);
+            if (matches) {
+                return(matches[2]);
+            } else {
+                return("");
+            }
+        }
+
+        var retVal = {};
+        var matches;
+        var success = false;
+
+        if ( url.match('http(s)?://(www.)?youtube|youtu\.be') ) {
+          if (url.match('embed')) { retVal.id = url.split(/embed\//)[1].split('"')[0]; }
+            else { retVal.id = url.split(/v\/|v=|youtu\.be\//)[1].split(/[?&]/)[0]; }
+            retVal.provider = "youtube";
+            var videoUrl = 'https://www.youtube.com/embed/'+ retVal.id + '?rel=0';
+            $('#transport_video_img_link').val(videoUrl);
+			$('#transport_video_provider').val(retVal.provider);
+			$('#transport_video_id').val(retVal.id); 
+			success = true;
+        } else if (matches = url.match(/vimeo.com\/(\d+)/)) {
+            retVal.provider = "vimeo";
+            retVal.id = matches[1];
+            var videoUrl = 'http://player.vimeo.com/video/' + retVal.id;
+			$('#transport_video_img_link').val(videoUrl); 
+			$('#transport_video_provider').val(retVal.provider);
+			$('#transport_video_id').val(retVal.id); 
+			success = true;
+        }
+
+      if (success) {
+        //alert(retVal.id);
+		//var img_url = $.trim("http://i.ytimg.com/vi/"+$.trim(retVal.id)+"/1.jpg");
+		//$('#story_video_link').val(img_url);
+		//return retVal;
+		return true;		
+      }
+      else { 
+	  alert("Please enter valid video link."); 
+	  $('#story_video_link').val(''); 
+	  return false; 
+	  }
+}	
+</script>
+<!-- END PAGE LEVEL SCRIPTS --> 
+<!-- END JAVASCRIPTS -->
+</body>
+<!-- END BODY -->
+</html>

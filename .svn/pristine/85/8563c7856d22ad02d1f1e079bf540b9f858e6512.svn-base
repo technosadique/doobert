@@ -1,0 +1,200 @@
+<?php //if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+ 
+ class Paypalipn extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->load->model('common_model');
+		$this->load->library('common_function');
+		$this->load->model('order_transport_model');
+		$this->load->model('orgtrasnportation_model');
+	}
+	 	public function cart_notify_url()
+ 	{
+	 		$postData = file_get_contents('php://input');
+			$rawPostArray = explode('&', $postData);
+		 	$myPost = array();
+	 		foreach ($rawPostArray as $keyval) {
+ 		  		$keyval = explode ('=', $keyval);
+ 		 	if (count($keyval) == 2)
+ 				$myPost[$keyval[0]] = urldecode($keyval[1]);
+ 			}
+
+		if(isset($myPost) && (strtoupper($myPost['payment_status'])=='COMPLETED' || $myPost['payer_status']=='verified')){
+			$order_id	=	$myPost['custom'];			
+ 			$transaction_id	=	$myPost['txn_id'];
+			
+ 			//$order_id = 183;
+
+			$ipn_notification_data = array('st_transaction_id'=>$transaction_id,'st_transactions'=>serialize($rawPostArray),'dt_modified'=>date("Y-m-d H:i:s"));
+			$this->db->where('in_order_id',$order_id);
+			$this->db->update('tbl_order',$ipn_notification_data);
+	
+			$this->load->library('email');
+			$email_details = $this->common_model->get_email_containt("131");
+			$user_detail = $this->common_model->get_space_user_detail($order_id);
+			$order_data = $this->order_transport_model->get_data_by_order_id($order_id);
+
+			if (isset($email_details[0]['st_email_body']) && isset($user_detail)) 
+			{
+				$templete  = $email_details[0]['st_email_body'];
+				$templete = str_replace("##display_name##",$user_detail['st_name'], $templete);
+				$strMail = $templete;
+				$to = $user_detail['st_email'];
+				$subject = $email_details[0]['st_email_subject']; 
+				$category = $email_details[0]['st_category'];
+				$message = $strMail;
+		 		$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('admin_from_name'),$this->email,$category);
+			}
+			
+			if(isset($user_detail) && !empty($user_detail))
+			{	
+				$email_details = $this->common_model->get_email_containt("131");
+			
+					$email_templete  = $email_details[0]['st_email_body'];
+					$user_info ='';   
+					$user_info .= 'Name: '.$user_detail['st_first_name'].'<br>';
+					$user_info .= 'your space reservation is confirmed with the following details:<br>';
+					$cart_detail ='';
+					$cart_detail .= '<table id="card-table-fromto" class="table list-animal-profile">
+													<thead>
+													  <tr>
+													  	<th>Transport ID</th>
+														<th class="first">Crates Available</th>
+														<th>Quantity</th>
+														<th class="in_cost_public">Cost per Crate</th>
+														<th class="w144">Total</th>
+													  </tr>
+													</thead>
+													<tbody id="crate_table">';
+													$cost =0;
+													$total_cost = 0;
+													$total =0;
+													foreach($order_data as $o_key => $o_value){
+															
+															foreach ($o_value as $key => $value) {
+																
+																$qty = $value['in_qty'];
+
+																$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+																$in_user_id = $value['in_user_id'];
+																if($in_user_id != ''){
+																	$cost = $value['in_cost_private'];
+																}else{
+																	$cost = $value['in_cost_public'];
+																}
+																//$in_from_id = $value['in_from_id'];
+																//$in_to_id = $value['in_to_id'];
+																$total = $qty*$cost;
+																$total_cost = $total_cost+$total;
+																$cart_detail .= '<tr><td>'.$o_key.'</td><td>'.$value['st_crate_type'].' Crate</td>'; 
+																$cart_detail .= '<td>'.$qty.'</td><td>$'.$cost.'</td>';
+																$cart_detail .= '<td>$'.number_format((float)$total, 2, '.', '').'</td></tr>';							
+																
+																
+															}														
+															
+														}
+														$final_cost = number_format((float)$total_cost, 2, '.', '');
+														$cart_detail .= '<tr><td colspan=4>Total Cost</td>';
+														$cart_detail .= '<td> $'.$final_cost.'</td></tr>';
+														$cart_detail .= '	</tbody></table>';
+					
+						$templete   = $email_templete;
+						$templete   = str_replace("##display_name##",'Rajashri',$templete);
+						$templete   = str_replace("##user_details##",$user_info,$templete);  
+						$templete   = str_replace("##CART_DETAIL##",$cart_detail,$templete);
+						$strMail 	= 	$templete;
+						$to			=	'rajashri.mahapure@pulsesolutions.net';
+						//$to			=	'ghanshyam.maurya@pulsesolutions.net';
+						$subject	=	$email_details[0]['st_email_subject'];
+						$message	=	$strMail;
+						$category   =   $email_details[0]['st_category'];
+						$this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='',$this->config->item('admin_from_name'),$this->email,$category);
+					
+			}
+
+
+			if(isset($order_data) && !empty($order_data))
+			{	
+				$email_details = $this->common_model->get_email_containt("132");
+				foreach($order_data as $o_key => $o_value){
+					$transport_details	= $this->orgtrasnportation_model->get_transport_details($o_key);
+					//echo"<pre>";print_r($transport_details);exit;
+					$email_templete  = $email_details[0]['st_email_body'];
+					$user_info ='';   
+					$user_info .= 'Name: '.$transport_details['st_org_name'].'<br>';
+					$user_info .= 'your space is reserved with the following details:<br>';
+					$cart_coordinator ='';
+					$cart_coordinator .= '<table id="card-table-fromto" class="table list-animal-profile">
+						<thead>
+						  <tr>
+						  	<th>Transport ID</th>
+							<th class="first">Crates Available</th>
+							<th>Quantity</th>
+							<th class="in_cost_public">Cost per Crate</th>
+							<th class="w144">Total</th>
+						  </tr>
+						</thead>
+						<tbody id="crate_table">';
+						$cost =0;
+						$total_cost = 0;
+						$total =0;
+								
+						foreach ($o_value as $key => $value) {
+							
+							$qty = $value['in_qty'];
+
+							$order_date = date("M d, Y", strtotime($value['dt_order_date']));
+							$in_user_id = $value['in_user_id'];
+							if($in_user_id != ''){
+								$cost = $value['in_cost_private'];
+							}else{
+								$cost = $value['in_cost_public'];
+							}
+							//$in_from_id = $value['in_from_id'];
+							//$in_to_id = $value['in_to_id'];
+							$total = $qty*$cost;
+							$total_cost = $total_cost+$total;
+							$cart_coordinator .= '<tr><td>'.$o_key.'</td><td>'.$value['st_crate_type'].' Crate</td>'; 
+							$cart_coordinator .= '<td>'.$qty.'</td><td>$'.$cost.'</td>';
+							$cart_coordinator .= '<td>$'.number_format((float)$total, 2, '.', '').'</td></tr>';							
+							
+							
+						}
+						$final_cost = number_format((float)$total_cost, 2, '.', '');
+						$cart_coordinator .= '<tr><td colspan=4>Total Cost</td>';
+						$cart_coordinator .= '<td> $'.$final_cost.'</td></tr>';
+						$cart_coordinator .= '	</tbody></table>';											
+
+							
+					
+						$templete   = $email_templete;
+						$templete   = str_replace("##display_name##",'Rajashri',$templete);
+						$templete   = str_replace("##user_details##",$user_info,$templete);  
+						$templete   = str_replace("##CART_DETAIL##",$cart_coordinator,$templete);
+
+						
+						$strMail 	= 	$templete;
+						$to			=	'rajashri.mahapure@pulsesolutions.net';
+						//$to			=	$transport_details['st_email'];
+						$subject	=	$email_details[0]['st_email_subject'];
+						$message	=	$strMail;
+						$category   =   $email_details[0]['st_category'];
+						$this->common_function->send_mail($this->email, $to, $subject, $message,$this->config->item('admin_email_from'),$cc ='',$this->config->item('admin_from_name'),$this->email,$category);
+				}	
+			}
+		}//post
+	}
+
+
+
+	public function thank_you()
+	{
+		
+		$this->session->unset_userdata('order_trans_id');
+		$this->load->view('thankyou');
+	}
+	
+}
+

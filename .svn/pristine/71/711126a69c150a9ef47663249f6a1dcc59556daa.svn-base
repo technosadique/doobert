@@ -1,0 +1,1768 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');   
+
+class Products extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/products
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	public function __construct()
+    {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->library('common_function');
+		$this->common_function->check_front_logged_in($this);
+		$this->load->model('common_model');
+		$this->load->model('product_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');		
+		$this->load->library('pagination');
+		if(!isset($owner_id))
+		{	
+			$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		}
+		$make_array_user = array();
+        $check_per_flag = '';
+        if ($owner_id != $this->session->userdata('userid')) {
+            $user_permission = $this->common_function->get_permission($this->session->userdata('userid'), $this->session->userdata('org_id'));
+            if (!empty($user_permission)) {
+                $make_array_user = unserialize($user_permission);
+            }
+            if ($owner_id != $this->session->userdata('userid')) {			
+			
+                if (isset($make_array_user['vendor_manager'])) {
+                    $check_per_flag = '1';
+                } else { 
+                    $check_per_flag = '0';
+                    $this->session->set_flashdata('rights_error', 'Please contact organization owner to access this module.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+                }
+            }
+        }
+		
+		
+	}	
+	 
+	public function index()
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		
+	}
+	
+	public function woocommerce_product($sort=false,$order=false,$limit=false)
+	{   		
+	
+		if(!$this->session->userdata('userid'))
+		{ 
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		//$search_text ='';
+		  if(!$sort)
+                    $sort='in_prod_id';
+		
+		        if(!$order)
+                    $order = 'desc';
+					
+				if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 		
+						
+				if($this->uri->segment(5))
+					$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 
+		 		 $search_text     =   trim($this->input->post('search_text')); 
+		  		if(isset($search_text )){  		  
+		 		$this->session->set_userdata('search_text',$search_text);                     
+                }
+				
+		
+		// pagination starts
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'products/woocommerce_product/'.$sort.'/'.$order;
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');               
+        $config['cur_page'] 		= $limit;              
+                
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = $limit;
+		
+		$data['get_products'] = $this->product_model->get_all_product($config["per_page"],$page,$sort,$order,$search_text);
+		
+			
+		//echo '<pre>'; print_r($data['get_products']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['get_products']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+                
+		$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;	
+		$data['search_text']    =   $search_text;			
+		$this->load->view('woocommerce-product', $data);
+	}
+	
+	public function woocommerce_product_add()
+	{ 
+		if(!isset($owner_id))
+		{	
+			$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		}
+		$make_array_user = array();
+		$check_per_flag = '';
+		if ($owner_id != $this->session->userdata('userid')) {
+		$user_permission = $this->common_function->get_permission($this->session->userdata('userid'), $this->session->userdata('org_id'));
+		if (!empty($user_permission)) {
+			$make_array_user = unserialize($user_permission);
+		}
+		if ($owner_id != $this->session->userdata('userid')) {
+		if (isset($make_array_user['vendor_manager'])) {
+           if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_cr',$make_array_user['vendor_manager']) == true) {
+					$vd_cr = '1';
+		   } else {
+					$this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing the above Permission.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+		  } else {
+                    $this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing this module.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+			} 
+		}	
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		$data['category_list']	=		$this->product_model->get_product_category();
+		$data['paypal_email_address']   = 		$this->retrieve_org_paypal();
+		// check vender id before add product
+		$org_details = $this->common_model->get_single_org_details($this->session->userdata('org_id')); 
+		
+		if($org_details['in_vendor_id'] == '' || $org_details['in_vendor_id'] == '0')
+		{
+			$url = "https://www.doobert.com/wp-add-vender.php?vid=".$org_details['in_organization_id'];
+			$c = curl_init($url);
+			curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+			
+			curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+			
+			
+			$response = curl_exec($c);
+			
+			curl_close($c);
+			
+			
+			$vendordata = json_decode($response, true);
+			if($vendordata['status']==1)
+			{
+				$vendor_data = array('in_vendor_id'=>$vendordata['vendor_id'],'dt_modified'=>date("Y-m-d H:i:s"));
+				$status_id = $this->product_model->insert_vendorid($vendor_data,$this->session->userdata('org_id')); 
+			}	
+		}
+		
+		//echo '<pre>'; print_r($data['category_list']); die;
+		
+		 $form_field = array('product_name' 		=> "",
+            				 'product_sku' 			=> "",
+            				 'product_description'  => "",
+            				 'prod_regular_price'   => "",
+            				 'prod_discount_price'  => "",
+            				 'prod_stock_status' 	=> "",
+							 'prod_shipping_cost'   => "", 	
+							 'sel_cat'				=> "",
+							 'flg_affiliate'         => "",
+							 'affiliate_url'         => "",
+							 'affiliate_image_url'   => ""
+        );
+        foreach ($form_field as $key => $value) {
+            $data['product'][$key] = $value;
+        }
+		
+		 foreach ($form_field as $key => $value){
+                $data['product'][$key] = $this->input->post($key);
+            }	
+		
+		
+		if ($this->input->post('frm_action') == "ADD") { 		
+				
+				
+                $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required');
+                $this->form_validation->set_rules('product_sku', 'SKU', 'trim|required');
+                $this->form_validation->set_rules('product_description', 'Product Description', 'trim');
+				$this->form_validation->set_rules('prod_stock_status', 'Stock Status', 'trim|required');
+				$this->form_validation->set_rules('prod_regular_price', 'Regular Price', 'trim|required|greater_than[0]');
+				$this->form_validation->set_rules('prod_discount_price', 'Discounted Price', 'trim');
+				$this->form_validation->set_rules('prod_shipping_cost', 'Shipping charge', 'trim');	
+               
+				$counts = $this->common_model->check_exists("tbl_auction_products", "in_prod_id", array("st_sku" => $data['product']['product_sku'], "in_deleted" => '0'));
+                
+				$Err_Msg = '';
+                if ($counts > 0) {
+                    $Err_Msg = "Product SKU must be unique.";
+                }
+				 
+			
+				
+				//print_r($upload_error);exit;
+				#=====================End Upload Contract=================#	
+				
+                if ($this->form_validation->run() == FALSE || $Err_Msg != '' ||  $upload_error !='') { 
+					$data['Err_Msg'] = validation_errors() . $Err_Msg;
+					$data['upload_error'] = $upload_error;
+                 	//echo "<pre>";print_r($data['Err_Msg_reg']);die;
+                     $this->load->view('woocommerce-product-add', $data);
+					return;
+                } else { 					
+					//product image upload starts
+					if(isset($_FILES['product_image']) && $_FILES['product_image']['name']!='')
+					{  
+						$filename=pathinfo($_FILES['product_image']['name'], PATHINFO_FILENAME);
+						$fileext=pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION);
+						$fullfilename=md5($filename).'.'.$fileext;
+						$this->load->library('upload');						
+						
+						$config['upload_path'] = $this->config->item('upload') . 'product/';
+						$config['max_size'] = '5120';					
+						$config['allowed_types'] = 'jpg|jpeg|png|gif';
+						$config['remove_spaces'] = TRUE;
+						$config['file_name'] = str_replace(" ", "_",$fullfilename);   
+			
+					//Initialization
+					$this->upload->initialize($config);		
+					
+					$this->upload->do_upload('product_image');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					//echo "<pre>";print_r($file_errors);die;
+					//Display errors of file upload.
+						if (!empty($file_errors['errors'])) { 
+							$data = array('upload_error' => strip_tags($file_errors['errors']));			
+							$this->session->set_flashdata($data);							
+							//redirect(base_url() . 'products/woocommerce_product_add/');	
+							$data['category_list']	=		$this->product_model->get_product_category();
+							$this->load->view('woocommerce-product-add', $data);
+							return;						
+						}
+							else{
+							$data_array = array("st_product" 			=> $data['product']['product_name'],
+												"in_organization_id"	=> $this->session->userdata('org_id'),	                       				
+												"st_desc" 				=> $data['product']['product_description'],
+												"st_sku" 				=> $data['product']['product_sku'],
+												"fl_regular_price" 		=> $data['product']['prod_regular_price'],
+												"fl_discount_price" 	=> $data['product']['prod_discount_price'], 
+												"fl_shipping_cost" 			=> $data['product']['prod_shipping_cost'], 									 
+												"in_stock_status" 		=> $data['product']['prod_stock_status'],  
+												"st_selected_category" 	=> implode(',',$this->input->post('sel_cat')),  
+												"in_prod_status" 		=> "1", 
+												"in_prod_type"			=> "P",   
+												"in_affiliate"			=> isset($data['product']['flg_affiliate']) ? 1 : 0,  
+												"st_affiliate_url"		=> $data['product']['affiliate_url'],
+												"st_affiliate_image_url" => $data['product']['affiliate_image_url'],	
+												"dt_created" 			=> date("Y-m-d h:i:s")                        				           
+							);
+
+							$inserted_id = $this->product_model->insert_product($data_array,'tbl_auction_products'); 
+							
+							$data['product_image'] = array('st_prod_image' => $fullfilename);
+								$data['upload_photo'] = $this->product_model->update_product_data($data['product_image'],$inserted_id,'tbl_auction_products');
+								
+								$thumb = array('190x190' => '190',            
+												'27x27' => '27',
+												'350x350' => '350',
+												'110x110' => '110',
+												'50x50' => '50',
+												'225x225' => '225'										
+								);
+			
+								foreach ($thumb as $key => $value) {
+									$config['image_library'] = 'gd2';
+									$config['source_image'] = $this->config->item('upload') . 'product/' . $config['file_name'];
+									$config['new_image'] = $this->config->item('upload') . 'product/' . $key . '/' . $config['file_name'];
+									$config['maintain_ratio'] = TRUE;
+									$config['width'] = $value;
+									$config['height'] = $value;
+						
+									$this->load->library('image_lib');
+									$this->load->library('image_lib', $config);
+									$this->image_lib->initialize($config);
+									$this->image_lib->resize();
+								}
+								
+								if(isset($_POST['image_file']) && $_POST['image_file'] !='' ) {
+								$explode_file = explode(',',$_POST['image_file']);
+								$date = date('Y-m-d H:i:s');
+								
+								foreach($explode_file as $row) {						
+									if(trim($row)!='') {								
+										$file_data = array(	'in_product_id'	=>	$inserted_id,
+															'st_image'		=>	trim($row),													
+															'dt_created'	=>	$date													
+														);
+										$this->product_model->add_product_images($file_data,'tbl_auction_product_image');
+									}
+								}
+							}				
+							
+							}					
+						
+					}	
+
+					else{
+						
+						
+						$data_array = array("st_product" 			=> $data['product']['product_name'],
+												"in_organization_id"	=> $this->session->userdata('org_id'),	                       				
+												"st_desc" 				=> $data['product']['product_description'],
+												"st_sku" 				=> $data['product']['product_sku'],
+												"fl_regular_price" 		=> $data['product']['prod_regular_price'],
+												"fl_discount_price" 	=> $data['product']['prod_discount_price'], 
+												"fl_shipping_cost" 			=> $data['product']['prod_shipping_cost'], 									 
+												"in_stock_status" 		=> $data['product']['prod_stock_status'],  
+												"st_selected_category" 	=> implode(',',$this->input->post('sel_cat')),  
+												"in_prod_status" 		=> "1", 
+												"in_prod_type"			=> "P",   
+												"in_affiliate"			=> isset($data['product']['flg_affiliate']) ? 1 : 0,  
+												"st_affiliate_url"		=> $data['product']['affiliate_url'],
+												"st_affiliate_image_url" 	=> $data['product']['affiliate_image_url'],	
+												"dt_created" 			=> date("Y-m-d h:i:s")                        				           
+							);
+
+							
+							
+							
+							
+							$inserted_id = $this->product_model->insert_product($data_array,'tbl_auction_products'); 
+						
+					}
+					
+					// insert into wordpress wp_posts site
+					$this->session->set_flashdata('success', 'Product added successfully.'); 				
+					redirect($this->config->item('base_url') . "products/woocommerce_product/");	
+                }
+            }
+		else
+		{		
+			$this->load->view('woocommerce-product-add', $data);
+		}
+	}
+	
+	public function woocommerce_product_edit($Id=false)
+	{
+		if(!isset($owner_id))
+		{	
+			$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		}
+		$make_array_user = array();
+		$check_per_flag = '';
+		if ($owner_id != $this->session->userdata('userid')) {
+		$user_permission = $this->common_function->get_permission($this->session->userdata('userid'), $this->session->userdata('org_id'));
+		if (!empty($user_permission)) {
+			$make_array_user = unserialize($user_permission);
+		}
+		if ($owner_id != $this->session->userdata('userid')) {
+		if (isset($make_array_user['vendor_manager'])) {
+           if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_ed',$make_array_user['vendor_manager']) == true) {
+					$vd_cr = '1';
+		   } else {
+					$this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing the above Permission.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+		  } else {
+                    $this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing this module.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+			} 
+		}
+		
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		$data['category_list']	=		$this->product_model->get_product_category();
+		$data['product_detail']	=		$this->product_model->get_product_detail($Id,'tbl_auction_products');
+		$data['product_image']	=		$this->product_model->get_product_image($Id,'tbl_auction_product_image');
+		$data['paypal_email_address']   = 		$this->retrieve_org_paypal();
+		//echo '<pre>'; print_r($data['product_image']); die;
+		
+		 $form_field = array('product_name' => "",
+            				 'product_sku' => "",
+            				 'product_description' => "",
+            				 'prod_regular_price' => "",
+            				 'prod_discount_price' => "",
+							 'prod_shipping_cost' => "",
+            				 'prod_stock_status' => "", 	
+							 'product_imge' => "",
+							 'sel_cat'=> "",
+							 'flg_affiliate'=> "",
+							 'affiliate_url'=> "",
+							 'affiliate_image_url'=> ""			
+        );
+        foreach ($form_field as $key => $value) {
+            $data['product'][$key] = $value;
+        }
+		
+		 foreach ($form_field as $key => $value){
+                $data['product'][$key] = $this->input->post($key);
+            }
+			
+			
+		
+		
+		if ($this->input->post('frm_action') == "EDIT") { 
+		
+		// print_r($this->input->post());die;
+                $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required');
+                $this->form_validation->set_rules('product_sku', 'SKU', 'trim|required');
+                $this->form_validation->set_rules('product_description', 'Product Description', 'trim');
+				$this->form_validation->set_rules('prod_stock_status', 'Stock Status', 'trim|required');
+				$this->form_validation->set_rules('prod_regular_price', 'Regular Price', 'trim|required|greater_than[0]');
+				$this->form_validation->set_rules('prod_discount_price', 'Discounted Price', 'trim');  
+				$this->form_validation->set_rules('prod_shipping_cost', 'Shipping charge', 'trim');  
+				
+				  
+				                   
+                $counts = $this->common_model->check_update_existing("tbl_auction_products", "in_prod_id", array("st_sku" => $data['product']['product_sku'], "in_deleted" => '0',"in_prod_id <> " => $this->input->post('product_id')));
+                
+				$Err_Msg = '';
+                if ($counts > 0) {
+                    $Err_Msg = "Product SKU must be unique.";
+                }
+				 
+				               
+                if ($this->form_validation->run() == FALSE || $Err_Msg != '') { 
+                    $data['Err_Msg'] = validation_errors() . $Err_Msg;
+                 // echo "<pre>";print_r($data['Err_Msg_reg']);die;
+                    $this->load->view('woocommerce-product-edit', $data);
+                } else { 	
+					$product_id	=	$this->input->post('product_id');	
+					$data_array = array("st_product" 			=> $data['product']['product_name'],
+                        				"st_sku" 				=> $data['product']['product_sku'],
+                        				"st_desc" 				=> $data['product']['product_description'],
+                       					"fl_regular_price" 		=> $data['product']['prod_regular_price'],
+                       					"fl_discount_price" 	=> $data['product']['prod_discount_price'], 
+										"fl_shipping_cost" 			=> $data['product']['prod_shipping_cost'], 
+										"in_stock_status" 		=> $data['product']['prod_stock_status'],  
+										"st_selected_category" 	=> implode(',',$this->input->post('sel_cat')),  
+                       					"in_prod_status" 		=> "1",    
+										"dt_modified" 			=> date("Y-m-d h:i:s"),                        				           
+                    );
+
+					
+					
+					if(isset($data['product']['flg_affiliate']) && $data['product']['flg_affiliate'] == 1 )
+					{
+						
+						$data_array['in_affiliate']  = 1;
+						$data_array['st_affiliate_url']  = $data['product']['affiliate_url'];
+						$data_array['st_affiliate_image_url']  = $data['product']['affiliate_image_url'];
+						
+					}
+					else if($data['product']['flg_affiliate'] == 0){
+						
+						$data_array['in_affiliate']  = 0;
+						$data_array['st_affiliate_url']  = '';
+						$data_array['st_affiliate_image_url'] = '';
+					}
+                       $this->product_model->update_product($data_array,$product_id,'tbl_auction_products');  
+					
+					
+						if(isset($_POST['image_file']) && $_POST['image_file'] !='' ) {
+						//$this->product_model->update_product_image($product_id,'tbl_product_image');
+						$explode_file = explode(',',$_POST['image_file']);
+						$date = date('Y-m-d H:i:s');
+						
+						foreach($explode_file as $row) {
+							if(trim($row)!='') {
+								
+								$file_data = array(	'in_product_id'	=>	$product_id,
+													'st_image'		=>	trim($row),													
+													'dt_created'	=>	$date													
+												);
+								$this->product_model->add_product_images($file_data,'tbl_auction_product_image');
+							}
+						}
+					}
+					
+					// product image upload starts
+					if(isset($_FILES['product_image']['name']) && !empty($_FILES['product_image']['name'])){
+					
+					$filename=pathinfo($_FILES['product_image']['name'], PATHINFO_FILENAME);
+					$fileext=pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION);
+					$fullfilename=md5($filename).'.'.$fileext;
+					$this->load->library('upload');
+
+					$config['upload_path'] = $this->config->item('upload') . 'product/';
+					$config['max_size'] = '5120';					
+					$config['allowed_types'] = 'jpg|jpeg|png|gif';
+					$config['remove_spaces'] = TRUE;
+					$config['file_name'] = str_replace(" ", "_",$fullfilename);   
+			
+					//Initialization
+					$this->upload->initialize($config);		
+					
+					$this->upload->do_upload('product_image');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					//echo "<pre>";print_r($file_errors);die;
+					//Display errors of file upload.
+					if (!empty($file_errors['errors'])) { 
+						$data = array('upload_error' => strip_tags($file_errors['errors']));
+			
+						$this->session->set_flashdata($data);
+			
+						redirect(base_url() . 'products/woocommerce_product_edit/'.$product_id);
+					}
+			
+					
+					$thumb = array('190x190' 	=> '190',            
+									'27x27' 	=> '27',
+									'350x350' 	=> '350',
+									'110x110' 	=> '110',
+									'50x50' 	=> '50',
+									'225x225' 	=> '225'										
+						);
+
+					foreach ($thumb as $key => $value) {
+						$config['image_library'] = 'gd2';
+						$config['source_image'] = $this->config->item('upload') . 'product/' . $config['file_name'];
+						$config['new_image'] = $this->config->item('upload') . 'product/' . $key . '/' . $config['file_name'];
+						$config['maintain_ratio'] = TRUE;
+						$config['width'] = $value;
+						$config['height'] = $value;
+			
+						$this->load->library('image_lib');
+						$this->load->library('image_lib', $config);
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+					}
+
+					//Updating data
+					$data['product_image'] = array('st_prod_image' => $config['file_name']);
+					$data['upload_photo'] = $this->product_model->update_product_data($data['product_image'],$product_id,'tbl_auction_products	');				
+					// product image upload ends
+					}					
+					
+					//code for updating product details in wp database ends
+					
+					$this->session->set_flashdata('success', 'Product updated successfully.');  						
+					
+					//$url = "https://www.doobert.com/wp-edit-product-post.php?pid=".$product_id;
+					
+					// Generate curl request
+					//$c = curl_init($url);
+					
+					//curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+					
+				//	curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);	
+				//	curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here			
+					
+					// obtain response
+					//$response = curl_exec($c);	
+					
+					//curl_close($c);					
+					
+					//$data = json_decode($response, true);			
+
+					//call curl to save product data in wordpress end					                
+					redirect($this->config->item('base_url') . "products/woocommerce_product/");
+                }
+            }
+		else
+		{		
+			$this->load->view('woocommerce-product-edit', $data);
+		}
+	}
+	
+	public function woocommerce_payment($orderId=false)
+	{
+		if(!isset($owner_id))
+		{	
+			$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		}
+		$make_array_user = array();
+		$check_per_flag = '';
+		if ($owner_id != $this->session->userdata('userid')) {
+		$user_permission = $this->common_function->get_permission($this->session->userdata('userid'), $this->session->userdata('org_id'));
+		if (!empty($user_permission)) {
+			$make_array_user = unserialize($user_permission);
+		}
+		if ($owner_id != $this->session->userdata('userid')) {
+		if (isset($make_array_user['vendor_manager'])) {
+           if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_ed',$make_array_user['vendor_manager']) == true) {
+					$vd_cr = '1';
+		   } else {
+					$this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing the above Permission.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+		  } else {
+                    $this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing this module.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+			} 
+		}
+		
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		//$data['general_detail']	=	$this->product_model->get_general_detail($orderId);	
+		
+		$data['order_detail']	=	$this->product_model->get_order_details($orderId);	
+		$data['order_address']  =   $this->product_model->get_order_address($orderId);
+		$data['order_lineitem']  =   $this->product_model->get_order_lineitem($orderId);	
+		//echo '<pre>'; print_r($data); die;	
+		
+		//echo '<pre>'; print_r($data['general_detail']['order_item']); die;
+		//echo $this->input->post('status');die;
+		if($this->input->post('status')!='')
+		{ 
+		     $this->product_model->update_order($this->input->post('status'),$this->input->post('order_id'),'tbl_order');
+			$order_array_status = array(1=>'on-hold',2=>'processing',3=>'Pending',4=>'completed',5=>'cancelled',6=>'refunded',7=>'failed');
+			$new_status = $this->input->post('status');
+			$order_id   = $this->input->post('order_id');
+			if (array_key_exists($new_status,$order_array_status)) {
+				$order_status = $order_array_status[$new_status];
+			} else {
+				$order_status = 'on-hold';
+			}
+				
+			/*$this->load->library('woocommerce');
+			$this->woo = $this->woocommerce->request();	
+			$status = $this->woo->orders->update( $order_id, array( 'status' => $order_status ) );	*/
+		    $this->session->set_flashdata('success', 'Order updated successfully.');                   
+		    redirect($this->config->item('base_url') . "products/woocommerce_orders/");
+		}
+		else
+		{   
+			//$data['general_detail']	=	$this->product_model->get_general_detail($orderId);	
+			$this->load->view('woocommerce-payment', $data);
+		}
+	}
+	
+	public function woocomerce_completed()
+	{	
+		if(!isset($owner_id))
+		{	
+			$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		}
+		$make_array_user = array();
+		$check_per_flag = '';
+		if ($owner_id != $this->session->userdata('userid')) {
+		$user_permission = $this->common_function->get_permission($this->session->userdata('userid'), $this->session->userdata('org_id'));
+		if (!empty($user_permission)) {
+			$make_array_user = unserialize($user_permission);
+		}
+		if ($owner_id != $this->session->userdata('userid')) {
+		if (isset($make_array_user['vendor_manager'])) {
+           if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_ed',$make_array_user['vendor_manager']) == true) {
+					$vd_cr = '1';
+		   } else {
+					$this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing the above Permission.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+		  } else {
+                    $this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing this module.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+			} 
+		}
+			
+		$this->product_model->update_order(4,$this->input->post('order_id'),'tbl_order');
+		$order_id   = $this->input->post('wp-order-id');
+		/*if(!empty($order_id))
+		{		
+			$this->load->library('woocommerce');
+			$this->woo = $this->woocommerce->request();	
+			$status = $this->woo->orders->update( $order_id, array( 'status' => 'completed' ) );	
+			$this->session->set_flashdata('success', 'Order updated successfully.');
+		}*/		
+		redirect($this->config->item('base_url') . "products/woocommerce_orders_completed/");
+		
+	}
+	
+	public function woocommerce_orders($sort=false,$order=false,$limit=false)
+	{ 
+	
+		//$this->load->library('woocommerce');
+		//$this->woo = $this->woocommerce->request();	
+		//$bidarray	=	$this->woo->products->get('4367');	
+		//echo '<pre>';print_r($bidarray); die;
+		/*echo '<pre>'; print_r( $this->woo->orders->get('4426')); echo '</pre>'; 
+		die;*/
+	
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		if(!$sort)
+                    $sort='in_order_id';
+		
+		        if(!$order)
+                    $order = 'desc';
+					
+				if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 		
+						
+				if($this->uri->segment(5))
+					$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 
+		 		 $search_text     =   trim($this->input->post('search_text')); 
+		  		if(isset($search_text )){  		  
+		 		$this->session->set_userdata('search_text',$search_text);                     
+                }
+				
+				
+		// pagination starts
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'products/woocommerce_orders/'.$sort.'/'.$order;
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');               
+        $config['cur_page'] 		= $limit;              
+                
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = $limit;
+		
+		$data['get_orders'] = $this->product_model->get_all_orders($config["per_page"],$page,$sort,$order,$search_text);
+		
+		//echo '<pre>'; print_r($data['get_orders']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['get_orders']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+                
+		$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;	
+		$data['search_text']    =   $search_text;	
+		$this->load->view('woocommerce-orders', $data);
+	}
+		
+	public function woocommerce_orders_completed($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		if(!$sort)
+                    $sort='in_order_id';
+		
+		        if(!$order)
+                    $order = 'desc';
+					
+				if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 		
+						
+				if($this->uri->segment(5))
+					$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 
+		 		 $search_text     =   trim($this->input->post('search_text')); 
+		  		if(isset($search_text )){  		  
+		 		$this->session->set_userdata('search_text',$search_text);                     
+                }
+				
+				
+		// pagination starts
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'products/woocommerce_orders_completed/'.$sort.'/'.$order;
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');               
+        $config['cur_page'] 		= $limit;              
+                
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = $limit;
+		
+		$data['get_orders_completed'] = $this->product_model->get_all_orders_completed($config["per_page"],$page,$sort,$order,$search_text);
+		
+		//echo '<pre>'; print_r($data['get_orders_completed']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['get_orders_completed']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();                
+		$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;	
+		$data['search_text']    =   $search_text;	
+		$this->load->view('woocommerce-orders-completed', $data);
+	}
+	
+	public function woocommerce_auction_add()
+	{
+		if(!isset($owner_id))
+		{	
+			$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		}
+		$make_array_user = array();
+		$check_per_flag = '';
+		if ($owner_id != $this->session->userdata('userid')) {
+		$user_permission = $this->common_function->get_permission($this->session->userdata('userid'), $this->session->userdata('org_id'));
+		if (!empty($user_permission)) {
+			$make_array_user = unserialize($user_permission);
+		}
+		if ($owner_id != $this->session->userdata('userid')) {
+		if (isset($make_array_user['vendor_manager'])) {
+           if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_cr',$make_array_user['vendor_manager']) == true) {
+					$vd_cr = '1';
+		   } else {
+					$this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing the above Permission.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+		  } else {
+                    $this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing this module.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+			} 
+		}
+		
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		$data['category_list']	=		$this->product_model->get_product_category();
+		$data['paypal_email_address']   = 		$this->retrieve_org_paypal();
+		//echo '<pre>'; print_r($data['category_list']); die;
+		
+		// check vender id before add product
+		$org_details = $this->common_model->get_single_org_details($this->session->userdata('org_id')); 
+		
+		if($org_details['in_vendor_id'] == '' || $org_details['in_vendor_id'] == '0')
+		{
+			//$url = "https://www.doobert.com/wp-add-vender.php?vid=".$org_details['in_organization_id'];
+			$c = curl_init($url);
+			curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+			
+			curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+			
+			
+			$response = curl_exec($c);
+			
+			curl_close($c);
+			
+			
+			$vendordata = json_decode($response, true);
+			if($vendordata['status']==1)
+			{
+				$vendor_data = array('in_vendor_id'=>$vendordata['vendor_id'],'dt_modified'=>date("Y-m-d H:i:s"));
+				$status_id = $this->product_model->insert_vendorid($vendor_data,$this->session->userdata('org_id')); 
+			}	
+		}
+		
+		 $form_field = array('product_name' => "",
+            				 'product_sku' => "",
+            				 'product_description' => "",
+            				 'prod_start_price' => "",
+            				 'prod_bid_price' => "",
+            				 'prod_reserve_price' => "", 	
+							 'prod_buy_price' => "",
+							 'prod_shipping_cost'=>"", 	
+							 'auction_date_from' => "",
+							 'auction_date_to' => "",
+							 'sel_cat'=> ""
+        );
+        foreach ($form_field as $key => $value) {
+            $data['product'][$key] = $value;
+        }
+		
+		foreach ($form_field as $key => $value){
+            $data['product'][$key] = $this->input->post($key);
+        }
+		
+		if ($this->input->post('frm_action') == "ADD") { 
+                $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required');
+                $this->form_validation->set_rules('product_sku', 'SKU', 'trim|required');
+                $this->form_validation->set_rules('product_description', 'Product Description', 'trim');				
+				$this->form_validation->set_rules('prod_start_price', 'Start Price', 'trim|required|greater_than[0]');
+				$this->form_validation->set_rules('prod_bid_price', 'Bid increment', 'trim|required|greater_than[0]');
+				$this->form_validation->set_rules('prod_reserve_price', 'Reverse Price', 'trim');
+				$this->form_validation->set_rules('prod_buy_price', 'Buy Price', 'trim');
+
+				$this->form_validation->set_rules('auction_date_from', 'From Date', 'trim|required');
+				$this->form_validation->set_rules('auction_date_to', 'To Date', 'trim|required');
+				$this->form_validation->set_rules('prod_shipping_cost', 'Shipping cost', 'trim');
+				
+				
+				
+				$counts = $this->common_model->check_exists("tbl_auction_products", "in_prod_id", array("st_sku" => $data['product']['product_sku'], "in_deleted" => '0'));
+				$Err_Msg = '';
+                if ($counts > 0) {
+                    $Err_Msg = "Product SKU must be unique.";
+                }
+				
+                
+                if ($this->form_validation->run() == FALSE || $Err_Msg != '') { 
+                    $data['Err_Msg'] = validation_errors() . $Err_Msg;
+                 // echo "<pre>";print_r($data['Err_Msg_reg']);die;
+                   $this->load->view('woocommerce-auction-add', $data);
+                } else { 		
+				//echo $this->input->post('auction_date_from');die;			
+					$data_array = array("st_product" 			=> $data['product']['product_name'],
+										"in_organization_id"	=> $this->session->userdata('org_id'),		
+                        				"st_sku" 				=> $data['product']['product_sku'],
+                        				"st_desc" 				=> $data['product']['product_description'],
+                       					"fl_start_price" 		=> $data['product']['prod_start_price'],
+                       					"fl_reserve_price" 		=> $data['product']['prod_reserve_price'],  
+										"fl_bid_price" 			=> $data['product']['prod_bid_price'],  
+										"fl_buy_price" 			=> $data['product']['prod_buy_price'], 
+										"fl_shipping_cost" 		=> $data['product']['prod_shipping_cost'],  
+										"st_selected_category" 	=> implode(',',$this->input->post('sel_cat')),  
+                       					"in_prod_status" 		=> "1", 
+										"in_prod_type" 			=> "A", 										
+										"dt_from" 				=>  date("Y-m-d H:i",strtotime($this->input->post('auction_date_from'))),  
+										"dt_to" 				=>  date("Y-m-d H:i",strtotime($this->input->post('auction_date_to'))),       
+										"dt_created" 			=>  date("Y-m-d H:i:s")                        				           
+                    );
+					
+					//echo '<pre>'; print_r($data_array);die;
+
+                    $inserted_id = $this->product_model->insert_product($data_array,'tbl_auction_products'); 					
+					
+						if(isset($_POST['image_file']) && $_POST['image_file'] !='' ) {
+						$explode_file = explode(',',$_POST['image_file']);
+						$date = date('Y-m-d H:i:s');
+						
+						foreach($explode_file as $row) {
+							if(trim($row)!='') {
+								
+								$file_data = array(	'in_product_id'	=>	$inserted_id,
+													'st_image'		=>	trim($row),													
+													'dt_created'	=>	$date													
+												);
+								$this->product_model->add_product_images($file_data,'tbl_auction_product_image');
+							}
+						}
+					}
+					
+					// product image upload starts
+					
+					$filename=pathinfo($_FILES['product_image']['name'], PATHINFO_FILENAME);
+					$fileext=pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION);
+					$fullfilename=md5($filename).'.'.$fileext;
+					$this->load->library('upload');
+
+					$config['upload_path'] = $this->config->item('upload') . 'product/';
+					$config['max_size'] = '5120';
+					//$config['image_width'] = '300';
+					//$config['image_height'] = '300';
+					$config['allowed_types'] = 'jpg|png|gif';
+					$config['remove_spaces'] = TRUE;
+					$config['file_name'] = str_replace(" ", "_",$fullfilename);
+			
+					//Initialization
+					$this->upload->initialize($config);	
+					
+					$this->upload->do_upload('product_image');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					//echo "<pre>";print_r($file_errors);die;
+					//Display errors of file upload.
+					if (!empty($file_errors['errors'])) {
+						$data = array('upload_error' => strip_tags($file_errors['errors']));
+			
+						$this->session->set_flashdata($data);
+			
+						redirect(base_url() . 'products/woocommerce_auctions/');
+					}		
+					
+			
+					//Resize the image with ratio (6 Thumbnails)
+					$thumb = array('190x190' 	=> '190',            
+									'27x27' 	=> '27',
+									'350x350' 	=> '350',
+									'110x110' 	=> '110',
+									'50x50' 	=> '50',
+									'225x225' 	=> '225'									
+						);
+
+					foreach ($thumb as $key => $value) {
+						$config['image_library'] = 'gd2';
+						$config['source_image'] = $this->config->item('upload') . 'product/' . $config['file_name'];
+						$config['new_image'] = $this->config->item('upload') . 'product/' . $key . '/' . $config['file_name'];
+						$config['maintain_ratio'] = TRUE;
+						$config['width'] = $value;
+						$config['height'] = $value;
+			
+						$this->load->library('image_lib');
+						$this->load->library('image_lib', $config);
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+					}
+
+					//Updating data
+					$data['product_image'] = array('st_prod_image' => $config['file_name']);
+					$data['upload_photo'] = $this->product_model->update_product_data($data['product_image'],$inserted_id,'tbl_auction_products');
+					
+					
+					// product image upload ends
+					
+					$this->session->set_flashdata('success', 'Product added successfully.');    
+					// insert into wordpress wp_posts site  				
+					
+						// Generate curl request
+					//$url="https://www.doobert.com/wp-add-auction-product-post.php?pid=".$inserted_id;
+					//$c = curl_init($url);
+					
+					//curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);					
+					//curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+					//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here					
+					
+					// obtain response
+					//$response = curl_exec($c);
+					
+					//print_r($response);
+					
+					//curl_close($c);
+					
+					//$data = json_decode($response, true);					
+					
+					redirect($this->config->item('base_url') . "products/woocommerce_auctions/");			
+					
+                }
+            }
+		else
+		{		
+			$this->load->view('woocommerce-auction-add', $data);
+		}
+	}
+	
+	public function woocommerce_auctions($sort=false,$order=false,$limit=false)
+	{
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		
+		  if(!$sort)
+                 $sort='in_prod_id';
+		
+		  if(!$order)
+                 $order = 'desc';
+					
+				if($this->uri->segment(5))
+				$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 		
+						
+				if($this->uri->segment(5))
+					$limit = $this->uri->segment(5);
+				else	
+					$limit = '0'; 
+		
+				
+		// pagination starts
+		$config = array();
+		
+		$this->load->library('pagination');
+		
+		$config["base_url"] 		= base_url().'products/woocommerce_auctions/'.$sort.'/'.$order;
+		
+		$config["per_page"]	 		= $this->config->item('records_per_page');               
+        $config['cur_page'] 		= $limit;              
+                
+		$config['first_link'] 		= FALSE;
+		$config['last_link'] 		= FALSE;
+		
+		$config['full_tag_open'] 	= '<ul class="pagination">';
+		$config['full_tag_close'] 	= '</ul>';
+		
+		$config['prev_link'] 		= 'Prev';
+		$config['prev_tag_open'] 	= '<li class="prev">';
+		$config['prev_tag_close'] 	= '</li>';
+		
+		$config['next_link'] 		= 'Next';
+		$config['next_tag_open'] 	= '<li class="next">';
+		$config['next_tag_close'] 	= '</li>';
+		
+		$config['num_tag_open'] 	= '<li>';
+		$config['num_tag_close'] 	= '</li>';
+		
+		$config['cur_tag_open']		= '<li class="active"><a href="">';
+		$config['cur_tag_close'] 	= '</a></li>';
+
+		$page = $limit;
+		
+		$data['get_auction_products'] = $this->product_model->get_all_auction_product($config["per_page"],$page,$sort,$order);
+		
+		//echo '<pre>'; print_r($data['get_auction_products']); die;
+		
+		//Getting total rows
+		$config["total_rows"] = $data['get_auction_products']['num_rows'];
+		
+		//Initialize pagination
+		$this->pagination->initialize($config);
+		
+		$data["links"] = $this->pagination->create_links();
+                
+		$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;		
+		
+		$this->load->view('woocommerce-auctions', $data);
+	}
+	
+	
+		
+	public function woocommerce_auction_edit($Id=false)
+	{ 
+		if(!isset($owner_id))
+		{	
+			$owner_id = $this->common_function->get_org_owner_id($this->session->userdata('userid'),$this->session->userdata('org_id'));
+		}
+		$make_array_user = array();
+		$check_per_flag = '';
+		if ($owner_id != $this->session->userdata('userid')) {
+		$user_permission = $this->common_function->get_permission($this->session->userdata('userid'), $this->session->userdata('org_id'));
+		if (!empty($user_permission)) {
+			$make_array_user = unserialize($user_permission);
+		}
+		if ($owner_id != $this->session->userdata('userid')) {
+		if (isset($make_array_user['vendor_manager'])) {
+           if(isset($make_array_user['vendor_manager']) && in_array('vd_manager_ed',$make_array_user['vendor_manager']) == true) {
+					$vd_cr = '1';
+		   } else {
+					$this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing the above Permission.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+		  } else {
+                    $this->session->set_flashdata('rights_error', 'Please contact organization owner for accessing this module.');
+                    redirect($this->config->item('base_url') . "org-dashboard/" . $this->session->userdata('org_id') . "/");
+				}
+			} 
+		}
+	
+		if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		$data['category_list']	=		$this->product_model->get_product_category();
+		$data['product_detail']	=		$this->product_model->get_product_detail($Id,'tbl_auction_products');
+		$data['product_image']	=		$this->product_model->get_product_image($Id,'tbl_auction_product_image');
+		$data['paypal_email_address']   = 		$this->retrieve_org_paypal();
+		//echo '<pre>'; print_r($data['product_detail']); die;
+		
+		 $form_field = array('product_name' => "",
+            				 'product_sku' => "",
+            				 'product_description' => "",
+            				 'prod_start_price' => "",
+            				 'prod_bid_price' => "",
+            				 'prod_reserve_price' => "", 	
+							 'prod_buy_price' => "", 	
+							 'prod_shipping_cost' =>"",
+							 'product_imge' => "",
+							 'auction_date_from' => "",
+							 'auction_date_to' => "",
+							 'sel_cat'=> ""
+							);
+        foreach ($form_field as $key => $value) {
+            $data['product'][$key] = $value;
+        }
+		
+		 foreach ($form_field as $key => $value){
+                $data['product'][$key] = $this->input->post($key);
+            }
+			
+			
+		
+		
+		if ($this->input->post('frm_action') == "EDIT") { 
+		
+		// print_r($this->input->post());die;
+                $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required');
+                $this->form_validation->set_rules('product_sku', 'SKU', 'trim|required');
+                $this->form_validation->set_rules('product_description', 'Product Description', 'trim');				
+				$this->form_validation->set_rules('prod_start_price', 'Start Price', 'trim|required|greater_than[0]');
+				$this->form_validation->set_rules('prod_bid_price', 'Bid increment', 'trim|required|greater_than[0]');
+				$this->form_validation->set_rules('prod_reserve_price', 'Reverse Price', 'trim');
+				$this->form_validation->set_rules('prod_buy_price', 'Buy Price', 'trim');
+				$this->form_validation->set_rules('auction_date_from', 'From Date', 'trim|required');
+				$this->form_validation->set_rules('auction_date_to', 'To Date', 'trim|required'); 
+				                   
+                $Err_Msg = '';                
+                if ($this->form_validation->run() == FALSE || $Err_Msg != '') { 
+                    $data['Err_Msg'] = validation_errors() . $Err_Msg;
+                 // echo "<pre>";print_r($data['Err_Msg_reg']);die;
+                   $this->load->view('woocommerce-auction-edit', $data);
+                } else { 	
+					$product_id	=	$this->input->post('product_id');	
+					$data_array = array("st_product" 			=> $data['product']['product_name'],
+                        				"st_sku" 				=> $data['product']['product_sku'],
+                        				"st_desc" 				=> $data['product']['product_description'],
+                       					"fl_start_price" 		=> $data['product']['prod_start_price'],
+                       					"fl_reserve_price" 		=> $data['product']['prod_reserve_price'],  
+										"fl_bid_price" 			=> $data['product']['prod_bid_price'],  
+										"fl_buy_price" 			=> $data['product']['prod_buy_price'], 
+										"fl_shipping_cost" 		=> $data['product']['prod_shipping_cost'],   
+										"st_selected_category" 	=> implode(',',$this->input->post('sel_cat')),  
+                       					"in_prod_status" 		=> "1", 
+										"dt_from" 				=>  date("Y-m-d H:i",strtotime($this->input->post('auction_date_from'))),  
+										"dt_to" 				=>  date("Y-m-d H:i",strtotime($this->input->post('auction_date_to'))),      
+										"dt_created" 			=> date("Y-m-d h:i:s")                        				           
+                    );
+                       $this->product_model->update_product($data_array,$product_id,'tbl_auction_products');  
+					
+					
+						if(isset($_POST['image_file']) && $_POST['image_file'] !='' ) {
+						//$this->product_model->update_product_image($product_id,'tbl_auction_product_image');
+						$explode_file = explode(',',$_POST['image_file']);
+						$date = date('Y-m-d H:i:s');
+						
+						foreach($explode_file as $row) {
+							if(trim($row)!='') {
+								
+								$file_data = array(	'in_product_id'	=>	$product_id,
+													'st_image'		=>	trim($row),													
+													'dt_created'	=>	$date													
+												);
+								$this->product_model->add_product_images($file_data,'tbl_auction_product_image');
+							}
+						}
+					}
+					
+					// product image upload starts
+					if(isset($_FILES['product_image']['name']) && !empty($_FILES['product_image']['name'])){
+					$filename=pathinfo($_FILES['product_image']['name'], PATHINFO_FILENAME);
+					$fileext=pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION);
+					$fullfilename=md5($filename).'.'.$fileext;
+					$this->load->library('upload');
+
+					$config['upload_path'] = $this->config->item('upload') . 'product/';
+					$config['max_size'] = '1024';					
+					$config['allowed_types'] = 'jpg|jpeg|png|gif';
+					$config['remove_spaces'] = TRUE;
+					$config['file_name'] = str_replace(" ", "_",$fullfilename);
+			
+					//Initialization
+					$this->upload->initialize($config);		
+					
+					$this->upload->do_upload('product_image');
+					$file_errors = array('errors' => $this->upload->display_errors());
+					//echo "<pre>";print_r($file_errors);die;
+					//Display errors of file upload.
+					if (!empty($file_errors['errors'])) { 
+						$data = array('upload_error' => strip_tags($file_errors['errors']));			
+						$this->session->set_flashdata($data);			
+						redirect(base_url() . 'products/woocommerce_auction_edit/'.$product_id);
+					}
+			
+					
+					$thumb = array('190x190' 	=> '190',            
+									'27x27' 	=> '27',
+									'350x350' 	=> '350',
+									'110x110' 	=> '110',
+									'50x50' 	=> '50',
+									'225x225' 	=> '225'								
+						);
+
+					foreach ($thumb as $key => $value) {
+						$config['image_library'] = 'gd2';
+						$config['source_image'] = $this->config->item('upload') . 'product/' . $config['file_name'];
+						$config['new_image'] = $this->config->item('upload') . 'product/' . $key . '/' . $config['file_name'];
+						$config['maintain_ratio'] = TRUE;
+						$config['width'] = $value;
+						$config['height'] = $value;
+			
+						$this->load->library('image_lib');
+						$this->load->library('image_lib', $config);
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+					}
+
+					//Updating data
+					$data['product_image'] = array('st_prod_image' => $config['file_name']);
+					$data['upload_photo'] = $this->product_model->update_product_data($data['product_image'],$product_id,'tbl_auction_products');				
+					// product image upload ends
+					}
+					
+					
+					//code for updating product details in wp database ends
+					
+					$this->session->set_flashdata('success', 'Product updated successfully.'); 						
+					
+					//$url = "https://www.doobert.com/wp-edit-auction-product-post.php?pid=".$product_id;
+					
+					// Generate curl request
+					//$c = curl_init($url);
+					
+
+					//curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+					
+					//curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);		
+					//curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here		
+					
+					// obtain response
+					//$response = curl_exec($c);	
+					
+					//curl_close($ch);					
+					
+					//$data = json_decode($response, true);			
+
+					//call curl to save product data in wordpress end				
+					                  
+					redirect($this->config->item('base_url') . "products/woocommerce_auctions/");
+					
+                }
+            }
+		else
+		{		
+			$this->load->view('woocommerce-auction-edit', $data);
+		}
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	product_add_files
+	#	Purpose		:	Add product files
+	# *******************************************************************************************
+	
+	public function product_add_files() {
+		if(!isset($_FILES['files']['name'])) {
+			return false;
+		}
+		
+		$filename=pathinfo($_FILES['files']['name'], PATHINFO_FILENAME);
+		$fileext=pathinfo($_FILES['files']['name'], PATHINFO_EXTENSION);
+		$fullfilename=md5($filename).'.'.$fileext;
+		
+		$config['upload_path']  	= 'upload/product/';
+		$config['max_size']			= '51200';   // 5 MB
+		//$config['width'] 			= '190';
+		//$config['height'] 		= '190';
+		$config['allowed_types'] 	= 'jpg|jpeg|gif|png|doc|docx|xls|xlsx|pdf|jpe';
+		$config['remove_spaces']  	= TRUE;
+		$config['file_name'] = str_replace(" ", "_",$fullfilename);
+		
+		//Upload image image library		
+		$this->load->library('upload', $config);
+		
+		//Upload image by calling do_upload method.
+		$this->upload->do_upload('files');
+		
+		
+		// image cropping starts
+						$config['image_library'] = 'gd2';
+						$config['source_image'] = $this->config->item('upload') . 'product/' . $config['file_name'];
+						$config['new_image'] = $this->config->item('upload') . 'product/110x110/'. $config['file_name'];
+						$config['maintain_ratio'] = TRUE;
+						$config['width'] = '110';
+						$config['height'] = '110';
+			
+						$this->load->library('image_lib');
+						$this->load->library('image_lib', $config);
+						$this->image_lib->initialize($config);
+						$this->image_lib->resize();
+		
+		// image cropping ends
+		
+		
+		$file_errors = array('errors' => $this->upload->display_errors());
+			
+		//Display errors of file upload.
+		if(!empty($file_errors['errors'])){ 
+			$data = array('error' => strip_tags($file_errors['errors']));
+			echo json_encode(array('files' => array($data)));
+			return false;
+		}
+				
+		$data = array(	'name' => $config['file_name'],
+						'size' => $_FILES['files']['size'],
+						'type' => $_FILES['files']['type']
+					);
+		echo json_encode(array('files' => array($data) ));
+	}
+	
+	
+	public function woocommerce_product_delete($Id=false)
+	{  
+	  if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));		
+		}
+		$Id	=	$this->uri->segment(3);
+		$this->product_model->delete_product($Id,'tbl_auction_products');			
+		$this->session->set_flashdata('success', 'Product information has been deleted successfully.');		
+		
+		// code for delete record from wordpress site starts
+		
+		$url = "https://www.doobert.com/wp-delete-product-post.php?pid=".$Id;
+					
+					// Generate curl request
+					$c = curl_init($url);
+					
+					curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+					
+					curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+					curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+					
+					
+					// obtain response
+					$response = curl_exec($c);
+					
+					//print_r($response);
+					
+					curl_close($c);
+					
+					
+					$data = json_decode($response, true);
+		
+				// code for delete record from wordpress site ends		
+		
+				redirect($this->config->item('base_url').'products/woocommerce_product/');
+	}
+	
+	
+	 public function delete_product_photos($file_id,$product_id) {	 
+			
+        $data['product_files'] = $this->product_model->delete_product_photos($file_id);  		
+		$this->session->set_flashdata('success', 'Product photo deleted successfully.');	
+		
+		// code for delete record from wordpress site starts
+		
+		$url = "https://www.doobert.com/wp-edit-product-post.php?pid=".$product_id;
+					
+					// Generate curl request
+					$c = curl_init($url);
+					
+					curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+					
+					curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+					
+					
+					// obtain response
+					$response = curl_exec($c);
+					
+					//print_r($response);
+					
+					curl_close($c);
+					
+					
+					$data = json_decode($response, true);
+		
+				// code for delete record from wordpress site ends		
+		
+				redirect($this->config->item('base_url')."products/woocommerce_product_edit/" . $product_id);
+		
+		
+        //redirect($this->config->item('base_url') . "products/woocommerce_product_edit/" . $product_id);
+    }
+	
+	public function woocommerce_auction_delete($Id=false)
+	{
+	  if(!$this->session->userdata('userid'))
+		{
+			redirect($this->config->item('base_url'));		
+		}
+		$Id	=	$this->uri->segment(3);
+		$this->product_model->delete_product($Id,'tbl_auction_products');	
+				
+		$this->session->set_flashdata('success', 'Product information has been deleted successfully.');		
+		
+		
+		
+		// code for delete record from wordpress site starts
+		
+		$url = "https://www.doobert.com/wp-delete-auction-product-post.php?pid=".$Id;
+					
+					// Generate curl request
+					$c = curl_init($url);
+					
+					curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+					
+					curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+					curl_setopt($c, CURLOPT_USERPWD, "devdoobert:doobert@12"); //Your credentials goes here
+					
+					
+					// obtain response
+					$response = curl_exec($c);
+					
+					//print_r($response);
+					
+					curl_close($c);
+					
+					
+					$data = json_decode($response, true);
+		
+				// code for delete record from wordpress site ends	
+		
+		redirect($this->config->item('base_url').'products/woocommerce_auctions/');
+	}
+	
+	public function delete_auction_product_photos($file_id,$product_id) {
+			
+        $data['product_files'] = $this->product_model->delete_auction_product_photos($file_id);  		
+		$this->session->set_flashdata('success', 'Product photo deleted successfully.');		
+		
+		$url = "https://www.doobert.com/wp-edit-auction-product-post.php?pid=".$product_id;
+					
+					// Generate curl request
+					$c = curl_init($url);
+					
+					curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+					
+					curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
+					
+					
+					// obtain response
+					$response = curl_exec($c);
+					
+					//print_r($response);
+					
+					curl_close($c);
+					
+					
+					$data = json_decode($response, true);
+		
+				// code for delete record from wordpress site ends		
+		
+				redirect($this->config->item('base_url')."products/woocommerce_auction_edit/" . $product_id);	
+    } 
+	
+	public function deleteimage($id)
+	{
+		//echo $this->uri->segment(3);die;
+		$this->product_model->delete_image($this->uri->segment(3));
+	}
+	public function get_auction_detail()
+	{
+		$id = $_POST['id'];
+		$auction_users = $this->product_model->get_auction_users($id);
+		echo json_encode($auction_users);
+	}
+
+	public function woocommerce_check_paypal_id()
+	{
+		$paypal_status = $this->common_model->check_paypal_id($_POST['org_id']);
+		echo $paypal_status;
+	}
+	
+	public function update_product_pic() {
+		
+		
+		$this->load->library('upload');
+		
+		$xaxis = '';
+		$yaxis = '';
+		$height = '';
+		$width = '';
+		$upload_file_errors = '';
+		
+					
+		if($this->input->post('pro_uploaded_photo1') != '') {
+			$photo1 = $this->input->post('pro_uploaded_photo1');
+
+		}
+			$rotate_angle = $this->input->post('pro_rotate_angle1');
+			$xaxis = $this->input->post('pro_x1');
+			$yaxis = $this->input->post('pro_y1');
+			$height = $this->input->post('pro_h1');
+			$width = $this->input->post('pro_w1');
+			
+			
+			
+		$config['image_library'] = 'gd2';
+		$config['source_image'] =  $this->config->item('upload').'product/' . $photo1;
+		
+		$config['maintain_ratio'] 	= FALSE;
+		
+		$config['width']  = $width;
+		$config['height'] = $height;
+		
+		$this->load->library('image_lib', $config);
+
+		$this->image_lib->clear();
+
+		unlink($config['source_image']);
+		
+	}
+	
+	public function add_product_upload_pic() {
+		
+		$this->load->library('upload');
+		
+		$config['upload_path']  	= $this->config->item('upload').'product/';
+		$config['max_size']			= '5120';
+		$config['image_width']		= '300';
+		$config['image_height']		= '300';
+		$config['allowed_types']	= 'jpg|png|gif|jpeg|jpe';
+		$config['remove_spaces']  	= TRUE;
+		
+		$lastDot = strrpos($_FILES[$this->input->post('file_name')]['name'], ".");
+		$_FILES[$this->input->post('file_name')]['name'] = str_replace(".", "", substr($_FILES[$this->input->post('file_name')]['name'], 0, $lastDot)) . substr($_FILES[$this->input->post('file_name')]['name'], $lastDot);
+		$config['file_name'] 		= preg_replace('/[^A-Za-z0-9\-.]/','',str_replace(" ","_",$this->session->userdata('userid').'_'.mt_rand().$_FILES[$this->input->post('file_name')]['name']));
+	
+		$this->upload->initialize($config);
+		
+		$this->upload->do_upload($this->input->post('file_name'));
+		$file_errors = array('errors' => $this->upload->display_errors());
+		
+		if(!empty($file_errors['errors'])) {
+			$data = array('upload_error' => strip_tags($file_errors['errors']));
+			
+			echo json_encode($data);
+			return false;
+		} 
+		
+		echo "{";
+		echo "file_name: '" . $config['file_name'] . "'\n";
+		echo "}";
+
+	}	
+	
+	function status_change()
+	{ 
+			
+			if(!$this->session->userdata('userid'))
+			{
+				redirect($this->config->item('base_url'));		
+			}
+			
+			$orderId=$this->uri->segment(3);
+			$status=$this->uri->segment(4);
+			$this->product_model->update_order($status,$orderId,'tbl_order');					
+			
+			$this->session->set_flashdata('success', 'Order updated successfully.');                   
+		    redirect($this->config->item('base_url') . "products/woocommerce_orders/");
+	}
+	
+	public function retrieve_org_paypal()
+	{
+		$paypal_email = '';
+		$org_details  = $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		if(count($org_details)>0 && isset($org_details['st_paypal_email']) && $org_details['st_paypal_email']!='' )
+		{
+			$paypal_email = $org_details['st_paypal_email'];
+		}
+		return $paypal_email;	
+	}
+	
+	public function get_org_paypal()
+	{
+		$paypal_email = 'no_paypal';
+		$org_details  = $this->common_model->get_single_org_details($this->session->userdata('org_id'));
+		if(count($org_details)>0 && isset($org_details['st_paypal_email']) && $org_details['st_paypal_email']!='' )
+		{
+			$paypal_email = $org_details['st_paypal_email'];
+		}
+		echo $paypal_email;	
+	}
+	
+	public function update_org_paypal()
+	{
+		$paypal_email_add = $this->input->post('paypal_emailid');
+		$this->db->where('in_organization_id',$this->session->userdata('org_id'));
+		$this->db->update('tbl_organization',array('st_paypal_email'=>$paypal_email_add));
+		echo json_encode(1);
+	}
+	
+		
+}
+
+/* End of file products.php */
+/* Location: ./application/controllers/products.php */

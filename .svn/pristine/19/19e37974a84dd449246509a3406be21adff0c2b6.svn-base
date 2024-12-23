@@ -1,0 +1,1441 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# =====================================================================================
+# Created by			: Chetan Pedgaonkar
+# Created date			: 21-Apr-2014
+# File description		: org_info controller 
+# Special- notes		: 
+# Tables used			: 
+# Stored procedures		: none 
+# Triggers used			: none
+# ======================================================================================
+
+class User_settings_and_notification extends CI_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		//$this->output->enable_profiler(TRUE);
+		$this->load->model('common_model');
+		$this->load->model('organimal_model');
+		$this->load->model('user_settings_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');
+		//$this->load->library('user_agent');
+		
+	}	
+	
+	#=========================================================
+	#	Function : account_setting
+	#	Purpose  : Update account setting
+	#=========================================================
+	
+	public function account_setting() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$data['user_details'] = $this->user_settings_model->get_user_details($this->session->userdata('userid'));
+		
+		if($this->input->post('frm_action') == 'frm_post') {
+			
+			if($this->input->post('currentpassword')!='' || $this->input->post('newpassword')!='' || $this->input->post('passwordconfirm')!='') {
+			
+				if(md5($this->input->post('currentpassword')) != $data['user_details']['st_password']) {
+					$this->session->set_flashdata('curr_password_err','Current Password does not match with existing password !');
+					redirect(base_url().'account-setting');
+				}
+				
+				if($this->input->post('newpassword') == '' && $this->input->post('currentpassword')!= '') {
+					$this->session->set_flashdata('blank_password_err','Please enter password !');
+					redirect(base_url().'account-setting');
+				}
+				
+				if($this->input->post('passwordconfirm') != $this->input->post('newpassword')) {
+					$this->session->set_flashdata('match_password_err','Password does not match !');
+					redirect(base_url().'account-setting');
+				}
+				
+				if(md5($this->input->post('newpassword')) == $data['user_details']['st_password']) {
+					$this->session->set_flashdata('same_password_err','New Password must be different than current password !');
+					redirect(base_url().'account-setting');
+				}
+				if(strlen($this->input->post('newpassword'))<'6') {
+					$this->session->set_flashdata('minlength_password_err','Please enter at least 6 characters password.');
+					redirect(base_url().'account-setting');
+				}
+			}
+			  //Added By Nirav 23 May 2016 
+			if($this->input->post('login_direct') && $this->input->post('login_direct') == 1)
+				$data['password_data']['in_login_direct'] = 1;
+			else
+				$data['password_data']['in_login_direct'] = 0;
+			 
+			
+			/*$data['password_data'] = array(	'dt_modified' => date('Y-m-d H:i:s')
+											);*/
+			if($this->input->post('newpassword')!='')
+			{
+				$data['password_data']['st_password'] = md5($this->input->post('newpassword'));		
+			}
+			$data['password_data']['dt_modified'] = date('Y-m-d H:i:s');
+			$data['update'] = $this->user_settings_model->update_settings($data['password_data'],$this->session->userdata('userid'));
+				
+			if($data['update'] == 1) {
+				$this->session->set_flashdata('update_success','You have successfully updated account settings.');
+				redirect(base_url().'account-setting');
+			} else {
+				$this->session->set_flashdata('update_err','An error occured during updating the data, Please try again.');
+				redirect(base_url().'account-setting');
+			}
+		}
+		
+		$this->load->view('my-account-settings',$data);
+	}
+	
+	#=========================================================
+	#	Function : notification_setting
+	#	Purpose  : Manage notification setting
+	#=========================================================
+	
+	public function notification_setting() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$data['tooltip'] 	 	= get_cookie('tooltip');
+		//Getting animal types
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		$data['user_notification_setting'] = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+			
+		if($this->input->post('frm_action_type') == 'frm_post_type') {
+			
+			$data['animal_type_id']	=	$this->input->post('animaltype');
+		}
+		elseif($this->input->post('frm_action') == 'frm_post')	{//die('test');
+			$data['animal_type_id']	=	$this->input->post('in_animal_type_id');
+		}		
+		else{
+			$data['animal_type_id']	=	$data['animal_type'][0]['in_animal_type_id'];
+		}
+		
+		$data['get_breed'] 		= $this->common_model->get_breed_by_animal_id($data['animal_type_id']);
+		$data['get_breed_data'] = $this->user_settings_model->get_notification_breed($this->session->userdata('userid'),$data['animal_type_id']);	
+				
+		$breed_array = array();
+		foreach($data['get_breed_data'] as $row) {
+				$breed_array[] = $row['in_notifiable_animal_breeds'];
+		}
+		
+		$data['get_breed_data']	=	$breed_array;
+		
+		$animal_type_id = '';
+		
+		if($this->input->post('frm_action') == 'frm_post') {
+			
+			//$breed_data = array();
+			/*$breed_array = array();
+			$compare_array = array();
+			foreach($data['get_breed_data'] as $row) {
+				$breed_array[] = $row['in_notifiable_animal_breeds'];
+			}*/
+			
+			//echo "<pre>";print_r($this->input->post('in_animal_type_id'));
+			//$compare_array = array_diff_assoc($this->input->post('animal_breed'),$breed_array);
+			//if(!empty($compare_array)) {
+				$data['delete_breeds'] = $this->user_settings_model->delete_notification_settings($this->input->post('in_animal_type_id'),$this->session->userdata('userid'));
+				
+				if($this->input->post('animal_breed')) {
+					foreach($this->input->post('animal_breed') as $row) {
+						$data['setting_data'] = array('in_user_id' => $this->session->userdata('userid'),
+													'in_notifiable_animal_breeds' => $row,
+													'in_animal_type_id'	=> $this->input->post('in_animal_type_id'),
+													'dt_created' => date('Y-m-d H:i:s')
+														);
+						$data['add_settings'] = $this->user_settings_model->add_notification_settings($data['setting_data']);
+					}
+				}
+			//}
+			
+			$data['get_breed_data']	=	$this->input->post('animal_breed');
+			
+			$data['success_msg']	=	'You have successfully saved your notification settings.';
+			
+		}
+		
+		$this->load->view('notification-settings',$data);
+	}
+	
+	#=========================================================
+	#	Function : get_demeanor
+	#	Purpose  : Getting daemonear
+	#=========================================================
+		
+	public function get_demeanor() {
+		$data['get_demeanor'] = $this->common_model->get_demeanor($this->input->post('animal_type'));
+		//echo json_encode($data);
+		return $data['get_demeanor'];
+	}
+	
+	#=========================================================
+	#	Function : animal_profile_details_front
+	#	Purpose  : Display selected animal profile
+	#=========================================================	
+	
+	public function animal_profile_details_front($id) { 
+		/*if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}*/
+		
+		$data = array();
+		
+		$data['animal_id'] = $id;
+		$this->generate_fb_animal_image($id);
+		
+		//Getting animal profile details
+		$data['animal_profile_details'] = $this->organimal_model->animal_profile_details($id);
+		
+		if(empty($data['animal_profile_details'])) {
+			redirect(base_url());
+		}
+		
+		$data['animal_files'] = $this->organimal_model->get_animal_files($id);
+		
+		$data['privacy_setting'] = $this->organimal_model->get_animal_privacy_setting($id);
+		$data['shelter_contact'] = $this->organimal_model->get_animal_shelter_contact($id);
+		
+		//echo '<pre>'; print_r($data['animal_profile_details']); die;
+		$orgId				=	$data['animal_profile_details']['in_organization_id'];
+		$data['orgId']=$orgId;
+		
+		$in_animal_public	=	$data['animal_profile_details']['in_animal_public']; 
+		//echo $in_animal_public;
+		
+		$org_list = $this->common_model->get_organization_list($orgId);	
+		$data['public']='0';
+		if($in_animal_public=='1' && empty($org_list))
+		{
+			$data['public']='1';
+		}
+		//echo '<pre>'; print_r($org_list); die;
+			//if(empty($org_list) && $in_animal_public=='1')
+				//{
+					//redirect(base_url().'my-profile');
+				//}		
+		
+		//die($this->db->last_query());
+		$data['progress_status'] = $this->common_model->get_progress_status();
+		
+		if(!empty($data['animal_profile_details'])) {
+			
+			/*//Getting animal breeds name
+			$breed_array = array($data['animal_profile_details']['in_secondry_breed_id'],$data['animal_profile_details']['in_tertiary_breed_id']);
+			
+			$data['other_breeds'] = $this->common_model->get_animal_breed_name($breed_array);
+			
+			$breeds = array();
+			foreach($data['other_breeds'] as $row) {
+				$breeds[] = $row['st_animal_breed_name'];
+			}
+			
+			$data['animal_other_breeds'] = implode(', ',$breeds);*/
+			
+			//code added by ghanshyam to get primary breed of the animal 28-Oct-2014 starts
+			$primary_breed 	= $data['animal_profile_details']['in_primary_breed_id'];
+			
+			$primary_breed_data = $this->common_model->get_animal_breed_name($primary_breed);
+			
+			$data['primary_breed'] 	= $primary_breed_data[0]['st_animal_breed_name'];
+			//print_r($data['primary_breed']); exit;
+			//code added by ghanshyam to get primary breed of the animal 28-Oct-2014 ends
+			
+			//code added by ghanshyam to get primary breed of the animal 28-Oct-2014 starts
+			$secondary_breed 	= $data['animal_profile_details']['in_secondry_breed_id'];
+			
+			$secondary_breed_data = $this->common_model->get_animal_breed_name($secondary_breed);
+			
+			$animal_secondary_breed 	= (isset($secondary_breed_data[0]['st_animal_breed_name']) && $secondary_breed_data[0]['st_animal_breed_name'] != '') ? $secondary_breed_data[0]['st_animal_breed_name'] : '';
+			
+			//code added by ghanshyam to get primary breed of the animal 28-Oct-2014 starts
+			$tertiary_breed 	= $data['animal_profile_details']['in_tertiary_breed_id'];
+			
+			$tertiary_breed_data = $this->common_model->get_animal_breed_name($tertiary_breed);
+			
+			$animal_tertiary_breed 	= (isset($tertiary_breed_data[0]['st_animal_breed_name']) && $tertiary_breed_data[0]['st_animal_breed_name'] != '') ? $tertiary_breed_data[0]['st_animal_breed_name'] : '';
+			
+			if((isset($animal_secondary_breed) && $animal_secondary_breed != '') && (isset($animal_tertiary_breed) && $animal_tertiary_breed != ''))
+			{
+				$data['animal_other_breeds'] = $animal_secondary_breed . ', '. $animal_tertiary_breed;
+			}
+			elseif(!isset($animal_tertiary_breed) || $animal_tertiary_breed == '')
+			{
+				$data['animal_other_breeds'] = $animal_secondary_breed;
+			}
+			elseif(!isset($animal_secondary_breed) || $animal_secondary_breed == '')
+			{
+				$data['animal_other_breeds'] = $animal_tertiary_breed;
+			}
+			
+			
+			
+			//Getting cost details
+			$data['cost_to_org'] = $this->organimal_model->cost_to_org($id);
+			
+			//Getting animal photos & videos
+			$data['animal_images'] = $this->organimal_model->get_animal_photos($id);
+			
+			$data['org_details'] = $this->organimal_model->get_org_details($data['animal_profile_details']['in_organization_id']);
+			
+			//added by ghanshyam on 07_Nov_2014 starts
+			$this->load->model('organization_privacy_setting_model');	
+			$data['organization_privacy_setting_details'] 	= $this->organization_privacy_setting_model->get_organization_privacy_setting_by_org_id($data['animal_profile_details']['in_organization_id']);
+			//added by ghanshyam on 07_Nov_2014 ends
+
+			if(empty($data['org_details'])) {
+				redirect(base_url().'my-profile');
+			}
+			
+			$this->load->model('organimal_model');
+			$str1='';
+			
+			if(!empty($data['animal_profile_details']['current_zip']))
+			{
+			$res1=$this->organimal_model->get_state_city_country_by_zipcode($data['animal_profile_details']['current_zip']);
+			$str1=$data['animal_profile_details']['current_zip'].', '.$res1['city'].', '.$res1['state_prefix'].', '.$res1['st_country'];
+			}
+			$data['str1']=$str1;
+			$str2='';
+			if(!empty($data['animal_profile_details']['desired_zip']))
+			{
+			$res2=$this->organimal_model->get_state_city_country_by_zipcode($data['animal_profile_details']['desired_zip']);
+			$str2=$data['animal_profile_details']['desired_zip'].', '.$res2['city'].', '.$res2['state_prefix'].', '.$res2['st_country'];
+			}
+			$data['str2']=$str2;
+			/*echo "<pre>";
+			print_r($data);
+			exit;*/
+			
+			$this->load->view('animal-profile-front',$data);
+		} else {
+			redirect(base_url().'org_animal/animals_in_my_organization');
+		}
+	}
+	
+	#=============================================================
+	#	Function : my_notifications
+	#	Purpose  : Getting all notification against current user.
+	#=============================================================
+	
+	public function my_notifications() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		//$data['notifications'] = $this->user_settings_model->get_notifications($this->session->userdata('userid'));
+		
+		$data['notification_ids'] = $this->user_settings_model->get_my_notification($this->session->userdata('userid'));
+		//echo "<pre>";print_r($data['notification_ids']);die;
+		$data['count_notification_ids'] = $this->user_settings_model->get_total_my_notification($this->session->userdata('userid'));
+		
+
+		
+		//print_r($data['notification_ids']);die;
+		$data['feed']	=	array();
+		
+		$data['feed'] = $this->user_settings_model->get_organization_feeds($data['notification_ids'],$data['feed']);
+		
+		
+		
+		$data['feed'] = $this->user_settings_model->get_organization_feeds_tr($data['notification_ids'],$data['feed']);
+		//print_r($data['feed']);die;
+		
+		$data['feed'] = $this->user_settings_model->get_organization_feeds_for_noti($data['notification_ids'],$data['feed']);
+		
+		//$data['feed'] = $this->user_settings_model->get_sponsorship_pages($data['notification_ids'],$data['feed']);
+
+		if($this->session->userdata('org_id'))
+		{
+				$data['feed'] = $this->user_settings_model->get_organization_feeds_for_mvr_check($data['notification_ids'],$data['feed']);
+		}	
+		
+		krsort($data['feed']);
+		
+		$data['get_profile_pic'] = $this->user_settings_model->get_profile_pic($this->session->userdata('userid'));
+		
+		//echo "<pre>";print_r($data['feed']);die;
+		$this->load->view('my-notifications-user',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_more_user_notification	
+	#	Purpose		:	Getting notifications against current user
+	# *******************************************************************************************
+	
+	public function get_more_user_notification() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		$str = '';
+		$data = array();
+		$data['notifications'] = $this->user_settings_model->get_notifications();
+		
+		if(!empty($data['notifications']['notification_data'])) {
+			foreach($data['notifications']['notification_data'] as $row) {
+				
+				$org_photo='';	$user_photo='';	
+				if($row['st_org_image']!='' && file_exists($this->config->item('upload')."org_doc/36x36/".$row['st_org_image'])) {
+					$org_photo = $row['st_org_image'];
+				} else {
+					$org_photo = 'no_photo_icon.png';
+				}
+					
+				if($row['st_profile_image']!='' && file_exists($this->config->item('upload')."profile/36x36/".$row['st_profile_image'])) {
+					$user_photo = $row['st_profile_image'];
+				} else {
+					$user_photo = 'no_photo_icon.png';
+				}
+				
+				if($row['st_file_name']!='' && file_exists($this->config->item('upload')."animal_images/36x36/".$row['st_file_name'])) {
+					$animal_img = $row['st_file_name'];
+				} else {
+					$animal_img = 'no_photo_icon.png';
+				}
+				
+				$animal_link 	= $this->common_function->get_filtered_name($row['st_animal_name']);
+				$animal_url 	= base_url()."animal-".$row['in_animal_id']."-".$animal_link."/";
+	
+				$org_link 		= $this->common_function->get_filtered_name($row['st_org_name']);
+				$org_url 		= base_url()."organization-".$row['in_organization_id']."-".$org_link."/";
+				
+				$patterns = array(	'%##animal_image##%',
+									//'%##org_url##%',
+									//'%##animal_url##%',
+									'%##org_url##'.$row['in_organization_id'].'%',
+									'%##animal_url##'.$row['in_animal_id'].'%',
+									'%##org_image##%',
+									'%##base_url##%',
+									'%##user_image##%'
+								);
+							
+				/*$replacements = array(	base_url().'upload/animal_images/36x36/no_photo_icon.png',
+										base_url().'org-details/',
+										base_url().'org_animal/animal_profile_details/',
+										base_url().'upload/org_doc/36x36/'.$org_photo,
+										base_url(),
+										base_url().'upload/profile/36x36/'.$user_photo
+									);*/
+				$replacements = array(	base_url().'upload/animal_images/36x36/'.$animal_img,
+													$org_url,
+													$animal_url,
+													base_url().'upload/org_doc/36x36/'.$org_photo,
+													base_url(),
+													base_url().'upload/profile/36x36/'.$user_photo
+												);	
+				$content = preg_replace($patterns,$replacements,$row['st_notification_msg']);
+				
+				$str .= '<li class="timeline-yellow">';
+				$str .= '<div class="timeline-time">';
+				$str .= '<span class="date">';
+				$str .= date('m/d/Y',strtotime($row['dt_created']));
+				$str .= '</span>';
+				$str .= '<span class="time">';
+				$str .= date('H:i',strtotime($row['dt_created']));
+				$str .= '</span>';
+				$str .= '</div>';
+				$str .= '<div class="timeline-icon"><i class="fa fa-road"></i></div>';
+				$str .= $content;
+				$str .= '</li>';
+			}
+			echo $str;
+		}
+	}
+	
+	#=============================================================
+	#	Function : manage_email_subscription
+	#	Purpose  : Manage All Email Subscription with daily digest.
+	#=============================================================
+	
+	public function manage_email_subscription() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		$data['tooltip'] 	 	= get_cookie('tooltip');
+		$data['user_email_sub'] = $this->user_settings_model->get_email_subscription($this->session->userdata('userid'));
+		$data['user_detail'] = $this->common_model->get_email_subscription($this->session->userdata('userid'));
+		
+		//echo "<pre>"; print_r($data['user_email_sub']);die;
+		
+		$data['daily_digest']	=	(!empty($data['user_email_sub'][0]['st_daily_digest_email']))?unserialize($data['user_email_sub'][0]['st_daily_digest_email']):'';
+		$data['interested_in']	=	(!empty($data['user_email_sub'][0]['st_interested_in']))?unserialize($data['user_email_sub'][0]['st_interested_in']):'';
+		$data['more_info']		=	(!empty($data['user_email_sub'][0]['st_more_info']))?unserialize($data['user_email_sub'][0]['st_more_info']):'';
+		$data['newsletter']		=	(!empty($data['user_email_sub'][0]['st_newsletter']))?unserialize($data['user_email_sub'][0]['st_newsletter']):'';
+		$data['unsubscribe']	=	(!empty($data['user_email_sub'][0]['st_unsubscribe']))?unserialize($data['user_email_sub'][0]['st_unsubscribe']):'';
+		
+		//echo "<pre>";print_r($data);die;
+		
+		if($this->input->post('frm_action') == 'frm_value') { 
+			//echo "<pre>";print_r($_POST);die;
+			//print_r(serialize($_POST));die;
+			if(isset($_POST['newsletter']) && isset($_POST['newsletter'][0]))
+			{  
+				if($_POST['newsletter'][0] == 'ndf')
+				{   
+			     $new_feature = 1;
+				}
+				if($_POST['newsletter'][0] == 'nw')
+				{
+			     $newsletter = 1;
+				}
+			}
+			
+			if(isset($_POST['newsletter']) && isset($_POST['newsletter'][1]))
+			{  
+				if($_POST['newsletter'][1] == 'ndf')
+				{
+			     $new_feature = 1;
+				}
+				if($_POST['newsletter'][1] == 'nw')
+				{
+			     $newsletter = 1;
+				}
+			}
+			
+			if($newsletter == 1)
+			{
+				$data['user_data'] = array('in_newsletter'	=>	'Y');
+				$data['edit_data'] = $this->common_model->update_user_data($data['user_data'],$this->session->userdata('userid'));
+			}
+			if($newsletter == '')
+			{
+				$data['user_data'] = array('in_newsletter'	=>	'N');
+				$data['edit_data'] = $this->common_model->update_user_data($data['user_data'],$this->session->userdata('userid'));
+			}
+			
+			
+			
+			
+			
+			
+			$data['subscription_data'] = array(	'in_user_id'			=>	$this->session->userdata('userid'),
+												'st_daily_digest_email'	=>	(isset($_POST['daily_digest']))?serialize($_POST['daily_digest']):'',
+												'st_interested_in'		=>	(isset($_POST['interested_in']))?serialize($_POST['interested_in']):'',
+												'st_more_info'			=>	(isset($_POST['more_info']))?serialize($_POST['more_info']):'',
+												'st_newsletter'			=>	(isset($_POST['newsletter']))?serialize($_POST['newsletter']):'',
+												'in_new_feature'		=>	(isset($new_feature)) ? $new_feature : '0',
+												'in_newsletter'			=>	(isset($newsletter))? $newsletter : '0',
+												'st_unsubscribe'		=>	(isset($_POST['email_pref']))?serialize($_POST['email_pref']):'',
+												'dt_created' 			=>  date('Y-m-d H:i:s')
+											);
+			
+			
+			
+			//if($data['daily_digest'] == '' && $data['interested_in'] == '' && $data['more_info'] == '' && $data['newsletter'] == '' && $data['unsubscribe'] == '') {
+			if(empty($data['user_email_sub'])) { 
+				$data['add_data'] = $this->user_settings_model->add_email_subscription($data['subscription_data']);
+				
+				//code to add users into newsletter subscription list
+				/* if(isset($newsletter) && $newsletter == '1')
+				{   
+					$this->load->library('mcapi');				
+					$listID = "58b7178803"; 
+					$emailAddress = $this->session->userdata('email');
+					$retval = $this->mcapi->listSubscribe($listID, $emailAddress, array('EMAIL' => $emailAddress,'FNAME' => $this->session->userdata('user_name'),'LNAME' => $this->session->userdata('last_name')));
+				} */
+				
+				$this->session->set_flashdata('success','Email subscription added successfully.');
+			} else { 
+				$data['edit_data'] = $this->user_settings_model->edit_email_subscription($data['subscription_data'],$data['user_email_sub'][0]['in_notification_setting_id']);
+				
+				//code to add users into newsletter subscription list
+				/*
+				if(isset($newsletter) && $newsletter == '1')
+				{  
+					$this->load->library('mcapi');	
+					$listID = "58b7178803"; 
+					$emailAddress = $this->session->userdata('email');
+					$retval = $this->mcapi->listSubscribe($listID, $emailAddress, array('EMAIL' => $emailAddress,'FNAME' => $this->session->userdata('user_name'),'LNAME' => $this->session->userdata('last_name')));
+				}
+				
+				
+				if(isset($data['newsletter']) && is_array($data['newsletter']) && in_array('nw',$data['newsletter']) == true)
+				{    
+					
+					if(!isset($newsletter) || $newsletter == '')
+					{   
+						$this->load->library('mcapi');				
+						$listID = "58b7178803"; 
+						$emailAddress = $this->session->userdata('email');
+						$retval = $this->mcapi->listUnsubscribe($listID, $emailAddress);
+					}				
+				}
+				*/
+				//code to unsubscribe users from newsletter subscription list
+				/*
+				if(isset($data['subscription_data']) && isset($data['subscription_data']['st_unsubscribe']))
+				{   // not in use						
+                        
+				  	$unsubscribe_array = unserialize($data['subscription_data']['st_unsubscribe']);
+					//print_r($unsubscribe_array);die;
+					if(isset($unsubscribe_array) && !empty($unsubscribe_array))
+					{ 
+						if(in_array('un_nw',$unsubscribe_array) || in_array('un_com',$unsubscribe_array))
+						{  
+							//print_r('unsubscibe user');exit;
+							$this->load->library('mcapi');				
+							$listID = "58b7178803"; 
+							$emailAddress = $this->session->userdata('email');
+							$retval = $this->mcapi->listUnsubscribe($listID, $emailAddress);
+						}
+					}
+				}
+				*/
+				
+				$this->session->set_flashdata('success','Email subscription updated successfully.');
+			}
+			
+			redirect(base_url().'manage-email-subscription');
+		}
+		
+		
+		$this->load->view('manage-email-subscriptions',$data);
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	feed_pagination_fr	
+	#	Purpose		:	Getting pagination feed
+	# *******************************************************************************************
+	
+	public function feed_pagination_fr() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$data = array();
+		
+		//$data['total_noti'] = $this->org_feed_model->get_total_notification($this->session->userdata('org_id'));
+		
+		$data['notification_ids'] = $this->user_settings_model->get_my_notification($this->session->userdata('userid'),$this->input->post('end'),$this->input->post('start'));
+		//echo $this->input->post('end')."_".$this->input->post('start');
+		//echo "<br>".$this->db->last_query();
+		//echo count($data['notification_ids']);echo "<pre>";print_r($data['notification_ids']);die;
+		//$data['get_all_feeds'] = $this->org_feed_model->get_feeds($this->session->userdata('org_id'));
+		$data['feed']	=	array();
+		
+		$data['feed'] = $this->user_settings_model->get_organization_feeds($data['notification_ids'],$data['feed']);
+		
+		$data['feed'] = $this->user_settings_model->get_organization_feeds_tr($data['notification_ids'],$data['feed']);
+			
+		//$data['feed'] = $this->user_settings_model->join_organization_request($data['notification_ids'],$data['feed']);
+		
+		$data['feed'] = $this->user_settings_model->get_organization_feeds_for_noti($data['notification_ids'],$data['feed']);
+		
+		$data['feed'] = $this->user_settings_model->get_sponsorship_pages($data['notification_ids'],$data['feed']);
+		
+		krsort($data['feed']);
+		//echo count($data['feed']);echo "<pre>";print_r($data['feed']);die('tytyty');
+		$data['get_profile_pic'] = $this->user_settings_model->get_profile_pic($this->session->userdata('userid'));
+		
+		$this->load->view('my-notifications-user-more',$data);
+	}
+	
+	public function test() {
+		$this->load->view('my-notifications1');
+	}
+	
+	/* function to send daily cron emails to users based on user email notification settings */
+	public function daily_emails() 
+	{
+		echo 'stopped on 23012017';
+		exit;
+		$cron_email_array = array("cron_url"=> base_url().'user_settings_and_notification/daily_emails',
+							"cron_step"=>'1',
+							"cron_step_detail"=>'step1',
+							"cron_created_date"=>date("Y-m-d H:i:s")
+							);
+		$this->common_model->add_cron_email_status($cron_email_array);
+
+		$last_cron_inserted_id = $this->db->insert_id();
+
+		$all_emails_details = $this->user_settings_model->get_user_daily_emails();
+		//echo '<pre/>'; print_r($all_emails_details); exit;
+		
+		$cron_email_array = array("cron_step"=>'2',
+							"cron_step_detail"=>'step2',
+							"cron_updated_date"=>date("Y-m-d H:i:s")
+							);
+		
+		$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		
+		
+		foreach($all_emails_details as $users_data)
+		{
+			
+			$this->load->library('email');
+			$email_details = $this->common_model->get_email_containt("37");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			
+			if(isset($email_details[0]['st_email_body']))
+			{
+				$to = $users_data['user_email_id'];	
+				
+				//if($to != 'christopher.m.roy@gmail.com' && $to != 'chris@doobert.com')
+				//{
+				//if($to == 'ghanshyam.maurya+u1@pulsesolutions.net')
+				//{	
+					$subject	=	$email_details[0]['st_email_subject'];
+					$subject	=	str_replace("##current_date##",date('M d, Y'),$email_details[0]['st_email_subject']);
+					
+					
+					$templete 	= 	$email_details[0]['st_email_body'];
+					$templete  	= 	str_replace("##user_first_name##",ucfirst($users_data['user_f_name']),$templete);
+					$templete  	= 	str_replace("##current_date##",date('M d, Y'),$templete);
+					$templete  	= 	str_replace("##DONATION##",$donation,$templete);
+					
+					$animal_profile_transfer_request_str = '';
+					
+					if(!empty($users_data['newly_animal_transfer_requests'])) {
+						foreach($users_data['newly_animal_transfer_requests'] as $atr_rows) {
+							
+							if(isset($atr_rows) && !empty($atr_rows))
+							{
+								foreach($atr_rows as $atr_values)
+								{   
+									$animal_profile_transfer_request_str .= '<table width="670" bgcolor="#ffffff" align="center" cellspacing="0" cellpadding="0" class="deviceWidth">
+																				<tbody>
+																				  <tr>
+																					<td width="100%" bgcolor="#ffffff" style="padding:14px 10px 0"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																						<tbody>
+																						  <tr>
+																							<td bgcolor="#ffffff" style="padding:10px;border:1px solid #cacaca;"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																								<tbody>
+																								  <tr>
+																									<td valign="middle"><span style="float:left;margin: 0 6px 0 0;"><img src="https://app.doobert.com/assets/img/daily_digest_email/doobert_icon1.png" alt=""></span>
+																									  <p style="display:block;color:#000;font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0;padding:3px 0 0;font-weight:bold;"> Animal Profile Transfer Request</p></td>
+																								  </tr>
+																								  <tr>
+																									<td><p style="font-size:13px;line-height:18px;font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0; padding-top:7px;">';
+																									
+																				$animal_profile_transfer_request_str .= '<a href="'.base_url().'organization-'.$atr_values['in_organization_id'].'-'.$this->common_function->get_filtered_name($atr_values['from_org']).'" style="color:#c41e54;text-decoration:underline;">'.$atr_values['from_org'].'</a>';					
+																				$animal_profile_transfer_request_str .=' is requesting to transfer an animal profile called ';
+																				$animal_profile_transfer_request_str .='<a href="'.base_url().'animal-'.$atr_values['in_animal_id'].'-'.$this->common_function->get_filtered_name($atr_values['st_animal_name']).'" style="color:#c41e54;text-decoration:underline;">'.$atr_values['st_animal_name'].'</a>';
+																				$animal_profile_transfer_request_str .=' to your organization ';
+																				$animal_profile_transfer_request_str .=$atr_values['to_org'];
+																				$animal_profile_transfer_request_str .='. Please <a href="'.base_url().'" style="color:#c41e54;text-decoration:underline;">login</a> to Doobert to accept or reject this request. </p></td>
+																								  </tr>
+																								</tbody>
+																							  </table></td>
+																						  </tr>
+																						</tbody>
+																					  </table></td>
+																				  </tr>
+																				</tbody>
+																			  </table>';
+								}
+							}
+						}
+					}
+			
+					$templete	=	str_replace("##animal_profile_transfer_request##",$animal_profile_transfer_request_str,$templete);
+					
+					$newly_added_animals_str = '';
+					
+					if(!empty($users_data['newly_added_animals'])) {
+						foreach($users_data['newly_added_animals'] as $naa_rows) {
+							
+							if(isset($naa_rows) && !empty($naa_rows))
+							{
+								foreach($naa_rows as $naa_values)
+								{
+									$newly_added_animals_str .= '<table width="670" bgcolor="#ffffff" align="center" cellspacing="0" cellpadding="0" class="deviceWidth">
+																	<tbody>
+																	  <tr>
+																		<td width="100%" bgcolor="#ffffff" style="padding:20px 10px 0"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																			<tbody>
+																			  <tr>
+																				<td bgcolor="#ffffff" style="padding:10px;border:1px solid #cacaca;"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																					<tbody>
+																					  <tr>
+																						<td valign="middle"><span style="float:left;margin: 0 6px 0 0;"><img src="https://app.doobert.com/assets/img/daily_digest_email/doobert_icon1.png" alt=""></span>
+																						  <p style="display:block;color:#000;font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0;padding:3px 0 0;font-weight:bold;">New Animal Profile Added to <a href="'.base_url().'organization-'.$naa_values['in_organization_id'].'-'.$this->common_function->get_filtered_name($naa_values['in_organization_id']).'" style="color:#c41e54;text-decoration:underline;">'.$naa_values['st_org_name'].'</a></p></td>
+																					  </tr>
+																					  <tr>
+																						<td><p style="font-size:13px;line-height:18px;font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0; padding-top:7px;">';
+																		$newly_added_animals_str .='<a href="'.base_url().'user-'.$naa_values['in_created_by'].'-'.$this->common_function->get_filtered_name($naa_values['st_display_name']).'" style="color:#c41e54;text-decoration:underline;">'.$naa_values['st_display_name'].'</a>';
+																		$newly_added_animals_str .=	' added a new animal profile called ';
+																		$newly_added_animals_str .=	'<a href="'.base_url().'animal-'.$naa_values['in_animal_id'].'-'.$this->common_function->get_filtered_name($naa_values['st_animal_name']).'" style="color:#c41e54;text-decoration:underline;">'.$naa_values['st_animal_name'].'</a>';
+																		$newly_added_animals_str .=	' to the <a href="'.base_url().'organization-'.$naa_values['in_organization_id'].'-'.$this->common_function->get_filtered_name($naa_values['in_organization_id']).'" style="color:#c41e54;text-decoration:underline;">'.$naa_values['st_org_name'].'</a> organization that you both work with. </p></td>
+																					  </tr>
+																					</tbody>
+																				  </table></td>
+																			  </tr>
+																			</tbody>
+																		  </table></td>
+																	  </tr>
+																	</tbody>
+																  </table>';
+								}
+							}
+						}
+					}
+					
+					$templete	=	str_replace("##new_animal_profile_added##",$newly_added_animals_str,$templete);
+					
+					
+					$join_transportation_str = '';
+					
+					if(!empty($users_data['join_transports_details'])) {
+						foreach($users_data['join_transports_details'] as $jt_rows) {
+							
+							$schedule_date = date("l, M d",strtotime($jt_rows['dt_target']));
+							
+					$join_transportation_str .= '<table width="670" bgcolor="#ffffff" align="center" cellspacing="0" cellpadding="0" class="deviceWidth">
+													<tbody>
+													  <tr>
+														<td width="100%" bgcolor="#ffffff" style="padding:20px 10px 0"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+															<tbody>
+															  <tr>
+																<td bgcolor="#ffffff" style="padding:10px;border:1px solid #cacaca;"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																	<tbody>
+																	  <tr>
+																		<td valign="middle"><span style="float:left;margin: 0 6px 0 0;"><img src="https://app.doobert.com/assets/img/daily_digest_email/doobert_icon2.png" alt=""></span>
+																		  <p style="display:block;color:#000;font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0;padding:0px 0 0;font-weight:bold;">Join Transportation</p></td>
+																	  </tr>
+																	  <tr>
+																		<td><p style="font-size:13px;line-height:18px;font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0; padding-top:7px;"><a href="'.base_url().'user-'.$jt_rows['in_created_by'].'-'.$this->common_function->get_filtered_name($jt_rows['st_display_name']).'" style="color:#c41e54;text-decoration:underline;">'.$jt_rows['st_display_name'].'</a> has join Transport <a href="'.base_url().'org-transportation-scheduled/'.$jt_rows['in_transportation_id'].'" style="color:#c41e54;text-decoration:underline;">#'.$jt_rows['in_transportation_id'].'</a> scheduled for '.$schedule_date.'. As of the time of this e-mail, this transport is '.$jt_rows['per'].'% covered. </p></td>
+																	  </tr>
+																	</tbody>
+																  </table></td>
+															  </tr>
+															</tbody>
+														  </table></td>
+													  </tr>
+													</tbody>
+												  </table>';
+	  
+						}
+					}
+					
+					$templete	=	str_replace("##join_transportation##",$join_transportation_str,$templete);
+					
+					$transport_matches_str = '';
+					
+					if(!empty($users_data['near_by_transport_requests'])) {
+						foreach($users_data['near_by_transport_requests'] as $nt_rows) {
+							
+							$from_date = date("l, M d",strtotime($nt_rows['dt_pickup_date']));
+							//echo $from_date;exit;							
+							$from_add = $nt_rows['st_from_city'].', '.$nt_rows['st_from_state'].', '.$nt_rows['st_from_zip'];
+							//echo $from_add;exit;
+							$to_add = $nt_rows['st_to_city'].', '.$nt_rows['st_to_state'].', '.$nt_rows['st_to_zip'];
+							//echo $to_add;exit;
+							
+					$transport_matches_str .= '<table width="670" bgcolor="#ffffff" align="center" cellspacing="0" cellpadding="0" class="deviceWidth">
+												<tbody>
+												  <tr>
+													<td width="100%" bgcolor="#ffffff" style="padding:20px 10px 0"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+														<tbody>
+														  <tr>
+															<td bgcolor="#ffffff" style="padding:10px;border:1px solid #cacaca;"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																<tbody>
+																  <tr>
+																	<td valign="middle"><span style="float:left;margin: 0 6px 0 0;"><img src="https://app.doobert.com/assets/img/daily_digest_email/doobert_icon2.png" alt=""></span>
+																	  <p style="display:block;color:#000;font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0;padding:0px 0 0;font-weight:bold;">Transport Matches Your Availability and Distance Settings</p></td>
+																  </tr>
+																  <tr>
+																	<td><p style="font-size:13px;line-height:18px;font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0; padding-top:7px;"><a href="'.base_url().'user-'.$nt_rows['in_created_by'].'-'.$this->common_function->get_filtered_name($nt_rows['st_display_name']).'" style="color:#c41e54;text-decoration:underline;">'.$nt_rows['st_display_name'].'</a> has created a new transportation request <a href="'.base_url().'org-transportation-scheduled/'.$nt_rows['in_transportation_id'].'" style="color:#c41e54;text-decoration:underline;">(Transport #'.$nt_rows['in_transportation_id'].')</a> on Doobert.com for '.$from_date.' from '.$from_add.' to '.$to_add.'.</p></td>
+																  </tr>
+																</tbody>
+															  </table></td>
+														  </tr>
+														</tbody>
+													  </table></td>
+												  </tr>
+												</tbody>
+											  </table>';
+						}
+					}
+					
+					$templete	=	str_replace("##transport_matches_your_availability_and_distance_settings##",$transport_matches_str,$templete);
+					
+					
+					$join_organization_str = '';
+					
+					if(!empty($users_data['join_organization_requests'])) {
+						foreach($users_data['join_organization_requests'] as $jor_rows) {
+							
+						$join_organization_str .= '<table width="670" bgcolor="#ffffff" align="center" cellspacing="0" cellpadding="0" class="deviceWidth">
+													<tbody>
+													  <tr>
+														<td width="100%" bgcolor="#ffffff" style="padding:20px 10px 0"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+															<tbody>
+															  <tr>
+																<td bgcolor="#ffffff" style="padding:10px;border:1px solid #cacaca;"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																	<tbody>
+																	  <tr>
+																		<td valign="middle"><span style="float:left;margin: 0 6px 0 0;"><img src="https://app.doobert.com/assets/img/daily_digest_email/doobert_icon3.png" alt=""></span>
+																		  <p style="display:block;color:#000;font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0;padding:0px 0 0;font-weight:bold;">Join Organization Request</p></td>
+																	  </tr>
+																	  <tr>
+																		<td><p style="font-size:13px;line-height:18px;font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0; padding-top:7px;"><a href="'.base_url().'user-'.$jor_rows['in_invite_by'].'-'.$this->common_function->get_filtered_name($jor_rows['st_display_name']).'" style="color:#c41e54;text-decoration:underline;">'.$jor_rows['st_display_name'].'</a> has requested to be joined to your organization, '.$jor_rows['st_org_name'].'. Please review their application carefully to determine if you would like to associate them with your organization and accept or reject their application accordingly.</p>
+																		<p style="font-size:13px;line-height:18px;font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0; padding-top:7px;"><a href="'.base_url().'user/accept_request/'.base64_encode($jor_rows['in_user_id']).'/'.base64_encode($jor_rows['in_organization_id']).'/'.base64_encode($jor_rows['in_org_user_id']).'">Accept</a>&nbsp;&nbsp;&nbsp;<a href="'.base_url().'user/reject_request/'.base64_encode($jor_rows['in_user_id']).'/'.base64_encode($jor_rows['in_organization_id']).'/'.base64_encode($jor_rows['in_org_user_id']).'">Reject</a></p>			</td>
+																	  </tr>
+																	</tbody>
+																  </table></td>
+															  </tr>
+															</tbody>
+														  </table></td>
+													  </tr>
+													</tbody>
+												  </table>';	
+					
+						}
+					}
+					
+					$templete	=	str_replace("##join_organization_request##",$join_organization_str,$templete);
+					
+					
+					$transfer_organization_str = '';
+					
+					if(!empty($users_data['transfer_organization_requests'])) {
+						foreach($users_data['transfer_organization_requests'] as $tor_rows) {
+							
+						$transfer_organization_str .= '<table width="670" bgcolor="#ffffff" align="center" cellspacing="0" cellpadding="0" class="deviceWidth">
+													<tbody>
+													  <tr>
+														<td width="100%" bgcolor="#ffffff" style="padding:20px 10px 0"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+															<tbody>
+															  <tr>
+																<td bgcolor="#ffffff" style="padding:10px;border:1px solid #cacaca;"><table width="100%" border="0" align="left" cellspacing="0" cellpadding="0" class="deviceWidth">
+																	<tbody>
+																	  <tr>
+																		<td valign="middle"><span style="float:left;margin: 0 6px 0 0;"><img src="https://app.doobert.com/assets/img/daily_digest_email/doobert_icon3.png" alt=""></span>
+																		  <p style="display:block;color:#000;font-size:15px; font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0;padding:0px 0 0;font-weight:bold;">Organization Transfer Request</p></td>
+																	  </tr>
+																	  <tr>
+																		<td><p style="font-size:13px;line-height:18px;font-family:Arial, Helvetica, sans-serif; color:#000000; margin:0; padding-top:7px;">'.$tor_rows['st_display_name'].' has requested to transfer the ownership of the '.$tor_rows['st_org_name'].' organization permanently to your control.Please login to Doobert.com to accept or reject this request. <a href="'.base_url().'organization/owner_organization_details/'.$tor_rows['in_organization_id'].'" style="color:#c41e54;text-decoration:underline;">View Transfer Request</a></p></td>
+																	  </tr>
+																	</tbody>
+																  </table></td>
+															  </tr>
+															</tbody>
+														  </table></td>
+													  </tr>
+													</tbody>
+												  </table>';	
+					
+						}
+					}
+					
+					$templete	=	str_replace("##transfer_organization_request##",$transfer_organization_str,$templete);
+					
+					//echo '<pre/>';print_r($templete);//exit;
+					
+					if((isset($animal_profile_transfer_request_str) && $animal_profile_transfer_request_str != '') || (isset($newly_added_animals_str) && $newly_added_animals_str != '') || (isset($join_transportation_str) && $join_transportation_str != '') || (isset($transport_matches_str) && $transport_matches_str != '') || (isset($join_organization_str) && $join_organization_str != '') || (isset($transfer_organization_str) && $transfer_organization_str != ''))
+					{
+						//echo 'Send email to: '.$to;
+						
+						$category  	=  $email_details[0]['st_category'];
+						$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+						$templete = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$templete);		
+						$templete = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$templete);
+						
+						$send_email = 1;							
+						$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+						if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+						{
+							$send_email = 0;										
+						}
+						
+						$email_template_id = $email_details[0]['in_email_id'];
+						$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+						if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+						{
+							$send_email = 1;
+						}
+						
+						if($send_email == '1')
+						{
+							$this->common_function->send_mail($this->email, $to, $subject, $templete, $this->config->item('admin_email_from'),$cc ='', $this->config->item('admin_from_name'),$this->email, $category);
+						}
+						//echo 'Email sent successfully to: '.$to;
+						//echo '<br/>';
+					}
+				//}
+			}
+			
+			
+		} 
+		
+
+		$cron_email_array = array("cron_step"=>'3',
+							"cron_step_detail"=>'step3',
+							"cron_updated_date"=>date("Y-m-d H:i:s")
+							);
+		
+		$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+		
+		echo 'Daily Digest Emails sent successfully.';
+		
+	}
+	
+	
+	public function new_fundraiser() {
+		if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		
+		$this->load->model('user_model');
+		$data['profile_details'] = $this->user_model->get_user_profile($this->session->userdata('userid'));
+		$data['user_notification_setting'] = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		
+		$data['fundraiser_details'] = $this->user_settings_model->get_new_fundraiser_details($this->session->userdata('userid'));
+		
+		$data['animal_type'] = $this->common_model->get_animal_types();	
+		
+		$form_field	=	array('any_ani_fundraiser'	=> "",
+							 'any_org_fundraiser'	=> "",
+							  'spe_ani_fundraiser'	=> "",							  
+							  'spe_org_fundraiser'	=> "",
+							  'spe_ani_fundraiser_dist'	=> "",
+							  'spe_org_fundraiser_dist'	=> "",
+							  'breed-anyanimal-fundraiser' => "",
+							  'animalbreed' => array('0'=>''),
+							  'new_fundraiser_id' => "",
+					  	 	);
+							
+		if($this->input->post('frm_action') == 'frm_post') {
+			//echo "<pre>";print_r($_POST);die;	
+			foreach($form_field as $key => $value)	
+			{	
+				if(is_array($value))
+				{
+					$data['post_details'][$key] = $this->input->post($key);		
+				}
+				else{
+					$data['post_details'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));	
+				}
+			}
+			
+			$data['fundraiser_details'] = $this->user_settings_model->update_new_fundraiser_details($data['post_details'],$this->session->userdata('userid'));
+			
+			$this->session->set_flashdata('success','New fundraiser details updated successfully.');
+			redirect(base_url().'new-fundraiser');			
+		}
+
+		$this->load->view('new-fundraiser',$data);
+	}
+	
+	public function transport_notification() {
+	    if(!$this->session->userdata('userid')) {
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();		
+		$data['user_notification_setting'] = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		
+		//echo '<pre>'; print_r($data['user_notification_setting']); die;			
+		
+		$this->load->view('transport_notification',$data);
+	}
+	
+	
+	function update_transport_notify()
+	{
+		$trans_id = 0;
+		
+		$userid = $this->input->post('userid'); 
+		$in_trans_notify   = $this->input->post('in_trans_notify');
+		if( $in_trans_notify=='2'){$in_trans_notify='1';}
+		elseif( $in_trans_notify=='1'){$in_trans_notify='2';}
+						 
+		$user_notification_settings = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		 
+		$transinfo =	array("flg_immediate_transport" => $in_trans_notify,"dt_modified"=>date("Y-m-d H:i:s"));
+		$trans_id  = $this->common_model->update_notification_info($transinfo, $userid);	
+			
+		/*
+		 if(isset($user_notification_settings) && !empty($user_notification_settings))
+		 {
+		 	$transinfo =	array("in_trans_notify" => $in_trans_notify,"dt_modified"=>date("Y-m-d H:i:s"));
+		 	$trans_id  = $this->user_settings_model->update_trans_info($transinfo, $userid);
+		 }
+		 else
+		 {
+		 	$transinfo =	array("in_user_id" => $this->session->userdata('userid'),"in_trans_notify" => $in_trans_notify,"dt_created"=>date("Y-m-d H:i:s"));
+		 	$trans_id  = $this->user_settings_model->insert_notification_info($transinfo, $userid);	
+		 }*/
+		 
+		 echo json_encode($trans_id);
+	}
+	
+	function update_animal_notify()
+	{
+		$ani_notify_id = 0;
+		
+		$userid = $this->input->post('userid'); 
+		$in_animal_notify   = $this->input->post('in_animal_notify');
+		if( $in_animal_notify=='2'){$in_animal_notify='1';}
+		elseif( $in_animal_notify=='1'){$in_animal_notify='2';}		 
+		 
+		$user_notification_settings = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		 
+		$transinfo =	array("flg_immediate_animal" => $in_animal_notify,"dt_modified"=>date("Y-m-d H:i:s"));
+		$ani_notify_id  = $this->common_model->update_animal_notification_info($transinfo, $userid);
+		
+		 /*if(isset($user_notification_settings) && !empty($user_notification_settings))
+		 {
+		 	$transinfo =	array("in_animal_notify" => $in_animal_notify,"dt_modified"=>date("Y-m-d H:i:s"));
+		 	$ani_notify_id  = $this->user_settings_model->update_trans_info($transinfo, $userid);
+		 }
+		 else
+		 {
+		 	$transinfo =	array("in_user_id" => $this->session->userdata('userid'),"in_animal_notify" => $in_animal_notify,"dt_created"=>date("Y-m-d H:i:s"));
+		 	$ani_notify_id  = $this->user_settings_model->insert_notification_info($transinfo, $userid);	
+		 }*/
+		 
+		 echo json_encode($ani_notify_id);
+	}
+	
+	function update_fund_notify()
+	{
+		$fund_notify_id = 0;
+		
+		$userid = $this->input->post('userid'); 
+		$in_fund_notify   = $this->input->post('in_fund_notify');
+		if( $in_fund_notify=='2'){$in_fund_notify='1';}
+		elseif( $in_fund_notify=='1'){$in_fund_notify='2';}		 
+		 
+		$user_notification_settings = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		 
+		$transinfo =	array("flg_immediate_fund" => $in_fund_notify,"dt_modified"=>date("Y-m-d H:i:s"));
+		$fund_notify_id  = $this->common_model->update_fundraiser_notification_info($transinfo, $userid);
+		/*
+		 if(isset($user_notification_settings) && !empty($user_notification_settings))
+		 {
+		 	$transinfo =	array("in_fund_notify" => $in_fund_notify,"dt_modified"=>date("Y-m-d H:i:s"));
+		 	$fund_notify_id  = $this->user_settings_model->update_trans_info($transinfo, $userid);
+		 }
+		 else
+		 {
+		 	$transinfo =	array("in_user_id" => $this->session->userdata('userid'),"in_fund_notify" => $in_fund_notify,"dt_created"=>date("Y-m-d H:i:s"));
+		 	$fund_notify_id  = $this->user_settings_model->insert_notification_info($transinfo, $userid);	
+		 }*/
+		 		
+		 echo json_encode($fund_notify_id);
+	}
+	
+	public function notification_overview() 
+	{
+		if(!$this->session->userdata('userid')) 
+		{
+			redirect($this->config->item('base_url'));
+		}
+		$data = array();
+		$unsubscribe = array();
+		$data['user_notification_setting'] = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		$user_profile = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		$unsubscribe = $this->user_settings_model->unsubscribe_user($user_profile[0]['st_email']);
+		$data['unsubscribe'] = $unsubscribe;
+		$this->load->view('notification_overview',$data);
+	}
+	
+	function update_daily_notify()
+	{
+		$daily_notify_id = 0;
+		
+		$userid = $this->input->post('userid'); 
+		$in_daily_notify   = $this->input->post('in_daily_notify');
+		if( $in_daily_notify=='2'){$in_daily_notify='1';}
+		elseif( $in_daily_notify=='1'){$in_daily_notify='2';}		 
+		 
+		$user_notification_settings = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		
+		if($in_daily_notify == 2)
+		{	
+			$notification_info =	array("flg_daily_email"   		=> $in_daily_notify,
+										  "flg_immediate_all"	    => "1",
+										  "flg_immediate_transport"	=>"1",
+										  "flg_immediate_animal" 	=> "1",
+										  "flg_immediate_fund"		=> "1",	
+										  "dt_modified"		  		=> date("Y-m-d H:i:s"),
+										  "st_daily_reason"   		=> ""
+										  );
+		} else {
+			$notification_info =	array("flg_daily_email" => $in_daily_notify,
+										  "flg_immediate_all"	    => "2",
+										  "flg_immediate_transport"	=>"2",
+										  "flg_immediate_animal" 	=> "2",
+										  "flg_immediate_fund"		=> "2",			
+										  "dt_modified"=>date("Y-m-d H:i:s"),
+										  "st_daily_reason"=>""
+										 );
+		}
+		
+		
+		//$notification_info =	array("flg_daily_email" => $in_daily_notify,"dt_modified"=>date("Y-m-d H:i:s"),"st_daily_reason"=>"");
+		$daily_notify_id  = $this->common_model->update_daily_notification_info($notification_info, $userid);
+		
+		echo json_encode($daily_notify_id);
+	}
+	
+	function update_immmediate_notify()
+	{
+		$immmediate_notify_id = 0;
+		
+		$userid = $this->input->post('userid'); 
+		$in_immediate_notify   = $this->input->post('in_immediate_notify');
+		if( $in_immediate_notify=='2'){$in_immediate_notify='1';}
+		elseif( $in_immediate_notify=='1'){$in_immediate_notify='2';}		 
+		 
+		$user_notification_settings = $this->user_settings_model->user_notification_setting($this->session->userdata('userid'));
+		 
+		if($in_immediate_notify == '1')
+		{
+			$notification_info =	array("flg_immediate_all" => $in_immediate_notify,"flg_immediate_transport" => '1',"flg_immediate_animal" => '1',"flg_immediate_fund" => '1',"dt_modified"=>date("Y-m-d H:i:s"));
+		}else
+		{
+			$notification_info =	array("flg_immediate_all" => $in_immediate_notify,"flg_immediate_transport" => '2',"flg_immediate_animal" => '2',"flg_immediate_fund" => '2',"dt_modified"=>date("Y-m-d H:i:s"));
+		}
+		
+		$daily_notify_id  = $this->common_model->update_immediate_notification_info($notification_info, $userid);
+		
+		echo json_encode($daily_notify_id);
+	}
+	
+	function generate_fb_animal_image($id='')
+	{
+		$upload_dir 	   = $this->config->item('upload')."fb_animal_share/";
+		$upload_dir_temp 	   = $this->config->item('upload')."fb_animal_share_templete/";
+		$attched_file 	   = $upload_dir_temp."FB-Share-Template.jpg";
+		$y = 0;
+		$flag_type = 0;
+		
+		$ani_data = $this->organimal_model->animal_profile_details($id);
+		$main_image = '';
+		$fb_post_id = '';
+		if(count($ani_data)>0)
+		{	
+			$im = imagecreatefromjpeg($attched_file);
+			$org_details = $this->common_model->get_single_org_details($ani_data['in_organization_id']);
+			$font 	=	$_SERVER["DOCUMENT_ROOT"]."/assets/fonts/Roboto/Roboto-Regular.ttf";
+			$bold 	=	$_SERVER["DOCUMENT_ROOT"]."/assets/fonts/Roboto/Roboto-Bold.ttf";
+			$light 	=	$_SERVER["DOCUMENT_ROOT"]."/assets/fonts/Roboto/Roboto-Light.ttf";
+			$bold_italic =	$_SERVER["DOCUMENT_ROOT"]."/assets/fonts/Roboto/Roboto-BoldItalic.ttf";
+			
+			$textColorWhite = imagecolorallocate($im, 255,255,255);
+			$textColorYellow = imagecolorallocate ($im, 255, 255, 0);
+			$textColorGrey = imagecolorallocate ($im, 78, 78, 81); 
+			$textDarkGrey = imagecolorallocate ($im,70,70,70);
+			$textColorblack = imagecolorallocate ($im, 0, 0, 0);
+			$textColorOrange = imagecolorallocate ($im, 241,55,44);
+			
+			$animal_text = "Hi, I'm ".$ani_data['st_animal_name']." !";	
+			
+			$textWithLine = $this->linebreaks4imagettftext(16,0,$bold_italic,$animal_text,'260');
+			
+			imagettftext($im,16, 0,11,35,$textColorWhite,$bold_italic,$textWithLine);
+			
+			
+			$textWith_name = $this->linebreaks4imagettftext(12,0,$font,$org_details['st_org_name'],'120');
+			
+			imagettftext($im,12, 0,40,180,$textColorGrey,$font,$textWith_name);
+
+			$picture = $this->common_function->get_picture($ani_data['in_organization_id']);
+			$profile_image = '';
+			if(trim($picture) != '' && file_exists($this->config->item('upload').'org_doc/thumb/'.$picture)) 
+			{
+				$profile_image = $picture;
+				$org_profile_src = $this->config->item('upload').'org_doc/thumb/'.$profile_image;
+				//$im2 = imagecreatefromjpeg($org_profile_src);
+			
+				if (exif_imagetype($org_profile_src) == IMAGETYPE_GIF) 
+				{
+					$flag_type = 1;
+					$im2 = imagecreatefromgif($org_profile_src);
+				}
+			
+				if (exif_imagetype($org_profile_src) == IMAGETYPE_PNG) 
+				{
+					$flag_type = 1;
+					$im2 = imagecreatefrompng($org_profile_src);
+				}
+			
+				if (exif_imagetype($org_profile_src) == IMAGETYPE_JPEG) 
+				{
+					$flag_type = 1;
+					$im2 = imagecreatefromjpeg($org_profile_src);
+				}
+				if($flag_type == 1)
+				{
+					$percent = 0.45;
+					list($width, $height) = getimagesize($org_profile_src);
+					$newwidth = $width * $percent;
+					$newheight = "88";
+					$thumb = imagecreatetruecolor($newwidth, $newheight);
+					imagecopyresized($thumb, $im2, 0, 0, 0, 0, $newwidth, $newheight, $width, $height);
+					imagecopy($im, $thumb,151,164,0,0,$newwidth,$newheight);
+				}	
+			}
+			
+			$ani_photo = $this->organimal_model->get_animal_photo($id);
+			$profile_image = '';
+			/*if(trim($ani_photo) != '' && file_exists($this->config->item('upload').'animal_images/cropped_images/'.$ani_photo)) 
+			{
+				
+				$ani_profile_src = $this->config->item('upload').'animal_images/cropped_images/'.$ani_photo;
+			} else {
+				$ani_profile_src = $this->config->item('upload').'animal_images/70x70/doobert-animal-no-image-70.gif';
+			}*/
+
+			if(trim($ani_photo) != '' && file_exists($this->config->item('upload').'animal_images/'.$ani_photo)) 
+			{
+				
+				$ani_profile_src = $this->config->item('upload').'animal_images/'.$ani_photo;
+			} else {
+				//$ani_profile_src = $this->config->item('upload').'animal_images/no_photo_icon.png';
+				$ani_profile_src = $this->config->item('upload').'animal_images/70x70/doobert-animal-no-image-70.gif';
+			}	
+			
+				if (exif_imagetype($ani_profile_src) == IMAGETYPE_GIF) 
+				{
+					$ani_flag_type = 1;
+					$im3 = imagecreatefromgif($ani_profile_src);
+				}
+			
+				if (exif_imagetype($ani_profile_src) == IMAGETYPE_PNG) 
+				{
+					$ani_flag_type = 1;
+					$im3 = imagecreatefrompng($ani_profile_src);
+				}
+			
+				if (exif_imagetype($ani_profile_src) == IMAGETYPE_JPEG) 
+				{
+					$ani_flag_type = 1;
+					$im3 = imagecreatefromjpeg($ani_profile_src);
+				}
+				if($ani_flag_type == 1)
+				{
+					//$percent = 3;
+					list($width, $height) = getimagesize($ani_profile_src);
+					//$newwidth = $width * $percent;
+					//$newheight = "200";
+					$newwidth = "200";
+					$newheight = "247";
+					$thumb1 = imagecreatetruecolor($newwidth, $newheight);
+					imagecopyresized($thumb1, $im3, 0, 0, 0, 0, $newwidth, $newheight, $width, $height);
+					
+					imagecopy($im, $thumb1,284,0,0,0,$newwidth,$newheight);
+				}
+			
+			
+			
+			/*$bend_profile_src = $upload_dir_temp.'FBShareTemplateBend.png';
+			$im4 = imagecreatefrompng($bend_profile_src);
+			imagettftext($im4,12,0,25,33,$textColorOrange,$bold,$animal_status);
+			list($width, $height) = getimagesize($bend_profile_src);
+			$newwidth = $width;
+			$newheight = $height;
+					
+			imagecopy($im,$im4,285,190,0,0,$newwidth,$newheight);*/
+				
+			
+			$main_image = 'ani_'.$id.".jpg";
+			$imagename2 = $upload_dir.$main_image;
+			
+			imagejpeg($im,$imagename2);
+			imagedestroy($im);
+			
+			$UrlTopass_t  =  base_url()."animal-".$ani_data['in_animal_id']."-".$ani_data['st_animal_name'];	
+		
+			if($main_image!='')
+			{		
+				$this->db->where('in_animal_id',$id);
+				$this->db->update('tbl_animal',array('st_fb_img'=>$main_image));
+			}
+
+		}	
+					
+		
+	}
+	
+	function linebreaks4imagettftext($size,$angle,$fontfile,$text,$maximumWidth,$lineBreakCharacter = PHP_EOL) 
+	{
+        // create an array with all the words
+        $words = explode(' ', $text);
+
+        // process all our words to generate $textWithLineBreaks
+        $textWithLineBreaks = '';
+        $currentLine = '';
+        foreach ($words as $position => $word) {
+            // place the first word into $currentLine without any processing (we
+            // always want to include the first word on the first line--obviously)
+            if ($position === 0) {
+                $currentLine = $word;
+            } else {
+                // calculate the text's size if we were to add the word
+                $textDimensions = imagettfbbox(
+                    $size,
+                    $angle,
+                    $fontfile,
+                    $currentLine . ' ' . $word
+                );
+                $textLeft = min($textDimensions[0], $textDimensions[6]);
+                $textRight = max($textDimensions[2], $textDimensions[4]);
+                $textWidth = $textRight - $textLeft;
+                if ($textWidth > $maximumWidth) {
+                    // the text is too wide with the added word so we add a line
+                    // break then start a new line with only the added word
+                    $textWithLineBreaks .= $currentLine;
+                    $textWithLineBreaks .= $lineBreakCharacter;
+
+                    $currentLine = $word;
+                } else {
+                    // we have space on the current line for the added word so we
+                    // add a space then the word
+                    $currentLine .= ' ';
+                    $currentLine .= $word;
+                }
+            }
+        }
+        // the current line is still unadded to $textWithLineBreaks so we add it
+        $textWithLineBreaks .= $currentLine;
+
+        // return $text with line breaks added
+        return $textWithLineBreaks;
+    }
+	
+	
+}

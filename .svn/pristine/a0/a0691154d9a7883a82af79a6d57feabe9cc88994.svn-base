@@ -1,0 +1,1101 @@
+<?php
+class open_leg_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+	
+	 function google_lat_long($address) 
+	 {
+        $latlon['lat'] = '';
+        $latlon['lon'] = '';
+
+		if($address)
+		{
+			$url ="http://maps.googleapis.com/maps/api/geocode/json?address=" .urlencode(@$address)."&sensor=false";
+			
+			// create curl resource
+			$ch = curl_init();
+			// set url
+			curl_setopt($ch, CURLOPT_URL, $url);
+			//return the transfer as a string
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+			// $output contains the output string
+			$output = curl_exec($ch);
+			// close curl resource to free up system resources
+			curl_close($ch);
+			//echo $output;die;
+			$response_array = json_decode($output, TRUE);
+			if($response_array['status'] == 'OK')
+			{
+				$arrAxis = json_decode($output)->results[0]->geometry->location;
+                $lat = $arrAxis->lat;
+                $lan = $arrAxis->lng;
+                $latlon['lat'] = $lat;
+                $latlon['lon'] = $lan;
+			}
+		}
+		return $latlon;
+    }
+
+	public function get_lat_long($zipcode)
+	{
+		$this->db->select('lat,lon');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zipcode);
+		$query = $this->db->get()->result_array();
+		return $query;	
+	}
+
+
+	public function get_participation_leg_count($photograph_type_transport,$leg_id)
+	{
+		$participants_cnt = '0';
+		$non_doobert_participants_cnt = '0';
+		$this->db->select('count(in_tr_pr_id) as participants_cnt');
+		$this->db->from('tbl_transportation_participants');
+		$this->db->where('in_transportation_leg_id',$leg_id);
+		$this->db->where('in_photography_profile',$photograph_type_transport);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		$doobert_leg_user_count = $query->row_array();
+		$participants_cnt = $doobert_leg_user_count['participants_cnt'];
+		
+		if($photograph_type_transport==0)
+		{
+			$this->db->select('count(in_non_doobert_user_id) as non_doobert_participants_cnt');
+			$this->db->from('tbl_non_doobert_transport_users');
+			$this->db->where('in_leg_id',$leg_id);
+			$this->db->where('in_deleted',0);
+			$query = $this->db->get();
+			$non_doobert_leg_user_count = $query->row_array();
+			$non_doobert_participants_cnt = $non_doobert_leg_user_count['non_doobert_participants_cnt'];
+		}
+
+		return $participants_cnt+$non_doobert_participants_cnt;
+		
+	}
+	public function get_open_legs($rec_per_page,$limit,$sort,$order)
+	{
+		$in_transportation_leg_id	=	array();
+		$open_leg_details	=	array();
+		$test_array	=	array();
+		$current_date = date("Y-m-d");		
+		//$transport_id = $this->session->userdata('searchadmin1');
+		$transport_id = $this->session->userdata('searchadmin1');
+		$transport_id = strtoupper($transport_id);
+		$transport_id = str_replace("DBT"," ",$transport_id);
+		$city         = $this->session->userdata('searchadmin2');
+		$start_date   = $this->session->userdata('searchadmin3')? date("Y-m-d",strtotime($this->session->userdata('searchadmin3'))):'';
+		$zip 		  = $this->session->userdata('searchadmin4');
+		$miles 		  = $this->session->userdata('searchadmin5');
+		$type 		  = $this->session->userdata('searchadmin6');
+		$photograph_type_transport = ($this->session->userdata('searchadmin7')=='2')?'1':'0';
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		$sql = '';
+		if(!empty($miles) && !empty($zip))
+			$lat_long = $this->get_lat_long($zip);
+		if((!empty($type)&& ($type!='A')) || empty($type) )
+		{	
+			$this->db->select('tlg.in_transportation_leg_id,tlg.in_multi_user,tlg.in_user_num');
+			$this->db->from('tbl_transportation_leg tlg');
+			$this->db->join("tbl_transportation_leg_detail tlgd","tlgd.in_transportation_leg_id = tlg.in_transportation_leg_id","INNER");
+			$this->db->join("tbl_transportation tr","tr.in_transportation_id = tlg.in_transportation_id","INNER");	
+			
+			if(!empty($miles) && !empty($zip) && count($lat_long)>0)
+			{
+				$this->db->join("tbl_zip_code zp","zp.zip_code=tlgd.st_zip","INNER");
+				$this->db->where("((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "')");
+			}
+		
+			$this->db->where('tr.dt_target >= ',$current_date);
+			$this->db->where('tr.in_deleted', 0);
+			$this->db->where('tr.in_status', '1');
+			$this->db->where('tlgd.in_deleted', 0);
+			$this->db->where('tr.in_airline_transport', '0');
+			if(!empty($type)  && $type=='P')
+			{	
+				$this->db->where('tr.st_trans_type', 'P');
+			}
+		
+			if(!empty($type)  && $type=='R' && $photograph_type_transport=='0')
+			{		
+				$this->db->where('tr.st_trans_type', 'R');
+			}
+		
+			if(!empty($type)  && $type=='D')
+			{			
+				$this->db->where('tr.st_trans_type', 'D');
+			}
+			
+			if(empty($type) && $photograph_type_transport=='0' )
+			{
+				$type_array = array('P','R','D');
+				$this->db->where_in('tr.st_trans_type',$type_array);
+				//$sql .= " AND (tr.st_trans_type = 'R' || tr.st_trans_type = 'P' || tr.st_trans_type = 'D' )";
+			}	
+			
+			if(empty($type) && $photograph_type_transport=='1')
+			{
+				$type_array = array('P','D');
+				$this->db->where_in('tr.st_trans_type',$type_array);
+				//$sql .= " AND ( tr.st_trans_type = 'P' || tr.st_trans_type = 'D' )";
+			}
+			
+			if($photograph_type_transport=='0' && $this->session->userdata('userid'))
+			{
+				$route_type = array('2');
+				if( isset($user_details['0']['st_driver']) && $user_details['0']['st_driver']=='Y')
+				{
+					array_push($route_type,'0');
+				}
+				if( isset($user_details['0']['st_pilot']) && $user_details['0']['st_pilot']=='Y')
+				{
+					array_push($route_type,'1');
+				}
+				$this->db->where_in('tlg.in_route_type',$route_type);	
+			}
+		
+		
+			if(!empty($transport_id))
+				$this->db->where('tr.in_transportation_id',$transport_id);
+			if(!empty($city) && empty($miles) && empty($zip))
+				$this->db->where('tlgd.st_state',$city);
+			if(!empty($start_date))
+				$this->db->where('Date(tlgd.dt_start_time)',$start_date);
+			
+			$this->db->group_by('tlg.in_transportation_leg_id');
+			$this->db->order_by('tlg.in_transportation_leg_id','ASC');
+			//$query = $this->db->get();
+			$query = $this->db->get()->result_array();
+			
+			foreach($query as $key=>$value)
+			{
+				$total_filled_status = 0;
+				$all_participants = $this->get_participation_leg_count($photograph_type_transport,$value['in_transportation_leg_id']);
+				if($value['in_multi_user'] == 0 && $all_participants > 0 && $photograph_type_transport==0)
+				{
+					$total_filled_status=1;
+				}
+				else if($value['in_multi_user'] == 1  && $value['in_user_num'] == $all_participants && $photograph_type_transport==0)
+				{
+					$total_filled_status=1;	
+				} else if($all_participants > 0 && $photograph_type_transport==1)
+				{
+					$total_filled_status=1;		
+				}
+				
+				if($total_filled_status==0)
+				{
+					array_push($in_transportation_leg_id,$value['in_transportation_leg_id']);		
+				}	
+			}
+		
+			if(count($in_transportation_leg_id)>0)
+			{	
+				$sql .= 'Select u.st_display_name,
+						   u.st_last_name,
+						   u.in_user_id,
+						   u.st_email,
+						   org.st_org_name,
+						   org.st_org_code,
+						   p.st_street AS start_street,
+						   p.st_city AS start_city,
+						   p.st_state AS start_state,
+						   p.dt_start_time AS start_date,
+						   p.st_timezone AS start_time_zone,
+						   d.st_street AS end_street,
+						   d.st_city AS end_city,
+						   d.st_state AS end_state,
+						   d.dt_start_time AS end_date,
+						   d.st_timezone AS end_time_zone,
+						   tr.in_transportation_id,
+						   tr.st_trans_type,
+						   tr.in_airline_transport,
+						   tlg.in_transportation_leg_id as transportation_leg_id,
+						   tlg.in_route_type as route_type_id,
+						   m.fl_distance from tbl_transportation_leg tlg 
+						   INNER JOIN tbl_transportation_leg_detail p ON p.in_transportation_leg_id = tlg.in_transportation_leg_id  
+						   INNER JOIN tbl_transportation_leg_detail d ON d.in_transportation_leg_id = tlg.in_transportation_leg_id	
+					       INNER JOIN tbl_routes m ON  m.in_transportation_leg_id = tlg.in_transportation_leg_id 
+					       INNER JOIN tbl_transportation tr ON tr.in_transportation_id = tlg.in_transportation_id 
+					       INNER JOIN tbl_organization org ON tr.in_organization_id = org.in_organization_id  
+					       INNER JOIN tbl_users u ON tr.in_trans_coods_id = u.in_user_id';
+						   
+				$in_transportation_leg_id = implode(",",$in_transportation_leg_id);
+				$sql .= ' where ';
+				if(!empty($in_transportation_leg_id))
+				{	
+					$sql .= '  tlg.in_transportation_leg_id IN ('.$in_transportation_leg_id.')  AND' ;
+				}
+				$sql .= " p.st_leg_type ='P' AND d.st_leg_type ='D' AND p.in_deleted = 0 AND d.in_deleted = 0  AND m.in_deleted =0 AND org.in_deleted = 0 ";
+		
+		
+			}
+		}
+		if((!empty($type)&& ($type=='A')) || empty($type) )
+		{
+			if($this->session->userdata('userid'))
+			{	
+				$airline_emp = $this->common_model->get_airline_profile($this->session->userdata('userid')); 
+			}
+			if(empty($type) && $sql!='')
+			{
+				$sql .= " UNION ";
+			}	
+			
+			$sql .= "select u.st_display_name,
+		                u.st_last_name,
+						u.in_user_id,
+						u.st_email,
+						org.st_org_name,
+						org.st_org_code,
+						tr.st_from_street AS start_street,
+						tr.st_from_city AS start_city,
+						tr.st_from_state AS start_state,
+						DATE_FORMAT(tr.dt_pickup_date,'%Y-%m-%d %H:%i:%s') AS start_date,
+						p.st_time_zone AS start_time_zone,
+						tr.st_to_street AS end_street,
+						tr.st_to_city AS end_city,
+						tr.st_to_state AS end_state,
+						DATE_FORMAT(tr.dt_target,'%Y-%m-%d %H:%i:%s') AS end_date,
+						d.st_time_zone AS end_time_zone,	
+						tr.in_transportation_id,
+						tr.st_trans_type,
+						tr.in_airline_transport,
+						tr.in_transportation_id as transportation_leg_id,
+						'3' as route_type_id,
+					    (tr.in_tot_distance - tr.in_distance_covered)	
+						from tbl_transportation tr 
+						INNER JOIN tbl_organization org ON tr.in_organization_id = org.in_organization_id  
+						LEFT JOIN tbl_users u ON tr.accTcid = u.in_user_id
+						INNER JOIN tbl_zip_code p on p.zip_code = tr.st_from_zip  
+						INNER JOIN tbl_zip_code d on d.zip_code = tr.st_to_zip";
+
+			if(!empty($miles) && !empty($zip))
+			{
+				$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=tr.st_from_zip';
+		
+				$lat_long = $this->get_lat_long($zip); 
+				if (sizeof($lat_long) > 0){
+					$sql .= " where((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "') AND ";
+				}	
+				else {
+					$sql .= " where";			
+				}
+				
+			} else {
+				$sql .= " where";	
+			}			
+			
+
+			$sql .=	" tr.st_trans_type='D' && tr.in_airline_transport='1' && tr.in_status='1' 
+								&& tr.in_deleted = '0' AND org.in_deleted = '0'";						
+			
+			if(isset($airline_emp[0]['st_base_name']) && !empty($airline_emp[0]['st_base_name']) && (empty($transport_id) && empty($city) && empty($miles) && empty($zip)  ) )
+			{
+				$sql .= " AND (tr.st_from_street = '".$airline_emp[0]['st_base_name']."' OR tr.st_to_street = '".$airline_emp[0]['st_base_name']."' )";
+			}
+									
+			
+			if(!empty($transport_id))	
+				$sql .= " AND tr.in_transportation_id = '".$transport_id."'";
+			//if (!empty($city))
+			if(!empty($city) && empty($miles) && empty($zip))	
+				$sql .= " AND  (tr.st_from_state = '".$city."' || tr.st_to_state = '".$city."')"; 
+				//$sql .= " AND  tr.st_from_state = '".$city."'"; 
+			
+		}
+		if($sql!='')
+		{			
+			switch($sort)
+			{
+				case 'trid':
+					$sql .= "order by in_transportation_id ".$order;
+				break;
+				case 'orgname':
+					$sql .= "order by st_org_name ".$order;
+				break;
+				case 'floc':
+					$sql .= "order by start_city ".$order.", start_state ".$order;
+				break;
+				case 'toloc':
+					$sql .= "order by end_city ".$order.", end_state ".$order;
+				break;
+				case 'stime':
+					$sql .= "order by start_date ".$order.", start_time_zone ".$order;
+				break;
+				case 'etime':
+					$sql .= "order by end_date ".$order.", end_time_zone ".$order;
+				break;
+				case 'trcord':
+					$sql .= "order by st_display_name ".$order.", st_last_name ".$order;
+				break;
+				case 'miles':
+					$sql .= "order by fl_distance ".$order;
+				break;
+				default:
+					$sql .= "order by in_transportation_id ".$order;
+				break;
+			}
+			
+			$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+		
+			$query = $this->db->query($sql1);
+			//echo $this->db->last_query(); die;
+		
+			$querytotal = $this->db->query($sql);	
+		
+		
+			if($query->num_rows() > 0 )
+			{		
+				foreach($query->result_array() as $key=>$row)
+				{
+					if($row['in_airline_transport'] == 1 && $row['st_trans_type'] == 'D' )
+					{
+						$from_location = $row['start_city']." (".$row['start_street'].')';
+						$to_location   = $row['end_city']." (".$row['end_street'].')';
+						$start_date = '';
+						$end_date = '';
+						$Start_date_time = 'TBD';
+						$End_date_time = 'TBD';
+					} else {
+						$from_location = $row['start_city'].", ".$row['start_state'];
+						$to_location   = $row['end_city'].", ".$row['end_state'];
+						$start_date = date("h:i A",strtotime($row['start_date']))." ".$row['start_time_zone'];
+						$end_date = date("h:i A",strtotime($row['end_date']))." ".$row['end_time_zone'];
+						//$Start_date_time = date("M d/y",strtotime($row['start_date']));
+						//$End_date_time = date("M d/y",strtotime($row['end_date']));
+						$Start_date_time = date("D M d",strtotime($row['start_date']));
+						$End_date_time = date("D M d",strtotime($row['end_date']));
+					}
+					$img_name = '';
+					$transport_type = '';
+					if($row['st_trans_type'] == 'D')
+					{
+						if($row['in_airline_transport'] == 1)
+						{
+							$img_name = 'icon-airline.png';
+							$transport_type = 'Airline';
+						} else {
+							$img_name = 'icon-assisted.png';
+							$transport_type = 'Assisted';
+						}	
+					} else if($row['st_trans_type'] == 'R') {
+						$transport_type = 'Ride';
+					}else {
+						$img_name = 'prespecifylegs.png';
+						$transport_type = 'Pre-defined';
+					}
+
+					$open_leg_details[]=array('Transport_id'  		=>  $row['in_transportation_id'],
+										'Org_name'       		=>  $row['st_org_name'],
+										'Org_code'       		=>  $row['st_org_code'],
+										'From_location'  		=>  $from_location,
+										'To_location'    		=>  $to_location,
+										//'Start_date_time'		=>  $row['start_date'],
+										'Start_date_time'   	=>  $Start_date_time,
+										'End_date_time'			=>	$End_date_time,
+										'Distance'				=>  round($row['fl_distance']),
+										//'Transport_coordinator' =>  $row['st_display_name']." ".$row['st_last_name'],
+										'user_id'               =>  $row['in_user_id'],
+										'first_name'			=>	$row['st_display_name'],
+										'last_name'				=>	$row['st_last_name'],
+										'email_address'			=>	$row['st_email'],
+										'trans_type'	        =>  $row['st_trans_type'],
+										'Start_time'   			=>  $start_date,
+										'End_time'   			=>  $end_date,
+										'transport_airline'		=>  $row['in_airline_transport'],
+										'img_name'				=> 	$img_name,
+										'transport_type'		=>  $transport_type,
+										'transportation_leg_id'	=>	$row['transportation_leg_id'],
+										'route_type_id'			=>  $row['route_type_id']
+					);
+				}	
+			}		
+		
+			$result['total_count'] = $querytotal->num_rows();
+		
+		
+			$result['open_leg_details'] = $open_leg_details;
+			return $result;
+		} else {
+			$result['total_count'] = 0;
+			$result['open_leg_details'] = $open_leg_details;
+			return $result;
+		}		
+	}
+	
+	/*public function get_open_legs($rec_per_page,$limit,$sort,$order)
+	{
+		$in_transportation_leg_id	=	array();
+		$open_leg_details	=	array();
+		$test_array	=	array();
+		$current_date = date("Y-m-d");		
+		//$transport_id = $this->session->userdata('searchadmin1');
+		$transport_id = $this->session->userdata('searchadmin1');
+		$transport_id = strtoupper($transport_id);
+		$transport_id = str_replace("DBT"," ",$transport_id);
+		$city         = $this->session->userdata('searchadmin2');
+		$start_date   = $this->session->userdata('searchadmin3')? date("Y-m-d",strtotime($this->session->userdata('searchadmin3'))):'';
+		$zip 		  = $this->session->userdata('searchadmin4');
+		$miles 		  = $this->session->userdata('searchadmin5');
+		$type 		  = $this->session->userdata('searchadmin6');
+		$photograph_type_transport = ($this->session->userdata('searchadmin7')=='2')?'1':'0';
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		
+		
+		$this->db->select('ttp.in_transportation_leg_id,count(ttp.in_transportation_leg_id) AS Total');
+		$this->db->from('tbl_transportation_participants ttp');		
+		$this->db->join("tbl_transportation tt","tt.in_transportation_id = ttp.in_transportation_id","INNER");
+		$this->db->where('ttp.in_photography_profile',$photograph_type_transport);
+		$this->db->where('tt.dt_target >= ',$current_date);
+		$this->db->where('tt.in_deleted', 0);
+		$this->db->where('tt.in_status', '1');
+		$this->db->where('ttp.in_deleted', 0);
+		$this->db->where('ttp.in_transportation_leg_id !=',"");
+		if(!empty($type)  && $type=='P')
+		{	
+			$this->db->where('tt.st_trans_type', 'P');
+		}
+		
+		if(!empty($type)  && $type=='R' && $photograph_type_transport=='0')
+		{		
+			$this->db->where('tt.st_trans_type', 'R');
+		}
+		if(!empty($type)  && $type=='A' && $photograph_type_transport=='0')
+		{		
+			$this->db->where('tt.st_trans_type', 'D');
+			$this->db->where('tt.in_airline_transport', '1');
+		}
+		
+		if(!empty($type)  && $type=='D')
+		{			
+			$this->db->where('tt.st_trans_type', 'D');
+			$this->db->where('tt.in_airline_transport', '0');
+		}
+		$this->db->group_by('ttp.in_transportation_leg_id');
+		$this->db->order_by('ttp.in_transportation_leg_id','ASC');
+		$query = $this->db->get()->result_array();
+		
+		
+		foreach($query as $key=>$value)
+		{
+			if($photograph_type_transport == '0')
+			{
+				$this->db->select('in_transportation_leg_id,in_multi_user,in_user_num');
+				$this->db->from('tbl_transportation_leg');
+				$this->db->where('in_transportation_leg_id',$value['in_transportation_leg_id']);
+				$tranport_leg_detail = $this->db->get()->result_array();
+				if(is_array($tranport_leg_detail) && count($tranport_leg_detail)> 0)
+				{	
+					if(($tranport_leg_detail[0]['in_multi_user'] == 1 && $tranport_leg_detail[0]['in_user_num'] == $value['Total']) 
+					|| ($tranport_leg_detail[0]['in_multi_user'] == 0) )
+					{
+						array_push($in_transportation_leg_id,$value['in_transportation_leg_id']);
+					}			
+				}
+			} else {
+				array_push($in_transportation_leg_id,$value['in_transportation_leg_id']);
+			}		
+		}
+		
+	if((!empty($type)&& ($type!='A')) || empty($type) )
+	{			
+		$sql .= 'Select u.st_display_name,
+						   u.st_last_name,
+						   u.in_user_id,
+						   u.st_email,
+						   org.st_org_name,
+						   org.st_org_code,
+						   p.st_street AS start_street,
+						   p.st_city AS start_city,
+						   p.st_state AS start_state,
+						   p.dt_start_time AS start_date,
+						   p.st_timezone AS start_time_zone,
+						   d.st_street AS end_street,
+						   d.st_city AS end_city,
+						   d.st_state AS end_state,
+						   d.dt_start_time AS end_date,
+						   d.st_timezone AS end_time_zone,
+						   tr.in_transportation_id,
+						   tr.st_trans_type,
+						   tr.in_airline_transport,
+						   m.fl_distance from tbl_transportation_leg tlg 
+		  INNER JOIN tbl_transportation_leg_detail p ON p.in_transportation_leg_id = tlg.in_transportation_leg_id  
+		  INNER JOIN tbl_transportation_leg_detail d ON d.in_transportation_leg_id = tlg.in_transportation_leg_id	
+		  INNER JOIN tbl_routes m ON  m.in_transportation_leg_id = tlg.in_transportation_leg_id 
+		  INNER JOIN tbl_transportation tr ON tr.in_transportation_id = tlg.in_transportation_id 
+		  INNER JOIN tbl_organization org ON tr.in_organization_id = org.in_organization_id  
+		  INNER JOIN tbl_users u ON tr.in_trans_coods_id = u.in_user_id';
+		  
+		
+		if(!empty($miles) && !empty($zip))
+		{
+			$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=p.st_zip';
+			
+			$lat_long = $this->get_lat_long($zip);
+			if (sizeof($lat_long) > 0){
+				$sql .= " where((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "') AND ";
+            }	
+			else {
+				$sql .= " where";			
+			}
+			
+				
+		} else {
+			$sql .= " where";
+			
+		} 
+		
+		$in_transportation_leg_id = implode(",",$in_transportation_leg_id);
+		if(!empty($in_transportation_leg_id))
+		{	
+		$sql .= ' tlg.in_transportation_leg_id  NOT IN ('.$in_transportation_leg_id.')  AND' ;
+		}
+		$sql .= " p.st_leg_type ='P' AND d.st_leg_type ='D' AND p.in_deleted = 0 AND d.in_deleted = 0 
+				 AND tr.in_status = 1 AND tr.dt_target >= '$current_date' AND tr.in_deleted =0 AND tlg.in_deleted = 0 AND tr.in_airline_transport=0 AND m.in_deleted =0 AND org.in_deleted = 0 ";
+		
+		if($photograph_type_transport=='0' && $this->session->userdata('userid'))
+		{
+			$sql .= ' AND (';
+			if( isset($user_details['0']['st_driver']) && $user_details['0']['st_driver']=='Y')
+			{
+				$sql .= " tlg.in_route_type = 0 || ";
+			}
+			if( isset($user_details['0']['st_pilot']) && $user_details['0']['st_pilot']=='Y')
+			{
+				$sql .= " tlg.in_route_type = 1 || ";
+			}
+			$sql .= " tlg.in_route_type = 2 )";	
+		}
+		
+		
+		if(!empty($transport_id))	
+				$sql .= " AND tr.in_transportation_id = '".$transport_id."'";
+		if(!empty($city) && empty($miles) && empty($zip))	
+				$sql .= " AND  p.st_state = '".$city."'";
+		if(!empty($start_date))
+				$sql .= " AND Date(p.dt_start_time) = '".$start_date."'";
+
+		if(!empty($type)  && $type=='P')
+		{			
+			$sql .= " AND tr.st_trans_type = 'P'";
+		}
+		
+		if(!empty($type)  && $type=='D')
+		{			
+			$sql .= " AND tr.st_trans_type = 'D' AND in_airline_transport='0'";
+		}
+		
+		if(!empty($type)  && $type=='R' && $photograph_type_transport=='0' )
+		{			
+			$sql .= " AND tr.st_trans_type = 'R'";
+		}
+		
+		if(empty($type) && $photograph_type_transport=='0' )
+		{
+			$sql .= " AND (tr.st_trans_type = 'R' || tr.st_trans_type = 'P' || tr.st_trans_type = 'D' )";
+		}	
+		
+		
+		if(empty($type) && $photograph_type_transport=='1')
+		{
+			$sql .= " AND ( tr.st_trans_type = 'P' || tr.st_trans_type = 'D' )";
+		}
+	}
+		if((!empty($type)&& ($type=='A')) || empty($type) )
+		{
+			$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+			if($this->session->userdata('userid'))
+			{	
+				$airline_emp = $this->common_model->get_airline_profile($this->session->userdata('userid')); 
+			}
+			if(empty($type))
+			{
+				$sql .= " UNION ";
+			}	
+			
+			$sql .= "select u.st_display_name,
+		                u.st_last_name,
+						u.in_user_id,
+						u.st_email,
+						org.st_org_name,
+						org.st_org_code,
+						tr.st_from_street AS start_street,
+						tr.st_from_city AS start_city,
+						tr.st_from_state AS start_state,
+						DATE_FORMAT(tr.dt_pickup_date,'%Y-%m-%d %H:%i:%s') AS start_date,
+						p.st_time_zone AS start_time_zone,
+						tr.st_to_street AS end_street,
+						tr.st_to_city AS end_city,
+						tr.st_to_state AS end_state,
+						DATE_FORMAT(tr.dt_target,'%Y-%m-%d %H:%i:%s') AS end_date,
+						d.st_time_zone AS end_time_zone,	
+						tr.in_transportation_id,
+						tr.st_trans_type,
+						tr.in_airline_transport,
+					    (tr.in_tot_distance - tr.in_distance_covered)	
+						from tbl_transportation tr 
+						INNER JOIN tbl_organization org ON tr.in_organization_id = org.in_organization_id  
+						LEFT JOIN tbl_users u ON tr.accTcid = u.in_user_id
+						INNER JOIN tbl_zip_code p on p.zip_code = tr.st_from_zip  
+						INNER JOIN tbl_zip_code d on d.zip_code = tr.st_to_zip";
+
+			if(!empty($miles) && !empty($zip))
+			{
+				$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=tr.st_from_zip';
+		
+				$lat_long = $this->get_lat_long($zip); 
+				if (sizeof($lat_long) > 0){
+					$sql .= " where((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "') AND ";
+				}	
+				else {
+					$sql .= " where";			
+				}
+				
+			} else {
+				$sql .= " where";	
+			}			
+			
+
+			$sql .=	" tr.st_trans_type='D' && tr.in_airline_transport='1' && tr.in_status='1' 
+								&& tr.in_deleted = '0' AND org.in_deleted = '0'";						
+			
+			if(isset($airline_emp[0]['st_base_name']) && !empty($airline_emp[0]['st_base_name']) && (empty($transport_id) && empty($city) && empty($miles) && empty($zip)  ) )
+			{
+				$sql .= " AND (tr.st_from_street = '".$airline_emp[0]['st_base_name']."' OR tr.st_to_street = '".$airline_emp[0]['st_base_name']."' )";
+			}
+									
+			
+			if(!empty($transport_id))	
+				$sql .= " AND tr.in_transportation_id = '".$transport_id."'";
+			//if (!empty($city))
+			if(!empty($city) && empty($miles) && empty($zip))	
+				$sql .= " AND  (tr.st_from_state = '".$city."' || tr.st_to_state = '".$city."')"; 
+				//$sql .= " AND  tr.st_from_state = '".$city."'"; 
+			
+		}
+			
+		switch($sort)
+		{
+			case 'trid':
+					$sql .= "order by in_transportation_id ".$order;
+			break;
+			case 'orgname':
+					$sql .= "order by st_org_name ".$order;
+			break;
+			case 'floc':
+					$sql .= "order by start_city ".$order.", start_state ".$order;
+			break;
+			case 'toloc':
+					$sql .= "order by end_city ".$order.", end_state ".$order;
+			break;
+			case 'stime':
+					$sql .= "order by start_date ".$order.", start_time_zone ".$order;
+			break;
+			case 'etime':
+					$sql .= "order by end_date ".$order.", end_time_zone ".$order;
+			break;
+			case 'trcord':
+					$sql .= "order by st_display_name ".$order.", st_last_name ".$order;
+			break;
+			case 'miles':
+					$sql .= "order by fl_distance ".$order;
+			break;
+			default:
+					$sql .= "order by in_transportation_id ".$order;
+			break;
+		}
+		
+		$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+		
+		$query = $this->db->query($sql1);
+		//echo $this->db->last_query(); die;
+		
+		$querytotal = $this->db->query($sql);	
+		
+		
+		if($query->num_rows() > 0 )
+		{	
+			foreach($query->result_array() as $key=>$row)
+			{
+				if($row['in_airline_transport'] == 1 && $row['st_trans_type'] == 'D' )
+				{
+					$from_location = $row['start_city']." (".$row['start_street'].')';
+					$to_location   = $row['end_city']." (".$row['end_street'].')';
+					$start_date = '';
+					$end_date = '';
+					$Start_date_time = 'TBD';
+					$End_date_time = 'TBD';
+				} else {
+					$from_location = $row['start_city'].", ".$row['start_state'];
+					$to_location   = $row['end_city'].", ".$row['end_state'];
+					$start_date = date("h:i A",strtotime($row['start_date']))." ".$row['start_time_zone'];
+					$end_date = date("Y-m-d h:i:s",strtotime($row['end_date']))." ".$row['end_time_zone'];
+					$Start_date_time = date("M d/y",strtotime($row['start_date']));
+					$End_date_time = date("M d/y",strtotime($row['end_date']));
+				}
+				$img_name = '';
+				$transport_type = '';
+				if($row['st_trans_type'] == 'D')
+				{
+					if($row['in_airline_transport'] == 1)
+					{
+						$img_name = 'icon-airline.png';
+						$transport_type = 'Airline';
+					} else {
+						$img_name = 'icon-assisted.png';
+						$transport_type = 'Assisted';
+					}	
+				} else if($row['st_trans_type'] == 'R') {
+					$transport_type = 'Ride';
+				}else {
+					$img_name = 'prespecifylegs.png';
+					$transport_type = 'Pre-defined';
+				}
+
+				$open_leg_details[]=array('Transport_id'  		=>  $row['in_transportation_id'],
+										'Org_name'       		=>  $row['st_org_name'],
+										'Org_code'       		=>  $row['st_org_code'],
+										'From_location'  		=>  $from_location,
+										'To_location'    		=>  $to_location,
+										//'Start_date_time'		=>  $row['start_date'],
+										'Start_date_time'   	=>  $Start_date_time,
+										'End_date_time'			=>	$End_date_time,
+										'Distance'				=>  round($row['fl_distance']),
+										//'Transport_coordinator' =>  $row['st_display_name']." ".$row['st_last_name'],
+										'user_id'               =>  $row['in_user_id'],
+										'first_name'			=>	$row['st_display_name'],
+										'last_name'				=>	$row['st_last_name'],
+										'email_address'			=>	$row['st_email'],
+										'trans_type'	        =>  $row['st_trans_type'],
+										'Start_time'   			=>  $start_date,
+										'End_time'   			=>  $end_date,
+										'transport_airline'		=>  $row['in_airline_transport'],
+										'img_name'				=> 	$img_name,
+										'transport_type'		=>  $transport_type
+				);
+			}	
+		}		
+
+		$result['total_count'] = $querytotal->num_rows();
+		
+		
+		$result['open_leg_details'] = $open_leg_details;
+		return $result;
+	}*/
+
+	public function get_complete_open_legs($rec_per_page,$limit,$sort,$order)
+	{
+		$in_transportation_leg_id	=	array();
+		$open_leg_details	=	array();
+		$test_array	=	array();
+				
+		$transport_id = $this->session->userdata('searchadmin1');
+		$transport_id = strtoupper($transport_id);
+		$transport_id = str_replace("DBT"," ",$transport_id);
+		$city         = $this->session->userdata('searchadmin2');
+		$start_date   = $this->session->userdata('searchadmin3')? date("Y-m-d",strtotime($this->session->userdata('searchadmin3'))):'';
+		$zip 		  = $this->session->userdata('searchadmin4');
+		$miles 		  = $this->session->userdata('searchadmin5');
+		$type 		  = $this->session->userdata('searchadmin6');
+		$photograph_type_transport = ($this->session->userdata('searchadmin7')=='2')?'1':'0';
+		$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+		
+		
+		$this->db->select('ttp.in_transportation_leg_id,count(ttp.in_transportation_leg_id) AS Total');
+		$this->db->from('tbl_transportation_participants ttp');		
+		$this->db->join("tbl_transportation tt","tt.in_transportation_id = ttp.in_transportation_id","INNER");
+		$this->db->where('ttp.in_photography_profile',$photograph_type_transport);
+		$this->db->where('tt.in_deleted', 0);
+		$this->db->where('tt.in_status', '1');
+		$this->db->where('ttp.in_deleted', 0);
+		$this->db->where('ttp.in_transportation_leg_id !=',"");
+		if(!empty($type)  && $type=='P')
+		{	
+			$this->db->where('tt.st_trans_type', 'P');
+		}
+		
+		if(!empty($type)  && $type=='R' && $photograph_type_transport=='0')
+		{		
+			$this->db->where('tt.st_trans_type', 'R');
+		}
+		if(!empty($type)  && $type=='A' && $photograph_type_transport=='0')
+		{		
+			$this->db->where('tt.st_trans_type', 'D');
+			$this->db->where('tt.in_airline_transport', '1');
+		}
+		
+		if(!empty($type)  && $type=='D')
+		{			
+			$this->db->where('tt.st_trans_type', 'D');
+			$this->db->where('tt.in_airline_transport', '0');
+		}
+		$this->db->group_by('ttp.in_transportation_leg_id');
+		$this->db->order_by('ttp.in_transportation_leg_id','ASC');
+		$query = $this->db->get()->result_array();
+		
+		
+		foreach($query as $key=>$value)
+		{
+			if($photograph_type_transport == '0')
+			{
+				$this->db->select('in_transportation_leg_id,in_multi_user,in_user_num');
+				$this->db->from('tbl_transportation_leg');
+				$this->db->where('in_transportation_leg_id',$value['in_transportation_leg_id']);
+				$tranport_leg_detail = $this->db->get()->result_array();
+				if(is_array($tranport_leg_detail) && count($tranport_leg_detail)> 0)
+				{	
+					if(($tranport_leg_detail[0]['in_multi_user'] == 1 && $tranport_leg_detail[0]['in_user_num'] == $value['Total']) 
+					|| ($tranport_leg_detail[0]['in_multi_user'] == 0) )
+					{
+						array_push($in_transportation_leg_id,$value['in_transportation_leg_id']);
+					}			
+				}
+			} else {
+				array_push($in_transportation_leg_id,$value['in_transportation_leg_id']);
+			}		
+		}
+		
+		
+		$sql .= 'Select tlg.in_transportation_leg_id as leg_id 
+						tr.in_transportation_id,
+						tr.st_trans_type,
+						tr.in_airline_transport, 
+						from tbl_transportation_leg tlg 
+						INNER JOIN tbl_transportation tr ON tr.in_transportation_id = tlg.in_transportation_id 
+						INNER JOIN tbl_organization org ON tr.in_organization_id = org.in_organization_id  
+						INNER JOIN tbl_users u ON tr.in_trans_coods_id = u.in_user_id';
+		  
+		
+		if(!empty($miles) && !empty($zip))
+		{
+			$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=p.st_zip';
+			
+			$lat_long = $this->get_lat_long($zip);
+			if (sizeof($lat_long) > 0){
+				$sql .= " where((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "') AND ";
+            }	
+			else {
+				$sql .= " where";			
+			}
+			
+				
+		} else {
+			$sql .= " where";
+			
+		} 
+		
+		$in_transportation_leg_id = implode(",",$in_transportation_leg_id);
+		if(!empty($in_transportation_leg_id))
+		{	
+			$sql .= ' tlg.in_transportation_leg_id  NOT IN ('.$in_transportation_leg_id.')  AND' ;
+		}
+			$sql .= " tr.in_status = 1 AND  tr.in_deleted =0 AND tlg.in_deleted = 0 AND tr.in_airline_transport=0 AND m.in_deleted =0 AND org.in_deleted = 0 ";
+		
+		if($photograph_type_transport=='0' && $this->session->userdata('userid'))
+		{
+			$sql .= ' AND (';
+			if( isset($user_details['0']['st_driver']) && $user_details['0']['st_driver']=='Y')
+			{
+				$sql .= " tlg.in_route_type = 0 || ";
+			}
+			if( isset($user_details['0']['st_pilot']) && $user_details['0']['st_pilot']=='Y')
+			{
+				$sql .= " tlg.in_route_type = 1 || ";
+			}
+			$sql .= " tlg.in_route_type = 2 )";	
+		}
+		
+		
+		if(!empty($transport_id))	
+				$sql .= " AND tr.in_transportation_id = '".$transport_id."'";
+		/*if(!empty($city) && empty($miles) && empty($zip))	
+				$sql .= " AND  p.st_state = '".$city."'";
+		if(!empty($start_date))
+				$sql .= " AND Date(p.dt_start_time) = '".$start_date."'";*/
+
+		if(!empty($type)  && $type=='P')
+		{			
+			$sql .= " AND tr.st_trans_type = 'P'";
+		}
+		
+		if(!empty($type)  && $type=='R' && $photograph_type_transport=='0' )
+		{			
+			$sql .= " AND tr.st_trans_type = 'R'";
+		}
+		
+		if(empty($type) && $photograph_type_transport=='0' )
+		{
+			$sql .= " AND (tr.st_trans_type = 'R' || tr.st_trans_type = 'P' || tr.st_trans_type = 'D' )";
+		}	
+		
+		
+		if(empty($type) && $photograph_type_transport=='1')
+		{
+			$sql .= " AND ( tr.st_trans_type = 'P' || tr.st_trans_type = 'D' )";
+		}
+		
+		if((!empty($type)&& ($type=='A')) || empty($type) )
+		{
+			$user_details = $this->common_model->get_user_profile($this->session->userdata('userid'));
+			if($this->session->userdata('userid'))
+			{	
+				$airline_emp = $this->common_model->get_airline_profile($this->session->userdata('userid')); 
+			}
+			if(empty($type))
+			{
+				$sql .= " UNION ";
+			}	
+			
+			$sql .= "select	tr.in_transportation_id as leg_id,
+						tr.in_transportation_id,
+						tr.in_airline_transport,	
+						from tbl_transportation tr 
+						INNER JOIN tbl_organization org ON tr.in_organization_id = org.in_organization_id  
+						LEFT JOIN tbl_users u ON tr.accTcid = u.in_user_id
+						INNER JOIN tbl_zip_code p on p.zip_code = tr.st_from_zip  
+						INNER JOIN tbl_zip_code d on d.zip_code = tr.st_to_zip";
+
+			if(!empty($miles) && !empty($zip))
+			{
+				$sql .= ' INNER JOIN tbl_zip_code zp on zp.zip_code=tr.st_from_zip';
+		
+				$lat_long = $this->get_lat_long($zip); 
+				if (sizeof($lat_long) > 0){
+					$sql .= " where((3959 * acos( cos( radians( {$lat_long[0]['lat']} ) ) * cos( radians( zp.lat ) ) * cos( radians( zp.lon ) - radians( {$lat_long[0]['lon']} ) ) + sin( radians( {$lat_long[0]['lat']} ) ) * sin( radians( zp.lat ) ) ) ) < '" . $miles . "') AND ";
+				}	
+				else {
+					$sql .= " where";			
+				}
+				
+			} else {
+				$sql .= " where";	
+			}			
+			
+			$sql .=	" tr.st_trans_type='D' && tr.in_airline_transport='1' && tr.in_status='1' 
+								&& tr.in_deleted = '0' AND org.in_deleted = '0'";						
+
+			if(isset($airline_emp[0]['st_base_name']) && !empty($airline_emp[0]['st_base_name']) )
+			{
+				$sql .= " AND (tr.st_from_street = '".$airline_emp[0]['st_base_name']."' OR tr.st_to_street = '".$airline_emp[0]['st_base_name']."' )";
+			}
+									
+			
+			if(!empty($transport_id))	
+				$sql .= " AND tr.in_transportation_id = '".$transport_id."'";
+			if(!empty($city) && empty($miles) && empty($zip))	
+				$sql .= " AND  (tr.st_from_state = '".$city."' || tr.st_to_state = '".$city."')"; 
+		}
+			
+		/*switch($sort)
+		{
+			case 'trid':
+					$sql .= "order by in_transportation_id ".$order;
+			break;
+			case 'orgname':
+					$sql .= "order by st_org_name ".$order;
+			break;
+			case 'floc':
+					$sql .= "order by start_city ".$order.", start_state ".$order;
+			break;
+			case 'toloc':
+					$sql .= "order by end_city ".$order.", end_state ".$order;
+			break;
+			case 'stime':
+					$sql .= "order by start_date ".$order.", start_time_zone ".$order;
+			break;
+			case 'etime':
+					$sql .= "order by end_date ".$order.", end_time_zone ".$order;
+			break;
+			case 'trcord':
+					$sql .= "order by st_display_name ".$order.", st_last_name ".$order;
+			break;
+			case 'miles':
+					$sql .= "order by fl_distance ".$order;
+			break;
+			default:
+					$sql .= "order by in_transportation_id ".$order;
+			break;	
+		}*/ 
+		echo $sql1;
+		die;
+		$sql1 .= $sql." LIMIT ".$limit.",".$rec_per_page;
+		
+		$query = $this->db->query($sql1);
+		
+		$querytotal = $this->db->query($sql);	
+			
+		if($query->num_rows() > 0 )
+		{	
+			foreach($query->result_array() as $key=>$row)
+			{
+				if($row['in_airline_transport'] == 1)
+				{
+					/*$from_location = $row['start_city']." (".$row['start_street'].')';
+					$to_location   = $row['end_city']." (".$row['end_street'].')';
+					$start_date = '';
+					$end_date = '';
+					$Start_date_time = 'TBD';
+					$End_date_time = 'TBD';*/
+				} else {
+					/*$from_location = $row['start_city'].", ".$row['start_state'];
+					$to_location   = $row['end_city'].", ".$row['end_state'];
+					$start_date = date("h:i A",strtotime($row['start_date']))." ".$row['start_time_zone'];
+					$end_date = date("Y-m-d h:i:s",strtotime($row['end_date']))." ".$row['end_time_zone'];
+					$Start_date_time = date("M d/y",strtotime($row['start_date']));
+					$End_date_time = date("M d/y",strtotime($row['end_date']));*/
+				}
+				$img_name = '';
+				$transport_type = '';
+				if($row['st_trans_type'] == 'D')
+				{
+					if($row['in_airline_transport'] == 1)
+					{
+						$img_name = 'icon-airline.png';
+						$transport_type = 'Airline';
+					} else {
+						$img_name = 'icon-assisted.png';
+						$transport_type = 'Assisted';
+					}	
+				} else if($row['st_trans_type'] == 'R') {
+					$transport_type = 'Ride';
+				}else {
+					$img_name = 'prespecifylegs.png';
+					$transport_type = 'Pre-defined';
+				}
+				$open_leg_details[]=array('Transport_id'  		=>  $row['in_transportation_id']);
+				/*$open_leg_details[]=array('Transport_id'  		=>  $row['in_transportation_id'],
+										'Org_name'       		=>  $row['st_org_name'],
+										'Org_code'       		=>  $row['st_org_code'],
+										'From_location'  		=>  $from_location,
+										'To_location'    		=>  $to_location,
+										'Start_date_time'   	=>  $Start_date_time,
+										'End_date_time'			=>	$End_date_time,
+										'Distance'				=>  round($row['fl_distance']),
+										'user_id'               =>  $row['in_user_id'],
+										'first_name'			=>	$row['st_display_name'],
+										'last_name'				=>	$row['st_last_name'],
+										'email_address'			=>	$row['st_email'],
+										'trans_type'	        =>  $row['st_trans_type'],
+										'Start_time'   			=>  $start_date,
+										'End_time'   			=>  $end_date,
+										'transport_airline'		=>  $row['in_airline_transport'],
+										'img_name'				=> 	$img_name,
+										'transport_type'		=>  $transport_type
+				);*/
+			}	
+		}		
+
+		$result['total_count'] = $querytotal->num_rows();
+		
+		
+		$result['open_leg_details'] = $open_leg_details;
+		return $result;
+	}	
+	
+}
+?>

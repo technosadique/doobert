@@ -1,0 +1,135 @@
+<?php
+function register_menu() {
+	register_sidebar( array(
+		'name'          =>('Rock'),
+		'id'            => 'newsroom_blocks',
+		'before_widget' => '<div class="news-blocks">',
+		'after_widget'  => '</div>',
+		'before_title'  => '<h2 class="widget-title">',
+		'after_title'   => '</h2>',
+	) );
+	register_sidebar( array(
+		'name'          =>('Footer Menu'),
+		'id'            => 'footer_menu',
+		'before_widget' => '<div class="footer-nav">',
+		'after_widget'  => '</div>',
+		'before_title'  => '<h2 class="widget-title">',
+		'after_title'   => '</h2>',
+	) );
+}
+add_action( 'init', 'register_menu' );
+
+
+
+add_action('wp_enqueue_scripts', 'add_ajax_script',200);
+function add_ajax_script() {
+	
+wp_register_script( 'ajaxscript',  get_stylesheet_directory_uri()."/js/ajax-block.js?version=07112016", array( 'jquery' ), '', true );	
+wp_localize_script( 'ajaxscript', 'ajax_post_data', array( 'ajax_url' => admin_url( 'admin-ajax.php' ) ) );	
+wp_enqueue_script( 'ajaxscript' );		
+}
+
+add_action('wp_ajax_get_post_data', 'get_post_data');
+add_action('wp_ajax_nopriv_get_post_data', 'get_post_data');	
+
+function get_post_data()
+{
+	$html ='';
+	$page = $_POST['page'];
+	$paged = $page;
+	$show_posts  =  10;
+	$postcnt=0;	
+	$latestNewPosts = query_posts('post_status=publish&post_type=post&posts_per_page='.$show_posts.'&paged='.$paged); 
+	//$latestNewPosts = query_posts('post_type=post&posts_per_page='.$show_posts.'&paged='.$paged); 
+	if(count($latestNewPosts)>0)
+	{
+		
+		foreach($latestNewPosts as $post){
+			$posttitle = explode(" ",$post->post_title);	 
+		//$link = has_post_format('link') ? get_post_meta($post->ID, 'wpv-post-format-link', true) :get_permalink();
+		$link = get_permalink($post->ID);
+		$content=strip_tags($post->post_content);
+		$content = preg_replace("/\[caption.*\[\/caption\]/", '', $content);
+		$newposttitle='';
+		if(count($posttitle) > 7){ 
+    		for($i=0;$i< 7;$i++){
+        		$newposttitle .= $posttitle[$i]." ";
+			}
+            $newposttitle=ucwords(strtolower($newposttitle))."...";
+	    }else{
+            $newposttitle=ucwords(strtolower($post->post_title));
+		}
+		if($postcnt%5==0){ 
+			$html.= '<div class="news-section1"> <ul class="latest-news-ul">';
+			
+		} 
+		if($postcnt%5==0)
+		{ 
+			$html.='<li class="full-width-li">
+				<div class="latest-news"><div class="left-blog-img">'; 
+				$arrImages=array();
+								//$arrImages =& get_children('post_mime_type=image&post_parent=' . $post->ID); 
+								$sImgString='';
+								//$image=getImage(1,$post->post_content);
+								$image = get_the_post_thumbnail($post->ID, 'medium');
+								//$image=strstr(substr($image,1,strlen(trim($image))-2),'wp-content');
+								if($image){
+									//$sImgString ='<img src="'.get_bloginfo('template_directory').'/timthumb.php?src=/'.$image.'&h=173&w=274&zc=1" class="big-article-img" width="274" height="173" alt="'.$post->post_title.'" title="'.$post->post_title.'" />';
+									$sImgString =	$image; 
+								}else{
+									//$sImgString = '<img src="'.site_url('/').'wp-content/uploads/2014/10/no-image_274x173.gif" class="big-article-img" width="274" height="173" alt="'.$post->post_title.'" title="'.$post->post_title.'" />';
+									  $sImgString = '<img src="'.get_stylesheet_directory_uri().'/images/no-image.jpg" class="big-article-img" width="274" height="173" alt="'.$post->post_title.'" title="'.$post->post_title.'" />';	
+								}
+								$html.= $sImgString;
+								$html.= '</div>';
+			$html.=	 '<div class="img-para">';
+			$html.=		 '<a href="'.$link.'" class="subtitle">'.$newposttitle.'</a><div class="clearfix"></div>';
+		  $html.=	'<span class="category-name">';
+						$categories = get_the_category($post->ID);
+							$separator = ',';
+							$output = '';
+							if($categories){
+								foreach($categories as $category) {
+									$output .= '<a href="'.get_category_link( $category->term_id ).'" title="' . esc_attr( sprintf( __( "View all posts in %s" ), $category->name ) ) . '">'.$category->cat_name.'</a>'.$separator;
+								}
+									$html.= trim($output, $separator);
+							}
+			$html.='</span>';
+          
+			$html.=	'<p class="excerpt-para">'.wp_trim_words($content,50).'</p><div class="clearfix"></div><a href="'.$link.'" class="readmore1">Read more <i class="fa fa-angle-right"></i></a>
+				</div></div></li>';
+   
+						$postcnt++;
+						continue;
+		}
+				
+		$html.= '<li> <a href="'.$link.'" class="subtitle">'. $newposttitle.'</a> <div class="clearfix"></div>
+				 <span class="category-name">';
+       
+		$categories = get_the_category($post->ID);
+		$separator = ',';
+		$output = '';
+		if($categories){
+		foreach($categories as $category) {
+					$output .= '<a href="'.get_category_link($category->term_id ).'" title="' . esc_attr( sprintf( __( "View all posts in %s" ), $category->name ) ) . '">'.$category->cat_name.'</a>'.$separator;
+				}
+			$html.= trim($output, $separator);
+		}
+					  
+		$html.= '</span> <p class="excerpt-para2">'.wp_trim_words($content,25).'</p><div class="clearfix"></div><a href="'.$link.'" class="readmore1">Read more <i class="fa fa-angle-right"></i></a></li>';
+		$postcnt++;
+						if($postcnt%5==0){       
+					$html.= '</ul></div>';
+	}
+			
+		}
+	} else {
+		$html .= '';
+	}	
+	wp_send_json($html);
+	//echo $html;
+	die();
+}
+
+
+?>

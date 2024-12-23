@@ -1,0 +1,329 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: 
+# Created date: 
+# File description: 
+# Special instructions-notes: none
+# Tables used: 
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class login extends CI_Controller {
+
+    public function __construct() {
+        parent::__construct();
+		$this->load->library('common_function');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		//$this->load->model('common_model');
+		$this->load->model('login_model');
+		$this->load->helper('cookie');
+		$this->load->helper('custom_helper');
+		
+        
+		
+	 }
+
+    public function index(){	
+		
+        $data=array();
+		//if(!$this->session->userdata('sess_userid'))
+			//{   
+				//redirect($this->config->item('base_url'));	
+			//}	
+			
+			$data				=	array();
+			$data['Err_Msg']	=	'';
+			$data['rem_password'] = get_cookie('pass_admin');
+			$data['rem_email'] 	  = get_cookie('user_admin');
+			$form_field	=	array('email'	 => "",								 
+								  'password'	=> "",
+								  //'remember'	=> ""								  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['login'][$key] = $value;	
+			}	
+			
+			if($this->input->post('action')=='Login')
+			{ 		 
+				$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				$this->form_validation->set_rules('password', 'Password', 'trim|required');
+				if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();
+						//echo "<pre>";print_r($data);die;
+						 $this->load->view('login-view',$data);
+				}
+				else
+				{			
+					$username	= 	$this->input->post('email');
+					$password	= 	$this->input->post('password'); 				
+					$data		=	$this->login_model->isValid($username,$password);
+					
+					if(isset($data['user_id']) && $data['user_id']!='')
+					{ 
+														
+						// VALID ADMIN LOGIN, SET ADMIN SESSIONS
+						$this->session->set_userdata('sess_userid',$data['user_id']);								
+						$this->session->set_userdata('sess_user_email',$data['email']);	
+						$this->session->set_userdata('sess_orgname',$data['orgname']);	
+						
+						
+						if($this->session->userdata('redirect_url'))
+						{ 
+							redirect($this->session->userdata('redirect_url'));
+						}
+						else
+						{ 
+							redirect($this->config->item('base_url').'dashboard');
+						}									
+						
+					}
+					else
+					{
+						if(isset($data['error']) && $data['error']!='')
+						{
+							$data['Err_Msg']	=	$data['error'];
+							$this->load->view('login-view',$data);
+						}
+					}
+				
+				}
+			}
+		
+			else
+			{  
+					 $this->load->view('login-view',$data);
+					 
+			}
+	}
+	
+	
+	
+	public function user_forgot_password() {
+		$data = array();
+		
+		if($this->input->post('email')) {  
+			$data['email'] = $this->input->post('email');
+			$result = $this->login_model->user_forgotpassword($data);	
+			
+			$error = '';
+			if(empty($result)) {
+				echo json_encode(array('res'=>'error'));
+			}
+			else{
+			
+			
+				$this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+				
+				if($this->form_validation->run()==FALSE ||$error!='') {
+						$data['Err_Msg_forgot'] = validation_errors().$error ;
+						
+						echo json_encode(array('res'=>'error'));
+						
+				} else { 
+					$token = md5(time().$result['user_details']['userid']);
+					$result['user_details']['url'] = $this->config->item('base_url')."login/forgotpassword/".$result['user_details']['userid']."/".$token."/";
+					$password_details = array("st_reset_password_token"=>$token,"dt_reset_password_sent"=>date("Y-m-d H:i:s"));
+					$this->login_model->update_user($password_details,$result['user_details']['userid']);
+					$this->forgotpassword_email($result['user_details']);
+					$this->session->set_userdata('forgot_email_member',$result['user_details']['email']);
+					echo json_encode(array('res'=>'thankyou'));					
+				}
+			}
+		} else {
+			//$data['Err_Msg_forgot']='';
+			//$this->load->view('login-view',$data);
+			echo json_encode(array('res'=>'error'));
+		}
+	}
+	
+	function forgot_password_thankyou()
+	{   $data['email'] = $this->session->userdata('forgot_email_member');
+		$this->session->unset_userdata('forgot_email_member');
+		$this->load->view('forgor-password-thankyou',$data);
+	}
+	
+	
+	
+	function forgotpassword_email($data)
+	 {			
+		
+		$allmail = $data['email'];
+		$this->load->library('email');
+		$templete = file_get_contents(base_url()."email-template/forgot-password.html");
+			
+		 if (!empty($templete))
+		{  
+			$src_pics = base_url().'email-template/images/logo.jpg';
+			
+			$tspacer = base_url().'email-template/images/tspacer.png';
+			$forgot_password = base_url().'email-template/images/forgot-password.jpg';
+			
+			
+			$facebook = base_url().'email-template/images/facebook.png';
+			$twitter = base_url().'email-template/images/twitter.png';
+			$gplus = base_url().'email-template/images/gplus.png';
+			$pinterest = base_url().'email-template/images/pinterest.png';
+			$youtube = base_url().'email-template/images/youtube.png';
+			$insta = base_url().'email-template/images/instagram.png';
+			
+			
+			
+			$templete 	= 	str_replace("##url##",$this->config->item('base_url'),$templete);
+			$templete  	= 	str_replace("##display_name##",$data['org_name'],$templete);
+			$templete  	= 	str_replace("##forgot_url##",$data['url'],$templete);
+			$templete  	= 	str_replace("##email##",$allmail,$templete);
+			//$templete  	= 	str_replace("##current_year##",date('Y'),$templete);
+			$templete = str_replace("##src_pics##", $src_pics, $templete);
+						
+			$templete = str_replace("##tspacer##", $tspacer, $templete);			
+			$templete = str_replace("##forgot-password##", $forgot_password, $templete);
+			
+			
+			$templete  	= 	str_replace("##facebook##",$facebook,$templete);
+			$templete  	= 	str_replace("##twitter##",$twitter,$templete);
+			$templete  	= 	str_replace("##gplus##",$gplus,$templete);
+			$templete  	= 	str_replace("##pinterest##",$pinterest,$templete);
+			$templete  	= 	str_replace("##youtube##",$youtube,$templete);
+			$templete  	= 	str_replace("##insta##",$insta,$templete);
+
+
+
+			
+			$strMail 	= 	$templete;
+			$to			=	$allmail;
+			//$subject	=	'Fast15 - Forgot Password';
+			$subject	=	'It seems you forgot your password!';
+			$message	=	$strMail;
+			//echo $message;die;
+			$category  =    '';
+			//
+			//$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($data['userid']).'/'.$this->common_function->encode_base64($to),$message);
+			//$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($data['userid']).'/'.$this->common_function->encode_base64($to),$message);
+			
+			$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('email_from'),$cc ='', $this->config->item('from_name'),$this->email,$category);
+		 //echo $this->email->print_debugger();die;
+		}
+		
+	}
+	
+	
+	
+	function forgotpassword()
+	{   
+		$data = array();
+		$data['Err_Msg'] = '';
+		$token = $this->uri->segment(4);
+		$data['user_id'] =   $this->uri->segment(3);
+		//$user_data = $this->login_model->forgotpassword_details($token,$user_id);
+		//print_r($user_data); die;
+		/*
+		if(empty($user_data))
+		{
+			redirect($this->config->item('base_url')."login/");
+		}
+		$hours	=	floor((strtotime(date("Y-m-d H:i:s"))-strtotime($user_data['user_details']['reset_password_sent']))/3600);
+		if($hours>25)
+		{
+			$this->session->set_flashdata('warning','Reset password link has expired.');
+			redirect($this->config->item('base_url')."login/");
+		}
+		*/
+		$form_field	=	array('password'	=> "",
+							  'rpassword'	=> "",
+							  'user_id'      => "",
+							  'action'		=> ""
+					  	 	);
+		foreach($form_field as $key => $value)	
+		{	
+			$data['register'][$key] = $value;	
+			
+		}					
+		if($this->input->post('action') == 'registeruser')
+		{  
+			foreach($form_field as $key => $value)	
+			{		
+				$data['register'][$key] = $this->input->post($key);	
+			}
+			$this->form_validation->set_rules('password', 'Password', 'trim|required|min_length[6]|matches[rpassword]');
+			$this->form_validation->set_rules('rpassword', 'Re-type Your Password', 'trim|required');
+			if($this->form_validation->run() == FALSE)
+			{
+					$data['Err_Msg'] = validation_errors();
+					$this->load->view('forgot-password',$data);	
+			}
+			else
+			{  
+				$password_arr = array("st_password"=>$data['register']['password'],"st_reset_password_token"=>"");
+				$this->login_model->update_user($password_arr,$data['register']['user_id']);
+				$this->session->set_flashdata('forgot_password','Password has been reset successfully.');
+				redirect($this->config->item('base_url').'login/');
+			}
+		}
+		else
+		{
+			$this->load->view('forgot-password',$data);	
+		}
+		
+		
+	}
+	
+	public function check_shelter_code()
+	{
+		$shelter_code=$this->input->post('shelter_code');
+		$check_shelter=$this->login_model->get_shelter_detail($shelter_code); 
+		$data['country_list']=get_location_list();
+		//print_r($data['location_list']); die;
+		if($this->input->post('action') == 'submit_shelter')
+		{ 
+			$number =preg_replace('/\D/', '',$shelter_code); 
+			$check_questation=$this->login_model->get_shelter_questation($number);
+           
+					if(!empty($check_questation['in_screenerid']))
+					{		
+								if(!empty($check_shelter['st_screener_id']))
+								{
+									$check_questation=$this->login_model->get_shelter_availbal($shelter_code);
+									if(!empty($check_questation['st_survey_code']))
+									{
+										redirect(base_url().'survey/index/'.$check_questation['st_survey_code']);
+									}else
+									{
+									
+									$data['shelter_exits']='No Survey Found';
+									$this->load->view('login-view',$data);
+									}
+												
+								}
+								else{
+									
+									
+									$this->session->set_userdata('shelter','login by shelter');
+									//print($data['set_value']); die;
+									$data['shelter']=$shelter_code;
+									$this->load->view('create-account',$data);
+								}
+					}else{
+						$data['set_value']=array('shelter_code'=>$shelter_code);
+						
+					 $data['shelter_exits']='Shelter Survey Code is not available';
+						$this->load->view('login-view',$data);
+						
+					}
+		
+			
+		}else{
+			$this->load->view('login-view',$data);
+			
+		}
+		
+	}
+	
+	
+}	
+
+/* End of file welcome.php */
+/* Location: ./application/controllers/welcome.php */

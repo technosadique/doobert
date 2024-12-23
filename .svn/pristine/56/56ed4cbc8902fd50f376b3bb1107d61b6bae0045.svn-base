@@ -1,0 +1,172 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+	//rajashri Mahapure
+	//cron controllers for lat long
+	
+class Cron extends CI_Controller { 
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	
+	
+	
+	public function __construct()
+    {
+    	parent::__construct();
+    	$this->load->model('common_model');
+    	$this->load->model('trans_model');
+    	
+    	//get_user_zip
+    }
+
+    public function transport_lat_long()
+    {
+    	$google_api_key = $this->config->item('googleapi_key');
+  		$city = '';
+    	$hascity = 0;
+    	$hassub = 0;
+    	$state = '';
+
+    	$leg_zip = $this->trans_model->get_leg_zip();		
+		if(count($leg_zip) >0)
+		{
+			foreach ($leg_zip as $zkey => $zval) {
+				$zip_details = $this->common_model->getaddress($zval);
+
+				if(empty($zip_details)){
+
+									
+					$url = "https://maps.googleapis.com/maps/api/geocode/json?address=".urlencode($zval)."&sensor=true&key=".$google_api_key;	
+					$ch = curl_init();
+					curl_setopt($ch, CURLOPT_URL, $url);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+					$geoloc = curl_exec($ch);
+					
+					$res = $geoloc;		
+									
+					if(json_decode($res)->status=="OK"){
+						$address_components = json_decode($res)->results[0]->address_components;
+						foreach ($address_components as $key => $component) {							
+							$component1 = $component->types;
+							
+							foreach ($component1 as $value) {				
+								
+								if($value =='country')
+								{
+									$country = $component->short_name;
+								}
+								if($value == 'locality') {					
+								   $city = $component->long_name;
+								   $hascity = 1;
+								}
+								if($value == 'administrative_area_level_1') {								  
+								   $state = $component->short_name;
+								}				
+							}
+						}
+
+						$arrAxis=	json_decode($res)->results[0]->geometry->location;			
+						$lat 	= 	$arrAxis->lat;
+						$lng 	= 	$arrAxis->lng;
+						$lat_ar['lat']	=	number_format($lat,"2",".","");
+						$lat_ar['lng']	=	number_format($lng,"2",".","");			 
+					}
+					if($country == 'US'){
+						$ziparr = array(
+							'zip_code' 		=> $zval,
+							'city'			=> $city,
+							'state_prefix'	=> $state,
+							'lat'			=> $lat,
+							'lon'			=> $lng,
+							'st_country'	=> 'US'
+							);
+						$this->db->insert("tbl_zip_code",$ziparr);
+						$result = $this->db->insert_id();
+					}					
+				}
+			}
+		}
+    }
+
+
+    public function user_lat_long()
+    {
+    	$google_api_key = $this->config->item('googleapi_key');
+  		$city = '';
+    	$hascity = 0;
+    	$hassub = 0;
+    	$state = '';
+
+    	$user_zip = $this->common_model->get_user_zip();		
+		if(count($user_zip) >0)
+		{
+			foreach ($user_zip as $ukey => $uval) {
+				$zip_details = $this->common_model->getaddress($uval);
+
+				if(empty($zip_details)){
+
+									
+					$url = "https://maps.googleapis.com/maps/api/geocode/json?address=".urlencode($uval)."&sensor=true&key=".$google_api_key;	
+					$ch = curl_init();
+					curl_setopt($ch, CURLOPT_URL, $url);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+					$geoloc = curl_exec($ch);
+					
+					$res = $geoloc;		
+									
+					if(json_decode($res)->status=="OK"){
+						$address_components = json_decode($res)->results[0]->address_components;
+						foreach ($address_components as $key => $component) {
+							//print_r($component);
+							$component1 = $component->types;
+							//print_r($component1);
+							foreach ($component1 as $value) {												
+								if($value =='country')
+								{
+									$country = $component->short_name;
+								}
+								if($value == 'locality') {					
+								   $city = $component->long_name;
+								   $hascity = 1;
+								}
+								if($value == 'administrative_area_level_1') {								  
+								   $state = $component->short_name;
+								}				
+							}
+						}
+
+						$arrAxis=	json_decode($res)->results[0]->geometry->location;			
+						$lat 	= 	$arrAxis->lat;
+						$lng 	= 	$arrAxis->lng;
+						$lat_ar['lat']	=	number_format($lat,"2",".","");
+						$lat_ar['lng']	=	number_format($lng,"2",".","");			 
+					}
+					if($country == 'US'){
+						$ziparr = array(
+							'zip_code' 		=> $uval,
+							'city'			=> $city,
+							'state_prefix'	=> $state,
+							'lat'			=> $lat,
+							'lon'			=> $lng,
+							'st_country'	=> 'US'
+							);
+						$this->db->insert("tbl_zip_code",$ziparr);
+						$result = $this->db->insert_id();
+					}					
+				}
+			}
+		}
+    }
+}

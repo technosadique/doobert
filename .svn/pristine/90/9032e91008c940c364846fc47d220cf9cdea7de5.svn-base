@@ -1,0 +1,2104 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+# ======================================================================================
+# Created by		: Ghanshyam Maurya
+# Created date		: 15-Sept-2016
+# File description	: User Map controller - use for dispying users map on doobert.com
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: none 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+
+class User_map extends CI_Controller {
+	
+	public function __construct() {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->library('common_function');
+		$this->load->model('user_map_model');
+		$this->load->helper('url');
+		$this->load->model('common_model');     
+		$this->load->helper('cookie');
+		//ini_set('memory_limit', '1073741824');
+	}
+	
+	
+	public function index() {	
+	}
+	
+	public function drivers_map() {	
+		
+		$rescue_map = $this->user_map_model->get_driver_users('D');
+		//echo '<pre/>'; print_r($rescue_map);
+		$data['rescue_map'] = $rescue_map;
+		$zip_code = array();		
+		foreach($data['rescue_map'] as $row)
+			{
+				$flag=0;$str='';$temp='';	
+				$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+				$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+				$data['image'][] = $row['img'];
+			
+				$f = $ph = $pd = $u = $v = $d = $p = '';
+				if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+				$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+				}
+				if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+				$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+				}
+				if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+				$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+				}
+				if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+				$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+				}
+				if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+				$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+				}	
+				if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+				$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+				}
+		
+				$role = ($row['role']!='')?$row['role']:'Volunteer';
+				
+				if(isset($row['user_id'])) {
+					$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+					
+					if($check_user == 1) {
+						$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+					} else {
+						$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+					}
+				}
+				
+				if(empty($zip_code)){
+					$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+					if($role != 'organization'){
+					 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+					} else {
+					$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+					array_push($zip_code,$temp);
+				}
+				else{
+					for($j=0;$j<count($zip_code);$j++)
+					{
+						$str1=''; $str='';
+						if($zip_code[$j]['zip']==$row['zip'])
+						{
+							if($zip_code[$j]['count']<5)
+							{
+								$str1 = $zip_code[$j]['str'];
+								$str .= $str1;							
+							
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+																								
+							$zip_code[$j]['str'] = $str;
+																
+							}// if count<6
+							else 
+							{
+								if($zip_code[$j]['addview'] == 0)
+								{
+									$st = $zip_code[$j]['str'];
+									$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type='.$this->input->post('recent_activity').'" target="_blank"> View More </a></span>';
+									$zip_code[$j]['str'] = $st;
+									$zip_code[$j]['addview'] =1;
+								}
+							}	
+						$var = $zip_code[$j]['count'];
+						$zip_code[$j]['count'] = $var+1;
+						$flag = 1;
+					 }
+						
+					 if($flag==1) { break;}
+					}	
+					if($flag==0)
+					{
+						$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+						if($role != 'organization'){
+						$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+						} else {
+						$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+					array_push($zip_code,$temp);
+					}
+						
+			}
+		}
+		
+		//echo '<pre/>'; print_r($zip_code);exit;
+		
+		if(!empty($zip_code))
+		{
+				$cnt=0;
+				foreach($zip_code as $z)
+				{
+					$st='';
+					$st = $z['str'];
+					$st .='</ul></div></div><div class="clearfix"></div>';
+					$z['str']=$st;
+					$data['pop_up_desc'][] = $st;	
+					$data['all_zip'][]  = $z['zip'];
+					$data['no_of_record'][] = $z['count'];
+					$data['lat'][]=$z['Lat'];
+					$data['lon'][]=$z['Lon'];
+					$data['uname'][]=$z['name'];
+					$data['uimg'][]=$z['image'];
+					
+					//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+					
+				}
+		}
+		$data['count'] = count($data['name']);
+		
+		$fp = fopen('upload/usermaps/drivers_map.json', 'w');
+		fwrite($fp, json_encode($data));
+		fclose($fp);
+		
+		echo 'Success';
+	}
+	
+	public function pilots_map() {	
+		
+		$rescue_map = $this->user_map_model->get_pilots_users('P');
+		//echo '<pre/>'; print_r($rescue_map);
+		//exit;
+		//header("Content-type:application/json"); 
+		//echo json_encode($rescue_map);
+		$data['rescue_map'] = $rescue_map;
+		$zip_code = array();		
+		foreach($data['rescue_map'] as $row)
+			{
+				$flag=0;$str='';$temp='';	
+				$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+				$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+				$data['image'][] = $row['img'];
+			
+				$f = $ph = $pd = $u = $v = $d = $p = '';
+				if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+				$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+				}
+				if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+				$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+				}
+				if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+				$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+				}
+				if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+				$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+				}
+				if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+				$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+				}	
+				if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+				$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+				}
+		
+				$role = ($row['role']!='')?$row['role']:'Volunteer';
+				
+				if(isset($row['user_id'])) {
+					$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+					
+					if($check_user == 1) {
+						$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+					} else {
+						$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+					}
+				}
+				
+				if(empty($zip_code)){
+					$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+					if($role != 'organization'){
+					 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+					} else {
+					$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+					array_push($zip_code,$temp);
+				}
+				else{
+					for($j=0;$j<count($zip_code);$j++)
+					{
+						$str1=''; $str='';
+						if($zip_code[$j]['zip']==$row['zip'])
+						{
+							if($zip_code[$j]['count']<5)
+							{
+								$str1 = $zip_code[$j]['str'];
+								$str .= $str1;							
+							
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+																								
+							$zip_code[$j]['str'] = $str;
+																
+							}// if count<6
+							else 
+							{
+								if($zip_code[$j]['addview'] == 0)
+								{
+									$st = $zip_code[$j]['str'];
+									$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type='.$this->input->post('recent_activity').'" target="_blank"> View More </a></span>';
+									$zip_code[$j]['str'] = $st;
+									$zip_code[$j]['addview'] =1;
+								}
+							}	
+						$var = $zip_code[$j]['count'];
+						$zip_code[$j]['count'] = $var+1;
+						$flag = 1;
+					 }
+						
+					 if($flag==1) { break;}
+					}	
+					if($flag==0)
+					{
+						$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+						if($role != 'organization'){
+						$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+						} else {
+						$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+					array_push($zip_code,$temp);
+					}
+						
+			}
+		}
+		
+		//echo '<pre/>'; print_r($zip_code);exit;
+		
+		if(!empty($zip_code))
+		{
+				$cnt=0;
+				foreach($zip_code as $z)
+				{
+					$st='';
+					$st = $z['str'];
+					$st .='</ul></div></div><div class="clearfix"></div>';
+					$z['str']=$st;
+					$data['pop_up_desc'][] = $st;	
+					$data['all_zip'][]  = $z['zip'];
+					$data['no_of_record'][] = $z['count'];
+					$data['lat'][]=$z['Lat'];
+					$data['lon'][]=$z['Lon'];
+					$data['uname'][]=$z['name'];
+					$data['uimg'][]=$z['image'];
+					
+					//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+					
+				}
+		}
+		$data['count'] = count($data['name']);
+		
+		$fp = fopen('upload/usermaps/pilots_map.json', 'w');
+		fwrite($fp, json_encode($data));
+		fclose($fp);
+		
+		echo 'Success';
+	}
+	
+	public function fosters_map() {	
+		
+		$rescue_map = $this->user_map_model->get_fosters_users('F');
+		//echo '<pre/>'; print_r($rescue_map);
+		//exit;
+		//header("Content-type:application/json"); 
+		//echo json_encode($rescue_map);
+		$data['rescue_map'] = $rescue_map;
+		$zip_code = array();		
+		foreach($data['rescue_map'] as $row)
+			{
+				$flag=0;$str='';$temp='';	
+				$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+				$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+				$data['image'][] = $row['img'];
+			
+				$f = $ph = $pd = $u = $v = $d = $p = '';
+				if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+				$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+				}
+				if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+				$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+				}
+				if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+				$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+				}
+				if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+				$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+				}
+				if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+				$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+				}	
+				if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+				$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+				}
+		
+				$role = ($row['role']!='')?$row['role']:'Volunteer';
+				
+				if(isset($row['user_id'])) {
+					$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+					
+					if($check_user == 1) {
+						$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+					} else {
+						$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+					}
+				}
+				
+				if(empty($zip_code)){
+					$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+					if($role != 'organization'){
+					 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+					} else {
+					$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+					array_push($zip_code,$temp);
+				}
+				else{
+					for($j=0;$j<count($zip_code);$j++)
+					{
+						$str1=''; $str='';
+						if($zip_code[$j]['zip']==$row['zip'])
+						{
+							if($zip_code[$j]['count']<5)
+							{
+								$str1 = $zip_code[$j]['str'];
+								$str .= $str1;							
+							
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+																								
+							$zip_code[$j]['str'] = $str;
+																
+							}// if count<6
+							else 
+							{
+								if($zip_code[$j]['addview'] == 0)
+								{
+									$st = $zip_code[$j]['str'];
+									$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type='.$this->input->post('recent_activity').'" target="_blank"> View More </a></span>';
+									$zip_code[$j]['str'] = $st;
+									$zip_code[$j]['addview'] =1;
+								}
+							}	
+						$var = $zip_code[$j]['count'];
+						$zip_code[$j]['count'] = $var+1;
+						$flag = 1;
+					 }
+						
+					 if($flag==1) { break;}
+					}	
+					if($flag==0)
+					{
+						$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+						if($role != 'organization'){
+						$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+						} else {
+						$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+					array_push($zip_code,$temp);
+					}
+						
+			}
+		}
+		
+		//echo '<pre/>'; print_r($zip_code);exit;
+		
+		if(!empty($zip_code))
+		{
+				$cnt=0;
+				foreach($zip_code as $z)
+				{
+					$st='';
+					$st = $z['str'];
+					$st .='</ul></div></div><div class="clearfix"></div>';
+					$z['str']=$st;
+					$data['pop_up_desc'][] = $st;	
+					$data['all_zip'][]  = $z['zip'];
+					$data['no_of_record'][] = $z['count'];
+					$data['lat'][]=$z['Lat'];
+					$data['lon'][]=$z['Lon'];
+					$data['uname'][]=$z['name'];
+					$data['uimg'][]=$z['image'];
+					
+					//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+					
+				}
+		}
+		$data['count'] = count($data['name']);
+		
+		$fp = fopen('upload/usermaps/fosters_map.json', 'w');
+		fwrite($fp, json_encode($data));
+		fclose($fp);
+		
+		echo 'Success';
+	}
+	
+	public function shelters_map() {	
+		
+		$rescue_map = $this->user_map_model->get_shelters_users();
+		//echo '<pre/>'; print_r($rescue_map);
+		//exit;
+		//header("Content-type:application/json"); 
+		//echo json_encode($rescue_map);
+		$data['rescue_map'] = $rescue_map;
+		
+		$zip_code = array();		
+		foreach($data['rescue_map'] as $row)
+			{
+				$flag=0;$str='';$temp='';	
+				$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+				$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+				$data['image'][] = $row['img'];
+			
+				$f = $ph = $pd = $u = $v = $d = $p = '';
+				if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+				$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+				}
+				if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+				$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+				}
+				if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+				$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+				}
+				if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+				$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+				}
+				if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+				$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+				}	
+				if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+				$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+				}
+		
+				$role = ($row['role']!='')?$row['role']:'Volunteer';
+				
+				if(isset($row['user_id'])) {
+					$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+					
+					if($check_user == 1) {
+						$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+					} else {
+						$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+					}
+				}
+				
+				if(empty($zip_code)){
+					$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+					if($role != 'organization'){
+					 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+					} else {
+					$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+					array_push($zip_code,$temp);
+				}
+				else{
+					for($j=0;$j<count($zip_code);$j++)
+					{
+						$str1=''; $str='';
+						if($zip_code[$j]['zip']==$row['zip'])
+						{
+							if($zip_code[$j]['count']<5)
+							{
+								$str1 = $zip_code[$j]['str'];
+								$str .= $str1;							
+							
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+																								
+							$zip_code[$j]['str'] = $str;
+																
+							}// if count<6
+							else 
+							{
+								if($zip_code[$j]['addview'] == 0)
+								{
+									$st = $zip_code[$j]['str'];
+									$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type='.$this->input->post('recent_activity').'" target="_blank"> View More </a></span>';
+									$zip_code[$j]['str'] = $st;
+									$zip_code[$j]['addview'] =1;
+								}
+							}	
+						$var = $zip_code[$j]['count'];
+						$zip_code[$j]['count'] = $var+1;
+						$flag = 1;
+					 }
+						
+					 if($flag==1) { break;}
+					}	
+					if($flag==0)
+					{
+						$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+						if($role != 'organization'){
+						$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+						} else {
+						$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+					array_push($zip_code,$temp);
+					}
+						
+			}
+		}
+		
+		//echo '<pre/>'; print_r($zip_code);exit;
+		
+		if(!empty($zip_code))
+		{
+				$cnt=0;
+				foreach($zip_code as $z)
+				{
+					$st='';
+					$st = $z['str'];
+					$st .='</ul></div></div><div class="clearfix"></div>';
+					$z['str']=$st;
+					$data['pop_up_desc'][] = $st;	
+					$data['all_zip'][]  = $z['zip'];
+					$data['no_of_record'][] = $z['count'];
+					$data['lat'][]=$z['Lat'];
+					$data['lon'][]=$z['Lon'];
+					$data['uname'][]=$z['name'];
+					$data['uimg'][]=$z['image'];
+					
+					//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+					
+				}
+		}
+		$data['count'] = count($data['name']);
+		
+		$fp = fopen('upload/usermaps/shelters_map.json', 'w');
+		fwrite($fp, json_encode($data));
+		fclose($fp);
+		
+		echo 'Success';
+	}
+	
+	public function multiroles_map() {	
+		
+		$rescue_map = $this->user_map_model->get_multiroles_users('M');
+		//echo '<pre/>'; print_r($rescue_map);
+		//exit;
+		//header("Content-type:application/json"); 
+		//echo json_encode($rescue_map);
+		$data['rescue_map'] = $rescue_map;
+		
+		$zip_code = array();		
+		foreach($data['rescue_map'] as $row)
+			{
+				$flag=0;$str='';$temp='';	
+				$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+				$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+				$data['image'][] = $row['img'];
+			
+				$f = $ph = $pd = $u = $v = $d = $p = '';
+				if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+				$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+				}
+				if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+				$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+				}
+				if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+				$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+				}
+				if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+				$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+				}
+				if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+				$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+				}	
+				if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+				$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+				}
+		
+				$role = ($row['role']!='')?$row['role']:'Volunteer';
+				
+				if(isset($row['user_id'])) {
+					$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+					
+					if($check_user == 1) {
+						$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+					} else {
+						$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+					}
+				}
+				
+				if(empty($zip_code)){
+					$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+					if($role != 'organization'){
+					 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+					} else {
+					$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+					array_push($zip_code,$temp);
+				}
+				else{
+					for($j=0;$j<count($zip_code);$j++)
+					{
+						$str1=''; $str='';
+						if($zip_code[$j]['zip']==$row['zip'])
+						{
+							if($zip_code[$j]['count']<5)
+							{
+								$str1 = $zip_code[$j]['str'];
+								$str .= $str1;							
+							
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+																								
+							$zip_code[$j]['str'] = $str;
+																
+							}// if count<6
+							else 
+							{
+								if($zip_code[$j]['addview'] == 0)
+								{
+									$st = $zip_code[$j]['str'];
+									$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type='.$this->input->post('recent_activity').'" target="_blank"> View More </a></span>';
+									$zip_code[$j]['str'] = $st;
+									$zip_code[$j]['addview'] =1;
+								}
+							}	
+						$var = $zip_code[$j]['count'];
+						$zip_code[$j]['count'] = $var+1;
+						$flag = 1;
+					 }
+						
+					 if($flag==1) { break;}
+					}	
+					if($flag==0)
+					{
+						$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+						if($role != 'organization'){
+						$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+						} else {
+						$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+					array_push($zip_code,$temp);
+					}
+						
+			}
+		}
+		
+		//echo '<pre/>'; print_r($zip_code);exit;
+		
+		if(!empty($zip_code))
+		{
+				$cnt=0;
+				foreach($zip_code as $z)
+				{
+					$st='';
+					$st = $z['str'];
+					$st .='</ul></div></div><div class="clearfix"></div>';
+					$z['str']=$st;
+					$data['pop_up_desc'][] = $st;	
+					$data['all_zip'][]  = $z['zip'];
+					$data['no_of_record'][] = $z['count'];
+					$data['lat'][]=$z['Lat'];
+					$data['lon'][]=$z['Lon'];
+					$data['uname'][]=$z['name'];
+					$data['uimg'][]=$z['image'];
+					
+					//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+					
+				}
+		}
+		$data['count'] = count($data['name']);
+		
+		$fp = fopen('upload/usermaps/multiroles_map.json', 'w');
+		fwrite($fp, json_encode($data));
+		fclose($fp);
+		
+		echo 'Success';
+	}
+	
+	public function volunteers_map() {	
+		
+		$rescue_map = $this->user_map_model->get_volunteers_users('V');
+		//echo '<pre/>'; print_r($rescue_map);
+		//exit;
+		//header("Content-type:application/json"); 
+		//echo json_encode($rescue_map);
+		$data['rescue_map'] = $rescue_map;
+		
+		$zip_code = array();		
+		foreach($data['rescue_map'] as $row)
+			{
+				$flag=0;$str='';$temp='';	
+				$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+				$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+				$data['image'][] = $row['img'];
+			
+				$f = $ph = $pd = $u = $v = $d = $p = '';
+				if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+				$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+				}
+				if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+				$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+				}
+				if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+				$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+				}
+				if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+				$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+				}
+				if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+				$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+				}	
+				if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+				$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+				}
+		
+				$role = ($row['role']!='')?$row['role']:'Volunteer';
+				
+				if(isset($row['user_id'])) {
+					$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+					
+					if($check_user == 1) {
+						$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+					} else {
+						$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+					}
+				}
+				
+				if(empty($zip_code)){
+					$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+					if($role != 'organization'){
+					 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+					} else {
+					$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+					array_push($zip_code,$temp);
+				}
+				else{
+					for($j=0;$j<count($zip_code);$j++)
+					{
+						$str1=''; $str='';
+						if($zip_code[$j]['zip']==$row['zip'])
+						{
+							if($zip_code[$j]['count']<5)
+							{
+								$str1 = $zip_code[$j]['str'];
+								$str .= $str1;							
+							
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+																								
+							$zip_code[$j]['str'] = $str;
+																
+							}// if count<6
+							else 
+							{
+								if($zip_code[$j]['addview'] == 0)
+								{
+									$st = $zip_code[$j]['str'];
+									$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type='.$this->input->post('recent_activity').'" target="_blank"> View More </a></span>';
+									$zip_code[$j]['str'] = $st;
+									$zip_code[$j]['addview'] =1;
+								}
+							}	
+						$var = $zip_code[$j]['count'];
+						$zip_code[$j]['count'] = $var+1;
+						$flag = 1;
+					 }
+						
+					 if($flag==1) { break;}
+					}	
+					if($flag==0)
+					{
+						$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+						if($role != 'organization'){
+						$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+						} else {
+						$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+					array_push($zip_code,$temp);
+					}
+						
+			}
+		}
+		
+		//echo '<pre/>'; print_r($zip_code);exit;
+		
+		if(!empty($zip_code))
+		{
+				$cnt=0;
+				foreach($zip_code as $z)
+				{
+					$st='';
+					$st = $z['str'];
+					$st .='</ul></div></div><div class="clearfix"></div>';
+					$z['str']=$st;
+					$data['pop_up_desc'][] = $st;	
+					$data['all_zip'][]  = $z['zip'];
+					$data['no_of_record'][] = $z['count'];
+					$data['lat'][]=$z['Lat'];
+					$data['lon'][]=$z['Lon'];
+					$data['uname'][]=$z['name'];
+					$data['uimg'][]=$z['image'];
+					
+					//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+					
+				}
+		}
+		$data['count'] = count($data['name']);
+		
+		$fp = fopen('upload/usermaps/volunteers_map.json', 'w');
+		fwrite($fp, json_encode($data));
+		fclose($fp);
+		
+		echo 'Success';
+	}
+	
+	public function allusers_map() {	
+		
+		$alluser_map = $this->user_map_model->get_all_volunteers_users('V');
+		$allorg_map = $this->user_map_model->get_all_shelters_users();
+		
+		$rescue_map = array_merge($alluser_map,$allorg_map);
+		//echo '<pre/>'; print_r($rescue_map);
+		//exit;
+		
+		$data['rescue_map'] = $rescue_map;
+		
+		$zip_code = array();		
+		foreach($data['rescue_map'] as $row)
+			{
+				$flag=0;$str='';$temp='';	
+				$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+				$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+				$data['image'][] = $row['img'];
+			
+				$f = $ph = $pd = $u = $v = $d = $p = '';
+				if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+				$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+				}
+				if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+				$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+				}
+				if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+				$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+				}
+				if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+				$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+				}
+				if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+				$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+				}	
+				if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+				$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+				}
+		
+				$role = ($row['role']!='')?$row['role']:'Volunteer';
+				
+				if(isset($row['user_id'])) {
+					$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+					
+					if($check_user == 1) {
+						$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+					} else {
+						$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+					}
+				}
+				
+				if(empty($zip_code)){
+					$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+					if($role != 'organization'){
+					 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+					} else {
+					$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+					array_push($zip_code,$temp);
+				}
+				else{
+					for($j=0;$j<count($zip_code);$j++)
+					{
+						$str1=''; $str='';
+						if($zip_code[$j]['zip']==$row['zip'])
+						{
+							if($zip_code[$j]['count']<5)
+							{
+								$str1 = $zip_code[$j]['str'];
+								$str .= $str1;							
+							
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+																								
+							$zip_code[$j]['str'] = $str;
+																
+							}// if count<6
+							else 
+							{
+								if($zip_code[$j]['addview'] == 0)
+								{
+									$st = $zip_code[$j]['str'];
+									$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type='.$this->input->post('recent_activity').'" target="_blank"> View More </a></span>';
+									$zip_code[$j]['str'] = $st;
+									$zip_code[$j]['addview'] =1;
+								}
+							}	
+						$var = $zip_code[$j]['count'];
+						$zip_code[$j]['count'] = $var+1;
+						$flag = 1;
+					 }
+						
+					 if($flag==1) { break;}
+					}	
+					if($flag==0)
+					{
+						$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+						if($role != 'organization'){
+						$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+						} else {
+						$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+					}
+					$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+					array_push($zip_code,$temp);
+					}
+						
+			}
+		}
+		
+		//echo '<pre/>'; print_r($zip_code);exit;
+		
+		if(!empty($zip_code))
+		{
+				$cnt=0;
+				foreach($zip_code as $z)
+				{
+					$st='';
+					$st = $z['str'];
+					$st .='</ul></div></div><div class="clearfix"></div>';
+					$z['str']=$st;
+					$data['pop_up_desc'][] = $st;	
+					$data['all_zip'][]  = $z['zip'];
+					$data['no_of_record'][] = $z['count'];
+					$data['lat'][]=$z['Lat'];
+					$data['lon'][]=$z['Lon'];
+					$data['uname'][]=$z['name'];
+					$data['uimg'][]=$z['image'];
+					
+					//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+					
+				}
+		}
+		$data['count'] = count($data['name']);
+		
+		//header("Content-type:application/json"); 
+		//echo json_encode($rescue_map);
+		//echo '<pre/>'; print_r($data);exit;
+		
+		$fp = fopen('upload/usermaps/allusers_map.json', 'w');
+		fwrite($fp, json_encode($data));
+		fclose($fp);
+		
+		echo 'Success';
+	}
+	
+	function doobert_user_maps()
+	{
+		for( $i=0; $i<7; $i++)
+		{
+			$data = array();
+			$rescue_map = array();
+			$zip_code = array();
+			$data_to_store = array();
+			if($i == 0)
+			{
+				$alluser_map = $this->user_map_model->get_all_volunteers_users('V');
+				$allorg_map = $this->user_map_model->get_all_shelters_users();
+				
+				$rescue_map = array_merge($alluser_map,$allorg_map);
+				//echo '<pre/>'; print_r($rescue_map);
+				//exit;
+				
+				$data['rescue_map'] = $rescue_map;
+				//$data_to_store['count'] = count($rescue_map);
+				$zip_code = array();		
+				foreach($data['rescue_map'] as $row)
+					{
+						$flag=0;$str='';$temp='';	
+						$data['image'][] = $row['img'];
+					
+						$f = $ph = $pd = $u = $v = $d = $p = '';
+						if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+						$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+						}
+						if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+						$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+						}
+						if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+						$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+						}
+						if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+						$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+						}
+						if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+						$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+						}	
+						if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+						$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+						}
+				
+						$role = ($row['role']!='')?$row['role']:'Volunteer';
+						
+						if(isset($row['user_id'])) {
+							$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+							
+							if($check_user == 1) {
+								$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+							} else {
+								$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+							}
+						}
+						
+						if(empty($zip_code)){
+							$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+							array_push($zip_code,$temp);
+						}
+						else{
+							for($j=0;$j<count($zip_code);$j++)
+							{
+								$str1=''; $str='';
+								if($zip_code[$j]['zip']==$row['zip'])
+								{
+									if($zip_code[$j]['count']<5)
+									{
+										$str1 = $zip_code[$j]['str'];
+										$str .= $str1;							
+									
+									if($role != 'organization'){
+									 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+									} else {
+									$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+									}
+																										
+									$zip_code[$j]['str'] = $str;
+																		
+									}// if count<6
+									else 
+									{
+										if($zip_code[$j]['addview'] == 0)
+										{
+											$st = $zip_code[$j]['str'];
+											$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type=0" target="_blank"> View More </a></span>';
+											$zip_code[$j]['str'] = $st;
+											$zip_code[$j]['addview'] =1;
+										}
+									}	
+								$var = $zip_code[$j]['count'];
+								$zip_code[$j]['count'] = $var+1;
+								$flag = 1;
+							 }
+								
+							 if($flag==1) { break;}
+							}	
+							if($flag==0)
+							{
+								$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+								if($role != 'organization'){
+								$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+								} else {
+								$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+							array_push($zip_code,$temp);
+							}
+								
+					}
+				}
+				
+				//echo '<pre/>'; print_r($zip_code);exit;
+				$data['count'] = count($rescue_map);
+				
+				if(!empty($zip_code))
+				{		
+						$total_records_cnt = count($zip_code);
+						
+						foreach($zip_code as $z)
+						{
+							
+							$zip_details = $this->user_map_model->get_state_by_zipcode($z['zip']);
+							
+							if(isset($zip_details) && !empty($zip_details) && isset($zip_details['state_prefix']) && $zip_details['state_prefix'] != '')
+							{
+							$state_name = $zip_details['state_prefix'];							
+							$st='';
+							$st = $z['str'];
+							$st .='</ul></div></div><div class="clearfix"></div>';
+							$z['str']=$st;
+							$data_to_store[$state_name]['pop_up_desc'][] = $st;	
+							$data_to_store[$state_name]['all_zip'][]  = $z['zip'];
+							$data_to_store[$state_name]['no_of_record'][] = $z['count'];
+							$data_to_store[$state_name]['lat'][]=$z['Lat'];
+							$data_to_store[$state_name]['lon'][]=$z['Lon'];
+							//$data['uname'][]=$z['name'];
+							$data_to_store[$state_name]['uimg'][]=$z['image'];
+							$data_to_store[$state_name]['count']=count($rescue_map);
+							
+							/*$data['pop_up_desc'][] = $st;	
+							$data['all_zip'][]  = $z['zip'];
+							$data['no_of_record'][] = $z['count'];
+							$data['lat'][]=$z['Lat'];
+							$data['lon'][]=$z['Lon'];
+							//$data['uname'][]=$z['name'];
+							$data['uimg'][]=$z['image'];*/
+							
+							//if($cnt == $no_of_records)
+							//{
+								//echo '<pre/>'; print_r($data[$files_cnt]);exit;
+								$fp = fopen('upload/usermaps/allusers_map/'.$state_name.'.json', 'w');
+								fwrite($fp, json_encode($data_to_store[$state_name]));
+								fclose($fp);
+								//echo $state_name.' file of all users Success';
+								//echo '<br/>';
+								//$files_cnt++;
+							//}
+							
+							/*if($cnt == $total_records_cnt)
+							{
+								//echo '<pre/>'; print_r($data[$files_cnt]);exit;
+								$fp = fopen('upload/usermaps/allusers_map/allusers_map_'.$files_cnt.'.json', 'w');
+								fwrite($fp, json_encode($data));
+								fclose($fp);
+								echo $files_cnt.' file of all users Success';
+								$files_cnt++;
+							}	*/						
+							}
+						}
+				}
+				//$data['count'] = count($data['name']);
+				
+				//header("Content-type:application/json"); 
+				//echo json_encode($rescue_map);
+				//echo '<pre/>'; print_r($data);exit;
+				/*
+				$fp = fopen('upload/usermaps/allusers_map.json', 'w');
+				fwrite($fp, json_encode($data));
+				fclose($fp);
+				
+				echo 'all users Success';*/
+			}
+			
+			if($i == 1)
+			{
+				$rescue_map = $this->user_map_model->get_driver_users('D');
+				//echo '<pre/>'; print_r($rescue_map);
+				$data['rescue_map'] = $rescue_map;
+				
+				//$data_to_store['count'] = count($rescue_map);
+				
+				$zip_code = array();		
+				foreach($data['rescue_map'] as $row)
+					{
+						$flag=0;$str='';$temp='';	
+						$data['image'][] = $row['img'];
+					
+						$f = $ph = $pd = $u = $v = $d = $p = '';
+						if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+						$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+						}
+						if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+						$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+						}
+						if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+						$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+						}
+						if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+						$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+						}
+						if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+						$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+						}	
+						if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+						$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+						}
+				
+						$role = ($row['role']!='')?$row['role']:'Volunteer';
+						
+						if(isset($row['user_id'])) {
+							$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+							
+							if($check_user == 1) {
+								$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+							} else {
+								$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+							}
+						}
+						
+						if(empty($zip_code)){
+							$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+							array_push($zip_code,$temp);
+						}
+						else{
+							for($j=0;$j<count($zip_code);$j++)
+							{
+								$str1=''; $str='';
+								if($zip_code[$j]['zip']==$row['zip'])
+								{
+									if($zip_code[$j]['count']<5)
+									{
+										$str1 = $zip_code[$j]['str'];
+										$str .= $str1;							
+									
+									if($role != 'organization'){
+									 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+									} else {
+									$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+									}
+																										
+									$zip_code[$j]['str'] = $str;
+																		
+									}// if count<6
+									else 
+									{
+										if($zip_code[$j]['addview'] == 0)
+										{
+											$st = $zip_code[$j]['str'];
+											$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type=D" target="_blank"> View More </a></span>';
+											$zip_code[$j]['str'] = $st;
+											$zip_code[$j]['addview'] =1;
+										}
+									}	
+								$var = $zip_code[$j]['count'];
+								$zip_code[$j]['count'] = $var+1;
+								$flag = 1;
+							 }
+								
+							 if($flag==1) { break;}
+							}	
+							if($flag==0)
+							{
+								$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+								if($role != 'organization'){
+								$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+								} else {
+								$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+							array_push($zip_code,$temp);
+							}
+								
+					}
+				}
+				
+				//echo '<pre/>'; print_r($zip_code);exit;
+				//$data['count'] = count($rescue_map);
+				
+				if(!empty($zip_code))
+				{
+						
+						$cnt=0;
+						$no_of_records = 50;
+						$files_cnt = 1;
+						$total_records_cnt = count($zip_code);
+						
+						foreach($zip_code as $z)
+						{
+							$zip_details = $this->user_map_model->get_state_by_zipcode($z['zip']);
+							if(isset($zip_details) && !empty($zip_details) && isset($zip_details['state_prefix']) && $zip_details['state_prefix'] != '')
+							{
+							$state_name = $zip_details['state_prefix'];	
+							
+							$cnt++;
+							$st='';
+							$st = $z['str'];
+							$st .='</ul></div></div><div class="clearfix"></div>';
+							$z['str']=$st;
+							$data_to_store[$state_name]['pop_up_desc'][] = $st;	
+							$data_to_store[$state_name]['all_zip'][]  = $z['zip'];
+							$data_to_store[$state_name]['no_of_record'][] = $z['count'];
+							$data_to_store[$state_name]['lat'][]=$z['Lat'];
+							$data_to_store[$state_name]['lon'][]=$z['Lon'];
+							//$data['uname'][]=$z['name'];
+							$data_to_store[$state_name]['uimg'][]=$z['image'];
+							$data_to_store[$state_name]['count']=count($rescue_map);
+							
+							//$data['all_details'][]  = array("zipcode"=>$z['zip'],"pop_up_data"=>$z['pop_up_desc'],"records_cnt"=>$z['no_of_record']);
+							
+								//echo '<pre/>'; print_r($data[$files_cnt]);exit;
+								$fp = fopen('upload/usermaps/drivers_map/'.$state_name.'.json', 'w');
+								fwrite($fp, json_encode($data_to_store[$state_name]));
+								fclose($fp);
+								//echo $files_cnt.' file of drivers users Success';
+								//echo '<br/>';
+							}
+						}
+				}
+				//$data['count'] = count($data['name']);
+				/*
+				$fp = fopen('upload/usermaps/drivers_map.json', 'w');
+				fwrite($fp, json_encode($data));
+				fclose($fp);
+				*/
+				//echo 'drivers Success';
+			}
+			
+			if($i == 2)
+			{
+				$rescue_map = $this->user_map_model->get_volunteers_users('V');
+				//echo '<pre/>'; print_r($rescue_map);
+				$data['rescue_map'] = $rescue_map;
+				
+				$zip_code = array();		
+				foreach($data['rescue_map'] as $row)
+					{
+						$flag=0;$str='';$temp='';	
+						$data['image'][] = $row['img'];
+					
+						$f = $ph = $pd = $u = $v = $d = $p = '';
+						if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+						$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+						}
+						if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+						$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+						}
+						if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+						$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+						}
+						if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+						$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+						}
+						if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+						$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+						}	
+						if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+						$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+						}
+				
+						$role = ($row['role']!='')?$row['role']:'Volunteer';
+						
+						if(isset($row['user_id'])) {
+							$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+							
+							if($check_user == 1) {
+								$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+							} else {
+								$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+							}
+						}
+						
+						if(empty($zip_code)){
+							$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+							array_push($zip_code,$temp);
+						}
+						else{
+							for($j=0;$j<count($zip_code);$j++)
+							{
+								$str1=''; $str='';
+								if($zip_code[$j]['zip']==$row['zip'])
+								{
+									if($zip_code[$j]['count']<5)
+									{
+										$str1 = $zip_code[$j]['str'];
+										$str .= $str1;							
+									
+									if($role != 'organization'){
+									 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+									} else {
+									$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+									}
+																										
+									$zip_code[$j]['str'] = $str;
+																		
+									}// if count<6
+									else 
+									{
+										if($zip_code[$j]['addview'] == 0)
+										{
+											$st = $zip_code[$j]['str'];
+											$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type=V" target="_blank"> View More </a></span>';
+											$zip_code[$j]['str'] = $st;
+											$zip_code[$j]['addview'] =1;
+										}
+									}	
+								$var = $zip_code[$j]['count'];
+								$zip_code[$j]['count'] = $var+1;
+								$flag = 1;
+							 }
+								
+							 if($flag==1) { break;}
+							}	
+							if($flag==0)
+							{
+								$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+								if($role != 'organization'){
+								$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+								} else {
+								$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+							array_push($zip_code,$temp);
+							}
+								
+					}
+				}
+				
+				//echo '<pre/>'; print_r($zip_code);exit;
+				
+				if(!empty($zip_code))
+				{
+						foreach($zip_code as $z)
+						{
+							$zip_details = $this->user_map_model->get_state_by_zipcode($z['zip']);
+								if(isset($zip_details) && !empty($zip_details) && isset($zip_details['state_prefix']) && $zip_details['state_prefix'] != '')
+								{
+								$state_name = $zip_details['state_prefix'];
+								$st='';
+								$st = $z['str'];
+								$st .='</ul></div></div><div class="clearfix"></div>';
+								$z['str']=$st;
+								/*$data['pop_up_desc'][] = $st;	
+								$data['all_zip'][]  = $z['zip'];
+								$data['no_of_record'][] = $z['count'];
+								$data['lat'][]=$z['Lat'];
+								$data['lon'][]=$z['Lon'];
+								$data['uname'][]=$z['name'];
+								$data['uimg'][]=$z['image'];*/
+								
+								$data_to_store[$state_name]['pop_up_desc'][] = $st;	
+								$data_to_store[$state_name]['all_zip'][]  = $z['zip'];
+								$data_to_store[$state_name]['no_of_record'][] = $z['count'];
+								$data_to_store[$state_name]['lat'][]=$z['Lat'];
+								$data_to_store[$state_name]['lon'][]=$z['Lon'];
+								//$data['uname'][]=$z['name'];
+								$data_to_store[$state_name]['uimg'][]=$z['image'];
+								$data_to_store[$state_name]['count']=count($rescue_map);
+								
+								$fp = fopen('upload/usermaps/volunteers_map/'.$state_name.'.json', 'w');
+								fwrite($fp, json_encode($data_to_store[$state_name]));
+								fclose($fp);
+								//echo $files_cnt.' file of volunteers users Success';
+								//echo '<br/>';	
+								}
+							}
+							
+						}
+				}
+			
+			if($i == 3)
+			{
+				$rescue_map = $this->user_map_model->get_pilots_users('P');
+				//echo '<pre/>'; print_r($rescue_map);
+				//exit;
+				//header("Content-type:application/json"); 
+				//echo json_encode($rescue_map);
+				$data['rescue_map'] = $rescue_map;
+				$zip_code = array();		
+				foreach($data['rescue_map'] as $row)
+					{
+						$flag=0;$str='';$temp='';	
+						$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+						$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+						$data['image'][] = $row['img'];
+					
+						$f = $ph = $pd = $u = $v = $d = $p = '';
+						if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+						$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+						}
+						if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+						$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+						}
+						if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+						$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+						}
+						if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+						$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+						}
+						if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+						$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+						}	
+						if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+						$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+						}
+				
+						$role = ($row['role']!='')?$row['role']:'Volunteer';
+						
+						if(isset($row['user_id'])) {
+							$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+							
+							if($check_user == 1) {
+								$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+							} else {
+								$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+							}
+						}
+						
+						if(empty($zip_code)){
+							$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+							array_push($zip_code,$temp);
+						}
+						else{
+							for($j=0;$j<count($zip_code);$j++)
+							{
+								$str1=''; $str='';
+								if($zip_code[$j]['zip']==$row['zip'])
+								{
+									if($zip_code[$j]['count']<5)
+									{
+										$str1 = $zip_code[$j]['str'];
+										$str .= $str1;							
+									
+									if($role != 'organization'){
+									 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+									} else {
+									$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+									}
+																										
+									$zip_code[$j]['str'] = $str;
+																		
+									}// if count<6
+									else 
+									{
+										if($zip_code[$j]['addview'] == 0)
+										{
+											$st = $zip_code[$j]['str'];
+											$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type=P" target="_blank"> View More </a></span>';
+											$zip_code[$j]['str'] = $st;
+											$zip_code[$j]['addview'] =1;
+										}
+									}	
+								$var = $zip_code[$j]['count'];
+								$zip_code[$j]['count'] = $var+1;
+								$flag = 1;
+							 }
+								
+							 if($flag==1) { break;}
+							}	
+							if($flag==0)
+							{
+								$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+								if($role != 'organization'){
+								$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+								} else {
+								$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+							array_push($zip_code,$temp);
+							}
+								
+					}
+				}
+				
+				//echo '<pre/>'; print_r($zip_code);exit;
+				
+				if(!empty($zip_code))
+				{
+						foreach($zip_code as $z)
+						{
+							$zip_details = $this->user_map_model->get_state_by_zipcode($z['zip']);
+							if(isset($zip_details) && !empty($zip_details) && isset($zip_details['state_prefix']) && $zip_details['state_prefix'] != '')
+							{
+							$state_name = $zip_details['state_prefix'];	
+							
+							$st='';
+							$st = $z['str'];
+							$st .='</ul></div></div><div class="clearfix"></div>';
+							$z['str']=$st;
+							
+							$data_to_store[$state_name]['pop_up_desc'][] = $st;	
+							$data_to_store[$state_name]['all_zip'][]  = $z['zip'];
+							$data_to_store[$state_name]['no_of_record'][] = $z['count'];
+							$data_to_store[$state_name]['lat'][]=$z['Lat'];
+							$data_to_store[$state_name]['lon'][]=$z['Lon'];
+							$data_to_store[$state_name]['uimg'][]=$z['image'];
+							$data_to_store[$state_name]['count'] = count($rescue_map);
+							
+							$fp = fopen('upload/usermaps/pilots_map/'.$state_name.'.json', 'w');
+							fwrite($fp, json_encode($data_to_store[$state_name]));
+							fclose($fp);
+							//echo $files_cnt.' file of pilots users Success';
+							//echo '<br/>';
+							}
+						}
+				}				
+			}
+			
+			if($i == 4)
+			{
+				$rescue_map = $this->user_map_model->get_fosters_users('F');
+				//echo '<pre/>'; print_r($rescue_map);
+				$data['rescue_map'] = $rescue_map;
+				$zip_code = array();		
+				foreach($data['rescue_map'] as $row)
+					{
+						$flag=0;$str='';$temp='';	
+						$data['image'][] = $row['img'];
+					
+						$f = $ph = $pd = $u = $v = $d = $p = '';
+						if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+						$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+						}
+						if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+						$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+						}
+						if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+						$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+						}
+						if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+						$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+						}
+						if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+						$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+						}	
+						if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+						$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+						}
+				
+						$role = ($row['role']!='')?$row['role']:'Volunteer';
+						
+						if(isset($row['user_id'])) {
+							$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+							
+							if($check_user == 1) {
+								$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+							} else {
+								$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+							}
+						}
+						
+						if(empty($zip_code)){
+							$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+							array_push($zip_code,$temp);
+						}
+						else{
+							for($j=0;$j<count($zip_code);$j++)
+							{
+								$str1=''; $str='';
+								if($zip_code[$j]['zip']==$row['zip'])
+								{
+									if($zip_code[$j]['count']<5)
+									{
+										$str1 = $zip_code[$j]['str'];
+										$str .= $str1;							
+									
+									if($role != 'organization'){
+									 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+									} else {
+									$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+									}
+																										
+									$zip_code[$j]['str'] = $str;
+																		
+									}// if count<6
+									else 
+									{
+										if($zip_code[$j]['addview'] == 0)
+										{
+											$st = $zip_code[$j]['str'];
+											$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type=F" target="_blank"> View More </a></span>';
+											$zip_code[$j]['str'] = $st;
+											$zip_code[$j]['addview'] =1;
+										}
+									}	
+								$var = $zip_code[$j]['count'];
+								$zip_code[$j]['count'] = $var+1;
+								$flag = 1;
+							 }
+								
+							 if($flag==1) { break;}
+							}	
+							if($flag==0)
+							{
+								$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+								if($role != 'organization'){
+								$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+								} else {
+								$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+							array_push($zip_code,$temp);
+							}
+								
+					}
+				}
+				
+				//echo '<pre/>'; print_r($zip_code);exit;
+				
+				if(!empty($zip_code))
+				{
+						foreach($zip_code as $z)
+						{
+							$zip_details = $this->user_map_model->get_state_by_zipcode($z['zip']);
+							if(isset($zip_details) && !empty($zip_details) && isset($zip_details['state_prefix']) && $zip_details['state_prefix'] != '')
+							{
+							$state_name = $zip_details['state_prefix'];	
+							$st='';
+							$st = $z['str'];
+							$st .='</ul></div></div><div class="clearfix"></div>';
+							$z['str']=$st;
+							
+							$data_to_store[$state_name]['pop_up_desc'][] = $st;	
+							$data_to_store[$state_name]['all_zip'][]  = $z['zip'];
+							$data_to_store[$state_name]['no_of_record'][] = $z['count'];
+							$data_to_store[$state_name]['lat'][]=$z['Lat'];
+							$data_to_store[$state_name]['lon'][]=$z['Lon'];
+							//$data['uname'][]=$z['name'];
+							$data_to_store[$state_name]['uimg'][]=$z['image'];
+							$data_to_store[$state_name]['count']=count($rescue_map);
+							
+							$fp = fopen('upload/usermaps/fosters_map/'.$state_name.'.json', 'w');
+							fwrite($fp, json_encode($data_to_store[$state_name]));
+							fclose($fp);
+							//echo $files_cnt.' file of fosters users Success';
+							//echo '<br/>';
+							}
+						}				
+				}
+			}
+			
+			if($i == 5)
+			{
+				$rescue_map = $this->user_map_model->get_shelters_users();
+				//echo '<pre/>'; print_r($rescue_map);
+				//exit;
+				$data['rescue_map'] = $rescue_map;
+				
+				$zip_code = array();		
+				foreach($data['rescue_map'] as $row)
+					{
+						$flag=0;$str='';$temp='';	
+						$data['image'][] = $row['img'];
+					
+						$f = $ph = $pd = $u = $v = $d = $p = '';
+						if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+						$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+						}
+						if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+						$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+						}
+						if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+						$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+						}
+						if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+						$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+						}
+						if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+						$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+						}	
+						if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+						$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+						}
+				
+						$role = ($row['role']!='')?$row['role']:'Volunteer';
+						
+						if(isset($row['user_id'])) {
+							$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+							
+							if($check_user == 1) {
+								$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+							} else {
+								$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+							}
+						}
+						
+						if(empty($zip_code)){
+							$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+							array_push($zip_code,$temp);
+						}
+						else{
+							for($j=0;$j<count($zip_code);$j++)
+							{
+								$str1=''; $str='';
+								if($zip_code[$j]['zip']==$row['zip'])
+								{
+									if($zip_code[$j]['count']<5)
+									{
+										$str1 = $zip_code[$j]['str'];
+										$str .= $str1;							
+									
+									if($role != 'organization'){
+									 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+									} else {
+									$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+									}
+																										
+									$zip_code[$j]['str'] = $str;
+																		
+									}// if count<6
+									else 
+									{
+										if($zip_code[$j]['addview'] == 0)
+										{
+											$st = $zip_code[$j]['str'];
+											$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type=S" target="_blank"> View More </a></span>';
+											$zip_code[$j]['str'] = $st;
+											$zip_code[$j]['addview'] =1;
+										}
+									}	
+								$var = $zip_code[$j]['count'];
+								$zip_code[$j]['count'] = $var+1;
+								$flag = 1;
+							 }
+								
+							 if($flag==1) { break;}
+							}	
+							if($flag==0)
+							{
+								$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+								if($role != 'organization'){
+								$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+								} else {
+								$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+							array_push($zip_code,$temp);
+							}
+								
+					}
+				}
+				
+				//echo '<pre/>'; print_r($zip_code);exit;
+				
+				if(!empty($zip_code))
+				{
+						foreach($zip_code as $z)
+						{
+							$zip_details = $this->user_map_model->get_state_by_zipcode($z['zip']);
+							if(isset($zip_details) && !empty($zip_details) && isset($zip_details['state_prefix']) && $zip_details['state_prefix'] != '')
+							{
+							$state_name = $zip_details['state_prefix'];	
+
+							$st='';
+							$st = $z['str'];
+							$st .='</ul></div></div><div class="clearfix"></div>';
+							$z['str']=$st;
+							
+							$data_to_store[$state_name]['pop_up_desc'][] = $st;	
+							$data_to_store[$state_name]['all_zip'][]  = $z['zip'];
+							$data_to_store[$state_name]['no_of_record'][] = $z['count'];
+							$data_to_store[$state_name]['lat'][]=$z['Lat'];
+							$data_to_store[$state_name]['lon'][]=$z['Lon'];
+							//$data['uname'][]=$z['name'];
+							$data_to_store[$state_name]['uimg'][]=$z['image'];
+							$data_to_store[$state_name]['count']=count($rescue_map);
+							
+							$fp = fopen('upload/usermaps/shelters_map/'.$state_name.'.json', 'w');
+							fwrite($fp, json_encode($data_to_store[$state_name]));
+							fclose($fp);
+							//echo $files_cnt.' file of shelters users Success';
+							//echo '<br/>';
+							}
+						}
+				}				
+			}
+			
+			if($i == 6)
+			{
+				$rescue_map = $this->user_map_model->get_multiroles_users('M');
+				//echo '<pre/>'; print_r($rescue_map);
+				//exit;
+				$data['rescue_map'] = $rescue_map;
+				
+				$zip_code = array();		
+				foreach($data['rescue_map'] as $row)
+					{
+						$flag=0;$str='';$temp='';	
+						$data['name'][] = $this->common_function->custom_addslashes($row['name']);
+						$data['latlong'][] = '["'.$this->common_function->custom_addslashes($row['name']).'",'.$row['lat'].','.$row['lon'].']';
+						$data['image'][] = $row['img'];
+					
+						$f = $ph = $pd = $u = $v = $d = $p = '';
+						if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+						$f = '<img src="' . base_url() . 'assets/img/icon-foster-home.png" alt="Foster Home" title="Foster Home" />';
+						}
+						if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+						$ph = '<img src="' . base_url() . 'assets/img/icon-photographer.png" alt="Volunteer" title="Photographer" />';
+						}
+						if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+						$p = '<img src="' . base_url() . 'assets/img/icon-pilot-profile.png" alt="Pilot Profile" title="Pilot Profile" />';
+						}
+						if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+						$d = '<img src="' . base_url() . 'assets/img/icon-driver.png" alt="Driver" title="Driver" />';
+						}
+						if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+						$u = '<img src="' . base_url() . 'assets/img/icon-person.png" alt="User" title="User" />';
+						}	
+						if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+						$v = '<img src="' . base_url() . 'assets/img/icon-virtual-support-volunteers.png" alt="Volunteer" title="Volunteer" />';
+						}
+				
+						$role = ($row['role']!='')?$row['role']:'Volunteer';
+						
+						if(isset($row['user_id'])) {
+							$check_user = $this->user_map_model->get_user_verified($row['user_id']);
+							
+							if($check_user == 1) {
+								$verified_logo = '<img src="'.base_url().'assets/img/green_logo.jpg" alt="verified" />';
+							} else {
+								$verified_logo = '<img src="'.base_url().'assets/img/gray_logo.jpg" alt="verified" />';
+							}
+						}
+						
+						if(empty($zip_code)){
+							$str .=	'<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+							if($role != 'organization'){
+							 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+							} else {
+							$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) , "addview"=>0);
+							array_push($zip_code,$temp);
+						}
+						else{
+							for($j=0;$j<count($zip_code);$j++)
+							{
+								$str1=''; $str='';
+								if($zip_code[$j]['zip']==$row['zip'])
+								{
+									if($zip_code[$j]['count']<5)
+									{
+										$str1 = $zip_code[$j]['str'];
+										$str .= $str1;							
+									
+									if($role != 'organization'){
+									 $str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+									} else {
+									$str .= '<li><span class="map-verified-user"></span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+									}
+																										
+									$zip_code[$j]['str'] = $str;
+																		
+									}// if count<6
+									else 
+									{
+										if($zip_code[$j]['addview'] == 0)
+										{
+											$st = $zip_code[$j]['str'];
+											$st .= '<span class="view-more"> <a href="'.base_url().'search/search_all_users?zip_code='.$zip_code[$j]['zip'].'&type=M" target="_blank"> View More </a></span>';
+											$zip_code[$j]['str'] = $st;
+											$zip_code[$j]['addview'] =1;
+										}
+									}	
+								$var = $zip_code[$j]['count'];
+								$zip_code[$j]['count'] = $var+1;
+								$flag = 1;
+							 }
+								
+							 if($flag==1) { break;}
+							}	
+							if($flag==0)
+							{
+								$str.= '<div class="form-group" id="animal-rescue-volunteer" width="100%"><div class="col-md-12 no-space"><ul class="content-1" id="ex3">';
+								if($role != 'organization'){
+								$str .= '<li><span class="map-verified-user">'.$verified_logo.'</span><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><span class="map-user-bottom-part">'.$f.$ph.$p.$d.$u.$v.'<a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser('.$row['user_id'].')">CONTACT ME</a></span></li>';
+								} else {
+								$str .= '<li><span class="name-user">'.$this->common_function->custom_addslashes($row['name']).'</span><a href="javascript:void(0)" data-toggle="modal" title="Contact Me" class="btn light-green-btn" onClick="contactUser2('.$row['org_id'].')">CONTACT ME</a></span></li>';
+							}
+							$temp = array("user_id" => $row['user_id'], "zip"=>$row['zip'] ,"str"=>$str , "count"=>1 ,"Lat" =>$row['lat'], "Lon"=>$row['lon'], "image"=>$row['img'] , "name"=>$this->common_function->custom_addslashes($row['name']) ,"addview"=>0);
+							array_push($zip_code,$temp);
+							}
+								
+					}
+				}
+				
+				//echo '<pre/>'; print_r($zip_code);exit;
+				
+				if(!empty($zip_code))
+				{
+						foreach($zip_code as $z)
+						{
+							$zip_details = $this->user_map_model->get_state_by_zipcode($z['zip']);
+							if(isset($zip_details) && !empty($zip_details) && isset($zip_details['state_prefix']) && $zip_details['state_prefix'] != '')
+							{
+							$state_name = $zip_details['state_prefix'];	
+							
+							$st='';
+							$st = $z['str'];
+							$st .='</ul></div></div><div class="clearfix"></div>';
+							$z['str']=$st;
+							
+							$data_to_store[$state_name]['pop_up_desc'][] = $st;	
+							$data_to_store[$state_name]['all_zip'][]  = $z['zip'];
+							$data_to_store[$state_name]['no_of_record'][] = $z['count'];
+							$data_to_store[$state_name]['lat'][]=$z['Lat'];
+							$data_to_store[$state_name]['lon'][]=$z['Lon'];
+							//$data['uname'][]=$z['name'];
+							$data_to_store[$state_name]['uimg'][]=$z['image'];
+							$data_to_store[$state_name]['count']=count($rescue_map);
+							
+							$fp = fopen('upload/usermaps/multiroles_map/'.$state_name.'.json', 'w');
+							fwrite($fp, json_encode($data_to_store[$state_name]));
+							fclose($fp);
+							//echo $files_cnt.' file of multirole users Success';
+							//echo '<br/>';
+							}
+						}
+				}
+			}
+		}
+	}
+	 
+}
+
+/* End of file user_map.php */
+/* Location: ./application/controllers/user_map.php */

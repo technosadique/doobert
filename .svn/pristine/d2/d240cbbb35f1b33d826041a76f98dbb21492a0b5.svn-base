@@ -1,0 +1,408 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 17-Apr-2018
+# File description	: Order Transport Model
+# Special - notes	: none
+# Tables used		: tbl_order, tbl_order_transport, tbl_transport_crates, tbl_order_address, tbl_transportation
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class order_transport_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+    #-----------------Add record for tbl_order----------------------------#
+    public function add_order($order_data){
+    	$this->db->insert('tbl_order',$order_data);
+    	return $this->db->insert_id();
+    }
+
+
+    #-----------------Add record for tbl_order_transport----------------------------#
+    public function add_order_transport($order_transport){
+        $this->db->insert('tbl_order_transport',$order_transport);
+        return $this->db->insert_id();
+    }
+
+    #-----------------Add record for tbl_order_transport----------------------------#
+    //to show the product is in waitlist or not??
+    public function total_order_qty($crate_id){
+        $status = array('0','1');
+        $this->db->select_sum('in_qty');
+        $this->db->where('in_crate_id',$crate_id);
+        $this->db->where('in_deleted',0);
+        $this->db->where_in('in_approval',$status);
+        $result = $this->db->get('tbl_order_transport')->row();  
+        return $result->in_qty;
+    }
+    
+	//only appoval count
+    public function approve_order_qty($crate_id){
+        $status = array('1');
+        $this->db->select_sum('in_qty');
+        $this->db->where('in_crate_id',$crate_id);
+        $this->db->where('in_deleted',0);
+        $this->db->where_in('in_approval',$status);
+        $result = $this->db->get('tbl_order_transport')->row();  
+        return $result->in_qty;
+    }
+
+
+    #-----------------fetch record from tbl_order using order id----------------------------#
+    public function get_data_by_order_id($order_id,$crate_id=''){
+    	$arrData = array();
+		$in_id = array();
+        $this->db->select('o.in_user_id, o.dt_order_date, ot.in_transport_id, ot.in_crate_id, ot.in_qty,ot.is_waitinglist, ot.in_approval as in_approval_o ,ot.in_id, ot.in_from_id, ot.in_to_id, tc.st_crate_type, tc.in_cost_public, tc.in_cost_private, tc.in_crate_qty, t.in_organization_id,');
+        $this->db->Join('tbl_order_transport ot','ot.in_order_id = o.in_order_id');
+        $this->db->join('tbl_transport_crates tc', 'tc.in_crate_id = ot.in_crate_id');
+        $this->db->join('tbl_transportation t', 't.in_transportation_id = ot.in_transport_id');
+		$this->db->from('tbl_order o');
+        $this->db->where('o.in_order_id',$order_id);
+		if($this->session->userdata('approved_crate_id'))
+		{
+			$crate_id = $this->session->userdata('approved_crate_id');
+			$in_id = unserialize($crate_id);
+			if(count($in_id)>0)
+			{
+				$this->db->where_in('ot.in_id',$in_id);
+			}	
+		}
+		if($crate_id!='')
+		{			
+			$in_id = unserialize($crate_id);
+			if(count($in_id)>0)
+			{
+				$this->db->where_in('ot.in_id',$in_id);
+			}	
+		}
+		
+		$this->db->where('o.in_deleted',0);
+        $this->db->where('tc.in_deleted',0);
+        $this->db->where('ot.in_deleted',0);        
+        $this->db->where('t.in_deleted',0); 
+		$query = $this->db->get(); 		
+		if($query->num_rows() > 0)
+        {
+            foreach($query->result() as $Row)
+            {
+                $arrData[$Row->in_transport_id][] = array("in_order_id"     => $order_id,                                                
+                                                "in_user_id"                => $Row->in_user_id,
+                                                "in_transport_id"           => $Row->in_transport_id,
+                                                "in_crate_id"               => $Row->in_crate_id,
+                                                "in_qty"                    => $Row->in_qty,
+                                                "is_waitinglist"            => $Row->is_waitinglist,
+												"in_approval_o"             => $Row->in_approval_o,
+												"in_id"                     => $Row->in_id,
+												"in_from_id"                => $Row->in_from_id,
+												"in_to_id"                  => $Row->in_to_id,
+                                                "st_crate_type"             => $Row->st_crate_type,
+                                                "in_cost_public"            => $Row->in_cost_public,
+                                                "in_cost_private"           => $Row->in_cost_private,
+                                                "in_approval_t"             => $Row->in_approval_t,                                                
+												'in_organization_id'		=> $Row->in_organization_id,                                                
+                                                'in_crate_qty'              => $Row->in_crate_qty,
+                                                'dt_order_date'             => $Row->dt_order_date
+                                                );
+            }
+           
+            
+        }
+
+        return $arrData;
+
+    }
+
+    #-----------------fetch record from tbl_order_transport to check availability----------------------------#
+    public function get_availability(){
+        $this->db->select('is_waitinglist, in_crate_id');
+        $this->db->where('is_waitinglist',1);
+        $this->db->where('in_deleted',0);
+        $query = $this->db->get('tbl_order_transport');        
+        return $query->result_array();
+    }
+
+    #-----------------add records in tbl_order_adderss----------------------------#
+    public function add_order_address($order_address)
+    {
+        $this->db->insert('tbl_order_address',$order_address);
+        return $this->db->insert_id();
+
+    }
+
+    #-----------------fetch record from tbl_order using order id----------------------------#
+    public function get_order_details($sort,$order,$limit,$rec_per_page,$searchid='',$transport_id){
+        $arrData = array();
+        $null = "(NULL)";
+        $this->db->select('o.in_order_id, o.dt_order_date, o.in_order_type, o.fl_order_total, o.in_user_id, ot.in_transport_id, ot.in_crate_id, ot.in_qty,ot.is_waitinglist, ot.in_approval, tc.st_crate_type, tc.in_cost_public, tc.in_cost_private,o.in_order_status, oa.st_first_name, oa.st_last_name');        
+        $this->db->Join('tbl_order_transport ot','ot.in_order_id = o.in_order_id');
+        $this->db->join('tbl_transport_crates tc', 'tc.in_crate_id = ot.in_crate_id');
+        $this->db->join('tbl_order_address oa', 'oa.in_order_id = o.in_order_id');
+		$this->db->join('tbl_transportation t', 't.in_transportation_id = ot.in_transport_id');	
+        $this->db->from('tbl_order o');
+		$this->db->where('t.in_organization_id',$this->session->userdata('org_id'));
+        $this->db->where('t.in_deleted',0);
+        $this->db->where('ot.in_deleted',0);
+		$this->db->where('o.in_deleted',0);
+        $this->db->where('tc.in_deleted',0);
+        $this->db->where('in_order_type',1);
+        $this->db->where('st_transaction_id !=' ,$null);
+        $this->db->group_by('o.in_order_id,ot.in_transport_id');
+        if(trim($searchid) != '') {
+            $this->db->where('ot.in_transport_id LIKE "%'.$searchid.'%"', NULL, FALSE);
+        }
+       
+        if(!empty($transport_id)){
+            $this->db->where('ot.in_transport_id',$transport_id);
+        }
+
+        switch($sort){
+            case 'in_order_id':
+                $this->db->order_by('o.in_order_id',$order);
+            break;
+            case 'in_trans_id':                          
+                $this->db->order_by("ot.in_transport_id", $order);
+            break;
+            case 'order_date':                          
+                $this->db->order_by("o.dt_order_date", $order);
+            break;
+            case 'name':                          
+                $this->db->order_by("oa.st_first_name", $order);
+            break;
+            case 'total_cost':                          
+                $this->db->order_by("o.fl_order_total", $order);
+            break;
+            case 'status':                          
+                $this->db->order_by("ot.in_transport_id", $order);
+            break;
+            default:                            
+            $this->db->order_by('o.in_order_id',$order);
+            break;                       
+        }             
+        if(!isset($limit))
+        {
+            $limit=0;
+        }
+        $this->db->limit($rec_per_page,$limit);        
+        $query = $this->db->get();                         
+        if($query->num_rows() > 0)
+        {
+            foreach($query->result() as $Row)
+            {  
+                /*$in_order_status = $Row->in_order_status;
+
+                switch ($in_order_status) {
+                    case '1':
+                        $order_status ='On Hold';
+                        break;
+                    case '2':
+                        $order_status ='Processing';
+                        break;
+                    case '3':
+                        $order_status ='Pending';
+                        break;
+                    case '4':
+                        $order_status ='Completed';
+                        break;
+                    case '5':
+                        $order_status ='Cancelled';
+                        break;
+                    case '6':
+                        $order_status ='Refunded';
+                        break;
+                    case '7':
+                        $order_status ='Failed';
+                        break;                    
+                    default:
+                        $order_status ='';
+                        break;
+                }*/
+
+
+                
+
+                $arrData[$Row->in_order_id][$Row->in_transport_id][] = array(
+                                                "in_order_id"    => $Row->in_order_id,
+
+                                                "dt_order_date"         => $Row->dt_order_date,
+                                                "in_order_type"         => $Row->in_order_type,
+                                                "in_user_id"            => $Row->in_user_id,
+                                                "in_transport_id"       => $Row->in_transport_id,
+                                                "in_crate_id"           => $Row->in_crate_id,
+                                                "in_qty"                => $Row->in_qty,
+                                                "is_waitinglist"        => $Row->is_waitinglist,
+                                                "st_crate_type"         => $Row->st_crate_type,
+                                                "in_cost_public"        => $Row->in_cost_public,
+                                                "in_cost_private"       => $Row->in_cost_private,
+                                                //"order_status"          => $order_status,
+                                                "st_first_name"         => $Row->st_first_name,
+                                                "st_last_name"          => $Row->st_last_name,
+                                                "fl_order_total"        => $Row->fl_order_total,
+                                                "in_approval"           => $Row->in_approval
+                                                );            
+
+
+
+            }
+            
+        }          
+        return $arrData;
+
+    }
+
+    public function update_order($order, $order_id)
+    {        
+        $this->db->where('in_order_id', $order_id);
+        $this->db->where('in_deleted',0);
+        $this->db->update('tbl_order', $order);
+
+    }
+
+
+    public function get_order_count($searchid ='', $transport_id=''){
+        $arrData = array();
+        $null = "(NULL)";
+        $this->db->select('o.in_order_id, o.dt_order_date, o.in_order_type, o.fl_order_total, o.in_user_id, ot.in_transport_id, ot.in_crate_id, ot.in_qty,ot.is_waitinglist, ot.in_approval, tc.st_crate_type, tc.in_cost_public, tc.in_cost_private,o.in_order_status, oa.st_first_name, oa.st_last_name');        
+        $this->db->Join('tbl_order_transport ot','ot.in_order_id = o.in_order_id');
+        $this->db->join('tbl_transport_crates tc', 'tc.in_crate_id = ot.in_crate_id');
+        $this->db->join('tbl_order_address oa', 'oa.in_order_id = o.in_order_id');
+		$this->db->join('tbl_transportation t', 't.in_transportation_id = ot.in_transport_id');	
+	    $this->db->from('tbl_order o');
+        $this->db->where('t.in_organization_id',$this->session->userdata('org_id'));
+        $this->db->where('t.in_deleted',0);
+		$this->db->where('o.in_deleted',0);
+        $this->db->where('tc.in_deleted',0);
+        $this->db->where('ot.in_deleted',0);
+        $this->db->where('in_order_type',1);
+        $this->db->where('st_transaction_id !=',$null);
+       if(trim($searchid) != '') {
+            $this->db->where('ot.in_transport_id LIKE "%'.$searchid.'%"', NULL, FALSE);
+        }
+
+        if(!empty($transport_id)){
+            $this->db->where('ot.in_transport_id',$transport_id);
+        }
+        $this->db->group_by('o.in_order_id,ot.in_transport_id');
+        $query = $this->db->get(); 
+                              
+        return $query->num_rows();
+
+    }
+
+
+    public function get_address_by_order_id($order_id){
+        $this->db->select('in_order_id, st_first_name, st_last_name,st_email, st_addr1, st_addr2, st_city, st_state, st_zip, st_country,st_phone,st_notes');
+        $this->db->where('in_deleted',0);
+        $this->db->where('in_order_id', $order_id);
+        $query = $this->db->get('tbl_order_address');        
+        return $query->result_array();  
+    }
+
+
+    public function approve_reject_order($order_transport_arr, $order_id, $transport_id, $in_id=array(), $crate_id=''){
+        $this->db->where('in_order_id', $order_id);
+        $this->db->where('in_transport_id', $transport_id);
+        $this->db->where('in_deleted',0);
+        if(!empty($in_id)){
+            $this->db->where_in('in_id', $in_id);
+        }
+        if(!empty($crate_id)){
+            $this->db->where('in_crate_id',$crate_id);
+        }
+        $this->db->update('tbl_order_transport', $order_transport_arr);        
+        return $this->db->affected_rows();
+
+    }
+    
+     public function delete_crate($order, $in_id)
+    {        
+        $this->db->where('in_id', $in_id);
+        $this->db->update('tbl_order_transport', $order);
+        return $this->db->affected_rows();    
+
+    }
+
+
+    public function get_transport_count($transport_id){
+        $arrData = array();
+        $null = "(NULL)";
+        $this->db->select('o.in_order_id, o.dt_order_date, o.in_order_type, o.fl_order_total, o.in_user_id, ot.in_transport_id, ot.in_crate_id, ot.in_qty,ot.is_waitinglist, ot.in_approval, tc.st_crate_type, tc.in_cost_public, tc.in_cost_private,o.in_order_status, oa.st_first_name, oa.st_last_name');        
+        $this->db->Join('tbl_order_transport ot','ot.in_order_id = o.in_order_id');
+        $this->db->join('tbl_transport_crates tc', 'tc.in_crate_id = ot.in_crate_id');
+        $this->db->join('tbl_order_address oa', 'oa.in_order_id = o.in_order_id');
+        $this->db->join('tbl_transportation t', 't.in_transportation_id = ot.in_transport_id'); 
+        $this->db->from('tbl_order o');
+        $this->db->where('t.in_organization_id',$this->session->userdata('org_id'));
+        $this->db->where('t.in_deleted',0);
+        $this->db->where('o.in_deleted',0);
+        $this->db->where('tc.in_deleted',0);
+        $this->db->where('ot.in_deleted',0);
+        $this->db->where('in_order_type',1);
+        $this->db->where('st_transaction_id !=',$null);
+        $this->db->where('ot.in_transport_id',$transport_id);       
+        $this->db->group_by('o.in_order_id,ot.in_transport_id');
+        $query = $this->db->get();   
+        return $query->num_rows();
+
+    }
+
+
+
+    public function update_order_address($orderadd, $order_id)
+    {        
+        $this->db->where('in_order_id', $order_id);
+        $this->db->update('tbl_order_address', $orderadd);
+    }
+
+    public function get_order_transport_details($in_id_arr){
+        $this->db->select('in_id, in_order_id, in_transport_id');
+        $this->db->where_in('in_id',$in_id_arr);
+        $this->db->where('in_deleted',0);
+        $query = $this->db->get('tbl_order_transport');
+        return $query->result_array();
+    }
+
+
+    public function crate_details($crate_id, $order_id){
+        $this->db->select('in_qty, in_crate_id');
+        $this->db->where('in_deleted',0);
+        $this->db->where('in_crate_id', $crate_id);
+        $this->db->where('in_order_id', $order_id);
+        $query = $this->db->get('tbl_order_transport');        
+        return $query->result_array();
+    }
+
+    public function update_crate_trans($orderarr, $orderid,$crate_id){
+        $this->db->where('in_order_id', $orderid);
+        $this->db->where('in_crate_id', $crate_id);
+        $this->db->where('in_deleted',0);
+        $this->db->update('tbl_order_transport', $orderarr);
+        return $orderid;
+    }
+
+    public function order_trans_details_byid($in_id){
+        $this->db->select('in_qty, in_crate_id,in_order_id,in_from_id,in_to_id');
+        $this->db->where('in_deleted',0);
+        $this->db->where('in_id', $in_id);        
+        $query = $this->db->get('tbl_order_transport');        
+        return $query->result_array();
+    }
+
+    public function crates_byid($crate_id){
+        $this->db->select('in_crate_qty, in_crate_id,in_cost_public,in_cost_private,in_transportation_id,st_crate_type');
+        $this->db->where('in_deleted',0);
+        $this->db->where('in_crate_id', $crate_id);        
+        $query = $this->db->get('tbl_transport_crates');        
+        return $query->result_array();
+    }
+	
+		function update_data($array,$field_val,$table_name,$field_name)
+	{
+		$this->db->where($field_name, $field_val);
+		$this->db->update($table_name, $array);
+	}
+}
+?>

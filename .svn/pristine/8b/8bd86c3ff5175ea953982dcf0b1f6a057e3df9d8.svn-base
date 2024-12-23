@@ -1,0 +1,541 @@
+<?php
+class transport_cron_sms_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }	
+	
+	public function get_transport_details($transport_id)
+	{
+		$transport_details = array();
+		$this->db->select("	tr.in_transportation_id,
+							tr.in_trans_coods_id,
+							tr.in_organization_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_from_country,
+							tr.st_to_street,
+							tr.st_to_city,
+							tr.st_to_state,
+							tr.st_to_zip,
+							tr.st_to_country,
+							tr.dt_pickup_date,
+							tr.dt_target,
+							tr.st_from_info,
+							tr.st_to_info,
+							tr.st_trans_type,
+							tr.in_tot_distance,
+							tr.in_distance_covered,
+							tr.in_status,
+							tr.st_trans_name,
+							tr.st_add_comments,
+							tr.in_ride_id,
+							tr.is_transport_revised,
+							concat(u.st_display_name,' ',u.st_last_name) as st_display_name,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							u.st_profile_image,
+							u.st_email,
+							u.in_public,
+							p.in_user_id,
+							p.st_primary_phone,
+							p.st_address1,
+							p.st_city,
+							p.st_state,
+							p.st_zip,
+							o.st_org_image,
+							o.st_org_name,	
+							o.st_org_code,	
+							tr.in_status",
+						FALSE);
+		$where = array("tr.in_deleted"=>"0","tr.in_transportation_id"=>$transport_id);
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_user_profile p ","p.in_user_id= tr.in_trans_coods_id","INNER");
+		$this->db->join("tbl_users u","p.in_user_id = u.in_user_id","INNER");
+		$this->db->join("tbl_organization o","o.in_organization_id = tr.in_organization_id AND o.in_deleted='0'","INNER");	
+		//$this->db->join("tbl_transportation_participants tp","tr.in_transportation_id = tp.in_transportation_id AND tp.in_deleted='0'","INNER");		
+		$this->db->where($where);
+		$query =	$this->db->get();
+		//print_r($this->db->last_query()); exit;
+		if($query->num_rows()>0)
+		{
+			$transport_details = $query->result_array();
+		}
+		//echo "<pre>";print_r($transport_details);die;
+		return $transport_details;
+	}
+	
+	public function send_nearby_sms()
+	{	
+			$this->db->select(" tr.in_transportation_id,
+								tr.in_organization_id,
+								tr.in_preferred_vol,
+								tr.dt_target,
+								DATE_FORMAT(tr.dt_pickup_date, '%a') as pdays,
+								DATE_FORMAT(tr.dt_target, '%a') as days,
+								tr.in_transportation_id,
+								tr.in_status, 
+								tr.st_from_zip, 
+								tr.st_to_zip, 
+								z.lat as 'st_from_lat',
+								z.lon as 'st_from_lon',
+								tz.lat as 'st_to_lat',
+								tz.lon as 'st_to_lon',
+								tr.in_tot_distance, 
+								tr.in_distance_covered,
+								tr.st_trans_type,
+								round(( tr.in_distance_covered/tr.in_tot_distance * 100 ), 2) perc	",FALSE);			
+			
+			$this->db->from("tbl_transportation tr");
+			$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+			$this->db->join("tbl_zip_code tz","tr.st_to_zip = tz.zip_code","INNER");			
+			$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_sent_sms"=>"1","tr.st_trans_type"=>"R");
+			$this->db->where($where);
+			$this->db->limit(1);
+			$query =	$this->db->get();
+			$transport_details	=	$query->row_array();
+			if(isset($transport_details['in_transportation_id']))
+			{	
+				$this->db->select("CONCAT(u.st_display_name,' ',st_last_name) as st_display_name,u.st_email,pr.in_user_id,pr.st_zip,pr.st_country,r.st_ride_daytime,r.st_mobile,r.in_ride_radius,zip.lon as st_longitude,zip.lat as st_latitude");
+				$this->db->from("tbl_user_profile pr ");
+				$this->db->join("tbl_zip_code zip","zip.zip_code = pr.st_zip",'INNER');
+				$this->db->join("tbl_users u","u.in_user_id = pr.in_user_id",'INNER');
+				$this->db->join("tbl_user_rides r","r.in_user_id = u.in_user_id",'INNER');
+				$where = array("pr.in_deleted"=>'0',"u.in_deleted"=>"0","r.in_deleted"=>"0",'r.in_messanger'=>'1');
+				$this->db->where($where);
+				$this->db->group_by('u.in_user_id');
+				$this->db->limit(100);	
+				
+				$query =	$this->db->get();
+				$users_list = $query->result_array();				
+			
+				$emails_list = array();
+				$transport_leg_detail = array();
+				$location_data = array();
+				$st_from_lat	=	$transport_details['st_from_lat'];
+				$st_from_lon	=	$transport_details['st_from_lon'];
+				$st_to_lat		=	$transport_details['st_to_lat'];
+				$st_to_lon		=	$transport_details['st_to_lon'];
+				$location_data = $this->get_transport_leg_details($transport_details['in_transportation_id']);
+						
+				foreach($users_list as $u_key=>$u_val)
+				{
+					$r_lat 		= $u_val['st_latitude'];
+					$r_lon 		= $u_val['st_longitude'];
+					$r_distance = $u_val['in_ride_radius'];
+					
+					if(isset($r_lat) && isset($r_lon)){
+						//echo $st_coods->lat;
+						//$st_coods['ride_radius'];
+						if(isset($r_distance) && $r_distance !='')
+							$ride_radius	=	$r_distance;
+						else
+							$ride_radius	=	0;
+						
+						
+						
+						$from_distance	=	$this->distance($st_from_lat,$st_from_lon,$r_lat,$r_lon, "M");
+						$to_distance	=	$this->distance($st_to_lat,$st_to_lon,$r_lat,$r_lon, "M");
+						
+						
+						if($from_distance <= $ride_radius || $to_distance <= $ride_radius)
+						{
+							
+							$postal_code = '';
+							$country_type = trim($u_val['st_country']);
+							if($country_type=='USA' || $country_type=='US')
+							{
+								$postal_code = '+1';
+							} else if($country_type=='CANADA' || $country_type=='CA')
+							{
+								$postal_code = '+1';
+							} else if($country_type=='INDIA' || $country_type=='IN')
+							{
+								$postal_code = '+91';
+							}  
+		
+							if($postal_code == '')
+							{
+								$user_country = $this->getaddress($u_val['st_zip']);
+								$country_code = trim($user_country['st_country']);
+								if($country_code =='CA' || $country_code=='US')
+								{
+									$postal_code = '+1';
+								} else if($country_code =='IN')
+								{
+									$postal_code = '+91';
+								}		
+							}		
+							
+							if($postal_code!='')
+							{
+								$emails_list[] = array("user_id"=>$u_val['in_user_id'],"name"=>$u_val['st_display_name'],"email_address"=>$u_val['st_email'],"telephone_number"=>$u_val['st_mobile'],"postal_code"=>$postal_code);
+							}
+							//$emails_list[] = array("user_id"=>$u_val['in_user_id'],"name"=>$u_val['st_display_name'],"email_address"=>$u_val['st_email'],"telephone_number"=>$u_val['st_mobile'],'ride_radius'=>$u_val['in_ride_radius'],'from_distance'=>$from_distance,'to_distance'=>$to_distance);
+						}						
+					}								
+				}
+				
+				$tmp_email = array ();
+				foreach ($emails_list as $row) 
+				{
+					if (!in_array($row,$tmp_email))
+					{
+						array_push($tmp_email,$row);
+					}
+				}				
+			
+				
+			
+				$transport_data 	= $this->get_transport_details($transport_details['in_transportation_id']);
+				//$location_data 		= $this->get_kitten_transport($transport_data[0]['in_organization_id'],$transport_data[0]['in_ride_id']);
+					
+				if(isset($tmp_email) && !empty($tmp_email))
+				{
+					
+					$this->ride_transport_sendsms($tmp_email,$transport_data,$location_data);	
+
+				}else {
+					echo "failed";
+					die;
+				}
+				
+			
+			}else{
+			// Else
+				echo 'failer';
+			}
+	}
+	
+	public function distance($lat1, $lon1, $lat2, $lon2, $unit) 
+	{
+
+	  $theta = $lon1 - $lon2;
+	  $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+	  $dist = acos($dist);
+	  $dist = rad2deg($dist);
+	  $miles = $dist * 60 * 1.1515;
+	  $unit = strtoupper($unit);
+
+	  if ($unit == "K") {
+		return ($miles * 1.609344);
+	  } else if ($unit == "N") {
+		  return ($miles * 0.8684);
+		} else {
+			return $miles;
+		  }
+	}
+	
+	/*public function send_nearby_sms()
+	{	
+			$this->db->select("tr.in_transportation_id,tr.in_organization_id");
+			$this->db->from("tbl_transportation tr");
+			$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+			$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.st_trans_type"=>"R","tr.in_sent_sms"=>1);
+			$this->db->where($where);
+			$this->db->order_by("tr.in_transportation_id","DESC");
+			$this->db->limit(1);
+			$query =	$this->db->get();
+			$transport_details = $query->row_array();
+			
+			if(isset($transport_details) && isset($transport_details['in_transportation_id']) && $transport_details['in_transportation_id'] > 0)
+			{
+				$this->db->select('u.in_user_id,CONCAT(u.st_display_name," ",st_last_name) as st_display_name,u.st_email',FALSE); 
+				$this->db->from("tbl_users u");
+				$where = array("u.in_status"=>"1","u.in_deleted"=>"0");
+				$this->db->where($where);
+				$this->db->where("u.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$transport_details['in_organization_id']." AND in_status = 3)");
+				$this->db->where("u.in_user_id NOT IN (select in_user_id from tbl_users where in_email_verify_status = 0 AND dt_created > '2016-11-25')");
+			
+				$query =	$this->db->get();
+				$users_list = $query->result_array();				
+				$emails_list = array();
+				foreach($users_list as $u_key=>$u_val)
+				{
+					$ride_details  = $this->get_ride_detail_by_user_id($u_val['in_user_id']);				
+					$trns_ids	= '';
+					$driver		= '';
+					$ride		= '';
+					
+					
+					
+					if(!empty($trns_ids_list))
+					{
+						$trns_ids 		= implode(",",$trns_ids_list);
+					}
+					if(!empty($ride_details))
+					{
+						
+							
+							$r_days 	= "'".implode("','",unserialize($ride_details['st_ride_daytime']))."'";
+							$r_lat 		= $ride_details['st_latitude'];
+							$r_lon 		= $ride_details['st_longitude'];
+							$r_distance = $ride_details['in_ride_radius'];
+						
+						
+						$this->db->select(" tr.dt_target,
+										DATE_FORMAT(tr.dt_pickup_date, '%a') as pdays,
+										DATE_FORMAT(tr.dt_target, '%a') as days,
+										tr.in_transportation_id,
+										tr.in_status, 
+										tr.st_from_zip, 
+										tr.st_to_zip, 
+										tr.in_tot_distance, 
+										tr.in_distance_covered,
+										tr.st_trans_type,
+										round(( tr.in_distance_covered/tr.in_tot_distance * 100 ), 2) perc,
+										z.lat,
+										z.lon",FALSE);
+						$this->db->from("tbl_transportation tr");
+						$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+						$this->db->join("tbl_zip_code tz","tr.st_to_zip = tz.zip_code","INNER");
+						$where = array("tr.in_transportation_id"=>$transport_details['in_transportation_id'],"tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_near_by_email"=>"0","tr.st_trans_type"=>"R");
+						$this->db->where($where);
+					
+						if(!empty($ride_details))
+						{
+							$ride  = '(3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(z.lat))))<="'.$r_distance.'" 
+							OR (3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(z.lat)))) is NULL	
+							OR (3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(tz.lat))))<="'.$r_distance.'" 
+							OR (3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(tz.lat)))) is NULL ';
+							//$pilot_h = '(days in('.$a_days .') OR pdays in('.$a_days .'))';
+						}
+						$cnd = ($ride)?$ride:"";
+						$this->db->where($cnd.'GROUP BY tr.in_transportation_id', NULL, FALSE);
+						//$this->db->where($cnd.'GROUP BY tr.in_transportation_id HAVING '.$cnd_h.' perc < "100" ', NULL, FALSE);
+						//$this->db->limit(1);
+						$query =	$this->db->get();
+						
+						if($query->num_rows() > 0)
+						{
+							$emails_list[] = array("user_id"=>$u_val['in_user_id'],"name"=>$u_val['st_display_name'],"email_address"=>$u_val['st_email'],"telephone_number"=>$ride_details['st_mobile']);											
+						}
+					
+					}				
+				}
+				$tmp_email = array ();
+				foreach ($emails_list as $row) 
+				{
+					if (!in_array($row,$tmp_email))
+					{
+						array_push($tmp_email,$row);
+					}
+				}				
+			
+			
+				$transport_data 	= $this->get_transport_details($transport_details['in_transportation_id']);
+				//$location_data 		= $this->get_kitten_transport($transport_data[0]['in_organization_id'],$transport_data[0]['in_ride_id']);
+				//echo "<pre>";print_r($location_data);print_r($tmp_email);exit;
+			
+		
+				if(isset($tmp_email) && !empty($tmp_email))
+				{
+					
+					$this->ride_transport_sendsms($tmp_email,$transport_data);	
+
+				}else {
+					echo "failed";
+					die;
+				}
+				
+			
+			} else {
+				echo 'failer';
+			}
+	}*/
+	
+	public function get_ride_detail_by_user_id($user_id)
+	{
+		
+		$this->db->select("pr.in_user_id,r.st_ride_daytime,r.st_mobile,r.in_ride_radius,zip.lon as st_longitude,zip.lat as st_latitude");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_users u","u.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_zip_code zip","zip.zip_code = pr.st_zip",'INNER');
+		$this->db->join("tbl_user_rides r","r.in_user_id = u.in_user_id",'INNER');
+		$where = array("pr.in_deleted"=>'0',"u.in_deleted"=>"0","r.in_deleted"=>"0","pr.in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->order_by("r.in_ride_radius","DESC");
+		$query =	$this->db->get();
+		return $query->row_array();
+	}
+
+	public function ride_transport_sendsms($tmp_email,$transport_data,$location_data)
+	{
+		
+		$trans_id = $transport_data[0]['in_transportation_id'];
+		//$to = '+918879115765'; Garima
+		//$to = '+919156708420';
+		//$to ="+12626177860";//Chris
+		//$phone = '+919920276774';//Rupesh
+		//$to = '+919773040408';
+
+
+
+		foreach ($tmp_email as $key => $value) {
+			$telephone =  $value['telephone_number'];
+			$postal_code =  $value['postal_code'];
+			if(!empty($telephone) && !empty($postal_code)){
+				$phone = preg_replace('/[^0-9]/', '', $telephone);
+				
+				//$phone ='+918879115765';
+				//$phone ='+919819185046';
+				//$text = "Doobert Ride request for ".$transport_data[0]['st_org_name']." from ".$location_data[0]['sending_loc_name']." to ".$location_data[0]['receiving_loc_nickname']." Click to sign-up:  http://dev.doobert.com/rt/".$trans_id;
+				$from_location ='';
+				$to_location ='';
+				
+				if(isset($location_data) && $location_data['from_loc']!='')
+				{
+					$from_location .= $location_data['from_loc'];
+				}
+				
+				if(isset($location_data) && $location_data['to_loc']!='')
+				{
+					$to_location .= $location_data['to_loc'];
+				}
+
+				if($from_location=='')
+				{
+					$from_location .= (isset($transport_data[0]['st_from_street']) && !empty($transport_data[0]['st_from_street']))?$transport_data[0]['st_from_street'].', ':'';
+					$from_location .= (isset($transport_data[0]['st_from_city']) && !empty($transport_data[0]['st_from_city']))?$transport_data[0]['st_from_city']:'';
+				}
+				if($to_location=='')
+				{
+					$to_location .= (isset($transport_data[0]['st_to_street']) && !empty($transport_data[0]['st_to_street']))?$transport_data[0]['st_to_street'].', ':'';
+					$to_location .= (isset($transport_data[0]['st_to_city']) && !empty($transport_data[0]['st_to_city']))?$transport_data[0]['st_to_city']:'';
+				}
+				$text = "Doobert Ride request for ".$transport_data[0]['st_org_name']." from ".$from_location." to ".$to_location." Click to sign-up: ".base_url()."rt/".$trans_id;
+				$result = sendsms($postal_code.$phone,$text);
+				if($result == 1){
+					echo "Success";
+					$this->update_sent_sms($transport_data[0]['in_transportation_id']);
+				}else{
+					echo "Message Not sent";
+				}
+			}
+		}
+		
+	}
+
+	public function get_kitten_transport($org_id='',$favorite_ride='')
+	{
+		$data= array();
+		
+		$this->db->select('t.*,
+						  p.st_loc_street as pickup_street,
+						  p.st_loc_city as pickup_city,
+						  p.st_loc_state as pickup_state,
+						  p.st_loc_zip as pickup_zip,
+						  p.st_loc_contact as sending_contact_name,
+						  p.st_loc_email as sending_email_address,
+						  p.st_loc_phone as sending_phone_number,
+						  p.st_loc_nickname as sending_loc_nickname,
+						  p.st_loc_name as sending_loc_name,
+						  d.st_loc_street as dropoff_street,
+						  d.st_loc_city as dropoff_city,
+						  d.st_loc_state as dropoff_state,
+						  d.st_loc_contact as receiving_contact_name,
+						  d.st_loc_email as receiving_email_address,
+						  d.st_loc_phone as receiving_phone_number,
+						  d.st_loc_nickname as receiving_loc_nickname,
+						  d.st_loc_name as receiving_loc_name,	
+						  d.st_loc_zip as dropoff_zip',FALSE);
+		$this->db->from('tbl_trans_rides t');
+		$this->db->join('tbl_trans_location p','p.in_loc_id=t.in_from_id AND p.in_deleted="0"','INNER');
+		$this->db->join('tbl_trans_location d','d.in_loc_id=t.in_to_id AND d.in_deleted="0"','INNER');
+		$this->db->join('tbl_organization o','o.in_organization_id=t.in_org_id AND o.in_deleted="0"','INNER');	
+		$this->db->join('tbl_users u','u.in_user_id=t.in_user_id AND u.in_deleted="0"','INNER');			
+		$this->db->where('t.in_deleted',0);
+		//$this->db->where('t.in_status',4);
+		$this->db->where('t.in_org_id',$org_id);
+
+		if($favorite_ride!='')
+		{
+			$this->db->where('t.in_ride_id',$favorite_ride);
+		}		
+			
+		$query = $this->db->get();
+		
+		return $query->result_array();
+		
+	}
+
+
+	function update_sent_sms($id){
+		
+		$arrData = 	 array('in_sent_sms'	=> '0');
+		$this->db->where('in_transportation_id', $id);
+		$this->db->update('tbl_transportation', $arrData);
+		
+	}
+
+	public function test_sendsms()
+	{
+		$trans_id = '5034';
+		$to = '+919156708420';
+		$text = " Click to sign-up:  http://dev.doobert.com/rt/".$trans_id;
+		$result = sendsms($to,$text);
+		if($result == 1){
+			echo "Success";
+			$this->update_sent_sms($transport_data[0]['in_transportation_id']);
+		}else{
+			echo "Message Not sent";
+		}			
+		
+	}
+	
+	public function getaddress($zip)
+	{
+		$org_zip_code  = preg_replace('/\s/', '',$zip);
+		$zip_code = strtoupper($org_zip_code);
+		$this->db->select('city,state_prefix,st_country,st_time_zone');
+		$this->db->from('tbl_zip_code');        
+		$this->db->where('zip_code',$zip_code);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+	
+	public function get_transport_leg_details($transport_id)
+	{
+		$location_data = array();
+		$this->db->select('l.in_transportation_leg_id,d.st_leg_type,d.st_street,d.st_city,d.st_state,d.st_zip,d.st_country,d.dt_start_time,d.st_timezone',FALSE);
+		$this->db->from('tbl_transportation_leg as l');
+		$this->db->join('tbl_transportation_leg_detail d','d.in_transportation_leg_id=l.in_transportation_leg_id','INNER');
+		$this->db->where('l.in_deleted',0);
+		$this->db->where('d.in_deleted',0);
+		$this->db->where('l.in_transportation_id',$transport_id);
+		//$this->db->order_by('l.in_transportation_leg_id','ASC');
+		$this->db->order_by('l.in_sort_order','ASC');
+		$this->db->order_by('l.in_transportation_leg_id','ASC');
+		$query = $this->db->get();
+		if($query->num_rows() > 0)
+		{
+			$from_loc ='';
+			$to_loc ='';
+			foreach($query->result() as $Row)
+			{
+				
+				if($Row->st_leg_type=="P" && $from_loc=='')
+				{
+					$from_loc .= (isset($Row->st_street) && !empty($Row->st_street))?$Row->st_street.', ':'';
+					$from_loc .= (isset($Row->st_city) && !empty($Row->st_city))?$Row->st_city:'';
+				}
+
+				if($Row->st_leg_type=="D" && $to_loc=='')
+				{
+					$to_loc .= (isset($Row->st_street) && !empty($Row->st_street))?$Row->st_street.', ':'';
+					$to_loc .= (isset($Row->st_city) && !empty($Row->st_city))?$Row->st_city:'';
+				}
+					
+			}
+
+			$location_data['from_loc'] = $from_loc;
+			$location_data['to_loc']   = $to_loc;
+		}		
+		return $location_data;
+	}	
+}
+?>

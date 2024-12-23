@@ -1,0 +1,370 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 08-Apr-2014
+# File description: Animal_breeds(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Animal_breeds extends CI_Controller {
+
+	/**
+	 * Index Page for this controller.
+	 *
+	 * Maps to the following URL
+	 * 		http://example.com/index.php/welcome
+	 *	- or -  
+	 * 		http://example.com/index.php/welcome/index
+	 *	- or -
+	 * Since this controller is set as the default controller in 
+	 * config/routes.php, it's displayed at http://example.com/
+	 *
+	 * So any other public methods not prefixed with an underscore will
+	 * map to /index.php/welcome/<method_name>
+	 * @see http://codeigniter.com/user_guide/general/urls.html
+	 */
+	public function __construct()
+    {
+		parent::__construct();
+		$this->load->library('common_function');		
+		$this->load->library('pagination');		
+		$this->load->library('form_validation');	
+		$this->load->model('animal_model');
+		$this->load->model('common_model');
+		$this->load->helper(array('form', 'url'));	  	
+	}	
+	public function index()
+	{
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$this->session->unset_userdata('searchadmin');	
+		$this->page();		
+	}
+	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';	
+		
+		
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='type';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtsearch') || ($this->input->post('action') == 'search'))
+		{
+			//echo $this->input->post('txtsearch'); die;
+			
+			if($this->session->userdata('searchadmin'))
+				$this->session->unset_userdata('searchadmin');			
+				
+			$name = trim(addslashes($this->input->post('txtsearch')));	 
+			$this->session->set_userdata('searchadmin',$name);						
+		}		
+
+		$rec_per_page =	  $this->config->item('per_page');
+		
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->animal_model->get_total_animal_breed($this->session->userdata('searchadmin'));
+		// GET PAGE LIST RESULT HERE
+		
+		$data['animal_list']	= $this->animal_model->get_animal_breed($sort,$order,$limit,$rec_per_page,$this->session->userdata('searchadmin'));
+		
+		//echo '<pre>'; print_r($data['animal_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'animal_breeds/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);	
+		$data['per_page'] = $config['per_page'];
+		
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Animal Breed Information Available.';
+		}
+		
+		$this->load->view('animal-breeds-manage',$data);
+	}
+	
+	
+	function animal_breed_delete($animalbreedId=false,$typeId=false)
+	{		
+	
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}		
+		$breedcount	=	$this->animal_model->delete_animal_breed($animalbreedId,$typeId);		
+		$this->animal_model->updateAnimalTypes($breedcount);			
+		$this->session->set_flashdata('success', 'Animal Breed information has been deleted successfully.');			
+		redirect($this->config->item('admin_base_url').'animal_breeds');
+		
+	}
+	
+	
+	
+	
+	function delete_multiple_animal_breed()
+	{   
+	    
+		$animalbreed_ids = $this->input->post('animalbreedid');		
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));	
+		}
+	
+		if(!empty($animalbreed_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->animal_model->delete_multiple_animal_breed($animalbreed_ids);
+			
+			//$animaltypeIds	= $this->animal_model->FindAnimalTypeIds($animalbreed_ids);
+			//echo '<pre>'; print_r($animaltypeIds); die; 
+			//$breedcounts	=	$this->animal_model->breedcounts($animaltypeIds);	
+			//echo '<pre>'; print_r($breedcounts); die; 
+			//$this->animal_model->updateAnimalTypesBreedCounts($breedcounts,$animaltypeIds);			
+			
+			$this->session->set_flashdata('success', 'Animal(s) Breed information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'animal_breeds/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	
+		
+	
+	function animal_breed_edit($animalbreedId=false)
+	{		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		$data['Err_Msg']	=	'';		
+		$form_field	=	array('name'		=> "",
+							  'active'		=>	"",
+							  'animaltype'	=>	""									 								  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+		$data['animal_type'] = $this->common_model->get_animal_types();
+		//echo '<pre>'; print_r($data['animal_type']); die;	
+		$data['animal_breed_details'] = $this->animal_model->get_animal_breed_profile($animalbreedId);			
+		
+		//echo '<pre>'; print_r($data['animal_breed_details']); die;
+		if($this->input->post('action')=='Edit')
+		{  
+			//Validation rules
+						$animalbreedId			      = $this->input->post('animalbreedId');
+						$data['animal_breed_details'] = $this->animal_model->get_animal_breed_profile($animalbreedId);	
+			
+						foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+						}
+						$this->form_validation->set_rules('animaltype', 'Animal type', 'trim|required');			
+						$this->form_validation->set_rules('name', 'Animal breed', 'trim|required');				
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{  
+						$data['Err_Msg'] = validation_errors();						
+						$data['animal_breed_details'] = $this->animal_model->get_animal_breed_profile($animalbreedId);					
+						$this->load->view('animal-breeds-edit',$data);	
+				}
+			
+			else
+			{ 		    $animalbreedId									=	$this->input->post('animalbreedId');	
+						$animalbreed_info 								=   array();	
+						$animalbreed_info['in_animal_breed_id'] 		=	$animalbreedId;					
+						$animalbreed_info['st_animal_breed_name'] 		=	$this->input->post('name');
+						$animalbreed_info['in_animal_type_id'] 		    =	$this->input->post('animaltype');
+						$animalbreed_info['in_status'] 					=	$this->input->post('active');								
+						$animalbreed_info['dt_modified'] 				= 	date('Y-m-d H:i:s');
+						
+						
+						
+						$name1	=	$this->input->post('name1'); 		
+						$name	=	$this->input->post('name'); 	
+						$animaltype	=	$this->input->post('animaltype'); 	
+						 if($name!=$name1)
+						{  						
+							$check	=	$this->animal_model->is_breed_exists($this->input->post('name'),$animaltype);							
+						}
+						if($check){
+							$data['Err_Msg'] = 'Animal breed already exist.';									
+							$this->load->view('animal-breeds-edit',$data);	
+							}				
+						else
+						{
+						//Updating admin data
+						$breedcount	= $this->animal_model->update_animal_breed_info($animalbreed_info,$animalbreedId,'tbl_animal_breed');
+						//echo '<pre>'; print_r($breedcount); die;	
+						$this->animal_model->updateAnimalTypes($breedcount);	
+						//echo '<pre>'; print_r($breedcount); die;				
+						$this->session->set_flashdata('message', 'You have successfully updated animal breed!');					
+						redirect(site_url('animal_breeds/animal_breed_edit/'.$animalbreedId));
+						}
+				
+			}
+		}
+		
+		else
+		{			
+						$this->load->view('animal-breeds-edit',$data);
+		}
+	}
+	
+	
+	
+	
+	
+	function animal_breed_add()
+	{		 
+	     if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }
+		
+		$data			 =	array();
+		
+		$form_field	=	array('name'		=> "",	
+							  'active'		=> "",
+							  'animaltype'	=> ""			  
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}	
+		$data['animal_type'] = $this->common_model->get_animal_types();			
+		
+		if($this->input->post('action')=='Add')
+		{  
+			
+			// validation starts
+			foreach ($form_field as $key => $value) {	
+				$data['add'][$key] = $this->input->post($key);	
+			}
+			
+			    $this->form_validation->set_rules('animaltype', 'Animal type', 'trim|required');	
+				$this->form_validation->set_rules('name', 'Animal breed', 'trim|required');				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						foreach ($form_field as $key => $value) {	
+							$data['add'][$key] = $this->input->post($key);	
+						}
+						
+						
+						$data['Err_Msg'] = validation_errors();												
+						$this->load->view('animal-breeds-add',$data);	
+				}
+			else
+			{  		
+			            $name	=	$this->input->post('name'); 
+						$animaltype	=	$this->input->post('animaltype'); 
+						$check	=	$this->animal_model->is_breed_exists($name,$animaltype);
+						if($check)
+						{  
+						    $data['Err_Msg']	=	'Animal breed already exist.';
+							$this->load->view('animal-breeds-add',$data);	
+						}
+						else
+						{
+							$breedcount	=	$this->animal_model->insertAnimalBreeds($data['add']); 						
+											$this->animal_model->updateAnimalTypes($breedcount);										
+							$this->session->set_flashdata('message', 'You have successfully created animal breed!');							
+							redirect(site_url('animal_breeds/animal_breed_add'));	
+						}
+			}			
+		}
+		else
+		{		     
+			$this->load->view('animal-breeds-add',$data);
+			
+		}		
+	}
+	
+}
+
+/* End of file animal_types.php */
+/* Location: ./application/controllers/animal_types.php */

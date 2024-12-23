@@ -1,0 +1,634 @@
+<?php
+# ======================================================================================
+# Created by		: Ghanshyam Maurya
+# Created date		: 15-Sept-2016
+# File description	: User Map Model
+# Special - notes	: none
+# Tables used		: none
+# Stored procedures	: none 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class user_map_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	# *******************************************************************************************	
+	#	Function	:	get_driver_users	
+	#	Purpose		:	Getting all driver users from site
+	# *******************************************************************************************	
+	
+	function get_driver_users($str='') {
+		$this->db->select("u.in_user_id, up.st_driver, up.st_pilot, up.st_foster_home, up.st_photographer,up.st_in_person_volunteer, up.st_virtual_support_volunteer
+, CONCAT(u.st_display_name,' ',u.st_last_name) AS name, u.st_email, up.st_address1, up.st_address2, up.st_city, up.st_state, up.st_country, up.st_zip AS address
+, z.lat AS lat, z.lon AS lon, uv.in_distance_to_drive",false);
+		$this->db->from('tbl_users as u');
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_user_vehicle as uv','u.in_user_id = uv.in_user_id AND uv.in_status = 1 AND uv.in_deleted = 0','INNER');
+		$this->db->join('tbl_zip_code as z','up.st_zip = z.zip_code','LEFT');
+		$this->db->where('u.in_status',1);
+		$this->db->where('u.in_public',1);
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('up.st_driver','Y');
+		$this->db->group_by('u.in_user_id');
+		
+		$query = $this->db->get();
+		
+		//echo $this->db->last_query();die;	
+		
+		foreach($query->result_array() as $row) {
+			
+			$role = ($row['st_driver']=='Y')?'Driver':'';
+			$role .= ($row['st_pilot'] == 'Y')?'Pilot':'';
+			$role .= ($row['st_foster_home']=='Y')?'Foster Home':'';
+		
+			$img = '';
+			
+			if(strlen($role) == 11 && $role == "Foster Home") {
+				$role = substr_replace($role,'Foster Home',0);
+				$img = 'foster.png';
+			} else if(strlen($role) == 11 && $role == "DriverPilot"){
+				$role = substr_replace($role,' & Pilot',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',5);
+				$img = 'multi.png';
+			} else if(strlen($role) == 6) {
+				$img='driver.png';
+			} else if(strlen($role) == 5) {
+				$img='pilot.png';
+			} else if(strlen($role) == 0) {
+				$img='volunteer.png';
+			}
+			
+			$data[] = array(	'user_id'			=>	$row['in_user_id'],
+								'name'				=>	$row['name'],
+								'address'			=>	$row['address'],
+								'lat'				=>	$row['lat'],	
+								'lon'				=>	$row['lon'],
+								'img'				=>	($str=='0')?$img:$this->common_function->roles[$str],
+								'drive_distance'	=>	$this->get_drive_distance($row['in_user_id']),
+								'fly_distance'		=>	$this->get_fly_distance($row['in_user_id']),
+								'role'				=>	$role,
+								'st_driver'			=>	$row['st_driver'],
+								'st_pilot'			=>	$row['st_pilot'],
+								'st_foster_home'	=>	$row['st_foster_home'],
+ 								'st_photographer'   =>  $row['st_photographer'],
+								'in_person_volunteer' => $row['st_in_person_volunteer'],
+								'st_virtual_support_volunteer' => $row['st_virtual_support_volunteer'],
+								'zip'				=>  $row['address'],
+								'st_email'			=>  $row['st_email'],
+							);
+
+		}
+			//echo $this->db->last_query();die;		
+			//echo "<pre>";print_r($data);die;
+		return $data;
+	}
+	
+	function get_pilots_users($str='')
+	{
+		$this->db->select("u.in_user_id, up.st_driver, up.st_pilot, up.st_foster_home, up.st_photographer,up.st_in_person_volunteer, up.st_virtual_support_volunteer
+, CONCAT(u.st_display_name,' ',u.st_last_name) AS name, u.st_email, up.st_address1, up.st_address2, up.st_city, up.st_state, up.st_country, up.st_zip AS address
+, z.lat AS lat, z.lon AS lon, tup.in_distance_to_pilot",false);
+		$this->db->from('tbl_users as u');
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_user_pilot as tup','u.in_user_id = tup.in_user_id AND tup.in_status = 1 AND tup.in_deleted = 0','INNER');
+		$this->db->join('tbl_zip_code as z','up.st_zip = z.zip_code','LEFT');
+		$this->db->where('u.in_status',1);
+		$this->db->where('u.in_public',1);
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('up.st_pilot','Y');
+		$this->db->group_by('u.in_user_id');
+		
+		$query = $this->db->get();
+		
+		//echo $this->db->last_query();die;	
+		
+		foreach($query->result_array() as $row) {
+			
+			$role = ($row['st_driver']=='Y')?'Driver':'';
+			$role .= ($row['st_pilot'] == 'Y')?'Pilot':'';
+			$role .= ($row['st_foster_home']=='Y')?'Foster Home':'';
+		
+			$img = '';
+			
+			if(strlen($role) == 11 && $role == "Foster Home") {
+				$role = substr_replace($role,'Foster Home',0);
+				$img = 'foster.png';
+			} else if(strlen($role) == 11 && $role == "DriverPilot"){
+				$role = substr_replace($role,' & Pilot',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',5);
+				$img = 'multi.png';
+			} else if(strlen($role) == 6) {
+				$img='driver.png';
+			} else if(strlen($role) == 5) {
+				$img='pilot.png';
+			} else if(strlen($role) == 0) {
+				$img='volunteer.png';
+			}
+			
+			$data[] = array(	'user_id'			=>	$row['in_user_id'],
+								'name'				=>	$row['name'],
+								'address'			=>	$row['address'],
+								'lat'				=>	$row['lat'],	
+								'lon'				=>	$row['lon'],
+								'img'				=>	($str=='0')?$img:$this->common_function->roles[$str],
+								'drive_distance'	=>	$this->get_drive_distance($row['in_user_id']),
+								'fly_distance'		=>	$this->get_fly_distance($row['in_user_id']),
+								'role'				=>	$role,
+								'st_driver'			=>	$row['st_driver'],
+								'st_pilot'			=>	$row['st_pilot'],
+								'st_foster_home'	=>	$row['st_foster_home'],
+ 								'st_photographer'   =>  $row['st_photographer'],
+								'in_person_volunteer' => $row['st_in_person_volunteer'],
+								'st_virtual_support_volunteer' => $row['st_virtual_support_volunteer'],
+								'zip'				=>  $row['address'],
+								'st_email'			=>  $row['st_email'],
+							);
+
+		}
+			//echo $this->db->last_query();die;		
+			//echo "<pre>";print_r($data);die;
+		return $data;
+	}
+	
+	
+	function get_fosters_users($str='')
+	{
+		$this->db->select("u.in_user_id, up.st_driver, up.st_pilot, up.st_foster_home, up.st_photographer,up.st_in_person_volunteer, up.st_virtual_support_volunteer
+, CONCAT(u.st_display_name,' ',u.st_last_name) AS name, u.st_email, up.st_address1, up.st_address2, up.st_city, up.st_state, up.st_country, up.st_zip AS address
+, z.lat AS lat, z.lon AS lon",false);
+		$this->db->from('tbl_users as u');
+		$this->db->join('tbl_user_profile as up','u.in_user_id = up.in_user_id','INNER');
+		$this->db->join('tbl_foster_user_detail as fud','u.in_user_id = fud.in_user_id AND fud.in_deleted = 0','INNER');
+		$this->db->join('tbl_zip_code as z','up.st_zip = z.zip_code','LEFT');
+		$this->db->where('u.in_status',1);
+		$this->db->where('u.in_public',1);
+		$this->db->where('u.in_deleted',0);
+		$this->db->where('up.st_foster_home','Y');
+		$this->db->group_by('u.in_user_id');
+		
+		$query = $this->db->get();
+		
+		//echo $this->db->last_query();die;	
+		
+		foreach($query->result_array() as $row) {
+			
+			$role = ($row['st_driver']=='Y')?'Driver':'';
+			$role .= ($row['st_pilot'] == 'Y')?'Pilot':'';
+			$role .= ($row['st_foster_home']=='Y')?'Foster Home':'';
+		
+			$img = '';
+			
+			if(strlen($role) == 11 && $role == "Foster Home") {
+				$role = substr_replace($role,'Foster Home',0);
+				$img = 'foster.png';
+			} else if(strlen($role) == 11 && $role == "DriverPilot"){
+				$role = substr_replace($role,' & Pilot',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',5);
+				$img = 'multi.png';
+			} else if(strlen($role) == 6) {
+				$img='driver.png';
+			} else if(strlen($role) == 5) {
+				$img='pilot.png';
+			} else if(strlen($role) == 0) {
+				$img='volunteer.png';
+			}
+			
+			$data[] = array(	'user_id'			=>	$row['in_user_id'],
+								'name'				=>	$row['name'],
+								'address'			=>	$row['address'],
+								'lat'				=>	$row['lat'],	
+								'lon'				=>	$row['lon'],
+								'img'				=>	($str=='0')?$img:$this->common_function->roles[$str],
+								'drive_distance'	=>	$this->get_drive_distance($row['in_user_id']),
+								'fly_distance'		=>	$this->get_fly_distance($row['in_user_id']),
+								'role'				=>	$role,
+								'st_driver'			=>	$row['st_driver'],
+								'st_pilot'			=>	$row['st_pilot'],
+								'st_foster_home'	=>	$row['st_foster_home'],
+ 								'st_photographer'   =>  $row['st_photographer'],
+								'in_person_volunteer' => $row['st_in_person_volunteer'],
+								'st_virtual_support_volunteer' => $row['st_virtual_support_volunteer'],
+								'zip'				=>  $row['address'],
+								'st_email'			=>  $row['st_email'],
+							);
+
+		}
+			//echo $this->db->last_query();die;		
+			//echo "<pre>";print_r($data);die;
+		return $data;
+	}
+	
+	function get_shelters_users()
+	{
+		$this->db->select('o.st_org_name,o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_country,o.st_zip,z.lat,z.lon,o.st_email_address,o.in_organization_id');
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_organization_setting as os','o.in_organization_id = os.in_organization_id','LEFT');
+		$this->db->join('tbl_zip_code as z','o.st_zip = z.zip_code','LEFT');
+		$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','INNER');
+		$this->db->where('(os.in_public = 0 OR os.in_public IS NULL)');
+		$this->db->where('o.in_deleted',0);
+		$this->db->where('o.in_status',1);
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;		
+		foreach($query->result_array() as $row) {
+			$data[] = array('name'				=> $row['st_org_name'],	
+							'lat' 				=> $row['lat'],
+							'lon' 				=> $row['lon'],
+							'address' 			=> $row['st_address1'].', '.$row['st_address2'].', '.$row['st_city'].', '.$row['st_state'].', '.$row['st_country'].', '.$row['st_zip'],
+							'img'				=> 'shelters.png',
+							'drive_distance'	=>	'',
+							'fly_distance'		=>	'',
+							'role'				=>	'organization',
+							'zip'               =>  $row['st_zip'],
+							'st_email'			=>  $row['st_email_address'],
+							'org_id'			=>  $row['in_organization_id']
+							);
+		}
+		
+		return $data;
+	}
+	
+	function get_multiroles_users($str='')
+	{
+		$sql = "SELECT ";		
+		$sql .= "up.st_driver,
+				up.st_pilot,
+				up.st_foster_home,
+				up.st_photographer,up.st_in_person_volunteer, up.st_virtual_support_volunteer,
+				u.in_user_id,
+				concat(u.st_display_name,' ',u.st_last_name) as name,
+				u.st_email,
+				up.st_address1,
+				up.st_address2,
+				up.st_city,
+				up.st_state,
+				up.st_country,
+				up.st_zip as address,
+				z.lat as lat,
+				z.lon as lon
+			FROM tbl_users u 
+			INNER JOIN tbl_user_profile as up
+				ON 
+			u.in_user_id = up.in_user_id
+			LEFT JOIN tbl_zip_code as z
+				ON
+			up.st_zip = z.zip_code
+			WHERE
+			u.in_status = 1 AND
+			u.in_public = 1 AND
+			u.in_deleted = 0";
+								
+		$sql .= ' AND ((up.st_driver = "Y" AND up.st_foster_home = "Y")'; 
+		$sql .= ' OR (up.st_driver ="Y" AND up.st_pilot = "Y")'; 
+		$sql .= ' OR (up.st_foster_home ="Y" AND up.st_pilot = "Y"))';
+	
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();
+		//die();
+		foreach($query->result_array() as $row) {
+			
+			$role = ($row['st_driver']=='Y')?'Driver':'';
+			$role .= ($row['st_pilot'] == 'Y')?'Pilot':'';
+			$role .= ($row['st_foster_home']=='Y')?'Foster Home':'';
+		
+			$img = '';
+			
+			if(strlen($role) == 11 && $role == "Foster Home") {
+				$role = substr_replace($role,'Foster Home',0);
+				$img = 'foster.png';
+			} else if(strlen($role) == 11 && $role == "DriverPilot"){
+				$role = substr_replace($role,' & Pilot',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',5);
+				$img = 'multi.png';
+			} else if(strlen($role) == 6) {
+				$img='driver.png';
+			} else if(strlen($role) == 5) {
+				$img='pilot.png';
+			} else if(strlen($role) == 0) {
+				$img='volunteer.png';
+			}
+			
+			$data[] = array(	'user_id'			=>	$row['in_user_id'],
+								'name'				=>	$row['name'],
+								'address'			=>	$row['address'],
+								'lat'				=>	$row['lat'],	
+								'lon'				=>	$row['lon'],
+								'img'				=>	($str=='0')?$img:$this->common_function->roles[$str],
+								'drive_distance'	=>	$this->get_drive_distance($row['in_user_id']),
+								'fly_distance'		=>	$this->get_fly_distance($row['in_user_id']),
+								'role'				=>	$role,
+								'st_driver'			=>	$row['st_driver'],
+								'st_pilot'			=>	$row['st_pilot'],
+								'st_foster_home'	=>	$row['st_foster_home'],
+ 								'st_photographer'   =>  $row['st_photographer'],
+								'in_person_volunteer' => $row['st_in_person_volunteer'],
+								'st_virtual_support_volunteer' => $row['st_virtual_support_volunteer'],
+								'zip'				=>  $row['address'],
+								'st_email'			=>  $row['st_email'],
+							);
+
+		}
+			//echo $this->db->last_query();die;		
+			//echo "<pre>";print_r($data);die;
+		return $data;
+	}
+	
+	function get_volunteers_users($str='')
+	{
+		$sql = "SELECT ";		
+		$sql .= "up.st_driver,
+				up.st_pilot,
+				up.st_foster_home,
+				up.st_photographer,up.st_in_person_volunteer, up.st_virtual_support_volunteer,
+				u.in_user_id,
+				concat(u.st_display_name,' ',u.st_last_name) as name,
+				u.st_email,
+				up.st_address1,
+				up.st_address2,
+				up.st_city,
+				up.st_state,
+				up.st_country,
+				up.st_zip as address,
+				z.lat as lat,
+				z.lon as lon
+			FROM tbl_users u 
+			INNER JOIN tbl_user_profile as up
+				ON 
+			u.in_user_id = up.in_user_id
+			LEFT JOIN tbl_zip_code as z
+				ON
+			up.st_zip = z.zip_code
+			WHERE
+			u.in_status = 1 AND
+			u.in_public = 1 AND
+			u.in_deleted = 0";
+			
+		$query = $this->db->query($sql);	
+		foreach($query->result_array() as $row) {
+			
+			$role = ($row['st_driver']=='Y')?'Driver':'';
+			$role .= ($row['st_pilot'] == 'Y')?'Pilot':'';
+			$role .= ($row['st_foster_home']=='Y')?'Foster Home':'';
+		
+			$img = '';
+			
+			if(strlen($role) == 11 && $role == "Foster Home") {
+				$role = substr_replace($role,'Foster Home',0);
+				$img = 'foster.png';
+			} else if(strlen($role) == 11 && $role == "DriverPilot"){
+				$role = substr_replace($role,' & Pilot',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',5);
+				$img = 'multi.png';
+			} else if(strlen($role) == 6) {
+				$img='driver.png';
+			} else if(strlen($role) == 5) {
+				$img='pilot.png';
+			} else if(strlen($role) == 0) {
+				$img='volunteer.png';
+			}
+			
+			$data[] = array(	'user_id'		=>	$row['in_user_id'],
+								'name'				=>	$row['name'],
+								'address'			=>	$row['address'],
+								'lat'				=>	$row['lat'],	
+								'lon'				=>	$row['lon'],
+								'img'				=>	($str=='0')?$img:$this->common_function->roles[$str],
+								'role'				=>	$role,
+								'st_driver'			=>	$row['st_driver'],
+								'st_pilot'			=>	$row['st_pilot'],
+								'st_foster_home'	=>	$row['st_foster_home'],
+ 								'st_photographer'   =>  $row['st_photographer'],
+								'in_person_volunteer' => $row['st_in_person_volunteer'],
+								'st_virtual_support_volunteer' => $row['st_virtual_support_volunteer'],
+								'zip'				=>  $row['address'],
+								'st_email'			=>  $row['st_email'],
+							);
+
+		}
+		//	echo $this->db->last_query();die;		
+			//echo "<pre>";print_r($data);die;
+		return $data;
+		
+	}	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_drive_distance	
+	#	Purpose		:	Getting drive distance of user
+	# *******************************************************************************************
+	
+	public function get_drive_distance($user_id) {
+		$query = $this->db->query('SELECT in_distance_to_drive
+									FROM 
+										tbl_user_vehicle 
+									WHERE
+										in_user_id = '.$user_id.'
+									AND
+										in_status = 1
+									AND
+										in_deleted = 0'
+								);
+		$data = $query->row_array();
+		return (isset($data['in_distance_to_drive']))?$data['in_distance_to_drive']:'';
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_drive_distance	
+	#	Purpose		:	Getting air distance of user
+	# *******************************************************************************************
+	
+	public function get_fly_distance($user_id) {
+		$query = $this->db->query('SELECT in_distance_to_pilot
+									FROM 
+										tbl_user_pilot 
+									WHERE
+										in_user_id = '.$user_id.'
+									AND
+										in_status = 1
+									AND
+										in_deleted = 0'
+								);
+		$data = $query->row_array();
+		return (isset($data['in_distance_to_pilot']))?$data['in_distance_to_pilot']:'';
+	}
+	
+	
+	public function get_user_verified($id) {
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_verification');
+		$this->db->where('in_user_id',$id);
+		$this->db->where('fl_doobert_verified',1);
+		
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	
+	function get_all_volunteers_users($str='')
+	{
+		$sql = "SELECT ";		
+		$sql .= "up.st_driver,
+				up.st_pilot,
+				up.st_foster_home,
+				up.st_photographer,up.st_in_person_volunteer, up.st_virtual_support_volunteer,
+				u.in_user_id,
+				concat(u.st_display_name,' ',u.st_last_name) as name,
+				u.st_email,
+				up.st_address1,
+				up.st_address2,
+				up.st_city,
+				up.st_state,
+				up.st_country,
+				up.st_zip as address,
+				z.lat as lat,
+				z.lon as lon
+			FROM tbl_users u 
+			INNER JOIN tbl_user_profile as up
+				ON 
+			u.in_user_id = up.in_user_id
+			LEFT JOIN tbl_zip_code as z
+				ON
+			up.st_zip = z.zip_code
+			WHERE
+			u.in_status = 1 AND
+			u.in_public = 1 AND
+			u.in_deleted = 0";
+			
+		$query = $this->db->query($sql);	
+		foreach($query->result_array() as $row) {
+			
+			$role = ($row['st_driver']=='Y')?'Driver':'';
+			$role .= ($row['st_pilot'] == 'Y')?'Pilot':'';
+			$role .= ($row['st_foster_home']=='Y')?'Foster Home':'';
+		
+			$img = '';
+			
+			if(strlen($role) == 11 && $role == "Foster Home") {
+				$role = substr_replace($role,'Foster Home',0);
+				$img = 'foster.png';
+			} else if(strlen($role) == 11 && $role == "DriverPilot"){
+				$role = substr_replace($role,' & Pilot',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 22) {
+				$role = substr_replace($role,', Pilot & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 17) {
+				$role = substr_replace($role,' & Foster Home',6);
+				$img = 'multi.png';
+			} else if(strlen($role) == 16) {
+				$role = substr_replace($role,' & Foster Home',5);
+				$img = 'multi.png';
+			} else if(strlen($role) == 6) {
+				$img='driver.png';
+			} else if(strlen($role) == 5) {
+				$img='pilot.png';
+			} else if(strlen($role) == 0) {
+				$img='volunteer.png';
+			}
+			
+			$data[] = array(	'user_id'			=>	$row['in_user_id'],
+								'name'				=>	$this->common_function->custom_addslashes($row['name']),
+								'address'			=>	$row['address'],
+								'lat'				=>	$row['lat'],	
+								'lon'				=>	$row['lon'],
+								'img'				=>	($str=='0')?$img:$this->common_function->roles[$str],
+								'role'				=>	$role,
+								'st_driver'			=>	$row['st_driver'],
+								'st_pilot'			=>	$row['st_pilot'],
+								'st_foster_home'	=>	$row['st_foster_home'],
+ 								'st_photographer'   =>  $row['st_photographer'],
+								'in_person_volunteer' => $row['st_in_person_volunteer'],
+								'st_virtual_support_volunteer' => $row['st_virtual_support_volunteer'],
+								'zip'				=>  $row['address'],
+								'st_email'			=>  $row['st_email'],
+							);
+
+		}
+			//echo $this->db->last_query();die;		
+			//echo "<pre>";print_r($data);die;
+		return $data;
+	}
+	
+	function get_all_shelters_users()
+	{
+		$this->db->select('o.st_org_name,o.st_address1,o.st_address2,o.st_city,o.st_state,o.st_country,o.st_zip,z.lat,z.lon,o.st_email_address,o.in_organization_id,u.in_user_id');
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_organization_setting as os','o.in_organization_id = os.in_organization_id','LEFT');
+		$this->db->join('tbl_zip_code as z','o.st_zip = z.zip_code','LEFT');
+		$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','INNER');
+		$this->db->where('(os.in_public = 0 OR os.in_public IS NULL)');
+		$this->db->where('o.in_deleted',0);
+		$this->db->where('o.in_status',1);
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;		
+		foreach($query->result_array() as $row) {
+			$data[] = array('user_id'			=> $row['in_user_id'],
+							'name'				=> $row['st_org_name'],	
+							'lat' 				=> $row['lat'],
+							'lon' 				=> $row['lon'],
+							'address' 			=> $row['st_address1'].', '.$row['st_address2'].', '.$row['st_city'].', '.$row['st_state'].', '.$row['st_country'].', '.$row['st_zip'],
+							'img'				=> 'shelters.png',
+							'drive_distance'	=> '',
+							'fly_distance'		=> '',
+							'role'				=> 'organization',
+							'zip'               => $row['st_zip'],
+							'st_email'			=> $row['st_email_address'],
+							'org_id'			=> $row['in_organization_id']
+							);
+		}
+		
+		return $data;
+	}
+	
+	public function get_state_by_zipcode($zip)
+	{
+		$this->db->select('city,state_prefix,st_country');
+		$this->db->from('tbl_zip_code');        
+		$this->db->where('zip_code', $zip);		
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+}
+?>

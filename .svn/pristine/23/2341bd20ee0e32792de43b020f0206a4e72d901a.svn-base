@@ -1,0 +1,533 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 01-May-2014
+# File description	: campaign Model for admin
+# Special - notes	: none
+# Tables used		: tbl_organization
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class campaign_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#=====================================================================
+	#	Function	:	get_total_campaign()
+	#  Parameter	: 	name,title,type,fromdate,todate
+	#	Perpose		:	to count no of campaign details
+	#---------------------------------------------------------------------
+	
+	public function get_total_campaign($name='',$title='',$type='',$fromdate='',$todate='')
+	{ 			
+			
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31')  {$todate='';  }	
+		
+					$this->db->select("camp.in_campaign_id,a.in_animal_id", false);						   	
+					$this->db->from('tbl_campaign camp');
+					$this->db->join('tbl_animal a', 'camp.in_animal_id = a.in_animal_id AND a.in_deleted = 0','LEFT');
+					$this->db->join('tbl_users usr', 'camp.in_created_by = usr.in_user_id AND usr.in_deleted = 0','LEFT');
+					$this->db->join('tbl_organization as o','o.in_organization_id = camp.in_organization_id','INNER');
+					$this->db->where('camp.in_deleted','0');				
+					$this->db->where('camp.in_status <>','4');
+					$this->db->where('o.in_status',1);
+					$this->db->where('o.in_deleted',0);
+					//if(trim($name) != '') {
+//							$this->db->where("a.st_animal_name LIKE '%".$name."%'", NULL, FALSE);
+//					}
+
+
+					if(trim($name) != '') {
+						$name = str_replace("%","\%",$name);
+						$this->db->where("a.st_animal_name LIKE '%".$name."%'", NULL, FALSE);
+					}
+
+					if(trim($title) != '') {
+						$title = str_replace("%","\%",$title);
+						$this->db->where("camp.st_page_title LIKE '%".$title."%'", NULL, FALSE);
+					}
+					
+					if(trim($type) != '') {
+						$type = str_replace("%","\%",$type);
+						$this->db->where("camp.st_campaign_type LIKE '%".$type."%'", NULL, FALSE);
+					}
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("camp.dt_created >= '".$fromdate."' AND camp.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					$query = $this->db->get();
+					
+					//echo $this->db->last_query(); die;	
+					
+					return $query->num_rows();
+	}
+	
+	#====================================================================================================
+	#	Function	:	get_campaign()
+	#  Parameter	: 	sort,order,limit,rec_per_page,name,title,type,fromdate,todate
+	#	Perpose		:	to get campaign details
+	#----------------------------------------------------------------------------------------------------
+	public function get_campaign($sort,$order,$limit,$rec_per_page,$name,$title,$type,$fromdate,$todate)
+	{
+		//echo $fromdate;die;
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31'){$todate='';  }
+					  
+					    $this->db->select("camp.in_campaign_id,
+											camp.st_campaign_type,
+											camp.st_page_title,
+											camp.st_custom_url,
+											camp.in_goal_fund,
+											(SELECT SUM(in_donation_amount) FROM  tbl_campaign_donation WHERE in_campaign_id=camp.in_campaign_id AND in_status IN('1','2') AND in_deleted='0') as in_fund_raised,
+											camp.in_status,										
+											camp.dt_campaign_start,
+											camp.dt_campaign_end,
+											camp.dt_created,
+											camp.dt_modified,
+											camp.in_display_home,	
+											a.st_animal_name,
+											a.in_animal_id,									
+											concat(usr.st_display_name, ' ',usr.st_last_name) as st_display_name", false);
+																   	
+						$this->db->from('tbl_campaign camp');
+						$this->db->join('tbl_animal a', 'camp.in_animal_id = a.in_animal_id AND a.in_deleted = 0','LEFT');
+						$this->db->join('tbl_users usr', 'camp.in_created_by = usr.in_user_id AND usr.in_deleted = 0','LEFT');
+						$this->db->join('tbl_organization as o','o.in_organization_id = camp.in_organization_id','INNER');
+						$this->db->where('camp.in_deleted','0');
+						$this->db->where('camp.in_status <>','4');					  
+						$this->db->where('o.in_status',1);
+						$this->db->where('o.in_deleted',0);
+				
+						if(trim($name) != '') {
+							$name = str_replace("%","\%",$name);
+							$this->db->where("a.st_animal_name LIKE '%".$name."%'", NULL, FALSE);
+						}
+						//if(trim($title) != '') {
+								//$this->db->where("camp.st_page_title LIKE '%".$title."%'", NULL, FALSE);
+						//}
+						
+						
+						if(trim($title) != '') {
+							$title = str_replace("%","\%",$title);
+							$this->db->where("camp.st_page_title LIKE '%".$title."%'", NULL, FALSE);
+						}
+						if(trim($type) != '') {
+								$type = str_replace("%","\%",$type);
+								$this->db->where("camp.st_campaign_type LIKE '%".$type."%'", NULL, FALSE);
+						}
+						if($fromdate!='' && $todate!='') {
+								$this->db->where("camp.dt_created >= '".$fromdate."' AND camp.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+						}
+		
+					switch($sort)
+						{
+							
+							case 'name': 
+								$this->db->order_by('a.st_animal_name',$order);
+							break;
+							
+							case 'campaignId': 
+								$this->db->order_by('camp.in_campaign_id',$order);
+							break;
+								
+							case 'title': 								
+								$this->db->order_by('camp.st_page_title',$order);
+							break;
+							
+							case 'type': 								
+								$this->db->order_by('camp.st_campaign_type',$order);
+							break;
+							
+							/*case 'days': 
+								$sql .= " ORDER BY camp.st_has_501c3 " . $order;
+							break;*/
+							case 'status':
+								
+								$this->db->order_by('camp.in_status',$order);
+							break;
+							
+							case 'createdate': 								
+								$this->db->order_by('camp.dt_created',$order);
+							break;	
+							
+							
+							case 'modifieddate': 								
+								$this->db->order_by('camp.dt_modified',$order);
+							break;	
+							
+							case 'createby': 							
+								$this->db->order_by('usr.st_display_name',$order);
+							break;
+							
+							case 'goalfund': 								
+								$this->db->order_by('camp.in_goal_fund',$order);
+							break;
+							
+							case 'fundraised': 								
+								$this->db->order_by(' camp.in_fund_raised',$order);
+							break;								
+							
+							default:							
+							//$this->db->order_by('a.st_animal_name',$order);
+							$this->db->order_by('camp.in_campaign_id',$order);
+							
+							break;
+								         
+						}				  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 					
+					//echo $this->db->last_query();  die;					
+					$arrCampaign = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{				
+									
+									/*$date1 = $Row->dt_campaign_end;
+									//$date2 = $Row->dt_campaign_start;
+									if($date1!= '0000-00-00'){
+										if($date1 <= date('Y-m-d'))
+										{
+											$days_remaining	=	'0';
+										}
+										else{
+									$days_remaining=(strtotime($date1) - (strtotime(date('Y-m-d'))))/(60 * 60 * 24); 
+									}
+									}
+									else
+									{
+										$days_remaining	=	'0';
+									}*/
+									
+						if($Row->campaign_end!='0000-00-00') {
+							
+								if(date('Y-m-d',strtotime($Row->dt_campaign_end)) > date('Y-m-d',strtotime(date('Y-m-d')))) {
+								$date1 = date_create($Row->dt_campaign_end);
+								//$date2 = date_create($row['campaign_start']);
+								$date2 = date_create(date('Y-m-d'));
+								$diff = date_diff($date2,$date1);
+								$days_remaining	= $diff->format("%a");
+							} else if(date('Y-m-d',strtotime($Row->dt_campaign_end)) == date('Y-m-d',strtotime(date('Y-m-d')))) {
+								$days_remaining	='0';
+							} else {
+								$days_remaining	='Expired';
+							}
+						} else {
+							$days_remaining	= '&nbsp;';
+						}
+									
+									if($Row->st_campaign_type == 'P')
+									{
+										$type =	'Pledge';
+									}
+									if($Row->st_campaign_type == 'D')
+									{
+										$type =	 'Donation';
+									}
+									
+									
+									
+							$arrCampaign[]	= array('in_campaign_id'	    => $Row->in_campaign_id,
+											'st_campaign_type'				=> $type,															
+											'st_page_title'				    => $Row->st_page_title,
+											'st_custom_url'				    => $Row->st_custom_url,
+											'in_goal_fund'					=> ($Row->in_goal_fund)?$Row->in_goal_fund:"0.00",
+											'in_fund_raised'				=> ($Row->in_fund_raised)?$Row->in_fund_raised:"0.00",											
+											'in_status' 					=> $Row->in_status,			
+											'days_remaining' 				=> $days_remaining,										
+											'dt_created' 			    	=> $Row->dt_created,
+											'dt_modified' 			    	=> $Row->dt_modified,
+											'in_display_home' 			   	=> $Row->in_display_home,
+											'st_animal_name' 				=> $Row->st_animal_name,
+											'in_animal_id' 					=> $Row->in_animal_id,
+											'st_display_name' 				=> $Row->st_display_name,
+											'campaign_end'					=> $Row->dt_campaign_end,
+											'campaign_start'				=> $Row->dt_campaign_start,
+											);
+						}
+						return $arrCampaign;
+						
+					}
+					
+					
+	}
+	
+	#============================================================
+	#	Function	:	delete_campaign()
+	#   Parameter	: 	campaignId
+	#	Perpose		:	to delete single campaign details
+	#------------------------------------------------------------
+	public function delete_campaign($campaignId)
+	{
+					$arrCampaign = 	array('in_deleted' 	=> '1');		
+					$this->db->where('in_campaign_id', $campaignId);
+					$this->db->update('tbl_campaign', $arrCampaign);		
+	}
+	
+	
+	
+	#============================================================
+	#	Function	:	delete_multiple_campaign()
+	#   Parameter	: 	campaignIds
+	#	Perpose		:	to delete multiple campaign details
+	#------------------------------------------------------------
+	public function delete_multiple_campaign($campaignIds)
+	{
+		//echo '<pre>'; print_r($campaignIds); die;
+		
+					$arrCampaign = 	array('in_deleted' 	=> '1');
+					$this->db->where_in('in_campaign_id', $campaignIds);
+					$this->db->update('tbl_campaign', $arrCampaign);		
+					return $this->db->affected_rows();
+	}
+	
+	public function update_campaign($campIds)
+	{
+					$arrCamp = 	array('in_display_home' 	=> '0');
+					$this->db->update('tbl_campaign', $arrCamp);	
+					
+					$arrCampaign = 	array('in_display_home' 	=> '1');
+					$this->db->where_in('in_campaign_id', $campIds);
+					$this->db->update('tbl_campaign', $arrCampaign);													
+					return $this->db->affected_rows();
+	}
+	
+	public function update_camp()
+	{  
+					$arrCamp = 	array('in_display_home' 	=> '0');
+					$this->db->update('tbl_campaign', $arrCamp);						
+					return $this->db->affected_rows();
+	}
+	
+	
+	
+	public function get_total_donation($campaignId='', $name='', $email='', $donation='', $fromdate='', $todate='')
+	{ 			
+		
+					if($fromdate=='1969-12-31'){$fromdate=''; }
+					if($todate=='1969-12-31')  {$todate='';  }	
+		
+					$this->db->select("don.in_donation_id", false);						   	
+					$this->db->from('tbl_campaign_donation don');
+					$this->db->join('tbl_campaign camp', 'camp.in_campaign_id = don.in_campaign_id','INNER');	
+					if($campaignId!=''){
+					$this->db->where('don.in_campaign_id',$campaignId);	
+					}						
+					$this->db->where('don.in_deleted','0');		
+					$this->db->where('camp.in_deleted','0');				
+					
+					if(trim($name) != '') {
+							$name = str_replace("%","\%",$name);
+							$this->db->where("don.st_firstname LIKE '%".$name."%'", NULL, FALSE);
+					}
+					
+					if(trim($email) != '') {
+							$email = str_replace("%","\%",$email);
+							$this->db->where("don.st_email LIKE '%".$email."%'", NULL, FALSE);
+					}
+					if(trim($donation) != '') {
+							$donation = str_replace("%","\%",$donation);
+							$this->db->where("don.in_donation_for = '".$donation."'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {
+							$this->db->where("don.dt_created >= '".$fromdate."' AND camp.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					$query = $this->db->get();
+					
+					//echo $this->db->last_query(); die;						
+					return $query->num_rows();
+	}
+	public function get_donation($sort,$order,$limit,$rec_per_page,$campaignId,$name,$email,$donation,$fromdate,$todate)
+	{			
+	
+					if($fromdate=='1969-12-31'){$fromdate='';  }
+					if($todate=='1969-12-31')  {$todate='';  }	
+					
+					$this->db->select("don.in_donation_id,
+									   camp.st_page_title,
+									   don.st_firstname,
+									   don.st_lastname,
+									   don.st_email,
+									   don.in_donation_for,
+									   don.dt_created,
+									   don.in_donation_amount,
+									   don.in_status", false);						   	
+					$this->db->from('tbl_campaign_donation don');
+					$this->db->join('tbl_campaign camp', 'camp.in_campaign_id = don.in_campaign_id','INNER');	
+					
+					if($campaignId!=''){
+					$this->db->where('don.in_campaign_id',$campaignId);	
+					}
+					$this->db->where('don.in_deleted','0');		
+					$this->db->where('camp.in_deleted','0');						
+							
+					
+					if(trim($name) != '') {		
+							$name = str_replace("%","\%",$name);				
+							$this->db->where("don.st_firstname LIKE '%".$name."%'", NULL, FALSE);
+					}
+					
+					if(trim($email) != '') {						
+						$email = str_replace("%","\%",$email);
+						$this->db->where("don.st_email LIKE '%".$email."%'", NULL, FALSE);
+					}
+					if(trim($donation) != '') {	
+						$donation = str_replace("%","\%",$donation);					
+						$this->db->where("don.in_donation_for = '".$donation."'", NULL, FALSE);
+					}
+					
+					if($fromdate!='' && $todate!='') {						
+							$this->db->where("don.dt_created >= '".$fromdate."' AND camp.dt_created <= '".$todate. ' 23:59:59'."'", NULL, FALSE);
+					}
+					
+					
+					
+					switch($sort)
+						{
+							
+							case 'name': 
+								$this->db->order_by('camp.st_page_title',$order);
+							break;
+							
+							case 'contname': 
+								$this->db->order_by('don.st_firstname',$order);
+							break;
+								
+							case 'email': 								
+								$this->db->order_by('don.st_email',$order);
+							break;
+							
+							case 'donationfor': 								
+								$this->db->order_by('don.in_donation_for',$order);
+							break;
+							
+							case 'createdate': 								
+								$this->db->order_by('don.dt_created',$order);
+							break;								
+														
+							case 'amount': 								
+								$this->db->order_by('don.in_donation_amount',$order);
+							break;
+							
+							case 'status':								
+								$this->db->order_by('don.in_status',$order);
+							break;														
+							
+							default:							
+							$this->db->order_by('camp.st_page_title',$order);
+							break;
+								         
+						}				  
+					  
+					  if(!isset($limit))
+						{
+							$limit=0;
+						}					
+					$this->db->limit($rec_per_page,$limit);		
+					$query = $this->db->get(); 					
+					//echo $this->db->last_query();  die;	
+					
+					$arrDonation = array();
+					
+					
+					if($query->num_rows()>0)
+					{  
+						foreach($query->result() as $Row)
+						{		
+								
+									if($Row->in_status == '0')
+									{
+										$status =	 'Pending';
+									}
+									if($Row->in_status == '1')
+									{
+										$status =	 'Received';
+									}
+									if($Row->in_status == '2')
+									{
+										$status =	 'Requested';
+									}
+									if($Row->in_donation_for == '0')
+									{
+										$donationfor =	 'General';
+									}
+									if($Row->in_donation_for == '1')
+									{
+										$donationfor =	 'Shelter Fees';
+									}
+									if($Row->in_donation_for == '2')
+									{
+										$donationfor =	 'Vet Bills';
+									}
+									if($Row->in_donation_for == '3')
+									{
+										$donationfor =	 'CVI';
+									}
+									if($Row->in_donation_for == '4')
+									{
+										$donationfor =	 'Gas Money';
+									}
+									
+									
+							$arrDonation[]	= array('in_donation_id'	    => $Row->in_donation_id,																								
+											'st_page_title'				    => $Row->st_page_title,			
+											'st_firstname'				    => $Row->st_firstname,		
+											'st_email'				        => $Row->st_email,		
+											'in_donation_for'				=> $donationfor,	
+											'dt_created'					=> $Row->dt_created,
+											'in_donation_amount'			=> $Row->in_donation_amount,
+											'in_status'						=> $status
+											);
+											//print_r($arrDonation);die;
+						}
+						
+						return $arrDonation;
+						
+						
+					}	
+			
+	}
+	#============================================================
+	#	Function	:	delete_multiple_donation()
+	#   Parameter	: 	donationIds
+	#	Perpose		:	to delete multiple donation details
+	#------------------------------------------------------------
+	function delete_multiple_donation($donationIds)
+	{	
+					$arrDonation = 	array('in_deleted' 	=> '1');
+					$this->db->where_in('in_donation_id', $donationIds);
+					$this->db->update('tbl_campaign_donation', $arrDonation);		
+					return $this->db->affected_rows();
+	}
+	
+	
+	function set_status($campId,$status)
+	{
+		if($status=='1'){
+			$stat='2';
+		}
+		
+		if($status=='2'){ 
+			$stat='1';
+		}		
+		
+		$arrCamp = 	array('in_status' 	=> $stat);
+					$this->db->where('in_campaign_id', $campId);
+					$this->db->update('tbl_campaign', $arrCamp);
+					echo $this->db->last_query();
+	}
+	
+}
+?>

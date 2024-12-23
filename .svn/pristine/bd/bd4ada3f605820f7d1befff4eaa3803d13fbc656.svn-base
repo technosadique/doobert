@@ -1,0 +1,3378 @@
+<?php 
+# ======================================================================================
+# Created by		: Jigar Patel
+# Created date		: 31-March-2013 
+# File description	: Organization Trasnportation Model for Transportation of organization
+# Special - notes	: none
+# Tables used		: tbl_users,tbl_user_profile
+# Stored procedures	: NONE 
+# Triggers used		: none 
+# --------------------------------------------------------------------------------------
+class trasnportation_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+		error_reporting(0);
+    }
+    
+	function index()
+	{
+	
+	}
+	
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_transport_list	
+	#	Purpose		:	Get Transportation list
+	# *******************************************************************************************	
+	
+	function get_transport_list($status,$date='',$params = array())
+	{		
+		
+		$this->db->select("	tr.dt_target,
+							tr.in_transportation_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_to_street,
+							tr.st_to_state,
+							tr.st_to_city,
+							tr.st_to_zip,
+							tr.in_tot_distance,
+							tr.in_distance_covered,
+							tr.st_trans_type,
+							tr.st_trans_name,
+							tr.in_status,
+							o.st_org_image,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							(SELECT count(in_animal_trans_id) FROM tbl_animal_transportation  WHERE in_deleted=0 AND in_transportation_id=tr.in_transportation_id) as animal_in_transport",FALSE);
+		//$where = array("tr.in_deleted"=>"0","tr.in_status"=>$status,"p.in_deleted"=>"0","p.in_user_id"=>$this->session->userdata('userid'));
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_transportation_participants p","p.in_transportation_id = tr.in_transportation_id ", "INNER");
+		$this->db->join("tbl_organization o","o.in_organization_id = tr.in_organization_id  AND o.in_deleted='0'", "INNER");
+		$this->db->join("tbl_transportation_leg tl","tr.in_transportation_id = tl.in_transportation_id AND tl.in_deleted='0'", "LEFT");
+		//$this->db->where($where);
+		
+		$where = '';
+		$where .= "tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid');
+		if($status == '1')
+		{
+			$where .= " AND ((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+		}
+		else if($status == '2')
+		{
+			$where .= " AND (tr.in_status = '2' && tr.dt_target < current_date())";
+		}
+		else
+		{
+			$where .= " AND tr.in_status = '".$status."'";
+		}
+		
+		$this->db->where($where);
+		
+		if(isset($date['from_date']) && $date['from_date'] != '')
+		{
+			$this->db->where('tr.dt_pickup_date >=', $date['from_date']);			
+		}
+		
+		if(isset($date['to_date']) && $date['to_date'] != '')
+		{
+			$this->db->where('tr.dt_pickup_date <=', $date['to_date']);
+		}
+		
+		$this->db->group_by("tr.in_transportation_id");
+		$this->db->order_by("tr.in_transportation_id","DESC");
+		
+		 if(array_key_exists("start",$params) && array_key_exists("limit",$params)){
+            $this->db->limit($params['limit'],$params['start']);
+        }elseif(!array_key_exists("start",$params) && array_key_exists("limit",$params)){
+            $this->db->limit($params['limit']);
+        }        
+        $query = $this->db->get(); 
+		//echo $this->db->last_query();die;      
+        return ($query->num_rows() > 0) ? $query->result_array()  :  FALSE;	
+	}	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_transport_nearby	
+	#	Purpose		:	Get near by Transportation list
+	# *******************************************************************************************		
+	
+	function get_transport_nearby($date)
+	{
+		$details 		= $this->get_driver_user_lat_long();
+		$pilot_details  = $this->get_pilot_user_lat_long();
+		$trns_ids_list 	= $this->get_current_driver_participate();
+		//echo "<pre>";print_r($details);die;
+		$trns_ids	= '';
+		$driver		= '';
+		$pilot		= '';
+		if(!empty($trns_ids_list))
+		{
+			$trns_ids 		= implode(",",$trns_ids_list);
+		}
+		if(!empty($details) || !empty($pilot_details))
+		{
+			if(!empty($details))
+			{
+				if(count(unserialize($details['st_driver_availability']))>0)
+					$days 		= "'".implode("','",unserialize($details['st_driver_availability']))."'";
+				else	
+					$days	=	'';	
+				$lat 		= $details['lat'];
+				$lon 		= $details['lon'];
+				$distance 	= $details['in_distance_to_drive'];
+			}
+			if(!empty($pilot_details))
+			{
+				if(count(unserialize($pilot_details['st_pilot_availability']))>0)
+					$a_days 	= "'".implode("','",unserialize($pilot_details['st_pilot_availability']))."'";
+				else
+					$a_days	=	'';	
+				$a_lat 		= $pilot_details['st_latitude'];
+				$a_lon 		= $pilot_details['st_longitude'];
+				$a_distance = $pilot_details['in_distance_to_pilot'];
+			}
+			$this->db->select(" tr.dt_target,
+								DATE_FORMAT(tr.dt_pickup_date, '%a') as pdays,
+								DATE_FORMAT(tr.dt_target, '%a') as days,
+								tr.in_transportation_id,
+								tr.in_status, 
+								tr.st_from_street, 
+								tr.st_from_city, 
+								tr.st_from_state, 
+								tr.st_from_zip, 
+								tr.st_to_street, 
+								tr.st_to_state, 
+								tr.st_to_city, 
+								tr.st_to_zip, 
+								tr.in_tot_distance, 
+								tr.in_distance_covered,
+								tr.st_trans_type,
+								tr.st_trans_name,
+								tr.in_status,
+								o.st_org_image, 
+								round(( tr.in_distance_covered/tr.in_tot_distance * 100 ), 2) perc,
+							 (SELECT count(in_tr_pr_id) FROM tbl_transportation_participants WHERE in_deleted=0 AND in_transportation_id=tr.in_transportation_id AND in_transportation_leg_id!='0') as drivers,
+							z.lat,
+							z.lon,tl.in_multi_user,(SELECT count(in_transportation_leg_id) FROM tbl_transportation_leg  WHERE in_deleted=0 AND in_transportation_id=tr.in_transportation_id) as leg_in_transport,(SELECT count(in_transportation_leg_id) FROM tbl_transportation_leg  WHERE in_deleted=0 AND in_status=1 AND in_transportation_id=tr.in_transportation_id) as comp_leg_in_transport",FALSE);
+			$this->db->from("tbl_transportation tr");
+			$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+			$this->db->join("tbl_zip_code tz","tr.st_to_zip = tz.zip_code","INNER");
+			$this->db->join("tbl_organization o","o.in_organization_id = tr.in_organization_id  AND o.in_deleted='0'", "INNER");
+			$this->db->join("tbl_transportation_leg tl","tr.in_transportation_id = tl.in_transportation_id AND tl.in_deleted='0'", "LEFT");
+			$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1");
+			$this->db->where($where);
+			if(isset($date['from_date']) && $date['from_date'] != '')
+			{
+				$this->db->where('tr.dt_pickup_date >=', $date['from_date']);			
+			}
+			
+			if(isset($date['to_date']) && $date['to_date'] != '')
+			{
+				$this->db->where('tr.dt_pickup_date <=', $date['to_date']);
+			}
+			
+			if((!isset($date['from_date']) || $date['from_date'] == '') && (!isset($date['to_date']) || $date['to_date'] == ''))
+			{
+				$this->db->where('tr.dt_pickup_date >=', date("Y-m-d"));
+			}
+			
+			if($trns_ids!='')
+			{
+				$this->db->where("tr.in_transportation_id NOT IN (".$trns_ids.") ", NULL, FALSE);
+			}
+			$pilot_h = '';
+			$driver_h = '';
+			if(!empty($details))
+			{
+				$driver = '(3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat))))<="'.$distance.'" 
+				OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat)))) is NULL 
+			OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat))))<="'.$distance.'" 
+			OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat)))) is NULL ';
+				$driver_h = '(days in('.$days .') OR pdays in('.$days .'))';
+			}
+			if(!empty($pilot_details))
+			{
+				$pilot  = '(3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(z.lat))))<="'.$a_distance.'" 
+			OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(z.lat)))) is NULL		
+			OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(tz.lat))))<="'.$a_distance.'" 
+			OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(tz.lat)))) is NULL ';
+				$pilot_h = '(days in('.$a_days .') OR pdays in('.$a_days .'))';
+			}
+			$cnd = ($driver)?$driver:"";
+			$cnd_h = ($driver_h)?$driver_h:"";
+			if($cnd!='' && $pilot!='' )
+			{
+				$cnd .= " OR ".$pilot;
+			}
+			elseif($pilot)
+			{
+				$cnd = $pilot;
+			}
+			if($cnd)
+			{
+				$cnd = "( ".$cnd." ) ";
+			}
+			if($cnd_h!='' && $pilot_h!='' )
+			{
+				$cnd_h .= " OR ".$pilot_h;
+			}
+			elseif($pilot_h)
+			{
+				$cnd_h = $pilot_h;
+			}
+			if($cnd_h)
+			{
+				$cnd_h = "( ".$cnd_h." ) AND ";
+			}
+			//echo $cnd_h;die;
+			
+			$this->db->where($cnd.'GROUP BY tr.in_transportation_id HAVING '.$cnd_h.' perc < "100" ', NULL, FALSE);
+			$this->db->order_by("tr.in_transportation_id","DESC");
+			$this->db->limit(9);
+			$query =	$this->db->get();
+			//echo "<pre>".$this->db->last_query();die;
+			return $query->result_array();
+		}
+		
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_transport_nearby_data	
+	#	Purpose		:	Get near by Transportation list
+	# *******************************************************************************************		
+	
+	function get_transport_nearby_data($date)
+	{
+		$details 		= $this->get_driver_user_lat_long();
+		$pilot_details  = $this->get_pilot_user_lat_long();
+		$trns_ids_list 	= $this->get_current_driver_participate();
+		//echo "<pre>";print_r($details);die;
+		//echo "<pre>";print_r($pilot_details);die;
+		$trns_ids	= '';
+		$driver		= '';
+		$pilot		= '';
+		if(!empty($trns_ids_list))
+		{
+			$trns_ids 		= implode(",",$trns_ids_list);
+		}
+		if(!empty($details) || !empty($pilot_details))
+		{
+			if(!empty($details))
+			{
+				if(count(unserialize($details['st_driver_availability']))>0)
+					$days 		= "'".implode("','",unserialize($details['st_driver_availability']))."'";
+				else	
+					$days	=	'';	
+				$lat 		= $details['lat'];
+				$lon 		= $details['lon'];
+				$distance 	= $details['in_distance_to_drive'];
+			}
+			if(!empty($pilot_details))
+			{
+				if(count(unserialize($pilot_details['st_pilot_availability']))>0)
+					$a_days 	= "'".implode("','",unserialize($pilot_details['st_pilot_availability']))."'";
+				else
+					$a_days	=	'';	
+				$a_lat 		= $pilot_details['st_latitude'];
+				$a_lon 		= $pilot_details['st_longitude'];
+				$a_distance = $pilot_details['in_distance_to_pilot'];
+			}
+			
+			
+			$this->db->select("tr.dt_target, DATE_FORMAT(tr.dt_pickup_date, '%a') as pdays, DATE_FORMAT(tr.dt_target, '%a') as days, tr.in_transportation_id, tr.in_organization_id, tr.in_status, tr.st_from_street, tr.st_from_city, tr.st_from_state, tr.st_from_zip, tr.st_to_street, tr.st_to_state, tr.st_to_city, tr.st_to_zip, tr.in_tot_distance, tr.in_distance_covered, tr.st_trans_type, tr.st_trans_name, tr.in_status, o.st_org_image, round(( tr.in_distance_covered/tr.in_tot_distance * 100 ), 2) perc, z.lat as from_lat,z.lon as from_lon,tz.lat as to_lat,tz.lon as to_lon",FALSE);
+			$this->db->from("tbl_transportation tr");
+			$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+			$this->db->join("tbl_zip_code tz","tr.st_to_zip = tz.zip_code","INNER");
+			$this->db->join("tbl_organization o","o.in_organization_id = tr.in_organization_id  AND o.in_deleted='0'", "INNER");
+			$this->db->join("tbl_transportation_leg tl","tr.in_transportation_id = tl.in_transportation_id AND tl.in_deleted='0'", "LEFT");
+			//$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1");
+			$where = array("tr.in_deleted"=>'0');
+			$this->db->where($where);
+			
+			$this->db->where("(tr.in_status = 1 || (tr.in_status = 2 && tr.dt_target >= current_date()))");
+			
+			if(isset($date['from_date']) && $date['from_date'] != '')
+			{
+				//$this->db->where('tr.dt_pickup_date >=', $date['from_date']);			
+				$this->db->where('tr.dt_target >=', $date['from_date']);
+			}
+			
+			if(isset($date['to_date']) && $date['to_date'] != '')
+			{
+				//$this->db->where('tr.dt_pickup_date <=', $date['to_date']);
+				$this->db->where('tr.dt_target <=', $date['to_date']);
+			}
+			
+			if((!isset($date['from_date']) || $date['from_date'] == '') && (!isset($date['to_date']) || $date['to_date'] == ''))
+			{
+				//$this->db->where('tr.dt_pickup_date >=', date("Y-m-d"));
+				$this->db->where('tr.dt_target >=', date("Y-m-d"));
+			}
+			
+			if($trns_ids!='')
+			{
+				$this->db->where("tr.in_transportation_id NOT IN (".$trns_ids.") ");
+			}
+			/*$pilot_h = '';
+			$driver_h = '';
+			if(!empty($details))
+			{
+				//$driver_h = '(days in('.$days .') OR pdays in('.$days .'))';
+			}
+			if(!empty($pilot_details))
+			{
+				//$pilot_h = '(days in('.$a_days .') OR pdays in('.$a_days .'))';
+			}
+			$cnd_h = ($driver_h)?$driver_h:"";
+			
+			if($cnd_h!='' && $pilot_h!='' )
+			{
+				$cnd_h .= " OR ".$pilot_h;
+			}
+			elseif($pilot_h)
+			{
+				$cnd_h = $pilot_h;
+			}
+			if($cnd_h)
+			{
+				$cnd_h = "( ".$cnd_h." ) AND ";
+			}
+			//echo $cnd_h;die;
+			*/
+			$this->db->group_by("tr.in_transportation_id");
+			//$this->db->having($cnd_h.'perc < 100');
+			$this->db->order_by("tr.in_transportation_id","DESC");
+			//$this->db->limit(9);
+			$query =	$this->db->get();
+			//echo "<pre>".$this->db->last_query();die;
+			$transport_details = $query->result_array();
+			$nearby_transports = array();
+			$nearby_trans_cnt = 0;
+			foreach($transport_details as $trans_value)
+			{
+				//echo 'test=======================leg======================='.$nearby_trans_cnt;
+				if($trans_value['st_trans_type'] == 'P')
+				{
+					//echo 'pre-specified transport'. $trans_value['in_transportation_id'];	
+					//echo '<br/>';	
+					$transport_leg_details = $this->get_trans_legs_by_id($trans_value['in_transportation_id']);		
+					//echo '<pre>';print_r($transport_leg_details);	exit;
+					$transport_leg_match = false;
+					foreach($transport_leg_details as $trans_leg_value)
+					{
+						//echo 'test1=======================leg======================='.$nearby_trans_cnt;
+						//echo '<pre/>';print_r($trans_leg_value);exit;
+						//echo $trans_leg_value['pick_zip'];
+						//echo $trans_leg_value['drop_zip'];
+						if($trans_leg_value['route_type'] == 'Road' && !empty($details))						
+						{
+							if(isset($trans_leg_value['pick_zip']) && $trans_leg_value['pick_zip'] != '')
+							{
+							$lat_long_details = $this->common_model->get_lattitude_longitude($trans_leg_value['pick_zip']);
+							if(isset($lat_long_details) && !empty($lat_long_details))
+							{
+								$start_lat		= $lat_long_details['lat'];
+								$start_lon		= $lat_long_details['lon'];
+							}
+							else
+							{
+								$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['pick_zip']);
+								
+								$start_lat		= $lat_long_details['lat'];
+								$start_lon		= $lat_long_details['lng'];
+							}
+							}
+							
+							if(isset($trans_leg_value['drop_zip']) && $trans_leg_value['drop_zip'] != '')
+							{
+							$lat_long_details = $this->common_model->get_lattitude_longitude($trans_leg_value['drop_zip']);
+							if(isset($lat_long_details) && !empty($lat_long_details))
+							{
+								$end_lat		= $lat_long_details['lat'];
+								$end_lon		= $lat_long_details['lon'];
+							}
+							else
+							{
+								$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['drop_zip']);
+								$end_lat		= $lat_long_details['lat'];
+								$end_lon		= $lat_long_details['lng'];
+							}
+							}
+							
+							if(isset($start_lat) && $start_lat != '' && isset($end_lat) && $end_lat != '')
+							{
+								$this->db->select("tuv.in_distance_to_drive,tuv.st_driver_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email");
+								$this->db->from("tbl_user_vehicle tuv");
+								$this->db->join("tbl_zip_code z","tuv.st_zip_vehicle = z.zip_code","INNER");
+								$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id","INNER");
+								$this->db->where("tuv.in_deleted",'0');
+								$this->db->where("tu.in_deleted",'0');
+								$this->db->where("tu.in_status <>",'3');
+								$this->db->where("tu.in_user_id",$this->session->userdata('userid'));
+								
+								$driver = '((3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) <= tuv.in_distance_to_drive 
+											OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) is NULL 
+											OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'"))))<= tuv.in_distance_to_drive 
+											OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'")))) is NULL) ';
+								
+								$driver_h = '(tuv.st_driver_availability Like "%'.$trans_leg_value['pick_day'].'%" OR tuv.st_driver_availability Like "%'.$trans_leg_value['drop_day'].'%")';
+								$this->db->where($driver);
+								$this->db->where($driver_h);
+								
+								$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ". $trans_value['in_organization_id']." AND in_status = 3 AND in_deleted = 0)");
+								
+								$query =	$this->db->get();
+								//if($_SERVER['REMOTE_ADDR'] == '106.209.195.222' || $_SERVER['REMOTE_ADDR'] == '162.158.50.80')
+								//{
+									//echo "<pre>".$this->db->last_query();
+								//}
+								$r_transport_leg_user_details = $query->row_array();
+								//echo '<pre/>';
+								//print_r($transport_leg_user_details);
+								//exit;
+								/*if(isset($transport_leg_user_details) && !empty($transport_leg_user_details))
+								{
+									$nearby_transports[]  = $trans_value;
+									$nearby_trans_cnt++;
+									//break;
+								}*/
+								if(isset($r_transport_leg_user_details) && !empty($r_transport_leg_user_details))
+								{
+									if($nearby_trans_cnt>0)
+									{	
+										$key = in_array($trans_value['in_transportation_id'],$this->array_column($nearby_transports,'in_transportation_id'));
+										if($key==false)
+										{		
+											$nearby_transports[]  = $trans_value;
+											$nearby_trans_cnt++;
+										}
+									} else {
+										$nearby_transports[]  = $trans_value;
+										$nearby_trans_cnt++;
+									}
+								}	
+								//print_r($nearby_transports);
+								//exit;
+							}
+						}
+						
+						if($trans_leg_value['route_type'] == 'Aviation' && !empty($pilot_details))						
+						{
+							//echo 'Aviation leg';
+							//print_r($pilot_details);
+							if(isset($trans_leg_value['pick_zip']) && $trans_leg_value['pick_zip'] != '')
+							{
+							$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['pick_zip']);
+							
+							$start_lat		= $lat_long_details['lat'];
+							$start_lon		= $lat_long_details['lng'];
+							}
+							
+							if(isset($trans_leg_value['drop_zip']) && $trans_leg_value['drop_zip'] != '')
+							{
+							$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['drop_zip']);
+							$end_lat		= $lat_long_details['lat'];
+							$end_lon		= $lat_long_details['lng'];
+							}
+							
+							if(isset($start_lat) && $start_lat != '' && isset($end_lat) && $end_lat != '')
+							{
+								$this->db->select("tuv.in_distance_to_pilot,tuv.st_pilot_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email");
+								$this->db->from("tbl_user_pilot tuv");
+								$this->db->join("tbl_zip_code z","tuv.st_pilot_zip = z.zip_code","INNER");
+								$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id","INNER");
+								$this->db->where("tuv.in_deleted",'0');
+								$this->db->where("tu.in_deleted",'0');
+								$this->db->where("tu.in_status <>",'3');
+								$this->db->where("tu.in_user_id",$this->session->userdata('userid'));
+								
+								$pilot = '((3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) <= tuv.in_distance_to_pilot 
+											OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) is NULL 
+											OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'"))))<= tuv.in_distance_to_pilot 
+											OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'")))) is NULL) ';
+								
+								$pilot_h = '(tuv.st_pilot_availability Like "%'.$trans_leg_value['pick_day'].'%" OR tuv.st_pilot_availability Like "%'.$trans_leg_value['drop_day'].'%")';
+								
+								$this->db->where($pilot);
+								$this->db->where($pilot_h);
+								
+								$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ". $trans_value['in_organization_id']." AND in_status = 3 AND in_deleted = 0)");
+								
+								$query =	$this->db->get();
+								//echo "<pre>".$this->db->last_query();die;
+								$a_transport_leg_user_details = $query->row_array();
+								//echo '<pre/>';
+								//print_r($transport_leg_user_details);
+								//exit;
+								/*if(isset($transport_leg_user_details) && !empty($transport_leg_user_details))
+								{
+									$nearby_transports[]  = $trans_value;
+									$nearby_trans_cnt++;
+									//break;
+								}*/
+								//print_r($nearby_transports);
+								//exit;
+								if(isset($a_transport_leg_user_details) && !empty($a_transport_leg_user_details))
+								{
+									if($nearby_trans_cnt>0)
+									{	
+										$key = in_array($trans_value['in_transportation_id'],$this->array_column($nearby_transports,'in_transportation_id'));
+										if($key==false)
+										{		
+											$nearby_transports[]  = $trans_value;
+											$nearby_trans_cnt++;
+										}
+									} else {
+										$nearby_transports[]  = $trans_value;
+										$nearby_trans_cnt++;
+									}
+								}
+							}
+						}
+						
+						if($trans_leg_value['route_type'] == 'Overnight')						
+						{
+							if(isset($trans_leg_value['o_pick_zip']) && $trans_leg_value['o_pick_zip'] != '')
+							{
+							$lat_long_details = $this->common_model->get_lat_long($trans_leg_value['o_pick_zip']);
+							
+							$start_lat		= $lat_long_details['lat'];
+							$start_lon		= $lat_long_details['lng'];
+							}
+							
+							
+							//echo '$start_lat'.$start_lat;
+							//echo '$start_lon'.$start_lon;
+							//echo '$end_lat'.$end_lat;
+							//echo '$end_lon'.$end_lon;
+							
+							if(isset($start_lat) && $start_lat != '' && isset($end_lat) && $end_lat != '')
+							{
+								$this->db->select("tuv.in_distance_to_drive,tuv.st_driver_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email");
+								$this->db->from("tbl_user_vehicle tuv");
+								$this->db->join("tbl_zip_code z","tuv.st_zip_vehicle = z.zip_code","INNER");
+								$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id","INNER");
+								$this->db->where("tuv.in_deleted",'0');
+								$this->db->where("tu.in_deleted",'0');
+								$this->db->where("tu.in_status <>",'3');
+								$this->db->where("tu.in_user_id",$this->session->userdata('userid'));
+								
+								$driver = '((3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) <= tuv.in_distance_to_drive 
+											OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) is NULL) ';
+								$driver_h = '(tuv.st_driver_availability Like "%'.$trans_leg_value['o_day'].'%")';
+								
+								$this->db->where($driver);
+								$this->db->where($driver_h);
+								
+								$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ". $trans_value['in_organization_id']." AND in_status = 3 AND in_deleted = 0)");
+								
+								$query =	$this->db->get();
+								//echo "<pre>".$this->db->last_query();die;
+								$o_transport_leg_user_details = $query->row_array();
+								//echo '<pre/>';
+								//print_r($transport_leg_user_details);
+								//exit;
+								/*if(isset($transport_leg_user_details) && !empty($transport_leg_user_details))
+								{
+									$nearby_transports[]  = $trans_value;
+									$nearby_trans_cnt++;
+									//break;
+								}*/
+								//print_r($nearby_transports);
+								//exit;
+								if(isset($o_transport_leg_user_details) && !empty($o_transport_leg_user_details))
+								{
+									if($nearby_trans_cnt>0)
+									{	
+										$key = in_array($trans_value['in_transportation_id'],$this->array_column($nearby_transports,'in_transportation_id'));
+										if($key==false)
+										{		
+											$nearby_transports[]  = $trans_value;
+											$nearby_trans_cnt++;
+										}
+									} else {
+										$nearby_transports[]  = $trans_value;
+										$nearby_trans_cnt++;
+									}
+								}
+							}
+						}						
+						
+					}
+					
+					/*if((isset($r_transport_leg_user_details) && !empty($r_transport_leg_user_details)) || (isset($a_transport_leg_user_details) && !empty($a_transport_leg_user_details)) || (isset($o_transport_leg_user_details) && !empty($o_transport_leg_user_details)))
+					{
+						$nearby_transports[]  = $trans_value;
+						$nearby_trans_cnt++;
+						//break;
+					}*/
+
+					
+				} 
+				else
+				{
+					//echo 'driver specified transport';
+					//echo '<br/>';
+					
+						
+					$start_lat		= $trans_value['from_lat'];
+					$start_lon		= $trans_value['from_lon'];
+					
+					
+					$end_lat		= $trans_value['to_lat'];
+					$end_lon		= $trans_value['to_lon'];
+					
+					if(!empty($details))						
+					{
+						if(isset($start_lat) && $start_lat != '' && isset($end_lat) && $end_lat != '')
+						{
+							$this->db->select("tuv.in_distance_to_drive,tuv.st_driver_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email");
+							$this->db->from("tbl_user_vehicle tuv");
+							$this->db->join("tbl_zip_code z","tuv.st_zip_vehicle = z.zip_code","INNER");
+							$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id","INNER");
+							$this->db->where("tuv.in_deleted",'0');
+							$this->db->where("tu.in_deleted",'0');
+							$this->db->where("tu.in_status <>",'3');
+							$this->db->where("tu.in_user_id",$this->session->userdata('userid'));
+							
+							$driver = '((3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) <= tuv.in_distance_to_drive 
+										OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) is NULL 
+										OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'"))))<= tuv.in_distance_to_drive 
+										OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'")))) is NULL) ';
+							
+							$this->db->where($driver);
+							
+							$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ". $trans_value['in_organization_id']." AND in_status = 3 AND in_deleted = 0)");
+							
+							$query =	$this->db->get();
+							//echo "<pre>".$this->db->last_query();die;
+							$d_transport_leg_user_details = $query->row_array();
+							//echo '<pre/>';
+							//print_r($transport_leg_user_details);
+							//exit;
+							/*if(isset($transport_leg_user_details) && !empty($transport_leg_user_details))
+							{
+								$nearby_transports[]  = $trans_value;
+								$nearby_trans_cnt++;
+								//break;
+							}*/
+							if(isset($d_transport_leg_user_details) && !empty($d_transport_leg_user_details))
+							{
+								if($nearby_trans_cnt>0)
+								{	
+									$key = in_array($trans_value['in_transportation_id'],$this->array_column($nearby_transports,'in_transportation_id'));
+									if($key==false)
+									{		
+										$nearby_transports[]  = $trans_value;
+										$nearby_trans_cnt++;
+									}
+								} else {
+									$nearby_transports[]  = $trans_value;
+									$nearby_trans_cnt++;
+								}
+							}
+						}
+					}
+					
+					if(!empty($pilot_details))						
+					{
+						if(isset($start_lat) && $start_lat != '' && isset($end_lat) && $end_lat != '')
+						{
+							$this->db->select("tuv.in_distance_to_pilot,tuv.st_pilot_availability,tu.in_user_id,tu.st_display_name,tu.st_last_name,tu.st_email");
+							$this->db->from("tbl_user_pilot tuv");
+							$this->db->join("tbl_zip_code z","tuv.st_pilot_zip = z.zip_code","INNER");
+							$this->db->join("tbl_users tu","tu.in_user_id = tuv.in_user_id","INNER");
+							$this->db->where("tuv.in_deleted",'0');
+							$this->db->where("tu.in_deleted",'0');
+							$this->db->where("tu.in_status <>",'3');
+							$this->db->where("tu.in_user_id",$this->session->userdata('userid'));
+							
+							$driver = '((3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) <= tuv.in_distance_to_pilot 
+										OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$start_lat.'")))) is NULL 
+										OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'"))))<= tuv.in_distance_to_pilot 
+										OR (3959*acos(cos(radians(z.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(z.lon))+sin(radians(z.lat))*sin(radians("'.$end_lat.'")))) is NULL) ';
+							
+							$this->db->where($driver);
+							
+							$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ". $trans_value['in_organization_id']." AND in_status = 3 AND in_deleted = 0)");
+							
+							$query =	$this->db->get();
+							//echo "<pre>".$this->db->last_query();die;
+							$p_transport_leg_user_details = $query->row_array();
+							//echo '<pre/>';
+							//print_r($transport_leg_user_details);
+							//exit;
+							/*if(isset($transport_leg_user_details) && !empty($transport_leg_user_details))
+							{
+								$nearby_transports[]  = $trans_value;
+								$nearby_trans_cnt++;
+								//break;
+							}*/
+							//print_r($nearby_transports);
+							//exit;
+							if(isset($p_transport_leg_user_details) && !empty($p_transport_leg_user_details))
+							{
+								if($nearby_trans_cnt>0)
+								{	
+									$key = in_array($trans_value['in_transportation_id'],$this->array_column($nearby_transports,'in_transportation_id'));
+									if($key==false)
+									{		
+										$nearby_transports[]  = $trans_value;
+										$nearby_trans_cnt++;
+									}
+								} else {
+									$nearby_transports[]  = $trans_value;
+									$nearby_trans_cnt++;
+								}
+							}
+						}
+					}
+					
+					/*if((isset($d_transport_leg_user_details) && !empty($d_transport_leg_user_details)) || (isset($p_transport_leg_user_details) && !empty($p_transport_leg_user_details)))
+					{
+						$nearby_transports[]  = $trans_value;
+						$nearby_trans_cnt++;
+						//break;
+					}*/
+					
+					
+				}
+				
+				/*if(isset($transport_leg_user_details) && !empty($transport_leg_user_details))
+				{
+					$nearby_transports[]  = $trans_value;
+					$nearby_trans_cnt++;
+					//break;
+				}*/
+							
+				if($nearby_trans_cnt == 9)
+				{
+					break;
+				} 
+				//print_r($nearby_transports);
+				//exit;
+			}
+			//print_r($transport_leg_user_details);
+			//print_r($nearby_transports);
+			//exit;
+			return $nearby_transports;
+		}
+	}
+	
+	public function array_column(array $input, $columnKey, $indexKey = null) {
+        $array = array();
+        foreach ($input as $value) {
+            if ( ! isset($value[$columnKey])) {
+                trigger_error("Key \"$columnKey\" does not exist in array");
+                return false;
+            }
+            if (is_null($indexKey)) {
+                $array[] = $value[$columnKey];
+            }
+            else {
+                if ( ! isset($value[$indexKey])) {
+                    trigger_error("Key \"$indexKey\" does not exist in array");
+                    return false;
+                }
+                if ( ! is_scalar($value[$indexKey])) {
+                    trigger_error("Key \"$indexKey\" does not contain scalar value");
+                    return false;
+                }
+                $array[$value[$indexKey]] = $value[$columnKey];
+            }
+        }
+        return $array;
+    }
+	
+	public function get_trans_legs_by_id($transport_id)
+	{	
+		$this->db->select('l.in_transportation_leg_id,st_zip,d.st_leg_type,l.in_route_type,DATE_FORMAT(d.dt_start_time, "%a") as day,l.in_sort_order',FALSE);
+		$this->db->from('tbl_transportation_leg as l');
+		$this->db->join('tbl_transportation_leg_detail d','d.in_transportation_leg_id=l.in_transportation_leg_id','INNER');
+		$this->db->where('l.in_deleted',0);
+		$this->db->where('d.in_deleted',0);
+		$this->db->where('l.in_transportation_id',$transport_id);
+		$this->db->order_by('l.in_sort_order','ASC');
+		$this->db->order_by('l.in_transportation_leg_id','ASC');
+		$query = $this->db->get();
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$r_type = '';
+				if($Row->in_route_type == 1)
+				{
+					$r_type = 'Aviation';
+				}
+				if($Row->in_route_type == 2)
+				{
+					$r_type = 'Overnight';
+				}
+				if($Row->in_route_type == 0)
+				{
+					$r_type = 'Road';
+				}
+				
+				
+				if($Row->st_leg_type=="P")
+				{	
+					$arrData[$Row->in_transportation_leg_id]['route_type']		= $r_type;		
+					$arrData[$Row->in_transportation_leg_id]['route_type_id']	= $Row->in_route_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_type_P']		= $Row->st_leg_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_id']			= $Row->in_transportation_leg_id;
+					$arrData[$Row->in_transportation_leg_id]['pick_zip']		= $Row->st_zip;	
+					$arrData[$Row->in_transportation_leg_id]['pick_day']		= $Row->day;				
+				}
+				
+				if($Row->st_leg_type=="D")
+				{
+					$arrData[$Row->in_transportation_leg_id]['route_type']		= $r_type;	
+					$arrData[$Row->in_transportation_leg_id]['route_type_id']	= $Row->in_route_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_type_D']		= $Row->st_leg_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_id']			= $Row->in_transportation_leg_id;
+					$arrData[$Row->in_transportation_leg_id]['drop_zip']		= $Row->st_zip;	
+					$arrData[$Row->in_transportation_leg_id]['drop_day']		= $Row->day;				
+				}
+				if($Row->st_leg_type=="O")
+				{	
+					$arrData[$Row->in_transportation_leg_id]['route_type']			= $r_type;		
+					$arrData[$Row->in_transportation_leg_id]['route_type_id']		= $Row->in_route_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_type_O']			= $Row->st_leg_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_id']				= $Row->in_transportation_leg_id;
+					$arrData[$Row->in_transportation_leg_id]['o_pick_zip']			= $Row->st_zip;
+					
+					$overnight_leg_day	= $this->get_overnight_leg_date($transport_id,$Row->in_sort_order);
+						
+					$arrData[$Row->in_transportation_leg_id]['o_day'] 	= $overnight_leg_day['day'];
+				}
+				
+			}
+			return $arrData;
+		}
+	}
+	
+	public function get_overnight_leg_date($t_id,$sort_order)
+	{
+		$overnight_leg_data = array();
+		//echo $t_id;
+		//echo $sort_order;
+		
+		if(isset($sort_order) && $sort_order > 1)
+		{
+			$this->db->select('DATE_FORMAT(d.dt_start_time, "%a") as day',FALSE);
+			$this->db->from('tbl_transportation_leg as l');
+			$this->db->join('tbl_transportation_leg_detail d','d.in_transportation_leg_id=l.in_transportation_leg_id','INNER');
+			$this->db->where('l.in_transportation_id',$t_id);
+			$this->db->where('l.in_sort_order',($sort_order-1));
+			$this->db->where('l.in_deleted',0);
+			$this->db->where('d.in_deleted',0);
+			$this->db->where('d.st_leg_type','D');
+			$query = $this->db->get();
+			//echo $this->db->last_query();die;
+			 
+			$overnight_leg_data = $query->row_array();		
+		}
+		//print_r($overnight_leg_data);exit;
+		return $overnight_leg_data;
+	}
+	
+	function get_driver_user_lat_long()
+	{
+		//SELECT pr.in_user_id,pr.st_driver,v.st_driver_availability,v.st_zip_vehicle,v.in_distance_to_drive,zip_lat,zip_lon
+//FROM tbl_user_profile pr 
+//INNER JOIN tbl_user_vehicle v ON v.in_user_id=pr.in_user_id
+//WHERE  pr.in_user_id=14 AND pr.st_driver='Y'
+
+		$this->db->select("pr.in_user_id,pr.st_driver,v.st_driver_availability,v.st_zip_vehicle,v.in_distance_to_drive,zip_lat,zip_lon,z.lat,z.lon");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_user_vehicle v","v.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_zip_code z","v.st_zip_vehicle = z.zip_code",'INNER');
+		$where = array("pr.in_deleted"=>'0',"pr.st_driver"=>"Y","v.in_deleted"=>"0","pr.in_user_id"=>$this->session->userdata('userid'));
+		$this->db->where($where);
+		$this->db->order_by("v.in_distance_to_drive","DESC");
+		$query =	$this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	
+	function get_pilot_user_lat_long()
+	{
+		//SELECT pr.in_user_id,pr.st_driver,v.st_driver_availability,v.st_zip_vehicle,v.in_distance_to_drive,zip_lat,zip_lon
+//FROM tbl_user_profile pr 
+//INNER JOIN tbl_user_vehicle v ON v.in_user_id=pr.in_user_id
+//WHERE  pr.in_user_id=14 AND pr.st_driver='Y'
+
+		$this->db->select("pr.in_user_id,pr.st_driver,vp.st_pilot_availability,vp.st_pilot_zip,vp.in_distance_to_pilot,a.st_longitude,a.st_latitude");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_user_pilot vp","vp.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_airport a","a.st_loc_id = vp.st_identifier",'INNER');
+		$where = array("pr.in_deleted"=>'0',"pr.st_pilot"=>"Y","vp.in_deleted"=>"0","a.in_deleted"=>"0","pr.in_user_id"=>$this->session->userdata('userid'));
+		$this->db->where($where);
+		$this->db->order_by("vp.in_distance_to_pilot","DESC");
+		$query =	$this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	
+	function get_current_driver_participate()
+	{
+		$this->db->select("tp.in_transportation_id");
+		$this->db->from("tbl_transportation_participants tp");
+		$this->db->join("tbl_transportation t","t.in_transportation_id = tp.in_transportation_id",'INNER');
+		$this->db->where("t.in_status <>",'3');
+		$where = array("tp.in_deleted"=>'0',"tp.in_user_id"=>$this->session->userdata('userid'));
+		$this->db->where($where);
+		$query =	$this->db->get();
+		if($query->num_rows()>0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData[]	= $Row->in_transportation_id;
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	public function get_near_by_transport_users()
+	{
+			$cron_email_array = array("cron_url"=> base_url().'transportation/near_by_transport_email',
+									  "cron_step"=>'1',
+									  "cron_step_detail"=>'step1',
+									  "cron_created_date"=>date("Y-m-d H:i:s"),
+									 );
+	
+			$this->common_model->add_cron_email_status($cron_email_array);
+			
+			$last_cron_inserted_id = $this->db->insert_id();
+		
+			$this->db->select("tr.in_transportation_id,tr.in_organization_id");
+			$this->db->from("tbl_transportation tr");
+			$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+			$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_near_by_email"=>"0","tr.st_trans_type"=>"D","tr.in_airline_transport"=>"0");
+			$this->db->where($where);
+			$this->db->order_by("tr.in_transportation_id","DESC");
+			$this->db->limit(1);
+			$query =	$this->db->get();
+			$transport_details = $query->row_array();
+			if(isset($transport_details) && isset($transport_details['in_transportation_id']) && $transport_details['in_transportation_id'] > 0)
+			{
+				$this->db->select('u.in_user_id,CONCAT(u.st_display_name," ",st_last_name) as st_display_name,u.st_email',FALSE); 
+				$this->db->from("tbl_users u");
+				$where = array("u.in_status"=>"1","u.in_deleted"=>"0","u.flg_immediate_transport"=>"1");
+				$this->db->where($where);
+				$this->db->where("u.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$transport_details['in_organization_id']." AND in_status = 3)");
+				$this->db->where("u.in_user_id NOT IN (select in_user_id from tbl_users where in_email_verify_status = 0 AND dt_created > '2016-11-25')");
+			
+				$query =	$this->db->get();
+				$users_list = $query->result_array();
+				
+				$cron_email_array = array("cron_step"=>'2',"cron_step_detail"=>'step2',"cron_updated_date"=>date("Y-m-d H:i:s"));
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+				$emails_list = array();
+				foreach($users_list as $u_key=>$u_val)
+				{
+					$details 		= $this->get_driver_detail_by_user_id($u_val['in_user_id']);
+					$pilot_details  = $this->get_pilot_detail_by_user_id($u_val['in_user_id']);
+				
+					$trns_ids	= '';
+					$driver		= '';
+					$pilot		= '';
+					if(!empty($details) || !empty($pilot_details))
+					{
+						if(!empty($details))
+						{
+							$days 		= "'".implode("','",unserialize($details['st_driver_availability']))."'";
+							$lat 		= $details['lat'];
+							$lon 		= $details['lon'];
+							$distance 	= $details['in_distance_to_drive'];
+						}
+						if(!empty($pilot_details))
+						{
+							$a_days 	= "'".implode("','",unserialize($pilot_details['st_pilot_availability']))."'";
+							$a_lat 		= $pilot_details['st_latitude'];
+							$a_lon 		= $pilot_details['st_longitude'];
+							$a_distance = $pilot_details['in_distance_to_pilot'];
+						}
+					$this->db->select(" tr.dt_target,
+										DATE_FORMAT(tr.dt_pickup_date, '%a') as pdays,
+										DATE_FORMAT(tr.dt_target, '%a') as days,
+										tr.in_transportation_id,
+										tr.in_status, 
+										tr.st_from_zip, 
+										tr.st_to_zip, 
+										tr.in_tot_distance, 
+										tr.in_distance_covered,
+										tr.st_trans_type,
+										round(( tr.in_distance_covered/tr.in_tot_distance * 100 ), 2) perc,
+										z.lat,
+										z.lon",FALSE);
+					$this->db->from("tbl_transportation tr");
+					$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+					$this->db->join("tbl_zip_code tz","tr.st_to_zip = tz.zip_code","INNER");
+					$where = array("tr.in_transportation_id"=>$transport_details['in_transportation_id'],"tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_near_by_email"=>"0");
+					$this->db->where($where);
+					$pilot_h = '';
+					$driver_h = '';
+					if(!empty($details))
+					{
+						$driver = '(3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat))))<="'.$distance.'" 
+						OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat)))) is NULL 
+					OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat))))<="'.$distance.'" 
+					OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat)))) is NULL  ';
+						$driver_h = '(days in('.$days .') OR pdays in('.$days .'))';
+					}
+					if(!empty($pilot_details))
+					{
+						$pilot  = '(3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(z.lat))))<="'.$a_distance.'" 
+					OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(z.lat)))) is NULL	
+					OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(tz.lat))))<="'.$a_distance.'" 
+					OR (3959*acos(cos(radians("'.$a_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$a_lon.'"))+sin(radians("'.$a_lat.'"))*sin(radians(tz.lat)))) is NULL ';
+						$pilot_h = '(days in('.$a_days .') OR pdays in('.$a_days .'))';
+					}
+					$cnd = ($driver)?$driver:"";
+					$cnd_h = ($driver_h)?$driver_h:"";
+					if($cnd!='' && $pilot!='' )
+					{
+						$cnd .= " OR ".$pilot;
+					}
+					elseif($pilot)
+					{
+						$cnd = $pilot;
+					}
+					if($cnd)
+					{
+						$cnd = "( ".$cnd." ) ";
+					}
+					if($cnd_h!='' && $pilot_h!='' )
+					{
+						$cnd_h .= " OR ".$pilot_h;
+					}
+					elseif($pilot_h)
+					{
+						$cnd_h = $pilot_h;
+					}
+					if($cnd_h)
+					{
+						$cnd_h = "( ".$cnd_h." ) AND ";
+					}
+					
+					$this->db->where($cnd.'GROUP BY tr.in_transportation_id HAVING '.$cnd_h.' perc < "100" ', NULL, FALSE);
+					$query =	$this->db->get();
+					if($query->num_rows() > 0)
+					{
+						$verify_transport_cron = $this->verify_user_transport_cron($transport_details['in_transportation_id'],$u_val['user_id']);
+						if(count($verify_transport_cron)<=0)
+						{
+							$emails_list[] = array("user_id"=>$u_val['in_user_id'],"name"=>$u_val['st_display_name'],"email_address"=>$u_val['st_email']);
+						}		
+					}
+					
+				}				
+			}
+			
+			$tmp_email = array ();
+			foreach ($emails_list as $row) 
+			{
+				if (!in_array($row,$tmp_email)){
+					 array_push($tmp_email,$row);
+				}
+			}				
+				
+			$transport_data 	= $this->get_transport_details($transport_details['in_transportation_id']);
+			
+			$cron_email_array = array("cron_step"=>'3',"cron_step_detail"=>'step3',"cron_updated_date"=>date("Y-m-d H:i:s"));
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$legs = ($transport_data[0]['st_trans_type']=="P")?"Pre-Specify Legs":"Drivers Build Their Legs";
+			$email_transport_details	=	$transport_data[0];
+			
+			if(isset($tmp_email) && !empty($tmp_email))
+			{
+				$this->transport_add_email($tmp_email,$legs,$email_transport_details);	
+			}
+			
+				$email_type = "1"; 
+				$email_type_detail = "DBT".$transport_details['in_transportation_id']." - Doobert.com Transport";
+			
+				$user_detail_array = $tmp_email;
+			
+				$updated_result = $this->update_transport_near_by_cron_status($transport_data[0]['in_transportation_id']);
+			
+			}else{
+				$cron_email_array = array("cron_step"=>'3',
+									"cron_step_detail"=>'step3',
+									"cron_updated_date"=>date("Y-m-d H:i:s")
+										);					
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			}
+	}
+	
+	public function get_nearby_airline_transport_users()
+	{
+			$cron_email_array = array("cron_url"=> base_url().'transportation/near_by_transport_email',
+									  "cron_step"=>'1',
+									  "cron_step_detail"=>'step1',
+									  "cron_created_date"=>date("Y-m-d H:i:s"),
+									 );
+	
+			$this->common_model->add_cron_email_status($cron_email_array);
+			
+			$last_cron_inserted_id = $this->db->insert_id();
+		
+			$this->db->select("tr.in_transportation_id,tr.in_organization_id,tr.st_from_street,tr.st_to_street");
+			$this->db->from("tbl_transportation tr");
+			$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_near_by_email"=>"0","tr.st_trans_type"=>"D","tr.in_airline_transport"=>"1");
+			$this->db->where($where);
+			$this->db->order_by("tr.in_transportation_id","DESC");
+			$this->db->limit(1);
+			$query =	$this->db->get();
+			//echo "<pre>".$this->db->last_query();die;
+			$transport_details = $query->row_array();
+			//echo '<pre/>';print_r($transport_details);
+			//exit;
+		
+			if(isset($transport_details) && isset($transport_details['in_transportation_id']) && $transport_details['in_transportation_id'] > 0)
+			{
+				$this->db->select('u.in_user_id,CONCAT(u.st_display_name," ",st_last_name) as st_display_name,u.st_email',FALSE); 
+				$this->db->from("tbl_users u");
+				$this->db->join('tbl_user_profile up','u.in_user_id = up.in_user_id');
+				$where = array("u.in_status"=>"1","u.in_deleted"=>"0","up.st_airline_emp"=>"Y","u.flg_immediate_transport"=>"1");
+				$this->db->where($where);
+				$query =	$this->db->get();
+				$users_list = $query->result_array();			
+				$cron_email_array = array("cron_step"=>'2',
+										  "cron_step_detail"=>'step2',
+										  "cron_updated_date"=>date("Y-m-d H:i:s")
+										 );
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+				$emails_list = array();
+				foreach($users_list as $u_key=>$u_val)
+				{
+					$details 		= $this->get_user_airplane_detail($u_val['in_user_id']);
+					if(!empty($details) && count($details)>0)
+					{
+						$verify_transport_cron = $this->verify_user_transport_cron($transport_details['in_transportation_id'],$u_val['user_id']);
+						if(count($verify_transport_cron)<=0)
+						{
+							if($details['st_base_name']== $transport_details['st_from_street'] || $details['st_base_name'] ==  $transport_details['st_to_street'])
+							{
+								$emails_list[] = array("user_id"=>$u_val['in_user_id'],"name"=>$u_val['st_display_name'],"email_address"=>$u_val['st_email']);											
+							}
+						}	
+					}				
+				}
+			
+				$tmp_email = array ();
+				foreach ($emails_list as $row) 
+				{
+					if (!in_array($row,$tmp_email))
+					{
+						array_push($tmp_email,$row);
+					}
+				}				
+			
+				//echo 'tmp_email<pre/>';print_r($tmp_email); //exit;
+				
+				
+			
+				$transport_data 	= $this->get_transport_details($transport_details['in_transportation_id']);
+			
+				$cron_email_array = array("cron_step"=>'3',
+										  "cron_step_detail"=>'step3',
+										  "cron_updated_date"=>date("Y-m-d H:i:s")
+										);
+		
+				$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+				$legs = '';
+				$email_transport_details	=	$transport_data[0];
+				
+				if(isset($tmp_email) && !empty($tmp_email))
+				{
+					$this->transport_add_airline_email($tmp_email,$legs,$email_transport_details);	
+				}
+			
+				$email_type = "1"; 
+				$email_type_detail = "DBT".$transport_details['in_transportation_id']." - Doobert.com Transport";
+			
+				$user_detail_array = $tmp_email;
+			
+				/*$mail_checksum_array = array("in_transport_id"		=> $transport_details['in_transportation_id'],
+											   "in_email_type"		=> $email_type,
+											   "st_email_type"		=> $email_type_detail,
+												  "dt_created"		=> date("Y-m-d H:i:s"),
+											 "st_user_details"		=> serialize($user_detail_array)
+											);
+		
+				$insert_id = $this->common_model->insert_transport_email_checksum($mail_checksum_array);*/
+			
+			
+				$updated_result = $this->update_transport_near_by_cron_status($transport_data[0]['in_transportation_id']);
+			
+			}else{
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);					
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			}
+		
+	}
+	
+	public function get_user_airplane_detail($user_id)
+	{
+		$this->db->select("pr.in_user_id,ua.in_user_id,ua.st_base_name,ua.st_airline_name");
+		$this->db->from("tbl_user_profile pr");
+		$this->db->join("tbl_user_airline_employee ua","ua.in_user_id = pr.in_user_id",'INNER');
+		$where = array("pr.in_deleted"=>'0',"pr.st_airline_emp"=>"Y","ua.in_deleted"=>"0","ua.in_user_id"=>$user_id);
+		$this->db->where($where);
+		$query =	$this->db->get();
+		return $query->row_array();
+	}
+	
+	public function transport_add_airline_email($email_list,$leg_type,$transport_details)
+	{
+		$animals_cnt = 0 ;
+		$transport_animals 			= $this->get_transport_animals($transport_details['in_transportation_id']);
+		$user_detail_array = array();
+		$inc_val = 0;
+		
+		
+		if(isset($transport_animals) && !empty($transport_animals))
+		{
+			$animals_cnt = count($transport_animals);	
+		}
+
+		
+		
+			
+					$email_details = $this->common_model->get_email_containt("115");
+					if(isset($email_details[0]['st_email_body']))
+					{
+						$leg_str = '';
+						$templete	= 	$email_details[0]['st_email_body'];
+						
+						$q1			=	$this->common_model->get_affiliate_detail('115','C');	
+						$q2			=	$this->common_model->get_affiliate_detail('115','L');	
+						$q3			=	$this->common_model->get_affiliate_detail('115','R');
+						
+						
+						$resuce_template = '';
+						$resuce_store = $this->common_model->get_resuce_store($transport_details['in_organization_id']);
+						if(count($resuce_store)>0)
+						{	
+							$resuce_template = $this->common_model->resuce_store_template($resuce_store);
+						}
+						//$affiliate_info = $this->common_model->get_affiliate_info();
+						//$affiliate_text = isset($affiliate_info['st_affiliate_content']) && trim($affiliate_info['st_affiliate_content'])!=''?$affiliate_info['st_affiliate_content']:'';
+						$affiliate_text = '';
+						//CENTER BANNER
+						if(isset($q1) && !empty($q1)){					   		
+							foreach($q1 as $qr)
+							{
+								 
+								if(!empty($qr['st_code']))
+								{    
+									//$affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+									$affiliate_content	= $qr['st_code'];
+								}
+								elseif(!empty($qr['st_image']))
+								{
+									$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+									$imgtitle   =   $qr['st_banner_name'];
+									//$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';
+									$affiliate_content	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';			  
+								}
+								else
+								{
+									 $affiliate_content='';								 
+								}
+										  
+								$affiliate_desc = isset($qr['st_affiliate_content']) && trim($qr['st_affiliate_content'])!=''?$qr['st_affiliate_content']:'';
+								if(isset($affiliate_desc) && !empty($affiliate_desc))
+								{	
+									$affiliate_text ='<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">'.$affiliate_desc.'</p>';
+								}
+								  
+									
+							}
+						}			
+						   
+					   else
+					   {
+						  $affiliate_content='';
+					   }
+					   
+					   
+					   //LEFT BANNER
+						if(isset($q2) && !empty($q2)){					   		
+							foreach($q2 as $qr)
+							{								 
+								 if(!empty($qr['st_code']))
+								{    
+									   $leftbanner	= $qr['st_code'];
+									  
+								}
+								elseif(!empty($qr['st_image']))
+								{
+										
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+										
+										$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0" style="margin-top: 20px; margin-right: 20px;"/></a>';
+									  
+								}
+								else
+								{
+									   $leftbanner='';								 
+								} 	
+							}
+						}
+						else
+						{
+							   $leftbanner='';								 
+						}
+						
+						
+						//RIGHT BANNER
+						if(isset($q3) && !empty($q3)){					   		
+							foreach($q3 as $qr)
+							{
+								 
+								if(!empty($qr['st_code']))
+								{    
+									   $rightbanner	= $qr['st_code'];
+									  
+								}
+								elseif(!empty($qr['st_image']))
+								{	
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+										
+										$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0" style="margin-top:20px; margin-left: 20px;"/></a>';	
+									  
+								}
+								else
+								{
+									   $rightbanner='';								 
+								}
+								  
+									
+							}
+						}
+						else
+						{
+							   $rightbanner='';								 
+						}
+						
+						$rou_tc_user = $this->common_model->get_user_profile($transport_details['accTcid']);
+						$tc_user_name = '';
+						if(isset($rou_tc_user)&& count($rou_tc_user)>0 && !empty($rou_tc_user[0]['st_display_name']) && !empty($rou_tc_user[0]['st_last_name']))
+						{
+							$tc_user_name = ucfirst($rou_tc_user[0]['st_display_name']).' '.$rou_tc_user[0]['st_last_name'];
+						} else {
+							$tc_user_name = ucfirst($transport_details['st_display_name']);
+						}
+						
+						$join_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						
+						$transport_link = '<a href="'.$join_url.'"  style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Transport">View Transport</a>';
+						
+						$templete   = str_replace("##affiliate_content##",$affiliate_content,$templete);
+						$templete  	= str_replace("##affiliate_content_description##",$affiliate_text,$templete);
+						$templete   = str_replace("##leftbanner##",$leftbanner,$templete);
+						$templete   = str_replace("##rightbanner##",$rightbanner,$templete);
+						
+						$templete  	= 	str_replace("##url##",$this->config->item('base_url'),$templete);
+						$templete  	= 	str_replace("##transport_coordinator_display_name##",ucfirst($transport_details['st_display_name']),$templete);
+						$templete  	= 	str_replace("##tc_transport_coordinator_display_name##",$tc_user_name,$templete);
+						$templete  	= 	str_replace("##transport##","#DBT".$transport_details['in_transportation_id'],$templete);
+						
+						$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}	
+						
+						$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+						
+						
+						
+						//$templete  	= 	str_replace("##transport_day,transport_date##",date("l, M d",strtotime($transport_details['dt_target'])),$templete);
+						$templete  	= 	str_replace("##sending_city/state/zip_code##",$transport_details['st_from_city']." (".$transport_details['st_from_street'].")",$templete);
+						$templete  	= 	str_replace("##receiving_city/state/zip_code##",$transport_details['st_to_city']." (".$transport_details['st_to_street'].")",$templete);
+						//$templete  	= 	str_replace("##sending_city/state/zip_code##",$transport_details['st_from_city'].", ".$transport_details['st_from_state'].", ".$transport_details['st_from_zip'],$templete);
+						//$templete  	= 	str_replace("##receiving_city/state/zip_code##",$transport_details['st_to_city'].", ".$transport_details['st_to_state'].", ".$transport_details['st_to_zip'],$templete);
+						$templete	=	str_replace("##schedule##",$this->config->item('base_url')."org-transportation-scheduled/".$transport_details['in_transportation_id']."/",$templete);
+						//
+						$templete	=	str_replace("##sending_state##",$transport_details['st_from_state'],$templete);
+						$templete	=	str_replace("##receiving_state##",$transport_details['st_to_state'],$templete);
+						$templete	=	str_replace("##animal_count##",$animals_cnt,$templete);
+						$templete   =   str_replace("##organization_name##",$transport_details['st_org_name'],$templete);
+						$templete 	= 	str_replace("##coordinator_details##",$transport_details['st_display_name'].' ('.$transport_details['st_email'].')',$templete);
+						
+						$templete  	= 	str_replace("##transport##","#DBT".$this->session->userdata('transport_id'),$templete);
+						$templete	=	str_replace("##Pickup_date##",date("m/d",strtotime($transport_details['dt_pickup_date'])),$templete);
+						$templete	=	str_replace("##Dropoff_date##",date("m/d",strtotime($transport_details['dt_target'])),$templete);
+						$templete   =   str_replace("##submitting_organization##",$transport_details['stSendOrgNm'],$templete);
+						$templete   =   str_replace("##sending_organization_name##",$transport_details['stSendOrgNm'],$templete);
+						$templete   =   str_replace("##receiving_organization_field##",$transport_details['stRecOrgNm'],$templete);
+						$templete   =   str_replace("##passenger_backstory##",$transport_details['stAniStory'],$templete);
+						$templete   =   str_replace("##transport_link##",$transport_link,$templete);
+						$templete   =   str_replace('##resuce_store_block##',$resuce_template,$templete);
+						
+						$sending_stS501c3  =   (isset($transport_details['stS501c3'])&& $transport_details['stS501c3'] == 'Y')?'Yes':'No';
+						$receiving_stS501c3  = (isset($transport_details['stR501c3'])&& $transport_details['stR501c3'] == 'Y')?'Yes':'No';
+						
+						$templete   =   str_replace("##Yes_or_NO_sending##",$sending_stS501c3,$templete);
+						$templete   =   str_replace("##Yes_or_NO_receiving##",$receiving_stS501c3,$templete);
+						
+						
+						$additional_info_str = ''; 				
+						$transport_files = $this->get_transport_files($transport_details['in_transportation_id']);
+						
+						if((isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '') || (isset($transport_files) && !empty($transport_files)))
+						{
+						$additional_info_str .='<div style="background-color:#383838; font:bold 16px Arial, Helvetica, sans-serif;color:#fff; padding:0 18px; line-height:40px; text-transform:uppercase; margin-top:30px; margin-bottom:10px;">Additional Information:</div>';
+						
+						$additional_info_str .='<p style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0;">'.$transport_details['st_add_comments'].'</p>';
+						
+						if(isset($transport_files) && !empty($transport_files))
+						{
+						$additional_info_str .='<ul style="margin:15px 0px 0px 0px; padding:0px;">';
+						foreach($transport_files as $key=>$value)
+						{
+							$additional_info_str .='<li style="font:14px/20px Arial, Helvetica, sans-serif; color:#575757; list-style-type:none; text-decoration:none;"><a href="'.base_url().'org_transportation/generate_download/'.$this->common_function->encode_base64($value['st_file_name']).'" style="color:#0073b5; color: #0073b5; padding: 2px 8px; border: 1px solid #D6D4D4; background: #F5F9F8; margin-bottom: 5px; display: inline-block;"><img alt="" title="" src="'.base_url().'assets/img/icon-download.png"  style="border:none; max-width:100%; height:auto;" /> '.$value['st_file_name'].'</a></li>';					
+						}
+						$additional_info_str .='</ul>';
+						}
+						}
+						
+						$templete = str_replace("##additional_details##", $additional_info_str, $templete);
+						
+						$join_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						$leg_str .= '<table width="100%" border="0" cellpadding="5">';
+					if(!empty($transport_legs)) {
+						foreach($transport_legs as $row) {
+							if($row['route_type_id'] == 0 || $row['route_type_id'] == 1) {
+								$pick_address = $row['pick_city'].', '.$row['pick_state'].', '.$row['pick_country'].', '.$row['pick_zip'];
+								$drop_address = $row['drop_city'].', '.$row['drop_state'].', '.$row['drop_country'].', '.$row['drop_zip'];
+							$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><strong>From</strong> '.$pick_address.' <strong>To</strong> '.$drop_address.'<a href="'.$join_url.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Leg">View Leg</a></td></tr>';
+							} else {
+								$o_pick_address = $row['o_pick_city'].', '.$row['o_pick_state'].', '.$row['o_pick_zip'].', '.$row['o_pick_country'];
+								$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><strong>Meeting Location:</strong> '.$o_pick_address.'<a href="'.$join_url.'"  style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Leg">View Leg</a></td></tr>';
+							}
+							
+						}
+					} else {
+						$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><a href="'.$join_url.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View">View this Transport</a></td></tr>';
+					}
+						
+						$leg_str .= '</table>';
+						
+						$templete	=	str_replace("##leg_detail##",$leg_str,$templete);
+						
+						$animal_str = '';
+						$animal_image = '';
+						
+						//Animal_details
+						$org_image = $this->get_org_image($transport_details['in_organization_id']);
+						
+						$i=0;
+						$data_image = array();
+						if(!empty($transport_animals)) {
+							foreach($transport_animals as $rows) {
+								if($rows['st_file_type'] == 'P' && $rows['st_file_name'] != '' && file_exists($this->config->item('upload')."animal_images/140x140/".$rows['st_file_name'])) {
+									$data_image[] = base_url().'upload/animal_images/140x140/'.$rows['st_file_name'];
+								} else {
+									$data_image[] = base_url().'upload/org_doc/thumb/'.$org_image;;
+								}
+							}
+						}
+						
+							
+							if(!empty($transport_animals) && count($transport_animals)>0) 
+							{
+								$animal_str .= '<table width="100%" border="1" cellpadding="5"><tr>';
+								$animal_str .= '<th>Animal Name</th>';
+								$animal_str .= '<th>Type</th>';
+								$animal_str .= '<th>Breed</th>';
+								$animal_str .= '<th>Gender (M/F)</th>';
+								$animal_str .= '<th>Weight (in lbs.)</th>';
+								$animal_str .= '<th>Travelling with</th>';
+								$animal_str .= '<th>CVI</th>';
+								$animal_str .=  '</tr>';
+							foreach($transport_animals as $rows) 
+							{
+								$gender ='';
+								$st_cvi = '';
+								if($rows['st_gender']=='M')
+								{	
+									$gender ='Male';
+								}	
+								else if($rows['st_gender']=='F')
+								{	
+									$gender ='Female';
+								}
+								
+								if($rows['st_cvi']=='Y')
+								{	
+									$st_cvi ='Yes';
+								}	
+								else if($rows['st_cvi']=='N')
+								{	
+									$st_cvi ='No';
+								}
+								//$rows['st_travel_with'] = trim($rows['st_travel_with']);
+								$st_travel_with = explode(",",$rows['st_travel_with']);
+								$st_travel_with_text = '';
+								if(count($st_travel_with)>0)
+								{
+									foreach($st_travel_with as $key=>$value)
+									{
+											switch ($value) 
+											{
+												case "1":
+												$st_travel = "Collar";
+												break;
+												case "2":
+												$st_travel = "Leash";
+												break;
+												case "3":
+												$st_travel = "Crate";												
+												break;
+												case "4":
+												$st_travel = "Medicine";
+												break;
+												default:
+												$st_travel = '';
+											}
+											if($key == count($st_travel_with)-1 )
+											{
+												$st_travel_with_text.= $st_travel;
+											} else {
+												$st_travel_with_text.= $st_travel.',';
+											}	
+											
+										}	
+									}
+								 else {
+									$st_travel_with_text = '';
+								}	
+								$animal_str .= '<tr>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_type_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_breed_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$gender.'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['in_weight'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$st_travel_with_text.'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$st_cvi.'</td>';
+								$animal_str .= '</tr>';
+							}
+								$animal_str .= '</table>';
+							}
+						
+						$templete	=	str_replace("##animal_details##",$animal_str,$templete);
+						$share_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						
+						$title = 'DOOBERT -Transportation #DBT'.htmlspecialchars($transport_details['in_transportation_id']);
+						if($transport_details['perc']>0)
+							{
+								$transport_comp_perc = (($transport_details['perc']>100)? "100%":$transport_details['perc']."%");
+							}
+							else
+							{
+								$transport_comp_perc = "0%";
+							}
+							
+						$description = "";
+									
+						$description .= date("l, M",strtotime($transport_details['dt_target']));
+						$description .= date(" d",strtotime($transport_details['dt_target']));
+						$description .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DBT".$transport_details['in_transportation_id']."&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+						$description .= "\r\n";
+						$description .= $transport_details['st_from_street']? $this->common_function->custom_htmlentities($transport_details['st_from_street']).",":"";
+						$description .= $transport_details['st_from_city']? $this->common_function->custom_htmlentities($transport_details['st_from_city']).",":"";
+						$description .= $transport_details['st_from_state']? $this->common_function->custom_htmlentities($transport_details['st_from_state']).",":"";
+						$description .= $transport_details['st_from_zip']? $this->common_function->custom_htmlentities($transport_details['st_from_zip']).",":"";
+						$description .= ' to ';
+						$description .= $transport_details['st_to_street']? $this->common_function->custom_htmlentities($transport_details['st_to_street']).",":"";
+						$description .= $transport_details['st_to_city']? $this->common_function->custom_htmlentities($transport_details['st_to_city']).",":"";
+						$description .= $transport_details['st_to_state']? $this->common_function->custom_htmlentities($transport_details['st_to_state']).",":"";
+						$description .= $transport_details['st_to_zip']? $this->common_function->custom_htmlentities($transport_details['st_to_zip']).",":"";
+						$description .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+						$description .= "\r\n";
+						$description .= $transport_comp_perc ." of ".($transport_details['in_tot_distance']!=''? $transport_details['in_tot_distance']:"0").'miles covered.';
+						
+						
+						$description_str = str_replace('&nbsp;',' ',$description);
+						//$description_str = str_replace(array("\r\n","\r","\n"), "<br>",$description_str);
+									
+						$share_facebook_str  = ''; 
+						$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description).'"><img src="http://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+						$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+						
+						$share_twitter_str = ''; 
+						
+						$share_twitter_str .= '<a href="http://twitter.com/share?text='.urlencode($description_str).'&URL='.urlencode($share_url).'"><img src="http://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+			
+						$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+						
+						$share_gplus_str = ''; 
+						$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="http://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+						
+						
+								
+						$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+						
+						
+						// for latest Blog.
+						$blog_details = $this->get_doobert_recent_post();
+						
+						if(!empty($blog_details))
+						{
+						$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+						$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+						$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+						}
+						
+						
+						
+						
+						$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}	
+						
+						$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+						
+						
+						
+						
+						
+						
+						$subject	=	str_replace("##transport##","#DBT".$transport_details['in_transportation_id'],$email_details[0]['st_email_subject']);
+						//$subject	=	str_replace("##Pickup_date##",date("m/d",strtotime($transport_details['dt_pickup_date'])),$subject);
+						//$subject	=	str_replace("##Dropoff_date##",date("m/d",strtotime($transport_details['dt_target'])),$subject);
+						//$subject  	= 	str_replace("##sending city/state##",$transport_details['st_from_city'].", ".$transport_details['st_from_state'],$subject);
+						//$subject  	= 	str_replace("##receiving city/state##",$transport_details['st_to_city'].", ".$transport_details['st_to_state'],$subject);
+						
+						$subject  	= 	str_replace("##sending city/state##",$transport_details['st_from_city']." (".$transport_details['st_from_street'].")",$subject);
+						$subject  	= 	str_replace("##receiving city/state##",$transport_details['st_to_city']." (".$transport_details['st_to_street'].")",$subject);
+						
+						foreach($email_list as $user_val)
+						{	
+							$user_id = $user_val['user_id'];
+							$user_email = $user_val['email_address'];
+							$strMail 	= 	$templete;
+							$strMail = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_id).'/'.$this->common_function->encode_base64($user_email),$strMail);		
+							$strMail = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_id).'/'.$this->common_function->encode_base64($user_email),$strMail);
+							$strMail = str_replace("##user_display_name##",$user_val['name'],$strMail);
+							$transport_emails = array(	"user_id"		=> $user_val['user_id'],
+													  	"user_detail"	=> serialize($user_val), 
+														"email_subject"	=> $subject, 
+														"email_content"	=> $strMail, 
+														"dt_created"	=> date("Y-m-d H:i:s"),  
+														//"dt_modified"	=> ("0000-00-00 00:00:00"),  
+														"in_email_sent"	=> "0",
+														'in_transport_id' =>$transport_details['in_transportation_id'],
+													  );
+							$verify_transport_cron = $this->verify_user_transport_cron($transport_details['in_transportation_id'],$user_val['user_id']);
+							if(count($verify_transport_cron)<=0)
+							{
+								$inserted_id = $this->add_transport_emails($transport_emails);
+								$user_detail_array[$inc_val]['user_id'] 	  = $user_val['user_id'];
+								$user_detail_array[$inc_val]['name'] 		  =  $user_val['name'];
+								$user_detail_array[$inc_val]['email_address'] =  $user_val['email_address'];
+								$inc_val++;
+							}	
+						}
+						
+					}
+				
+			
+		
+		
+		$email_type = "1"; 
+		$email_type_detail = "DBT".$transport_details['in_transportation_id']." - Doobert.com Transport";
+			
+		$mail_checksum_array = array("in_transport_id"	=>	$transport_details['in_transportation_id'],
+									   "in_email_type"	=>	$email_type,
+									   "st_email_type"	=>	$email_type_detail,
+										"dt_created"	=>	date("Y-m-d H:i:s"),
+									 "st_user_details"	=>	serialize($user_detail_array)
+									 );
+		
+		$insert_id = $this->common_model->insert_transport_email_checksum($mail_checksum_array);
+	}
+	
+	public function get_volunteer_transporter_user($org_id)
+	{
+		$this->db->select('in_user_id');
+		$this->db->from('tbl_organization_preferred_volunteer');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_deleted','0');
+		$query =	$this->db->get();
+		$user_id = array();
+		if($query->num_rows()>0)
+		{	
+			foreach($query->result_array() as $key=>$value)
+			{
+				array_push($user_id,$value['in_user_id']);
+			}
+		}	
+		return $user_id;
+	}
+	
+	public function get_nondoobert_volunteer($org_id)
+	{
+		$this->db->select('st_first_name,st_last_name,st_email');
+		$this->db->from('tbl_org_nondoobert_preferred_vol');
+		$this->db->where('in_organization_id',$org_id);
+		$this->db->where('in_deleted','0');
+		$query =	$this->db->get();
+		$non_doobert_vol = array();
+		if($query->num_rows()>0)
+		{	
+			foreach($query->result_array() as $key=>$value)
+			{
+				$non_doobert_vol[] = array('in_user_id'      => 'non_doobert',
+										   'st_display_name' => $value['st_first_name'].' '.$value['st_last_name'],
+										   'st_email'		 => $value['st_email']   
+										  );
+			}
+		}	
+		return $non_doobert_vol; 
+	}
+	
+	public function get_near_by_transportride_users()
+	{
+			$cron_email_array = array("cron_url"=> base_url().'transportation/nearby_transport_ride_email',
+									  "cron_step"=>'1',
+									  "cron_step_detail"=>'step1',
+									  "cron_created_date"=>date("Y-m-d H:i:s"),
+									 );
+	
+			$this->common_model->add_cron_email_status($cron_email_array);
+			
+			$last_cron_inserted_id = $this->db->insert_id();
+			
+			$this->db->select("tr.in_transportation_id,tr.in_organization_id,tr.in_preferred_vol");
+			$this->db->from("tbl_transportation tr");
+			//$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+			$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_near_by_email"=>"0","tr.st_trans_type"=>"R");
+			$this->db->where($where);
+			$this->db->order_by("tr.in_transportation_id","DESC");
+			$this->db->limit(1);
+			$query =	$this->db->get();
+			$transport_details = $query->row_array();
+			//echo $this->db->last_query(); exit;
+			if(isset($transport_details['in_transportation_id']))
+			{
+				$user_volunteer_org = array();
+				if($transport_details['in_preferred_vol']==1)
+				{
+					$user_volunteer_org = $this->get_volunteer_transporter_user($transport_details['in_organization_id']);
+				}	
+				$this->db->select('u.in_user_id,CONCAT(u.st_display_name," ",st_last_name) as st_display_name,u.st_email',FALSE); 
+				$this->db->from("tbl_users u");
+				$where = array("u.in_status"=>"1","u.in_deleted"=>"0","u.flg_immediate_transport"=>"1","u.in_email_verify_status"=>"1");
+				$this->db->where($where);
+				$this->db->where("u.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$transport_details['in_organization_id']." AND in_status = 3)");
+				
+				if($transport_details['in_preferred_vol']==1 && count($user_volunteer_org)>0)
+				{
+					$this->db->where_in("u.in_user_id",$user_volunteer_org);	
+				}	
+				$query =	$this->db->get();
+				$users_list = $query->result_array();			
+				//echo $this->db->last_query(); exit;
+			
+				$emails_list = array();
+				
+				foreach($users_list as $u_key=>$u_val)
+				{
+					$details 		= $this->get_driver_detail_by_user_id($u_val['in_user_id']);
+					$ride_details  = $this->get_ride_detail_by_user_id($u_val['in_user_id']);				
+					$trns_ids	= '';
+					$driver		= '';
+					$ride		= '';
+					
+					if(!empty($details) || !empty($ride_details))
+					{
+						if(!empty($details))
+						{
+							$days 		= "'".implode("','",unserialize($details['st_driver_availability']))."'";
+							$lat 		= $details['lat'];
+							$lon 		= $details['lon'];
+							$distance 	= $details['in_distance_to_drive'];
+						}
+						if(!empty($ride_details))
+						{
+							$r_days 	= "'".implode("','",unserialize($ride_details['st_ride_daytime']))."'";
+							$r_lat 		= $ride_details['st_latitude'];
+							$r_lon 		= $ride_details['st_longitude'];
+							$r_distance = (isset($ride_details['in_ride_radius']) && !empty($ride_details['in_ride_radius']))?$ride_details['in_ride_radius']:'50';
+						}
+						
+						
+						$this->db->select(" tr.dt_target,
+										DATE_FORMAT(tr.dt_pickup_date, '%a') as pdays,
+										DATE_FORMAT(tr.dt_target, '%a') as days,
+										tr.in_transportation_id,
+										tr.in_status, 
+										tr.st_from_zip, 
+										tr.st_to_zip, 
+										tr.in_tot_distance, 
+										tr.in_distance_covered,
+										tr.st_trans_type,
+										round(( tr.in_distance_covered/tr.in_tot_distance * 100 ), 2) perc,
+										z.lat,
+										z.lon",FALSE);
+						$this->db->from("tbl_transportation tr");
+						$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+						$this->db->join("tbl_zip_code tz","tr.st_to_zip = tz.zip_code","INNER");
+						$where = array("tr.in_transportation_id"=>$transport_details['in_transportation_id'],"tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_near_by_email"=>"0","tr.st_trans_type"=>"R");
+						$this->db->where($where);
+					
+						/*if($trns_ids!='')
+						{
+							$this->db->where("tr.in_transportation_id NOT IN (".$trns_ids.") ", NULL, FALSE);
+						}*/
+						$pilot_h = '';
+						$driver_h = '';
+						if(!empty($details))
+						{
+							$driver = '(3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat))))<="'.$distance.'" 
+							OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(z.lat)))) is NULL 
+							OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat))))<="'.$distance.'" 
+							OR (3959*acos(cos(radians("'.$lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$lon.'"))+sin(radians("'.$lat.'"))*sin(radians(tz.lat)))) is NULL  ';
+							//$driver_h = '(days in('.$days .') OR pdays in('.$days .'))';
+						}
+						if(!empty($ride_details))
+						{
+							$ride  = '(3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(z.lat))))<="'.$r_distance.'" 
+							OR (3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(z.lat))*cos(radians(z.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(z.lat)))) is NULL	
+							OR (3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(tz.lat))))<="'.$r_distance.'" 
+							OR (3959*acos(cos(radians("'.$r_lat.'"))*cos(radians(tz.lat))*cos(radians(tz.lon)-radians("'.$r_lon.'"))+sin(radians("'.$r_lat.'"))*sin(radians(tz.lat)))) is NULL ';
+							//$pilot_h = '(days in('.$a_days .') OR pdays in('.$a_days .'))';
+						}
+						$cnd = ($driver)?$driver:"";
+						//$cnd_h = ($driver_h)?$driver_h:"";
+					if($cnd!='' && $ride!='' )
+					{
+						$cnd .= " OR ".$ride;
+					}
+					elseif($ride)
+					{
+						$cnd = $ride;
+					}
+					if($cnd)
+					{
+						$cnd = "( ".$cnd." ) ";
+					}
+					$this->db->where($cnd.'GROUP BY tr.in_transportation_id', NULL, FALSE);
+					$query =	$this->db->get();
+						
+					if($query->num_rows() > 0)
+					{
+						$verify_transport_cron = $this->verify_user_transport_cron($transport_details['in_transportation_id'],$u_val['user_id']);
+						if(count($verify_transport_cron)<=0)
+						{
+							$emails_list[] = array("user_id"=>$u_val['in_user_id'],"name"=>$u_val['st_display_name'],"email_address"=>$u_val['st_email']);
+						}
+					}
+					
+				}				
+				}
+			
+			$nondoobert_preferred_volunteer = $this->get_nondoobert_volunteer($transport_details['in_organization_id']);
+			if(count($nondoobert_preferred_volunteer)>0 && $transport_details['in_preferred_vol']==1)
+			{
+				foreach($nondoobert_preferred_volunteer as $key=>$value)
+				{
+					$emails_list[] = array("user_id"=>$value['in_user_id'],"name"=>$value['st_display_name'],"email_address"=>$value['st_email']);
+				}	
+			}	
+			$tmp_email = array ();
+			foreach ($emails_list as $row) 
+			{
+				if (!in_array($row,$tmp_email)){
+					 array_push($tmp_email,$row);
+				}
+			}				
+			
+			$transport_data 	= $this->get_transport_details($transport_details['in_transportation_id']);
+			
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			
+			$legs = "";
+			$email_transport_details	=	$transport_data[0];
+			
+			if(isset($tmp_email) && !empty($tmp_email))
+			{
+				$this->transport_ride_email($tmp_email,$legs,$email_transport_details);	
+			}
+			
+			$email_type = "1"; 
+			$email_type_detail = "DBT".$transport_details['in_transportation_id']." - Doobert.com Transport";
+			
+			$user_detail_array = $tmp_email;
+			
+			/*$mail_checksum_array = array("in_transport_id"=>$transport_details['in_transportation_id'],
+								"in_email_type"=>$email_type,
+								"st_email_type"=>$email_type_detail,
+								"dt_created"=>date("Y-m-d H:i:s"),
+								"st_user_details"=>serialize($user_detail_array));*/
+		
+			$insert_id = $this->common_model->insert_transport_email_checksum($mail_checksum_array);
+			
+			
+			$updated_result = $this->update_transport_near_by_cron_status($transport_data[0]['in_transportation_id']);
+			
+			}else{
+			$cron_email_array = array("cron_step"=>'3',
+								"cron_step_detail"=>'step3',
+								"cron_updated_date"=>date("Y-m-d H:i:s")
+								);					
+		
+			$this->common_model->update_cron_status_email_sent($last_cron_inserted_id,$cron_email_array);
+			}
+	}
+	
+	public function transport_ride_email($email_list,$leg_type,$transport_details)
+	{
+		
+		$animals_cnt = 0 ;
+		$transport_animals 			= $this->get_transport_animals($transport_details['in_transportation_id']);
+		$user_detail_array = array();
+		$inc_val = 0;
+		
+		
+		if(isset($transport_animals) && !empty($transport_animals))
+		{
+			$animals_cnt = count($transport_animals);	
+		}  else if(isset($transport_details['no_of_kitten']) && !(empty($transport_details['no_of_kitten'])) && $transport_details['no_of_kitten']!='0' && isset($transport_details['st_trans_type']) && $transport_details['st_trans_type']=='R')
+		{	
+				$animals_cnt = $transport_details['no_of_kitten'];
+		}
+			$email_details = $this->common_model->get_email_containt("125");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+						if(isset($q) && !empty($q)){					   		
+								foreach($q as $qr)
+								{		 
+									  
+									if(!empty($qr['st_image']))
+									{
+											$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+											$imgtitle   =   $qr['st_banner_name']; 				
+											$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+											alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+										  
+										  
+									}
+									else
+									{
+										   $donation='';								 
+									}							  
+										
+								}
+							}			
+							   
+						   else
+						   {
+							  $donation='';
+						   }
+			$resuce_template = '';
+			$resuce_store = $this->common_model->get_resuce_store($transport_details['in_organization_id']);
+			if(count($resuce_store)>0)
+			{	
+				$resuce_template = $this->common_model->resuce_store_template($resuce_store);
+			}
+			//$affiliate_info = $this->common_model->get_affiliate_info();
+			//$affiliate_text = isset($affiliate_info['st_affiliate_content']) && trim($affiliate_info['st_affiliate_content'])!=''?$affiliate_info['st_affiliate_content']:'';
+			$affiliate_text = '';
+			if(isset($email_details[0]['st_email_body']))
+			{
+						$leg_str = '';
+						$templete	= 	$email_details[0]['st_email_body'];
+						
+						$q1			=	$this->common_model->get_affiliate_detail('125','C');	
+						$q2			=	$this->common_model->get_affiliate_detail('125','L');	
+						$q3			=	$this->common_model->get_affiliate_detail('125','R');
+						
+						
+						if(isset($q1) && !empty($q1)){					   		
+							foreach($q1 as $qr)
+							{
+								 
+								if(!empty($qr['st_code']))
+								{    
+									//$affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+									$affiliate_content	= $qr['st_code'];
+								}
+								elseif(!empty($qr['st_image']))
+								{
+									$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+									$imgtitle   =   $qr['st_banner_name'];
+									//$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';
+									$affiliate_content	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';			  
+								}
+								else
+								{
+									 $affiliate_content='';								 
+								}
+										  
+								$affiliate_desc = isset($qr['st_affiliate_content']) && trim($qr['st_affiliate_content'])!=''?$qr['st_affiliate_content']:'';
+								if(isset($affiliate_desc) && !empty($affiliate_desc))
+								{	
+									$affiliate_text ='<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">'.$affiliate_desc.'</p>';
+								}
+								  
+									
+							}
+						}			
+						   
+					   else
+					   {
+						  $affiliate_content='';
+					   }
+					   
+					   
+					   //LEFT BANNER
+						if(isset($q2) && !empty($q2)){					   		
+							foreach($q2 as $qr)
+							{								 
+								 if(!empty($qr['st_code']))
+								{    
+									   $leftbanner	= $qr['st_code'];
+									  
+								}
+								elseif(!empty($qr['st_image']))
+								{
+										
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+										
+										$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0"/></a>';
+									  
+								}
+								else
+								{
+									   $leftbanner='';								 
+								} 	
+							}
+						}
+						else
+						{
+							   $leftbanner='';								 
+						}
+						
+						
+						//RIGHT BANNER
+						if(isset($q3) && !empty($q3)){					   		
+							foreach($q3 as $qr)
+							{
+								 
+								if(!empty($qr['st_code']))
+								{    
+									   $rightbanner	= $qr['st_code'];
+									  
+								}
+								elseif(!empty($qr['st_image']))
+								{	
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+										
+										$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0"/></a>';	
+									  
+								}
+								else
+								{
+									   $rightbanner='';								 
+								}
+								  
+									
+							}
+						}
+						else
+						{
+							   $rightbanner='';								 
+						}
+						
+						$rou_tc_user = $this->common_model->get_user_profile($transport_details['accTcid']);
+						$tc_user_name = '';
+						$tc_user_name = ucfirst($transport_details['st_display_name']);
+						$orgcode = ($transport_details['st_org_code'] != '')? '#'.$transport_details['st_org_code'] : '#DBT';
+						
+						$join_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						
+						$transport_link = '<a href="'.$join_url.'"  style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Transport">View Transport</a>';
+						
+						$templete   = str_replace("##affiliate_content##",$affiliate_content,$templete);
+						$templete   =	str_replace("##DONATION##",$donation, $templete);
+						$templete   = str_replace("##leftbanner##",$leftbanner,$templete);
+						$templete   = str_replace("##rightbanner##",$rightbanner,$templete);
+						
+						$templete  	= 	str_replace("##url##",$this->config->item('base_url'),$templete);
+						$templete  	= 	str_replace("##transport_coordinator_display_name##",ucfirst($transport_details['st_display_name']),$templete);
+						$templete  	= 	str_replace("##tc_transport_coordinator_display_name##",$tc_user_name,$templete);
+						$templete  	= 	str_replace("##transport##",$orgcode.$transport_details['in_transportation_id'],$templete);
+						
+						// added by sadique	
+						
+						$fbtransportshare_image = base_url().'upload/fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg?'.rand();
+						if(file_exists($this->config->item('upload') . 'fb_transport_share/transportfbimage_DBT'.$transport_details['in_transportation_id'].'.jpg'))
+						{
+							$fbtransportshare = '<img alt="Animal Rescue Relay Transport" border="0" src="'.$fbtransportshare_image.'" title="Animal Rescue Relay Transport" />';
+						} else {
+							$fbtransportshare = '<p>Animal Rescue Relay Transport</p>';
+						}
+						
+						$templete	=	str_replace("##fbtransportshare##",$fbtransportshare,$templete);
+						
+						
+						$templete  	= 	str_replace("##transport_day,transport_date##",date("l, M d",strtotime($transport_details['dt_target'])),$templete);
+						//$templete  	= 	str_replace("##sending_city/state/zip_code##",$transport_details['st_from_city']." (".$transport_details['st_from_street'].")",$templete);
+						//$templete  	= 	str_replace("##receiving_city/state/zip_code##",$transport_details['st_to_city']." (".$transport_details['st_to_street'].")",$templete);
+						$templete  	= 	str_replace("##sending_city/state/zip_code##",$transport_details['st_from_city'].", ".$transport_details['st_from_state'].", ".$transport_details['st_from_zip'],$templete);
+						$templete  	= 	str_replace("##receiving_city/state/zip_code##",$transport_details['st_to_city'].", ".$transport_details['st_to_state'].", ".$transport_details['st_to_zip'],$templete);
+						$templete	=	str_replace("##schedule##",$this->config->item('base_url')."org-transportation-scheduled/".$transport_details['in_transportation_id']."/",$templete);
+						//
+						$templete	=	str_replace("##sending_state##",$transport_details['st_from_state'],$templete);
+						$templete	=	str_replace("##receiving_state##",$transport_details['st_to_state'],$templete);
+						$templete	=	str_replace("##animal_count##",$animals_cnt,$templete);
+						$templete   =   str_replace("##organization_name##",$transport_details['st_org_name'],$templete);
+						$templete 	= 	str_replace("##coordinator_details##",$transport_details['st_display_name'].' ('.$transport_details['st_email'].')',$templete);
+						
+						$templete  	= 	str_replace("##transport##","#DBT".$this->session->userdata('transport_id'),$templete);
+						$templete	=	str_replace("##Pickup_date##",date("m/d",strtotime($transport_details['dt_pickup_date'])),$templete);
+						$templete	=	str_replace("##Dropoff_date##",date("m/d",strtotime($transport_details['dt_target'])),$templete);
+						$templete   =   str_replace("##submitting_organization##",$transport_details['stSendOrgNm'],$templete);
+						$templete   =   str_replace("##sending_organization_name##",$transport_details['stSendOrgNm'],$templete);
+						$templete   =   str_replace("##receiving_organization_field##",$transport_details['stRecOrgNm'],$templete);
+						$templete   =   str_replace("##passenger_backstory##",$transport_details['stAniStory'],$templete);
+						$templete   =   str_replace("##transport_link##",$transport_link,$templete);
+						$templete 	= 	str_replace('##resuce_store_block##',$resuce_template,$templete);
+						$templete  	= 	str_replace("##affiliate_content_description##",$affiliate_text,$templete);
+						$sending_stS501c3  =   (isset($transport_details['stS501c3'])&& $transport_details['stS501c3'] == 'Y')?'Yes':'No';
+						$receiving_stS501c3  = (isset($transport_details['stR501c3'])&& $transport_details['stR501c3'] == 'Y')?'Yes':'No';
+						
+						$templete   =   str_replace("##Yes_or_NO_sending##",$sending_stS501c3,$templete);
+						$templete   =   str_replace("##Yes_or_NO_receiving##",$receiving_stS501c3,$templete);
+						
+						
+						// added by sadique
+						//$templete = str_replace("##user_display_name##",$user_profile_data['st_display_name'],$templete);
+						
+						//$templete = str_replace("##user_display_name##",$user_val['name'],$templete);
+						
+						//echo "<pre>"; print_r($transport_details); 
+						//die;
+						
+						$additional_info_str = ''; 				
+						$transport_files = $this->get_transport_files($transport_details['in_transportation_id']);
+						
+						if((isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '') || (isset($transport_files) && !empty($transport_files)))
+						{
+						$additional_info_str .='<div style="background-color:#383838; font:bold 16px Arial, Helvetica, sans-serif;color:#fff; padding:0 18px; line-height:40px; text-transform:uppercase; margin-top:30px; margin-bottom:10px;">Additional Information:</div>';
+						
+						$additional_info_str .='<p style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0;">'.$transport_details['st_add_comments'].'</p>';
+						
+						if(isset($transport_files) && !empty($transport_files))
+						{
+						$additional_info_str .='<ul style="margin:15px 0px 0px 0px; padding:0px;">';
+						foreach($transport_files as $key=>$value)
+						{
+							$additional_info_str .='<li style="font:14px/20px Arial, Helvetica, sans-serif; color:#575757; list-style-type:none; text-decoration:none;"><a href="'.base_url().'org_transportation/generate_download/'.$this->common_function->encode_base64($value['st_file_name']).'" style="color:#0073b5; color: #0073b5; padding: 2px 8px; border: 1px solid #D6D4D4; background: #F5F9F8; margin-bottom: 5px; display: inline-block;"><img alt="" title="" src="'.base_url().'assets/img/icon-download.png"  style="border:none; max-width:100%; height:auto;" /> '.$value['st_file_name'].'</a></li>';					
+						}
+						$additional_info_str .='</ul>';
+						}
+						}
+						
+						$templete = str_replace("##additional_details##", $additional_info_str, $templete);
+						
+						$join_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						$leg_str .= '<table width="100%" border="0" cellpadding="5">';
+					if(!empty($transport_legs)) {
+						foreach($transport_legs as $row) {
+							if($row['route_type_id'] == 0 || $row['route_type_id'] == 1) {
+								$pick_address = $row['pick_city'].', '.$row['pick_state'].', '.$row['pick_country'].', '.$row['pick_zip'];
+								$drop_address = $row['drop_city'].', '.$row['drop_state'].', '.$row['drop_country'].', '.$row['drop_zip'];
+							$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><strong>From</strong> '.$pick_address.' <strong>To</strong> '.$drop_address.'<a href="'.$join_url.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Leg">View Leg</a></td></tr>';
+							} else {
+								$o_pick_address = $row['o_pick_city'].', '.$row['o_pick_state'].', '.$row['o_pick_zip'].', '.$row['o_pick_country'];
+								$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><strong>Meeting Location:</strong> '.$o_pick_address.'<a href="'.$join_url.'"  style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Leg">View Leg</a></td></tr>';
+							}
+							
+						}
+					} else {
+						$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><a href="'.$join_url.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View">View this Transport</a></td></tr>';
+					}
+						
+						$leg_str .= '</table>';
+						
+						$templete	=	str_replace("##leg_detail##",$leg_str,$templete);
+						
+						$animal_str = '';
+						$animal_image = '';
+						
+						//Animal_details
+						$org_image = $this->get_org_image($transport_details['in_organization_id']);
+						
+						$i=0;
+						$data_image = array();
+						if(!empty($transport_animals)) {
+							foreach($transport_animals as $rows) {
+								if($rows['st_file_type'] == 'P' && $rows['st_file_name'] != '' && file_exists($this->config->item('upload')."animal_images/140x140/".$rows['st_file_name'])) {
+									$data_image[] = base_url().'upload/animal_images/140x140/'.$rows['st_file_name'];
+								} else {
+									$data_image[] = base_url().'upload/org_doc/thumb/'.$org_image;;
+								}
+							}
+						}
+						
+							
+							if(!empty($transport_animals) && count($transport_animals)>0) 
+							{
+								$animal_str .= '<table width="100%" border="1" cellpadding="5"><tr>';
+								$animal_str .= '<th>Animal Name</th>';
+								$animal_str .= '<th>Type</th>';
+								$animal_str .= '<th>Breed</th>';
+								$animal_str .= '<th>Gender (M/F)</th>';
+								$animal_str .= '<th>Weight (in lbs.)</th>';
+								$animal_str .= '<th>Travelling with</th>';
+								$animal_str .= '<th>CVI</th>';
+								$animal_str .=  '</tr>';
+							foreach($transport_animals as $rows) 
+							{
+								$gender ='';
+								$st_cvi = '';
+								if($rows['st_gender']=='M')
+								{	
+									$gender ='Male';
+								}	
+								else if($rows['st_gender']=='F')
+								{	
+									$gender ='Female';
+								}
+								
+								if($rows['st_cvi']=='Y')
+								{	
+									$st_cvi ='Yes';
+								}	
+								else if($rows['st_cvi']=='N')
+								{	
+									$st_cvi ='No';
+								}
+								//$rows['st_travel_with'] = trim($rows['st_travel_with']);
+								$st_travel_with = explode(",",$rows['st_travel_with']);
+								$st_travel_with_text = '';
+								if(count($st_travel_with)>0)
+								{
+									foreach($st_travel_with as $key=>$value)
+									{
+											switch ($value) 
+											{
+												case "1":
+												$st_travel = "Collar";
+												break;
+												case "2":
+												$st_travel = "Leash";
+												break;
+												case "3":
+												$st_travel = "Crate";												
+												break;
+												case "4":
+												$st_travel = "Medicine";
+												break;
+												default:
+												$st_travel = '';
+											}
+											if($key == count($st_travel_with)-1 )
+											{
+												$st_travel_with_text.= $st_travel;
+											} else {
+												$st_travel_with_text.= $st_travel.',';
+											}	
+											
+										}	
+									}
+								 else {
+									$st_travel_with_text = '';
+								}	
+								$animal_str .= '<tr>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_type_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_breed_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$gender.'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['in_weight'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$st_travel_with_text.'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$st_cvi.'</td>';
+								$animal_str .= '</tr>';
+							}
+								$animal_str .= '</table>';
+							} else if(isset($transport_details['no_of_kitten']) && !(empty($transport_details['no_of_kitten'])) && $transport_details['no_of_kitten']!='0' && isset($transport_details['st_trans_type']) && $transport_details['st_trans_type']=='R')
+							{
+									$animal_kitten_total = '';
+									$animal_str .= '<table width="100%" ><tr>';
+									$animal_kitten_total .= $transport_details['no_of_kitten'].' ';
+									$animal_kitten_total .= (isset($transport_details['no_of_kitten']) && $transport_details['no_of_kitten'] <=1)?"kitten":"kittens";
+									$animal_str .= '<td bgcolor="#f4f4f4" width="89" height="80" style="text-align: center;"><img src="'.base_url().'assets/img/kitten.jpg" alt="img5" style="top: 0; bottom: 0; left: 0; right: 0; margin: auto;"/></td>';
+									$animal_str .= '<td>'.$animal_kitten_total.'</td>';
+									$animal_str .= '</tr>';
+									$animal_str .= '</table>';
+							} 
+						
+						$templete	=	str_replace("##animal_details##",$animal_str,$templete);
+						$share_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						
+						$title = 'DOOBERT -Transportation #DBT'.htmlspecialchars($transport_details['in_transportation_id']);
+						if($transport_details['perc']>0)
+							{
+								$transport_comp_perc = (($transport_details['perc']>100)? "100%":$transport_details['perc']."%");
+							}
+							else
+							{
+								$transport_comp_perc = "0%";
+							}
+							
+						$description = "";
+									
+						$description .= date("l, M",strtotime($transport_details['dt_target']));
+						$description .= date(" d",strtotime($transport_details['dt_target']));
+						$description .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DBT".$transport_details['in_transportation_id']."&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+						$description .= "\r\n";
+						$description .= $transport_details['st_from_street']? $this->common_function->custom_htmlentities($transport_details['st_from_street']).",":"";
+						$description .= $transport_details['st_from_city']? $this->common_function->custom_htmlentities($transport_details['st_from_city']).",":"";
+						$description .= $transport_details['st_from_state']? $this->common_function->custom_htmlentities($transport_details['st_from_state']).",":"";
+						$description .= $transport_details['st_from_zip']? $this->common_function->custom_htmlentities($transport_details['st_from_zip']).",":"";
+						$description .= ' to ';
+						$description .= $transport_details['st_to_street']? $this->common_function->custom_htmlentities($transport_details['st_to_street']).",":"";
+						$description .= $transport_details['st_to_city']? $this->common_function->custom_htmlentities($transport_details['st_to_city']).",":"";
+						$description .= $transport_details['st_to_state']? $this->common_function->custom_htmlentities($transport_details['st_to_state']).",":"";
+						$description .= $transport_details['st_to_zip']? $this->common_function->custom_htmlentities($transport_details['st_to_zip']).",":"";
+						$description .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+						$description .= "\r\n";
+						$description .= $transport_comp_perc ." of ".($transport_details['in_tot_distance']!=''? $transport_details['in_tot_distance']:"0").'miles covered.';
+						
+						
+						$description_str = str_replace('&nbsp;',' ',$description);
+						//$description_str = str_replace(array("\r\n","\r","\n"), "<br>",$description_str);
+									
+						$share_facebook_str  = ''; 
+						$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description).'"><img src="http://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+						$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+						
+						$share_twitter_str = ''; 
+						
+						$share_twitter_str .= '<a href="http://twitter.com/share?text='.urlencode($description_str).'&URL='.urlencode($share_url).'"><img src="http://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+			
+						$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+						
+						$share_gplus_str = ''; 
+						$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="http://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+						
+						
+								
+						$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+						
+						
+						// for latest Blog.
+						$blog_details = $this->get_doobert_recent_post();
+						
+						if(!empty($blog_details))
+						{
+						$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+						$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+						$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+						}
+						
+						
+						
+						//echo $templete; die;
+						
+						
+						//$orgcode = ($transport_details['st_org_code'] != '')? '#'.$transport_details['st_org_code'] : '#DBT';
+						$subject	=	str_replace("##transport##",$orgcode.$transport_details['in_transportation_id'],$email_details[0]['st_email_subject']);
+						$subject	=	str_replace("##Pickup_date##",date("m/d",strtotime($transport_details['dt_pickup_date'])),$subject);
+						$subject	=	str_replace("##Dropoff_date##",date("m/d",strtotime($transport_details['dt_target'])),$subject);
+						$subject  	= 	str_replace("##sending city/state##",$transport_details['st_from_city'].", ".$transport_details['st_from_state'],$subject);
+						$subject  	= 	str_replace("##receiving city/state##",$transport_details['st_to_city'].", ".$transport_details['st_to_state'],$subject);
+						
+						//$subject  	= 	str_replace("##sending city/state##",$transport_details['st_from_city']." (".$transport_details['st_from_street'].")",$subject);
+						//$subject  	= 	str_replace("##receiving city/state##",$transport_details['st_to_city']." (".$transport_details['st_to_street'].")",$subject);
+						//echo $subject;
+						//die;
+						foreach($email_list as $user_val)
+						{	
+							$user_id = $user_val['user_id'];
+							$user_email = $user_val['email_address'];
+							$strMail 	= $templete;
+							$strMail 	= str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_id).'/'.$this->common_function->encode_base64($user_email),$strMail);		
+							$strMail 	= str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_id).'/'.$this->common_function->encode_base64($user_email),$strMail);
+							$strMail 	= str_replace("##user_display_name##",$user_val['name'],$strMail);
+							$transport_emails = array(	"user_id"		=> ($user_val['user_id'] != 'non_doobert')?$user_val['user_id']:'',
+													  	"user_detail"	=> serialize($user_val), 
+														"email_subject"	=> $subject, 
+														"email_content"	=> $strMail, 
+														"dt_created"	=> date("Y-m-d H:i:s"),  
+														//"dt_modified"	=> ("0000-00-00 00:00:00"),  
+														"in_email_sent"	=> "0",
+														'in_transport_id' =>$transport_details['in_transportation_id'],
+													  );
+							$verify_transport_cron = $this->verify_user_transport_cron($transport_details['in_transportation_id'],$user_val['user_id']);
+							if(count($verify_transport_cron)<=0)
+							{
+								$inserted_id = $this->add_transport_emails($transport_emails);
+								$user_detail_array[$inc_val]['user_id'] 	  =  ($user_val['user_id'] != 'non_doobert')?$user_val['user_id']:'';
+								$user_detail_array[$inc_val]['name'] 		  =  $user_val['name'];
+								$user_detail_array[$inc_val]['email_address'] =  $user_val['email_address'];
+								$inc_val++;
+							}
+						}		
+					}
+				
+		$email_type = "1"; 
+		$email_type_detail = "DBT".$transport_details['in_transportation_id']." - Doobert.com Transport";
+		$mail_checksum_array = array("in_transport_id" => $transport_details['in_transportation_id'],
+									  "in_email_type"  => $email_type,
+									  "st_email_type"  => $email_type_detail,
+										 "dt_created"  => date("Y-m-d H:i:s"),
+									"st_user_details"  => serialize($user_detail_array));
+		
+		$insert_id = $this->common_model->insert_transport_email_checksum($mail_checksum_array);
+	}
+	
+	public function verify_user_transport_cron($transport_id,$user_id)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_new_transportation_cron');
+		$this->db->where('user_id',$user_id);
+		$this->db->where('in_transport_id',$transport_id);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
+	
+	public function update_transport_near_by_cron_status($id)
+	{
+		$this->db->where('in_transportation_id',$id);
+		$updated_result = $this->db->update('tbl_transportation',array("in_near_by_email"=>"1","dt_modified"=>date("Y-m-d H:i:s")));
+		return $updated_result;
+	}
+	
+	public function get_ride_detail_by_user_id($user_id)
+	{
+		
+		$this->db->select("pr.in_user_id,r.st_ride_daytime,r.in_ride_radius,zip.lon as st_longitude,zip.lat as st_latitude");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_users u","u.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_zip_code zip","zip.zip_code = pr.st_zip",'INNER');
+		$this->db->join("tbl_user_rides r","r.in_user_id = u.in_user_id",'INNER');
+		$where = array("pr.in_deleted"=>'0',"u.in_deleted"=>"0","r.in_deleted"=>"0","pr.in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->order_by("r.in_ride_radius","DESC");
+		$query =	$this->db->get();
+		return $query->row_array();
+	}
+	
+	
+	
+	public function get_driver_detail_by_user_id($user_id)
+	{
+		
+		$this->db->select("pr.in_user_id,pr.st_driver,v.st_driver_availability,v.st_zip_vehicle,v.in_distance_to_drive,zip_lat,zip_lon,z.lat,z.lon");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_user_vehicle v","v.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_zip_code z","v.st_zip_vehicle = z.zip_code",'INNER');
+		$where = array("pr.in_deleted"=>'0',"pr.st_driver"=>"Y","v.in_deleted"=>"0","pr.in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->order_by("v.in_distance_to_drive","DESC");
+		$query =	$this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	
+	public function get_pilot_detail_by_user_id($user_id)
+	{
+		
+		$this->db->select("pr.in_user_id,pr.st_driver,vp.st_pilot_availability,vp.st_pilot_zip,vp.in_distance_to_pilot,a.st_longitude,a.st_latitude");
+		$this->db->from("tbl_user_profile pr ");
+		$this->db->join("tbl_user_pilot vp","vp.in_user_id = pr.in_user_id",'INNER');
+		$this->db->join("tbl_airport a","a.st_loc_id = vp.st_identifier",'INNER');
+		$where = array("pr.in_deleted"=>'0',"pr.st_pilot"=>"Y","vp.in_deleted"=>"0","a.in_deleted"=>"0","pr.in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->order_by("vp.in_distance_to_pilot","DESC");
+		$query =	$this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	
+	public function get_user_transportations_by_id($user_id)
+	{
+		$this->db->select("in_transportation_id");
+		$this->db->from("tbl_transportation_participants");
+		$where = array("in_deleted"=>'0',"in_user_id"=>$user_id);
+		$this->db->where($where);
+		$this->db->group_by("in_transportation_id");
+		$query =	$this->db->get();
+		//echo $this->db->last_query();
+		if($query->num_rows()>0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData[]	= $Row->in_transportation_id;
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	public function get_transport_details($transport_id)
+	{
+		$transport_details = array();
+		$this->db->select("	tr.in_transportation_id,
+							tr.in_trans_coods_id,
+							tr.in_organization_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_from_country,
+							tr.st_to_street,
+							tr.st_to_city,
+							tr.st_to_state,
+							tr.st_to_zip,
+							tr.st_to_country,
+							tr.dt_pickup_date,
+							tr.dt_target,
+							tr.st_from_info,
+							tr.st_to_info,
+							tr.st_trans_type,
+							tr.in_tot_distance,
+							tr.is_transport_revised,
+							tr.in_distance_covered,
+							tr.dt_confirm,
+							tr.in_status,
+							tr.st_add_comments,
+							tr.stSendOrgNm,
+						    tr.stSendNm,
+						    tr.stSendEmail,
+						    tr.stSphone,
+						    tr.stS501c3,
+						    tr.stRecOrgNm,  
+						    tr.stRecNm,
+						    tr.stRecEmail,
+						    tr.stRphone,
+						    tr.stR501c3,
+						    tr.accTcid,
+							tr.stAniStory,
+							tr.inRouteTnc,
+							tr.enable_routing_status,	
+							tr.in_allow_pics,
+							tr.in_ride_id,
+							tr.no_of_kitten,
+							concat(u.st_display_name,' ',u.st_last_name) as st_display_name,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							u.st_profile_image,
+							u.st_email,
+							u.in_public,
+							p.in_user_id,
+							p.st_primary_phone,
+							p.st_address1,
+							p.st_city,
+							p.st_state,
+							p.st_zip,
+							o.in_organization_id,
+							o.st_org_image,
+							o.st_org_name,	
+							o.st_org_code,
+							count(tp.in_tr_pr_id) as flgtrjoined,
+							tr.in_status,					
+							o.st_additional_info",
+						FALSE);
+		$where = array("tr.in_deleted"=>"0","tr.in_transportation_id"=>$transport_id);
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_user_profile p ","p.in_user_id= tr.in_trans_coods_id","INNER");
+		$this->db->join("tbl_users u","p.in_user_id = u.in_user_id","INNER");
+		$this->db->join("tbl_organization o","o.in_organization_id = tr.in_organization_id AND o.in_deleted='0'","INNER");	
+		$this->db->join("tbl_transportation_participants tp","tr.in_transportation_id = tp.in_transportation_id AND tp.in_deleted='0'","INNER");		
+		$this->db->where($where);
+		$query =	$this->db->get();
+		if($query->num_rows()>0)
+		{
+			$transport_details = $query->result_array();
+		}
+		//echo "<pre>";print_r($transport_details);die;
+		return $transport_details;
+	}
+	
+	public function check_user_profile_type($user_id)
+	{
+		$this->db->select("tup.in_user_id,tup.st_driver,tup.st_pilot,tup.st_airline_emp,u.st_display_name",FALSE);
+		$this->db->from("tbl_user_profile tup");
+		$this->db->join("tbl_users u","u.in_user_id = tup.in_user_id ", "INNER");
+		$this->db->where('tup.in_user_id',$user_id);
+		$this->db->where('tup.in_deleted',0);
+		$query =	$this->db->get();			
+		$data = $query->row_array();	
+		return $data;
+	}
+	
+	public function transport_add_email($email_list,$leg_type,$transport_details)
+	{
+		$animals_cnt = 0 ;
+		$transport_animals 			= $this->get_transport_animals($transport_details['in_transportation_id']);
+		$orgcode = ($transport_details['st_org_code'] != '')? '#'.$transport_details['st_org_code'] : '#DBT';
+		$user_detail_array = array();
+		$inc_val = 0;
+		if(isset($transport_animals) && !empty($transport_animals))
+		{
+			$animals_cnt = count($transport_animals);	
+		}
+		 
+		
+		$email_details = $this->common_model->get_email_containt("104");
+		if(isset($email_details[0]['st_email_body']))
+		{
+			$leg_str = '';
+			$templete	= 	$email_details[0]['st_email_body'];
+			$q1			=	$this->common_model->get_affiliate_detail('104','C');	
+			$q2			=	$this->common_model->get_affiliate_detail('104','L');	
+			$q3			=	$this->common_model->get_affiliate_detail('104','R');
+			$resuce_template = '';
+			$resuce_store = $this->common_model->get_resuce_store($transport_details['in_organization_id']);
+			if(count($resuce_store)>0)
+			{	
+				$resuce_template = $this->common_model->resuce_store_template($resuce_store);
+			}
+
+			//$affiliate_info = $this->common_model->get_affiliate_info();
+			//$affiliate_text = isset($affiliate_info['st_affiliate_content']) && trim($affiliate_info['st_affiliate_content'])!=''?$affiliate_info['st_affiliate_content']:'';
+			$affiliate_text = '';
+						
+						//CENTER BANNER
+						if(isset($q1) && !empty($q1)){					   		
+							foreach($q1 as $qr)
+							{
+								 
+								if(!empty($qr['st_code']))
+								{    
+									//$affiliate_content	= '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p>'.$qr['st_code'];
+									$affiliate_content	= $qr['st_code'];
+								}
+								elseif(!empty($qr['st_image']))
+								{
+									$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+									$imgtitle   =   $qr['st_banner_name'];										
+									//$affiliate_content	    = '<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">Do you recognize the company below? They will donate a percentage of each sale to help Doobert remain free so we can keep supporting you. Shopping via this link does not increase your prices, but it helps support Doobert operations. Thank you.</p><a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';
+									$affiliate_content	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';			  
+								}
+								else
+								{
+									 $affiliate_content='';								 
+								}
+										  
+								$affiliate_desc = isset($qr['st_affiliate_content']) && trim($qr['st_affiliate_content'])!=''?$qr['st_affiliate_content']:'';
+								if(isset($affiliate_desc) && !empty($affiliate_desc))
+								{	
+									$affiliate_text ='<p style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#555555; text-align:left; padding:10px; background-color:#fff; line-height:15px; border-bottom:3px solid #ecebeb;">'.$affiliate_desc.'</p>';
+								}
+								  
+									
+							}
+						}			
+						   
+					   else
+					   {
+						  $affiliate_content='';
+					   }
+					   
+					   
+					   //LEFT BANNER
+						if(isset($q2) && !empty($q2)){					   		
+							foreach($q2 as $qr)
+							{								 
+								 if(!empty($qr['st_code']))
+								{    
+									   $leftbanner	= $qr['st_code'];
+									  
+								}
+								elseif(!empty($qr['st_image']))
+								{
+										
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];		
+										
+										$leftbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0"/></a>';
+									  
+								}
+								else
+								{
+									   $leftbanner='';								 
+								} 	
+							}
+						}
+						else
+						{
+							   $leftbanner='';								 
+						}
+						
+						
+						//RIGHT BANNER
+						if(isset($q3) && !empty($q3)){					   		
+							foreach($q3 as $qr)
+							{
+								 
+								if(!empty($qr['st_code']))
+								{    
+									   $rightbanner	= $qr['st_code'];
+									  
+								}
+								elseif(!empty($qr['st_image']))
+								{	
+										$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+										
+										$rightbanner	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" alt="EntirelyPets Halloween Store" title="EntirelyPets Halloween Store" border="0"/></a>';	
+									  
+								}
+								else
+								{
+									   $rightbanner='';								 
+								}
+								  
+									
+							}
+						}
+						else
+						{
+							   $rightbanner='';								 
+						}
+						
+						$rou_tc_user = $this->common_model->get_user_profile($transport_details['accTcid']);
+						$tc_user_name = '';
+						if(isset($rou_tc_user)&& count($rou_tc_user)>0 && !empty($rou_tc_user[0]['st_display_name']) && !empty($rou_tc_user[0]['st_last_name']))
+						{
+							$tc_user_name = ucfirst($rou_tc_user[0]['st_display_name']).' '.$rou_tc_user[0]['st_last_name'];
+						} else {
+							$tc_user_name = ucfirst($transport_details['st_display_name']);
+						}
+						
+						$join_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						
+						$transport_link = '<a href="'.$join_url.'"  style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Transport">View Transport</a>';
+						
+						$templete   = str_replace("##affiliate_content##",$affiliate_content,$templete);
+						$templete   = str_replace("##leftbanner##",$leftbanner,$templete);
+						$templete   = str_replace("##rightbanner##",$rightbanner,$templete);
+						
+						$templete  	= 	str_replace("##url##",$this->config->item('base_url'),$templete);
+						$templete  	= 	str_replace("##transport_coordinator_display_name##",ucfirst($transport_details['st_display_name']),$templete);
+						$templete  	= 	str_replace("##tc_transport_coordinator_display_name##",$tc_user_name,$templete);
+						$templete  	= 	str_replace("##transport##",$orgcode.$transport_details['in_transportation_id'],$templete);
+						$templete  	= 	str_replace("##transport_day,transport_date##",date("l, M d",strtotime($transport_details['dt_target'])),$templete);
+						$templete  	= 	str_replace("##sending_city/state/zip_code##",$transport_details['st_from_city'].", ".$transport_details['st_from_state'].", ".$transport_details['st_from_zip'],$templete);
+						$templete  	= 	str_replace("##receiving_city/state/zip_code##",$transport_details['st_to_city'].", ".$transport_details['st_to_state'].", ".$transport_details['st_to_zip'],$templete);
+						$templete	=	str_replace("##schedule##",$this->config->item('base_url')."org-transportation-scheduled/".$transport_details['in_transportation_id']."/",$templete);
+						//
+						$templete	=	str_replace("##sending_state##",$transport_details['st_from_state'],$templete);
+						$templete	=	str_replace("##receiving_state##",$transport_details['st_to_state'],$templete);
+						$templete	=	str_replace("##animal_count##",$animals_cnt,$templete);
+						$templete   =   str_replace("##organization_name##",$transport_details['st_org_name'],$templete);
+						$templete 	= 	str_replace("##coordinator_details##",$transport_details['st_display_name'].' ('.$transport_details['st_email'].')',$templete);
+						
+						$templete  	= 	str_replace("##transport##",$orgcode.$this->session->userdata('transport_id'),$templete);
+						$templete	=	str_replace("##Pickup_date##",date("m/d",strtotime($transport_details['dt_pickup_date'])),$templete);
+						$templete	=	str_replace("##Dropoff_date##",date("m/d",strtotime($transport_details['dt_target'])),$templete);
+						$templete   =   str_replace("##submitting_organization##",$transport_details['stSendOrgNm'],$templete);
+						$templete   =   str_replace("##sending_organization_name##",$transport_details['stSendOrgNm'],$templete);
+						$templete   =   str_replace("##receiving_organization_field##",$transport_details['stRecOrgNm'],$templete);
+						$templete   =   str_replace("##passenger_backstory##",$transport_details['stAniStory'],$templete);
+						$templete   =   str_replace("##transport_link##",$transport_link,$templete);
+						$templete 	= 	str_replace('##resuce_store_block##',$resuce_template,$templete);
+						$templete  	= 	str_replace("##affiliate_content_description##",$affiliate_text,$templete);
+						
+						$sending_stS501c3  =   (isset($transport_details['stS501c3'])&& $transport_details['stS501c3'] == 'Y')?'Yes':'No';
+						$receiving_stS501c3  = (isset($transport_details['stR501c3'])&& $transport_details['stR501c3'] == 'Y')?'Yes':'No';
+						
+						$templete   =   str_replace("##Yes_or_NO_sending##",$sending_stS501c3,$templete);
+						$templete   =   str_replace("##Yes_or_NO_receiving##",$receiving_stS501c3,$templete);
+						
+						
+						$additional_info_str = ''; 				
+						$transport_files = $this->get_transport_files($transport_details['in_transportation_id']);
+						
+						if((isset($transport_details['st_add_comments']) && $transport_details['st_add_comments'] != '') || (isset($transport_files) && !empty($transport_files)))
+						{
+						$additional_info_str .='<div style="background-color:#383838; font:bold 16px Arial, Helvetica, sans-serif;color:#fff; padding:0 18px; line-height:40px; text-transform:uppercase; margin-top:30px; margin-bottom:10px;">Additional Information:</div>';
+						
+						$additional_info_str .='<p style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0;">'.$transport_details['st_add_comments'].'</p>';
+						
+						if(isset($transport_files) && !empty($transport_files))
+						{
+						$additional_info_str .='<ul style="margin:15px 0px 0px 0px; padding:0px;">';
+						foreach($transport_files as $key=>$value)
+						{
+							$additional_info_str .='<li style="font:14px/20px Arial, Helvetica, sans-serif; color:#575757; list-style-type:none; text-decoration:none;"><a href="'.base_url().'org_transportation/generate_download/'.$this->common_function->encode_base64($value['st_file_name']).'" style="color:#0073b5; color: #0073b5; padding: 2px 8px; border: 1px solid #D6D4D4; background: #F5F9F8; margin-bottom: 5px; display: inline-block;"><img alt="" title="" src="'.base_url().'assets/img/icon-download.png"  style="border:none; max-width:100%; height:auto;" /> '.$value['st_file_name'].'</a></li>';					
+						}
+						$additional_info_str .='</ul>';
+						}
+						}
+						
+						$templete = str_replace("##additional_details##", $additional_info_str, $templete);
+						
+						$join_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						$leg_str .= '<table width="100%" border="0" cellpadding="5">';
+					if(!empty($transport_legs)) {
+						foreach($transport_legs as $row) {
+							if($row['route_type_id'] == 0 || $row['route_type_id'] == 1) {
+								$pick_address = $row['pick_city'].', '.$row['pick_state'].', '.$row['pick_country'].', '.$row['pick_zip'];
+								$drop_address = $row['drop_city'].', '.$row['drop_state'].', '.$row['drop_country'].', '.$row['drop_zip'];
+							$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><strong>From</strong> '.$pick_address.' <strong>To</strong> '.$drop_address.'<a href="'.$join_url.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Leg">View Leg</a></td></tr>';
+							} else {
+								$o_pick_address = $row['o_pick_city'].', '.$row['o_pick_state'].', '.$row['o_pick_zip'].', '.$row['o_pick_country'];
+								$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><strong>Meeting Location:</strong> '.$o_pick_address.'<a href="'.$join_url.'"  style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View Leg">View Leg</a></td></tr>';
+							}
+							
+						}
+					} else {
+						$leg_str .= '<tr><td style="font:14px/20px Arial, Helvetica, sans-serif;color:#575757;margin:0;padding:0 0 20px;"><a href="'.$join_url.'" style="color:#fff;text-decoration:none;font-family:Arial, Helvetica, sans-serif;font-size:14px;display:inline;background:#ee6d35;padding:5px 10px; border-radius:3px; display:inline-block;margin-left:15px;" title="View">View this Transport</a></td></tr>';
+					}
+						
+						$leg_str .= '</table>';
+						
+						$templete	=	str_replace("##leg_detail##",$leg_str,$templete);
+						
+						$animal_str = '';
+						$animal_image = '';
+						
+						//Animal_details
+						$org_image = $this->get_org_image($transport_details['in_organization_id']);
+						
+						$i=0;
+						$data_image = array();
+						if(!empty($transport_animals)) {
+							foreach($transport_animals as $rows) {
+								if($rows['st_file_type'] == 'P' && $rows['st_file_name'] != '' && file_exists($this->config->item('upload')."animal_images/140x140/".$rows['st_file_name'])) {
+									$data_image[] = base_url().'upload/animal_images/140x140/'.$rows['st_file_name'];
+								} else {
+									$data_image[] = base_url().'upload/org_doc/thumb/'.$org_image;;
+								}
+							}
+						}
+						
+							if(!empty($transport_animals) && count($transport_animals)>0) {
+								$animal_str .= '<table width="100%" border="1" cellpadding="5"><tr>';
+								$animal_str .= '<th>Animal Name</th>';
+								$animal_str .= '<th>Type</th>';
+								$animal_str .= '<th>Breed</th>';
+								$animal_str .= '<th>Gender (M/F)</th>';
+								$animal_str .= '<th>Weight (in lbs.)</th>';
+								$animal_str .= '<th>Travelling with</th>';
+								$animal_str .= '<th>CVI</th>';
+								$animal_str .=  '</tr>';
+							foreach($transport_animals as $rows) {
+								$gender ='';
+								$st_cvi = '';
+								if($rows['st_gender']=='M')
+								{	
+									$gender ='Male';
+								}	
+								else if($rows['st_gender']=='F')
+								{	
+									$gender ='Female';
+								}
+								
+								if($rows['st_cvi']=='Y')
+								{	
+									$st_cvi ='Yes';
+								}	
+								else if($rows['st_cvi']=='N')
+								{	
+									$st_cvi ='No';
+								}
+								//$rows['st_travel_with'] = trim($rows['st_travel_with']);
+								$st_travel_with = explode(",",$rows['st_travel_with']);
+								$st_travel_with_text = '';
+								if(count($st_travel_with)>0)
+								{
+									foreach($st_travel_with as $key=>$value)
+									{
+											switch ($value) 
+											{
+												case "1":
+												$st_travel = "Collar";
+												break;
+												case "2":
+												$st_travel = "Leash";
+												break;
+												case "3":
+												$st_travel = "Crate";												
+												break;
+												case "4":
+												$st_travel = "Medicine";
+												break;
+												default:
+												$st_travel = '';
+											}
+											if($key == count($st_travel_with)-1 )
+											{
+												$st_travel_with_text.= $st_travel;
+											} else {
+												$st_travel_with_text.= $st_travel.',';
+											}	
+											
+										}	
+									}
+								 else {
+									$st_travel_with_text = '';
+								}	
+								$animal_str .= '<tr>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_type_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['st_animal_breed_name'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$gender.'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$rows['in_weight'].'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$st_travel_with_text.'</td>';
+								$animal_str .= '<td style="font:14px/20px Arial, Helvetica, sans-serif;text-align: center;color:#575757;margin:0;padding:0 0 20px;">'.$st_cvi.'</td>';
+								$animal_str .= '</tr>';
+							}
+							$animal_str .= '</table>';
+							//$animal_str .= '<div style="clear:both;margin: 0px;padding: 0px;"></div>';
+						}
+						$templete	=	str_replace("##animal_details##",$animal_str,$templete);
+						//End Animal Details
+						$share_url = base_url().'org-transportation-scheduled/'.$transport_details['in_transportation_id'];
+						
+						$title = 'DOOBERT -Transportation #DBT'.htmlspecialchars($transport_details['in_transportation_id']);
+						if($transport_details['perc']>0)
+							{
+								$transport_comp_perc = (($transport_details['perc']>100)? "100%":$transport_details['perc']."%");
+							}
+							else
+							{
+								$transport_comp_perc = "0%";
+							}
+							
+						$description = "";
+									
+						$description .= date("l, M",strtotime($transport_details['dt_target']));
+						$description .= date(" d",strtotime($transport_details['dt_target']));
+						$description .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;".$orgcode.$transport_details['in_transportation_id']."&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+						$description .= "\r\n";
+						$description .= $transport_details['st_from_street']? $this->common_function->custom_htmlentities($transport_details['st_from_street']).",":"";
+						$description .= $transport_details['st_from_city']? $this->common_function->custom_htmlentities($transport_details['st_from_city']).",":"";
+						$description .= $transport_details['st_from_state']? $this->common_function->custom_htmlentities($transport_details['st_from_state']).",":"";
+						$description .= $transport_details['st_from_zip']? $this->common_function->custom_htmlentities($transport_details['st_from_zip']).",":"";
+						$description .= ' to ';
+						$description .= $transport_details['st_to_street']? $this->common_function->custom_htmlentities($transport_details['st_to_street']).",":"";
+						$description .= $transport_details['st_to_city']? $this->common_function->custom_htmlentities($transport_details['st_to_city']).",":"";
+						$description .= $transport_details['st_to_state']? $this->common_function->custom_htmlentities($transport_details['st_to_state']).",":"";
+						$description .= $transport_details['st_to_zip']? $this->common_function->custom_htmlentities($transport_details['st_to_zip']).",":"";
+						$description .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+						$description .= "\r\n";
+						$description .= $transport_comp_perc ." of ".($transport_details['in_tot_distance']!=''? $transport_details['in_tot_distance']:"0").'miles covered.';
+						
+						
+						$description_str = str_replace('&nbsp;',' ',$description);
+						//$description_str = str_replace(array("\r\n","\r","\n"), "<br>",$description_str);
+									
+						$share_facebook_str  = ''; 
+						$share_facebook_str .= '<a href="https://www.facebook.com/sharer/sharer.php?u='.urlencode($share_url).'&t='.urlencode($description).'"><img src="http://app.doobert.com/assets/img/Facebook.jpg" alt="Facebook" title="Facebook" /></a>';
+						$templete	=	str_replace("##share_facebook##",$share_facebook_str,$templete);
+						
+						$share_twitter_str = ''; 
+						
+						$share_twitter_str .= '<a href="http://twitter.com/share?text='.urlencode($description_str).'&URL='.urlencode($share_url).'"><img src="http://app.doobert.com/assets/img/Twitter.jpg" alt="Twitter" title="Twitter" /></a>';
+			
+						$templete	=	str_replace("##share_twitter##",$share_twitter_str,$templete);
+						
+						$share_gplus_str = ''; 
+						$share_gplus_str .= '<a href="https://plus.google.com/share?url='.urlencode($share_url).'"><img src="http://app.doobert.com/assets/img/G-Plus.jpg" alt="G-Plus" title="G-Plus" /></a>';
+						
+						
+								
+						$templete	=	str_replace("##share_gplus##",$share_gplus_str,$templete);
+						
+						// for latest Blog.
+						$blog_details = $this->get_doobert_recent_post();
+						
+						if(!empty($blog_details))
+						{
+						$templete   =  str_replace("##blog_title##",$blog_details['title'],$templete);
+						$templete   =  str_replace("##blog_content##",$blog_details['content'],$templete);
+						$templete   =  str_replace("##blog_link##",$blog_details['blog_link'],$templete);
+						}
+						
+										
+						$strMail 	= 	$templete;
+						
+						
+						$subject	=	str_replace("##transport##",$orgcode.$transport_details['in_transportation_id'],$email_details[0]['st_email_subject']);
+						$subject	=	str_replace("##Pickup_date##",date("m/d",strtotime($transport_details['dt_pickup_date'])),$subject);
+						$subject	=	str_replace("##Dropoff_date##",date("m/d",strtotime($transport_details['dt_target'])),$subject);
+						$subject  	= 	str_replace("##sending city/state##",$transport_details['st_from_city'].", ".$transport_details['st_from_state'],$subject);
+						$subject  	= 	str_replace("##receiving city/state##",$transport_details['st_to_city'].", ".$transport_details['st_to_state'],$subject);
+						
+						
+						foreach($email_list as $user_val)
+						{
+							$strMail 	= 	$templete;
+							$user_id = $user_val['user_id'];
+							$user_email = $user_val['email_address'];
+							$strMail 	= str_replace("##user_display_name##",$user_val['name'],$strMail);
+							$strMail 	= str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_id).'/'.$this->common_function->encode_base64($user_email),$strMail);		
+							$strMail 	= str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_id).'/'.$this->common_function->encode_base64($user_email),$strMail);
+							
+							$verify_transport_cron = $this->verify_user_transport_cron($transport_details['in_transportation_id'],$user_val['user_id']);
+							if(count($verify_transport_cron)<=0)
+							{
+									$transport_emails = array(	"user_id"		=> $user_val['user_id'],
+																"user_detail"	=> serialize($user_val), 
+																"email_subject"	=> $subject, 
+																"email_content"	=> $strMail, 
+																"dt_created"	=> date("Y-m-d H:i:s"),  
+														//"dt_modified"	=> ("0000-00-00 00:00:00"),  
+																"in_email_sent"	=> "0",
+															  'in_transport_id' =>$transport_details['in_transportation_id'],
+															);
+													  
+									$inserted_id = $this->add_transport_emails($transport_emails);
+									$user_detail_array[$inc_val]['user_id'] 	  = $user_val['user_id'];
+									$user_detail_array[$inc_val]['name'] 		  =  $user_val['name'];
+									$user_detail_array[$inc_val]['email_address'] =  $user_val['email_address'];
+									$inc_val++;
+							}	
+						
+							
+						}
+						
+		}			
+				
+		
+		$email_type = "1"; 
+		$email_type_detail = "DBT".$transport_details['in_transportation_id']." - Doobert.com Transport";
+	
+		
+		$mail_checksum_array = array("in_transport_id"	=>	$transport_details['in_transportation_id'],
+									 "in_email_type"  	=>	$email_type,
+									 "st_email_type"	=>	$email_type_detail,
+									  "dt_created"		=>	date("Y-m-d H:i:s"),
+									  "st_user_details"	=>	serialize($user_detail_array));
+		
+		$insert_id = $this->common_model->insert_transport_email_checksum($mail_checksum_array);		
+		
+	}
+	
+	public function get_trans_legs($transport_id)
+	{	
+		$this->db->select('l.in_transportation_leg_id,l.in_status as mark_completed,d.st_leg_type,st_street,st_city,st_state,st_zip,st_country,dt_start_time,st_timezone,st_meeting_location,in_multi_user,in_user_num,l.in_route_type,l.in_sort_order',FALSE);
+		$this->db->from('tbl_transportation_leg as l');
+		$this->db->join('tbl_transportation_leg_detail d','d.in_transportation_leg_id=l.in_transportation_leg_id','INNER');
+		$this->db->where('l.in_deleted',0);
+		$this->db->where('d.in_deleted',0);
+		$this->db->where('l.in_transportation_id',$transport_id);
+		$this->db->order_by('l.in_sort_order','ASC');
+		$this->db->order_by('l.in_transportation_leg_id','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$r_type = '';
+				if($Row->in_route_type == 1)
+				{
+					$r_type = 'Aviation';
+				}
+				if($Row->in_route_type == 2)
+				{
+					$r_type = 'Overnight';
+				}
+				if($Row->in_route_type == 0)
+				{
+					$r_type = 'Road';
+				}
+				$arrData[$Row->in_transportation_leg_id]['in_sort_order']= $Row->in_sort_order;	
+				
+				if($Row->st_leg_type=="P")
+				{	
+					$arrData[$Row->in_transportation_leg_id]['route_type']		= $r_type;		
+					$arrData[$Row->in_transportation_leg_id]['route_type_id']	= $Row->in_route_type;
+					$arrData[$Row->in_transportation_leg_id]['mark_completed']	= $Row->mark_completed;	
+					$arrData[$Row->in_transportation_leg_id]['leg_type_P']		= $Row->st_leg_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_id']			= $Row->in_transportation_leg_id;
+					$arrData[$Row->in_transportation_leg_id]['pick_street']		= $Row->st_street;
+					$arrData[$Row->in_transportation_leg_id]['pick_state']		= $Row->st_state;
+					$arrData[$Row->in_transportation_leg_id]['pick_city']		= $Row->st_city;
+					$arrData[$Row->in_transportation_leg_id]['pick_zip']		= $Row->st_zip;
+					$arrData[$Row->in_transportation_leg_id]['pick_country']	= $Row->st_country;
+					$arrData[$Row->in_transportation_leg_id]['pick_start_time']	= $Row->dt_start_time;
+					$arrData[$Row->in_transportation_leg_id]['pick_timezone']	= $Row->st_timezone;
+					$arrData[$Row->in_transportation_leg_id]['meeting_location']= $Row->st_meeting_location;	//added by ghanshyam on 04Dec2014	
+					$arrData[$Row->in_transportation_leg_id]['multiple_drivers_pilots']= $Row->in_multi_user;	//added by ghanshyam on 04Dec2014	
+					$arrData[$Row->in_transportation_leg_id]['no_of_drivers_pilots']= $Row->in_user_num;	//added by ghanshyam on 04Dec2014
+				}
+				
+				if($Row->st_leg_type=="D")
+				{
+					$arrData[$Row->in_transportation_leg_id]['route_type']		= $r_type;	
+					$arrData[$Row->in_transportation_leg_id]['route_type_id']	= $Row->in_route_type;
+					$arrData[$Row->in_transportation_leg_id]['mark_completed']	= $Row->mark_completed;		
+					$arrData[$Row->in_transportation_leg_id]['leg_type_D']		= $Row->st_leg_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_id']			= $Row->in_transportation_leg_id;
+					$arrData[$Row->in_transportation_leg_id]['drop_street']		= $Row->st_street;
+					$arrData[$Row->in_transportation_leg_id]['drop_state']		= $Row->st_state;
+					$arrData[$Row->in_transportation_leg_id]['drop_city']		= $Row->st_city;
+					$arrData[$Row->in_transportation_leg_id]['drop_zip']		= $Row->st_zip;
+					$arrData[$Row->in_transportation_leg_id]['drop_country']	= $Row->st_country;
+					$arrData[$Row->in_transportation_leg_id]['drop_start_time']	= $Row->dt_start_time;
+					$arrData[$Row->in_transportation_leg_id]['drop_timezone']	= $Row->st_timezone;
+					$arrData[$Row->in_transportation_leg_id]['meeting_location']= $Row->st_meeting_location;	//added by ghanshyam on 04Dec2014	
+					$arrData[$Row->in_transportation_leg_id]['multiple_drivers_pilots']= $Row->in_multi_user;	//added by ghanshyam on 04Dec2014	
+					$arrData[$Row->in_transportation_leg_id]['no_of_drivers_pilots']= $Row->in_user_num;	//added by ghanshyam on 04Dec2014
+				}
+				//added by ghanshyam on 05Dec2014
+				if($Row->st_leg_type=="O")
+				{	
+					$arrData[$Row->in_transportation_leg_id]['route_type']			= $r_type;		
+					$arrData[$Row->in_transportation_leg_id]['route_type_id']		= $Row->in_route_type;
+					$arrData[$Row->in_transportation_leg_id]['mark_completed']		= $Row->mark_completed;	
+					$arrData[$Row->in_transportation_leg_id]['leg_type_O']			= $Row->st_leg_type;
+					$arrData[$Row->in_transportation_leg_id]['leg_id']				= $Row->in_transportation_leg_id;
+					$arrData[$Row->in_transportation_leg_id]['o_pick_street']		= $Row->st_street;
+					$arrData[$Row->in_transportation_leg_id]['o_pick_state']		= $Row->st_state;
+					$arrData[$Row->in_transportation_leg_id]['o_pick_city']			= $Row->st_city;
+					$arrData[$Row->in_transportation_leg_id]['o_pick_zip']			= $Row->st_zip;
+					$arrData[$Row->in_transportation_leg_id]['o_pick_country']		= $Row->st_country;
+					$arrData[$Row->in_transportation_leg_id]['o_pick_start_time']	= $Row->dt_start_time;
+					$arrData[$Row->in_transportation_leg_id]['overnight_comments']	= $Row->st_meeting_location;
+				}
+				
+			}
+			return $arrData;
+		}
+	}
+	
+	public function get_transport_animals($transport_id)
+	{	
+		$this->db->select('a.in_animal_id,a.st_animal_name,a.in_demeanor_id,st_animal_breed_name,st_animal_type_name,st_demeanor_name,st_demeanor_image,st_demeanor_desc,st_file_type,st_file_name,a.st_on_clock,td.st_css_class,a.st_gender,a.in_age,a.in_weight,a.st_profile_story,a.st_cvi,a.st_travel_with',FALSE);
+		$this->db->from('tbl_animal_transportation as an_t');
+		$this->db->join('tbl_animal as a','a.in_animal_id = an_t.in_animal_id','INNER');
+		$this->db->join('tbl_animal_breed ab','ab.in_animal_breed_id = a.in_primary_breed_id','INNER');
+		$this->db->join('tbl_animal_type ty','ty.in_animal_type_id = a.in_animal_type_id','INNER');
+		$this->db->join('tbl_demeanor td','td.in_demeanor_id = a.in_demeanor_id','INNER');
+		$this->db->join('tbl_animal_file af','af.in_animal_id = a.in_animal_id AND af.st_file_type="P" AND af.in_deleted="0" ','LEFT');
+		//$this->db->where('a.in_deleted',0);	//commented this condition bcz we have to display the animal even if animal profile is deleted but animal relates to that transport 
+		$this->db->where('an_t.in_deleted',0);	
+		$this->db->where('an_t.in_transportation_id',$transport_id);		
+		$this->db->order_by('a.in_animal_id','DESC');
+		$this->db->group_by('a.in_animal_id');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	public function get_org_image($org_id) {
+		$data = array();
+		
+		$this->db->select('st_org_image');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$query = $this->db->get();
+		
+		$data = $query->row_array();
+		return (isset($data['st_org_image']) && file_exists($this->config->item('upload')."upload/org_doc/thumb/".$data['st_org_image']) && $data['st_org_image'] != '')?$data['st_org_image']:'temp-logo.jpg';
+	}
+	
+	public function add_transport_emails($arrData)
+	{
+		$insert_id = $this->db->insert('tbl_new_transportation_cron', $arrData);
+		//echo "<pre>";print_r($this->db->last_query());die;
+		return  $this->db->insert_id();
+	}
+	
+	public function get_doobert_recent_post() {
+      
+		$c=curl_init('https://www.doobert.com/feed/');
+		curl_setopt( $c, CURLOPT_USERAGENT,'nginx-curl-blahblahblah' );
+		curl_setopt( $c, CURLOPT_RETURNTRANSFER, true );
+		$r=curl_exec( $c );
+		curl_close( $c );
+		//print_r($r);
+		
+	$rss = new DOMDocument();
+	$rss->loadxml($r);
+	$feed = array();
+	foreach ($rss->getElementsByTagName('item') as $node) {
+		$item = array ( 
+			'title' => $node->getElementsByTagName('title')->item(0)->nodeValue,
+			'desc' => $node->getElementsByTagName('description')->item(0)->nodeValue,
+			'link' => $node->getElementsByTagName('link')->item(0)->nodeValue,
+			'date' => $node->getElementsByTagName('pubDate')->item(0)->nodeValue,
+			);
+		array_push($feed, $item);
+	}
+	$limit = 1;
+	$blog =array();
+	for($x=0;$x<$limit;$x++) {
+		$title = str_replace(' & ', ' &amp; ', $feed[$x]['title']);
+		$link = $feed[$x]['link'];
+		$description = $feed[$x]['desc'];
+	    $description = preg_replace("/<img[^>]+\>/i","", $description); 
+		if(strlen($description) > 100)
+			{
+				$des = substr($description, 0, 99);
+				$des.= '...';
+			}
+		
+		$blog['title']=$title;
+		$blog['content']=$des;
+		$blog['blog_link'] = $link;
+		
+		//$date = date('l F d, Y', strtotime($feed[$x]['date']));
+		/*echo '<p><strong><a href="'.$link.'" title="'.$title.'">'.$title.'</a></strong><br />';
+		echo '<small><em>Posted on '.$date.'</em></small></p>';
+		echo '<p>'.$description.'</p>';*/
+		//print_r($blog);
+	}
+	return $blog;	
+	}
+	
+	public function get_transport_files($tra_id)
+	{
+		$this->db->select('st_file_name,in_transport_file_id',FALSE);
+		$this->db->from('tbl_transportation_file');
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_transportation_id',$tra_id);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	function get_transport_list_data($status,$rec_per_page,$limit,$sort,$order)
+	{		
+		
+		$sql =	"SELECT tr.dt_target,
+							tr.dt_pickup_date,
+							tr.in_transportation_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_to_street,
+							tr.st_to_state,
+							tr.st_to_city,
+							tr.st_to_zip,
+							tr.st_trans_type,
+							tr.st_trans_name,
+							tr.in_status,
+							tr.accTcid,
+							tr.in_airline_transport,
+							tr.in_trans_coods_id,
+							tr.in_tot_distance,
+							tr.in_airline_transport,
+							concat(tu.st_display_name,' ',tu.st_last_name) as co_name,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							tu.st_email,o.st_org_code 
+							FROM `tbl_transportation` `tr`, 
+							`tbl_users` `tu`,`tbl_transportation_participants` `p`,`tbl_organization` `o` 
+							WHERE (`tu`.`in_user_id` = `tr`.`in_trans_coods_id` )";
+			
+		$where = '';
+		$where .= " AND `o`.in_organization_id = tr.in_organization_id AND o.in_deleted = 0 AND ((`p`.`in_transportation_id` = `tr`.`in_transportation_id` AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid').")";
+		$where .= "|| (`tr`.`in_trans_coods_id`= ".$this->session->userdata('userid')." ))";
+		//$where .= " AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid');
+		if($status == '1')
+		{
+			$where .= " AND ((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+		}
+		else if($status == '2')
+		{
+			$where .= " AND (tr.in_status = '2' && tr.dt_target < current_date())";
+		}
+		else
+		{
+			$where .= " AND tr.in_status = '".$status."'";
+		}
+		
+		$sql	.=	$where." GROUP BY `tr`.`in_transportation_id`";
+		
+		switch($sort)
+		{
+			case 'trid':
+					$sql	.=	" ORDER BY tr.in_transportation_id $order";
+					//$this->db->order_by("tr.in_transportation_id",$order);
+			break;
+			case 'transname':
+					$sql	.=	" ORDER BY tr.st_trans_name $order";
+					//$this->db->order_by("tr.st_trans_name",$order);
+			break;
+			case 'tdate':
+					$sql	.=	" ORDER BY tr.dt_target $order";
+					//$this->db->order_by("tr.dt_target",$order);
+			break;
+			case 'coname':
+					$sql	.=	" ORDER BY co_name $order";
+					//$this->db->order_by("co_name",$order);
+			break;		
+			default:
+					$sql	.=	" ORDER BY tr.in_transportation_id $order";
+					//$this->db->order_by("tr.in_transportation_id",$order);
+			break;	
+		} 
+		$sql	.=	" LIMIT $limit , $rec_per_page";
+		//$this->db->limit($rec_per_page,$limit);
+		$query = $this->db->query($sql);	
+		//$query = $this->db->get(); 
+		//echo $this->db->last_query();die;     
+		return ($query->num_rows() > 0) ? $query->result_array()  :  FALSE;	
+	}	
+	
+	function get_transport_list_all_data($status)
+	{		
+		$sql =	"SELECT tr.in_transportation_id FROM `tbl_transportation` `tr`, `tbl_users` `tu`,`tbl_transportation_participants` `p` ,`tbl_organization` `o` WHERE (`tu`.`in_user_id` = `tr`.`in_trans_coods_id`)";
+		$where = '';
+		$where .= " AND o.in_organization_id = tr.in_organization_id AND o.in_deleted = 0 AND ((`p`.`in_transportation_id` = `tr`.`in_transportation_id` AND tr.in_deleted = 0 AND p.in_deleted = 0 AND p.in_user_id = ".$this->session->userdata('userid').")";
+		$where .= "|| (`tr`.`in_trans_coods_id`= ".$this->session->userdata('userid')." ))";
+		if($status == '1')
+		{
+			$where .= " AND ((tr.in_status = '1') || (tr.in_status = '2' && tr.dt_target >= current_date()))";
+		}
+		else if($status == '2')
+		{
+			$where .= " AND (tr.in_status = '2' && tr.dt_target < current_date())";
+		}
+		else
+		{
+			$where .= " AND tr.in_status = '".$status."'";
+		}
+		
+		$sql	.=	$where." GROUP BY `tr`.`in_transportation_id`";
+		
+		$query = $this->db->query($sql);
+	    
+		return ($query->num_rows() > 0) ? $query->num_rows()  :  FALSE;		
+	}	
+	
+}
+?>

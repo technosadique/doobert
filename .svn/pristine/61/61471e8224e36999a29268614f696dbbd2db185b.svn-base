@@ -1,0 +1,177 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class virtual_support_volunteer_mobile extends CI_Controller {
+
+    /**
+     * Index Page for this controller.
+     *
+     * Maps to the following URL
+     * 		http://example.com/index.php/welcome
+     * 	- or -  
+     * 		http://example.com/index.php/welcome/index
+     * 	- or -
+     * Since this controller is set as the default controller in 
+     * config/routes.php, it's displayed at http://example.com/
+     *
+     * So any other public methods not prefixed with an underscore will
+     * map to /index.php/welcome/<method_name>
+     * @see http://codeigniter.com/user_guide/general/urls.html
+     */
+    public function __construct() {
+        parent::__construct();
+        $this->output->enable_profiler(FALSE);
+        $this->load->library('common_function');       
+        $this->load->model('user_model');      
+        $this->load->model('common_model');
+        $this->load->model('foster_model');
+        $this->load->library('form_validation');
+        $this->load->helper('url');
+        $this->load->helper('cookie'); 
+    }
+
+    public function index() {
+		
+		
+    }
+	
+	public function virtual_support_volunteer() { 
+        if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+
+        $data['Err_Msg'] = '';
+
+        $data['tooltip'] = get_cookie('tooltip');
+        $data['profile_details'] = $this->user_model->get_user_profile($this->session->userdata('userid'));
+
+        if (trim($data['profile_details']['st_zip']) == '' || trim($data['profile_details']['st_last_name']) == '' || trim($data['profile_details']['st_primary_phone']) == '') {
+            $this->session->set_flashdata('profile_err', 'Please complete general details to proceed.');
+
+            if (get_cookie('tooltip')) {
+                $data['tooltip'] = get_cookie('tooltip');
+            } else {
+                set_cookie('tooltip', "N", 864000);
+                $data['tooltip'] = "N";
+            }
+
+            //echo get_cookie('get_started');exit;
+            if (get_cookie('get_started')) {
+                $data['get_started'] = get_cookie('get_started');
+            } else {
+                set_cookie('get_started', "N", 864000);
+                $data['get_started'] = "N";
+            }
+
+            redirect(base_url() . 'my-profile');
+        }
+
+
+        $data['arr_sup_vol'] = $this->user_model->get_virtual_sup_vol_detail($this->session->userdata('userid'));
+
+        $data['user_verified'] = $this->common_model->get_user_verified($this->session->userdata('userid'));
+
+        $form_field = array('managing_facebook' => "",
+            'managing_facebook_exp' => "",
+            'tweeting' => "",
+            'tweeting_exp' => "",
+            'googlepage' => "",
+            'googlepage_exp' => "",
+            'manage_pin_boards' => "",
+            'manage_pin_boards_exp' => "",
+            'instagram_posting' => "",
+            'instagram_posting_exp' => "",
+            'manage_video' => "",
+            'manage_video_exp' => "",
+            'social_media_other' => "",
+            'social_media_other_detail' => "",
+            'petfinder' => "",
+            'petfinder_exp' => "",
+            'adoptapet' => "",
+            'adoptapet_exp' => "",
+            'petharbor' => "",
+            'petharbor_exp' => "",
+            'petango' => "",
+            'petango_exp' => "",
+            'rescuegroups' => "",
+            'rescuegroups_exp' => "",
+            'shelterexchange' => "",
+            'shelterexchange_exp' => "",
+            'dogtime' => "",
+            'dogtime_exp' => "",
+            'petsoverstock' => "",
+            'petsoverstock_exp' => "",
+            'animal_profile_other' => "",
+            'animal_profile_other_detail' => "",
+            'transport_monitor' => "",
+            'transport_monitor_exp' => "",
+            'adoption_application' => "",
+            'adoption_application_exp' => "",
+            'onlinefundraiser' => "",
+            'onlinefundraiser_exp' => "",
+            'virtual_support_vol_id' => "",
+        );
+
+
+        if ($this->input->post('frm_action') == 'frm_post'){
+            //echo "<pre>";print_r($this->input->post());die;
+            foreach ($form_field as $key => $value) {
+                if (is_array($value)) {
+                    $data['post_data'][$key] = $this->input->post($key);
+                } else {
+                    $data['post_data'][$key] = $this->common_function->custom_htmlentities($this->input->post($key));
+                }
+            }
+
+            $this->form_validation->set_rules('managing_facebook', 'Managing Facebook Page(s)', 'trim');
+
+            if ($this->form_validation->run() == FALSE) {
+                $data['Err_Msg'] = validation_errors();
+                $this->load->view('virtual-support-volunteer', $data);
+            } else {
+                //echo "<pre>";print_r($data['post_data']);die;
+                $insert_id = $this->user_model->update_virtual_sup_volunteer_details($data['post_data'], $this->session->userdata('userid'), 'tbl_virtual_support_vol_detail');
+                if (isset($insert_id) && $insert_id != '') {
+                    $profile_info['st_virtual_support_volunteer'] = "Y";
+                    $profile_info['dt_modified'] = date('Y-m-d H:i:s');
+                    $data['user_profile'] = $this->user_model->update_user_info($profile_info, $this->session->userdata('userid'), 'tbl_user_profile');
+               
+			    // for update the user profile.
+			   	$data['user_profile_setting_details'] 		= $this->user_model->get_user_profile_setting($this->session->userdata('userid'));
+									
+					if(empty($data['user_profile_setting_details']))
+					{
+					$fost_arr	 = 	  array('in_user_id'		=> $this->session->userdata('userid'),
+										'in_public'				=> '0',
+										'st_in_virtual_vol'				=> 'a:19:{i:0;s:18:"in_manage_facebook";i:1;s:17:"in_manage_twitter";i:2;s:15:"in_manage_gplus";i:3;s:19:"in_manage_pin_board";i:4;s:19:"in_manage_instagram";i:5;s:15:"in_manage_video";i:6;s:15:"in_social_media";i:7;s:12:"in_petfinder";i:8;s:12:"in_adoptapet";i:9;s:12:"in_petharbor";i:10;s:10:"in_petango";i:11;s:15:"in_rescuegroups";i:12;s:18:"in_shelterexchange";i:13;s:10:"in_dogtime";i:14;s:16:"in_petsoverstock";i:15;s:17:"in_animal_profile";i:16;s:20:"in_transport_monitor";i:17;s:23:"in_adoption_application";i:18;s:19:"in_onlinefundraiser";}',
+										'dt_created'			=> date('Y-m-d H:i:s'),
+										'in_deleted'			=> '0'											
+										);
+					
+					$this->user_model->add_user_virtual_profile_setting($fost_arr);
+					}
+					else{			
+						$fost_arr	 = 	array('st_in_virtual_vol'	=> 'a:19:{i:0;s:18:"in_manage_facebook";i:1;s:17:"in_manage_twitter";i:2;s:15:"in_manage_gplus";i:3;s:19:"in_manage_pin_board";i:4;s:19:"in_manage_instagram";i:5;s:15:"in_manage_video";i:6;s:15:"in_social_media";i:7;s:12:"in_petfinder";i:8;s:12:"in_adoptapet";i:9;s:12:"in_petharbor";i:10;s:10:"in_petango";i:11;s:15:"in_rescuegroups";i:12;s:18:"in_shelterexchange";i:13;s:10:"in_dogtime";i:14;s:16:"in_petsoverstock";i:15;s:17:"in_animal_profile";i:16;s:20:"in_transport_monitor";i:17;s:23:"in_adoption_application";i:18;s:19:"in_onlinefundraiser";}',
+										'dt_created'			=> date('Y-m-d H:i:s'),
+										'in_deleted'			=> '0'											
+										);
+						$this->user_model->update_user_profile_setting($fost_arr,$this->session->userdata('userid'),'tbl_user_profile_setting');	
+					}
+			   
+			    }
+                $this->session->set_flashdata('success', 'Virtual Support Volunteer details updated successfully.');
+
+                redirect(base_url() . 'virtual_support_volunteer_mobile/virtual_support_volunteer/');
+				
+            }
+        } else {
+            //$this->load->view('virtual-support-volunteer', $data);
+			$this->load->view('virtual-support-volunteer-mobile', $data);
+        }
+    }  
+}
+
+/* End of file foster_home_mobile.php */
+/* Location: ./application/controllers/foster_home_mobile.php */

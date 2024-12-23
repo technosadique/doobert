@@ -1,0 +1,494 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
+
+# ------------------------------
+# Created by: sadique mohammad
+# Created date: 15-April-2014
+# File description: Transfer_ownership(controller)
+# Special instructions-notes: none
+# Tables used: none
+# Stored procedures: none 
+# Triggers used: none
+# ------------------------------
+
+class Transfer_ownership extends CI_Controller {
+	public function __construct()
+    {
+		parent::__construct();			
+		$this->load->library('common_function');	
+		//error_reporting(E_ALL);	
+		$this->load->library('pagination');
+		$this->load->library('email');
+		$this->load->library('form_validation');	
+		$this->load->model('transfer_model');
+		$this->load->model('common_model');
+		$this->load->model('organization_model');
+		$this->load->helper(array('form', 'url'));	
+		$this->load->library('user_agent');
+		$this->load->library('nativesession');		
+	}	
+	
+	function index()
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }		
+		if($this->nativesession->get('searchadmin1')){$this->nativesession->delete('searchadmin1'); }		
+		if($this->nativesession->get('searchadmin2')){$this->nativesession->delete('searchadmin2'); }
+		if($this->nativesession->get('searchadmin3')){$this->nativesession->delete('searchadmin3'); }
+	    if($this->nativesession->get('searchadmin4')){$this->nativesession->delete('searchadmin4'); }
+		if($this->nativesession->get('searchadmin5')){$this->nativesession->delete('searchadmin5'); }
+		if($this->nativesession->get('searchadmin6')){$this->nativesession->delete('searchadmin6'); }
+		if($this->nativesession->get('searchadmin7')){$this->nativesession->delete('searchadmin7'); }
+		if($this->nativesession->get('searchadmin8')){$this->nativesession->delete('searchadmin8'); }
+		
+		$this->page();	
+	}	
+	
+	function page($sort=false,$order=false,$limit=false)
+	{ 
+	   if(!$this->session->userdata('sess_admin_id'))
+		 {
+			$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+			$this->session->set_userdata('redirect_url',$url);
+			redirect($this->config->item('admin_base_url'));	
+		 }	
+		$data			 	=	array();
+		$data['Err_Msg']	=	'';	
+		$name				=	'';
+		$zip				=	'';
+		$certified			=	'';
+		$contract			=	'';
+		$fromdate			=	'';
+		$todate				=	'';
+		$state				=	'';
+			
+		//print "<pre>";print_r($this->session->userdata);print "</pre>";
+		// SET DEFAULT RULES FOR PAGE LIST RESULT 
+		if(!$sort)
+			$sort='id';
+		
+		if(!$order)
+			$order = 'asc';
+			
+		if($this->uri->segment(5))
+			$limit = $this->uri->segment(5);
+		else	
+			$limit = '0';
+	
+		// GET SEARCH KEYWORDS AND MAINTAIN FOR PAGINATION
+		
+		if($this->input->post('txtname') || ($this->input->post('action') == 'search'))
+		{
+			
+			$name = trim(addslashes($this->input->post('txtname')));				
+			$this->nativesession->set('searchadmin1',$this->common_function->custom_htmlentities($name));	
+				
+		}		
+		
+		if($this->input->post('txtzipcode') || ($this->input->post('action') == 'search'))
+		{
+			$zip_code = $this->input->post('txtzipcode');
+			$zip_code = str_replace(" ","",$zip_code);
+			$_POST['txtzipcode'] = strtoupper($zip_code);
+			$zip = trim(addslashes($this->input->post('txtzipcode')));				
+			$this->nativesession->set('searchadmin2',$this->common_function->custom_htmlentities($zip));			
+				
+		}
+		
+		
+		if($this->input->post('txtcertified') || ($this->input->post('action') == 'search'))
+		{
+			$certified = trim($this->input->post('txtcertified')); 				
+			$this->nativesession->set('searchadmin3',$certified);			
+				
+		}
+		
+		if($this->input->post('txtcontract') || ($this->input->post('action') == 'search'))
+		{
+			
+			$contract = trim($this->input->post('txtcontract')); 				
+			$this->nativesession->set('searchadmin4',$contract);		
+				
+		}
+		
+		
+		
+		if($this->input->post('txtfrom') || ($this->input->post('action') == 'search'))
+		{
+			$fromdate = date('Y-m-d',strtotime($this->input->post('txtfrom'))); 			
+			$this->nativesession->set('searchadmin5',$fromdate);		
+				
+		}
+		
+		if($this->input->post('txtto') || ($this->input->post('action') == 'search'))
+		{			
+			$todate = date('Y-m-d',strtotime($this->input->post('txtto'))); 			
+			$this->nativesession->set('searchadmin6',$todate);	
+				
+		}
+		
+		
+		if($this->input->post('txtstate') || ($this->input->post('action') == 'search'))
+		{
+			$state = trim($this->input->post('txtstate'));				
+			$this->nativesession->set('searchadmin7',$state);
+		}
+		if($this->input->post('country') || ($this->input->post('action') == 'search'))
+		{
+			$country = trim($this->input->post('country')); 				
+			$this->nativesession->set('searchadmin8',$country);				
+				
+		}
+		
+		$rec_per_page =	  $this->config->item('per_page');			
+		
+		// GET COUNT of TOTAL RECORDS
+		$totalrecord		= $this->transfer_model->get_total_transfer($this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8')); 
+		// GET PAGE LIST RESULT HERE
+		
+		$data['transfer_list']	= $this->transfer_model->get_transfer($sort,$order,$limit,$rec_per_page,$this->nativesession->get('searchadmin1'),$this->nativesession->get('searchadmin2'),$this->nativesession->get('searchadmin3'),$this->nativesession->get('searchadmin4'),$this->nativesession->get('searchadmin5'),$this->nativesession->get('searchadmin6'),$this->nativesession->get('searchadmin7'),$this->nativesession->get('searchadmin8'));
+		
+		//echo '<pre>'; print_r($data['transfer_list']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+		$config['base_url'] 	= $this->config->item('admin_base_url').'transfer_ownership/page/';
+		$config['base_url']		= $config['base_url'].$sort.'/'.$order.'/';
+		$config['total_rows'] 	= $totalrecord;
+		$config['per_page'] 	= $rec_per_page;
+		$config['cur_page'] 	= $limit;
+		$config['num_links'] 	= '3';
+		$config['first_link'] 	= FALSE;
+		$config['last_link'] 	= FALSE;
+		
+		$config['prev_tag_open'] = "<li class=\"prev\">";
+		$config['prev_link']  = "<i class=\"fa fa-angle-left\" title=\"Prev\"></i>";
+		$config['prev_tag_close'] = "</li>";		
+		
+		$config['next_tag_open'] = "<li class=\"next\">";
+		$config['next_link']  = "<i class=\"fa fa-angle-right\" title=\"Next\"></i>";
+		$config['next_tag_close'] = '</li>';
+			
+		$config['cur_tag_open'] = '<li class="active"><a  href="#" >';
+		$config['cur_tag_close'] = '</a></li>';
+		$config['num_tag_open']		=	'<li>';
+		$config['num_tag_close'] 	=	'</li>';		
+		$config['display_pages'] = TRUE;  	 			
+		$this->pagination->initialize($config);
+		$data['pagination'] = $this->pagination->create_links();
+		$data['total_rows'] = $config['total_rows'];
+		$data['currrent_page'] = floor(($config['cur_page']/$config['per_page']) + 1);
+		$data['total_no_page'] = ceil($config['total_rows']/$config['per_page']);
+		$data['per_page'] = $config['per_page'];	
+		$from					=	($data['currrent_page'] * $rec_per_page - $rec_per_page)+1;
+		$to						=	( ($data['currrent_page'] * $rec_per_page) > $totalrecord ) ? $totalrecord : ($data['currrent_page'] * $rec_per_page);
+		$data['from']	   = $from;
+		$data['to']	  	   = $to;
+		
+		
+		// ------------------------ PAGINATION ENDS HERE -------------------------------		
+		
+		// SET DATA to MAINTAIN record track on any action
+		$data['sort']	=	$sort;
+		$data['order']	=	$order;
+		$data['limit']	=	$limit;		
+		$data['org_type_arr'] = $this->common_function->org_type;
+		$this->session->set_userdata('a_sort',$sort);
+		$this->session->set_userdata('a_order',$order);
+		$this->session->set_userdata('a_limit',$limit);
+		
+		if($totalrecord == 0)
+		{
+			$data['Err_Msg'] = 'No Transfer ownership application Available.';
+		}
+		
+		$this->load->view('transfer-ownership-application',$data);
+	}
+	
+	
+	
+	
+	function delete_multiple_transfer()
+	{   
+		$transfer_ids = $this->input->post('transferid');
+		if(!$this->session->userdata('sess_admin_id'))
+		{
+			redirect($this->config->item('admin_base_url'));		
+		}
+	
+		if(!empty($transfer_ids) && $this->input->post('B2') == 'Delete')
+		{	
+			$this->transfer_model->delete_multiple_transfer($transfer_ids);
+			
+			$this->session->set_flashdata('success', 'Transfer(s) Ownership application information has been deleted successfully.');			
+		}
+			$sort 	= $this->session->userdata('a_sort');
+			$order  = $this->session->userdata('a_order');
+			$limit	= 0;
+			
+		if($this->session->userdata('a_limit'))
+		{  
+			$limit	= $this->session->userdata('a_limit');
+		}
+		redirect($this->config->item('admin_base_url').'transfer_ownership/page/'.$sort.'/'.$order.'/'.$limit);
+			
+	}
+	
+	
+	
+	function transfer_ownership_view($transferId)
+	{
+		
+			if(!$this->session->userdata('sess_admin_id'))
+			 {
+				$url="http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+				$this->session->set_userdata('redirect_url',$url);
+				redirect($this->config->item('admin_base_url'));	
+			 }	
+			
+			$data['transfer_details'] = $this->transfer_model->get_transfer_info($transferId); 
+			$orgId	=	$data['transfer_details'][0]['in_organization_id']; 
+			//echo '<pre>'; print_r($data['transfer_details']); die;
+			
+			$data['certificate'] 					= $data['transfer_details'][0]['st_organization_501c3'];
+			$data['contract'] 						= $data['transfer_details'][0]['st_org_adoption'];	
+			//echo '<pre>'; print_r($data['transfer_details']); die;
+			$data['ref_details'] = $this->transfer_model->get_ref_details($orgId); 
+			$data['org_approve_letter'] 			= $this->transfer_model->get_org_approve_letter($orgId);
+			$data['org_approve_letter_count']		= count($data['org_approve_letter']);
+			
+			$data['guideline_links_details'] = $this->organization_model->get_guideline_links($orgId);
+			$data['organization_files'] = $this->organization_model->get_org_guideline_files($orgId);
+			
+			//echo '<pre>'; print_r($data['ref_details']); die;
+			
+			if(count($data['transfer_details'])=='')
+			{
+				redirect($this->config->item('admin_base_url'));	
+			}
+			
+					
+			$this->load->view('transfer-ownership-view',$data);			
+	}
+	
+	
+	function status_accept($transferId,$orgId,$transferTo)
+	{
+		
+		if(!$this->session->userdata('sess_admin_id'))
+			{
+				redirect($this->config->item('admin_base_url'));		
+			}
+		
+			$user_details = $this->transfer_model->get_user_details($transferTo);
+			$org_details = $this->transfer_model->get_org_details($orgId);
+			
+			//echo '<pre>'; print_r($user_details); die;
+			// accept email		
+			
+			$data['email']		=	$user_details['st_email'];
+			$data['user_name']	=	$user_details['st_display_name'];
+			$data['org_name']	=	$user_details['st_org_name'];
+			
+			// update org start
+			
+			$org_details = array("in_user_id"		    => $transferTo, 									
+                    		     "st_director"			=> $user_details['st_display_name'].' '.$user_details['st_last_name'],  
+                    		     "st_email_address"		=> $user_details['st_email'],  
+                    		     "st_primary_phone"		=> $user_details['st_primary_phone'],  
+                    );                  
+ 			$this->transfer_model->edit_org($org_details,$orgId);
+			
+			// update org end
+				
+			$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name')); 
+			
+			$allmail =  $data['email'];
+			//echo $allmail;die;
+			
+			$this->email->to($allmail);
+			if($_SERVER['HTTP_HOST']!='crystal9')
+			{
+				$this->email->bcc($this->config->item('bcc_email_id'));
+			}
+			
+			$email_details = $this->common_model->get_email_containt("8");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			//echo '<pre>'; print_r($email_details); die;
+			
+			if(isset($email_details[0]['st_email_body']))
+			{
+				$templete = $email_details[0]['st_email_body'];
+				$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+				$templete  = str_replace("##user_name##",$data['user_name'],$templete);
+				$templete  = str_replace("##organization_name##",$data['org_name'],$templete);	
+				$templete  = str_replace("##DONATION##",$donation,$templete);
+				$this->email->subject($email_details[0]['st_email_subject']);
+				$strMail = $templete;
+								
+				$user_to_id = $this->common_model->get_user_id_by_email($allmail);
+						
+				$strMail = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($allmail),$strMail);		
+				$strMail = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($allmail),$strMail);
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_details[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{
+					$this->email->message($strMail);
+					$this->email->send();
+				}
+			}
+			//accept email end
+			
+		
+		$this->transfer_model->update_transfer_status_accept($transferId);		
+		$this->transfer_model->update_organization_status_accept($orgId,$transferTo);		
+		$this->session->set_flashdata('success', 'Organization has been accepted successfully.');		
+		redirect($this->config->item('admin_base_url').'transfer_ownership/');
+	}
+	
+	
+	
+	function status_reject($transferId,$orgId,$transferTo)
+	{
+		    $user_details = $this->transfer_model->get_user_details($transferTo);
+			$org_details = $this->transfer_model->get_org_details($orgId);
+			
+			//echo '<pre>'; print_r($user_details); die;
+			// accept email		
+			
+			$data['email']		=	$user_details[0]->st_email;
+			$data['user_name']	=	$user_details[0]->st_display_name;
+			$data['org_name']	=	$org_details[0]->st_org_name;
+				
+			$this->email->from($this->config->item('admin_email_from'),$this->config->item('admin_from_name')); 
+			
+			$allmail =  $data['email'];
+			//echo $allmail;die;
+			
+			$this->email->to($allmail);
+			if($_SERVER['HTTP_HOST']!='crystal9')
+			{
+				$this->email->bcc($this->config->item('bcc_email_id'));
+			}
+			
+			$email_details = $this->common_model->get_email_containt("9");
+			$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+			//echo '<pre>'; print_r($email_details); die;
+			
+			if(isset($email_details[0]['st_email_body']))
+			{
+				$templete = $email_details[0]['st_email_body'];
+				$templete  = str_replace("##url##",$this->config->item('base_url'),$templete);
+				$templete  = str_replace("##DONATION##",$donation,$templete);
+				$templete  = str_replace("##user_name##",$data['user_name'],$templete);
+				$templete  = str_replace("##organization_name##",$data['org_name'],$templete);				
+				$this->email->subject($email_details[0]['st_email_subject']);
+				$strMail = $templete;
+				
+				$user_to_id = $this->common_model->get_user_id_by_email($allmail);
+						
+				$strMail = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($allmail),$strMail);		
+				$strMail = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($allmail),$strMail);
+				
+				$send_email = 1;							
+				$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+				if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+				{
+					$send_email = 0;										
+				}
+				
+				$email_template_id = $email_details[0]['in_email_id'];
+				$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+				if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+				{
+					$send_email = 1;
+				}
+				
+				if($send_email == '1')
+				{
+					$this->email->message($strMail);
+					$this->email->send();
+				}
+			}
+			//accept email end			
+		
+		$this->transfer_model->update_transfer_status_reject($transferId);		
+		$this->transfer_model->update_organization_status_reject($orgId,$transferTo);		
+		$this->session->set_flashdata('success', 'Organization has been rejected successfully.');		
+		redirect($this->config->item('admin_base_url').'transfer_ownership/');
+	}
+	
+	
+}
+
+/* End of file transfer_ownership.php */
+/* Location: ./application/administration/controllers/transfer_ownership.php */

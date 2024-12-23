@@ -1,0 +1,392 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+# ======================================================================================
+# Created by		: Rajashri Mahapure
+# Created date		: 17-Apr-2018
+# File description	: Order Transport Model
+# Special - notes	: none
+# Tables used		: tbl_order, tbl_order_transport, tbl_transport_crates, tbl_order_address, tbl_transportation
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class org_notify_model extends CI_Model {
+
+    function __construct() {
+        // Call the Model constructor
+        parent::__construct();
+    }
+
+    #-----------------Add record for tbl_order----------------------------#
+	public function get_organization_list()
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_org_notification',1);
+		$this->db->where('in_status');
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get(); 
+		return $query->result_array();
+	}
+
+	/*public function get_transport_org_notification()
+	{
+		$this->db->select("tr.in_transportation_id,tr.in_organization_id");
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_zip_code z","tr.st_from_zip = z.zip_code","INNER");
+		$where = array("tr.in_deleted"=>'0',"tr.in_status"=>"1","tr.in_near_by_email"=>"0","tr.st_trans_type"=>"RO");
+		$this->db->where($where);
+		$this->db->order_by("tr.in_transportation_id","DESC");
+		$this->db->limit(1);
+		$query =	$this->db->get();
+		$query->row_array();
+	}*/
+	
+	public function get_transport_org_notification()
+	{
+		$this->db->select("tr.in_transport_cron_id,tr.in_transport_id,tr.in_org_id,tr.st_pick_day,tr.st_drop_day,tr.st_transport_legs,o.st_org_code");
+		$this->db->from("tbl_rel_route_cron tr");
+		$this->db->join("tbl_organization o","o.in_organization_id = tr.in_org_id  AND o.in_deleted='0'", "INNER");
+		$where = array("tr.in_deleted"=>'0',"tr.is_processed"=>"0");
+		$this->db->where($where);
+		$this->db->limit(1);
+		$query =	$this->db->get();
+		$transport_legs_details = $query->row_array();
+		return $transport_legs_details;	
+	}
+	
+	public function get_nearbyorganization_notification($org_id,$leg_id,$start_lat,$start_lon,$end_lat,$end_lon,$trans_pick_day,$trans_drop_day)
+	{
+		$this->db->select("o.*");
+		$this->db->from("tbl_organization o");
+		$this->db->join("tbl_zip_code zp","zp.zip_code=o.st_zip","INNER");
+		$this->db->where('o.in_organization_id <>',$org_id);
+		$this->db->where('o.in_status','1');
+		$this->db->where('o.in_deleted','0');
+		$this->db->where('o.in_org_notification','1');
+		
+		$driver = '((3959*acos(cos(radians(zp.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(zp.lon))+sin(radians(zp.lat))*sin(radians("'.$start_lat.'")))) <= o.in_notification_miles 
+					OR (3959*acos(cos(radians(zp.lat))*cos(radians("'.$start_lat.'"))*cos(radians("'.$start_lon.'")-radians(zp.lon))+sin(radians(zp.lat))*sin(radians("'.$start_lat.'")))) is NULL 
+					OR (3959*acos(cos(radians(zp.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(zp.lon))+sin(radians(zp.lat))*sin(radians("'.$end_lat.'"))))<= o.in_notification_miles 
+					OR (3959*acos(cos(radians(zp.lat))*cos(radians("'.$end_lat.'"))*cos(radians("'.$end_lon.'")-radians(zp.lon))+sin(radians(zp.lat))*sin(radians("'.$end_lat.'")))) is NULL) ';
+		
+		$this->db->where($driver);
+		//$this->db->where($driver_h);
+		
+		//$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_organization_user where in_organization_id = ".$org_id." AND in_status = 3 AND in_deleted = 0)");
+		//$this->db->where("tu.in_user_id NOT IN (select in_user_id from tbl_users where in_email_verify_status = 0 AND dt_created > '2016-11-25')");
+		$query =	$this->db->get();
+		$transport_leg_user_details = $query->result_array();
+		
+		return $transport_leg_user_details;
+	}
+	
+	public function get_coalition_details($org_id='')
+	{
+		$user_array = array();
+		$this->db->select("oc.*");
+		$this->db->from("tbl_org_coalition oc");
+		$this->db->where('oc.in_organization_id',$org_id);
+		$this->db->where('oc.in_deleted',0);
+		$query = $this->db->get();
+		if($query->num_rows() > 0 )
+		{	
+			foreach($query->result_array() as $key=>$value)
+			{
+				$this->db->select('u.st_display_name,u.st_last_name,u.st_email,u.in_user_id');
+				$this->db->from('tbl_coalition_user as cs');	
+				$this->db->join('tbl_coalition as ts','cs.in_coalition_id=ts.in_coalition_id');	
+				$this->db->join('tbl_users as u','u.in_user_id=cs.in_user_id');					
+				$this->db->where('cs.in_coalition_id',$value['in_coalition_id']);
+				$this->db->where('cs.in_deleted','0');
+				$query2 = $this->db->get();
+				if($query2->num_rows() > 0 )
+				{
+					foreach($query2->result_array() as $key2=>$value2)
+					{
+						$user_array[$value2['in_user_id']] = array('user_id'	  => $value2['in_user_id'],
+																   'display_name' => $value2['st_display_name'].' '.$value2['st_last_name'],
+																   'st_email'     => $value2['st_email'] 
+																  );
+						
+					}	
+				}		
+			}
+		}
+		return $user_array;	
+	}
+	
+	/*public function get_coalition_details($org_id)
+	{
+		$this->db->select("o.*");
+		$this->db->from("tbl_organization o");
+		$this->db->join("tbl_org_coalition oc","oc.in_organization_id=o.in_organization_id","INNER");
+		$this->db->where('oc.in_organization_id',$org_id);
+		$this->db->where('oc.in_deleted',0);
+		$this->db->where('o.in_deleted',0);
+		$this->db->where('o.in_status',1);
+		$this->db->where('o.in_org_notification','1');
+		$query = $this->db->get();
+		return $query->result_array();
+	}*/
+	
+	public function get_all_partner($org_id,$userid)
+	{
+       // $user_org_id = $this->session->userdata('org_id');
+        $arrData = array();
+        //$this->db->select('p.in_partner_id, p.in_organization_id, o.in_user_id, p.in_favorite, o.st_org_name, o.st_primary_phone, u.st_display_name, u.st_last_name, u.st_email,o.st_zip');
+        $this->db->select("o.*");
+		$this->db->from('tbl_organization o');
+        $this->db->join('tbl_partner p' , 'p.in_organization_id = o.in_organization_id');
+        $this->db->join('tbl_users u' , 'o.in_user_id = u.in_user_id');
+        $this->db->where('p.in_deleted', 0);
+        $this->db->where('u.in_deleted', 0);
+        $this->db->where('o.in_deleted', 0);
+		$this->db->where('o.in_status', 1);
+		$this->db->where('o.in_org_notification','1');
+        $this->db->where('p.in_user_organization_id',$org_id); 
+		$this->db->where('p.in_user_id', $userid);
+		$this->db->group_by('o.in_organization_id');	
+        $query = $this->db->get();	
+        return $query->result_array();      
+    }
+	
+	public function update_rel_cron_status($transport_id,$cron_id)
+	{
+		$this->db->where('in_transport_id',$transport_id);
+		$this->db->where('in_transport_cron_id',$cron_id);
+		$updated_result = $this->db->update('tbl_rel_route_cron',array("is_processed"=>"1"));
+		
+		return $updated_result;
+	}
+	
+	public function get_transport_files($tra_id)
+	{
+		$this->db->select('st_file_name,in_transport_file_id',FALSE);
+		$this->db->from('tbl_transportation_file');
+		$this->db->where('in_deleted',0);
+		$this->db->where('in_transportation_id',$tra_id);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	
+	public function insert_user_legs_details($data)
+	{
+		$this->db->insert('tbl_user_route_cron', $data);		
+	}
+	
+	public function get_rel_user_legs_data($cron_id)
+	{	//echo 'inside get_rel_user_legs_data';
+		$this->db->select("*");
+		$this->db->from("tbl_user_route_cron tutc");
+		$this->db->where("tutc.in_mail_sent",'0');
+		$this->db->where("tutc.in_deleted",'0');
+		$this->db->where("tutc.in_cron_id",$cron_id);
+		$query =	$this->db->get();
+		//echo "<pre>";
+		//echo $this->db->last_query();die;
+		$transport_user_leg_details = $query->result_array();
+		
+		return $transport_user_leg_details;
+	}
+	
+	public function get_transport_details($transport_id)
+	{
+		$transport_details = array();
+		$this->db->select("	tr.in_transportation_id,
+							tr.in_trans_coods_id,
+							tr.in_organization_id,
+							tr.st_from_street,
+							tr.st_from_city,
+							tr.st_from_state,
+							tr.st_from_zip,
+							tr.st_from_country,
+							tr.st_to_street,
+							tr.st_to_city,
+							tr.st_to_state,
+							tr.st_to_zip,
+							tr.st_to_country,
+							tr.dt_pickup_date,
+							tr.dt_target,
+							tr.st_from_info,
+							tr.st_to_info,
+							tr.st_trans_type,
+							tr.in_tot_distance,
+							tr.in_distance_covered,
+							tr.in_status,
+							tr.st_trans_name,
+							tr.st_add_comments,
+							tr.is_transport_revised,
+							tr.st_private_type_notify,
+							tr.in_route_notify_type,
+							concat(u.st_display_name,' ',u.st_last_name) as st_display_name,
+							round(( tr.in_distance_covered/tr.in_tot_distance * 100 ),2) perc,
+							u.st_profile_image,
+							u.st_email,
+							u.in_public,
+							p.in_user_id,
+							p.st_primary_phone,
+							p.st_address1,
+							p.st_city,
+							p.st_state,
+							p.st_zip,
+							o.st_org_image,
+							o.st_org_name,
+							o.st_org_code,
+							tr.in_status",
+						FALSE);
+		$where = array("tr.in_deleted"=>"0","tr.in_transportation_id"=>$transport_id);
+		$this->db->from("tbl_transportation tr");
+		$this->db->join("tbl_user_profile p ","p.in_user_id= tr.in_trans_coods_id","INNER");
+		$this->db->join("tbl_users u","p.in_user_id = u.in_user_id","INNER");
+		$this->db->join("tbl_organization o","o.in_organization_id = tr.in_organization_id AND o.in_deleted='0'","INNER");	
+		$this->db->where($where);
+		$query =	$this->db->get();
+		if($query->num_rows()>0)
+		{
+			$transport_details = $query->result_array();
+		}
+		return $transport_details;
+	}
+	
+	public function get_org_image($org_id) 
+	{
+		$data = array();
+		
+		$this->db->select('st_org_image');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_organization_id',$org_id);
+		$query = $this->db->get();
+		
+		$data = $query->row_array();
+		return (isset($data['st_org_image']) && file_exists($this->config->item('upload')."upload/org_doc/thumb/".$data['st_org_image']) && $data['st_org_image'] != '')?$data['st_org_image']:'temp-logo.jpg';
+	}
+	
+	public function update_cron_status($transport_id,$cron_id)
+	{
+		$this->db->where('in_transport_id',$transport_id);
+		$this->db->where('in_cron_id',$cron_id);
+		$updated_result = $this->db->update('tbl_user_route_cron',array("in_mail_sent"=>"1","dt_mail_sent"=>date("Y-m-d H:i:s")));
+		
+		
+		$this->db->where('in_transport_id',$transport_id);
+		$this->db->where('in_transport_cron_id',$cron_id);
+		$updated_result = $this->db->update('tbl_rel_route_cron',array("in_mail_sent"=>"1","dt_mail_sent"=>date("Y-m-d H:i:s")));
+		
+		return $updated_result;
+	}
+	
+	public function update_transport_cron_status($transport_id)
+	{
+		$this->db->where('in_transportation_id',$transport_id);
+		$updated_result = $this->db->update('tbl_transportation',array("in_transport_cron_added"=>"1"));
+		
+		return $updated_result;
+	}
+	
+	function get_leg_detail($leg_id)
+	{
+//SELECT l.in_transportation_leg_id,in_transportation_id,st_leg_type,st_street,st_city,st_zip,dt_start_time,st_timezone FROM tbl_transportation_leg l,tbl_transportation_leg_detail ld WHERE ld.in_transportation_leg_id=l.in_transportation_leg_id AND l.in_transportation_leg_id='3'
+		$this->db->select("tr.in_status,l.in_transportation_leg_id,l.in_multi_user,l.in_user_num,l.st_meeting_location,l.in_transportation_id,st_leg_type,in_route_type,st_street,st_state,st_city,st_zip,dt_start_time,st_timezone,l.in_status as mark_completed,ld.st_country");
+		$where = array(	"l.in_deleted"				=> "0",
+						"l.in_transportation_leg_id"	=> $leg_id);
+		$this->db->from("tbl_transportation_leg l");
+		$this->db->from("tbl_transportation_leg_detail ld");
+		$this->db->join("tbl_transportation tr","l.in_transportation_id = tr.in_transportation_id", "INNER");		
+		$this->db->where("ld.in_transportation_leg_id=l.in_transportation_leg_id",NULL,FALSE);
+		
+		$this->db->where($where);
+		$query =	$this->db->get();
+		$arrData = array();
+		
+	//	echo $this->db->last_query();die;
+		if($query->num_rows() > 0)
+		{
+			$airport_details = array("st_latitude"=>"","st_longitude"=>"");
+			foreach($query->result() as $Row)
+			{   
+			    $flgconfirm='';
+				if($Row->in_status=='2'){ $flgconfirm='1'; } else{$flgconfirm='0';  }		
+				
+				$arrData['in_route_type']			= $Row->in_route_type;
+				
+				if($Row->st_leg_type=="P")
+				{
+					if($Row->in_route_type=='1')
+					{
+						$airport_details = $this->get_airport_details($Row->st_street);
+					}		
+					$arrData['leg_type_P']			= $Row->st_leg_type;
+					$arrData['flgIsTransportConfirmed']= $flgconfirm;		
+					$arrData['in_transportation_id']= $Row->in_transportation_id;			
+					$arrData['leg_id']				= $Row->in_transportation_leg_id;
+					$arrData['mark_completed']		= $Row->mark_completed;
+					$arrData['pick_street']		= $Row->st_street;
+					$arrData['pick_state']			= $Row->st_state;
+					$arrData['pick_city']			= $Row->st_city;
+					$arrData['pick_zip']			= $Row->st_zip;
+					$arrData['pick_country']		= $Row->st_country;
+					$arrData['pick_start_time']	= $Row->dt_start_time;
+					$arrData['pick_timezone']		= $Row->st_timezone;
+					$arrData['pick_lat']			= (isset($airport_details['st_latitude']) && $airport_details['st_latitude'] != '')  ? $airport_details['st_latitude'] : '';
+					$arrData['pick_lng']			= (isset($airport_details['st_longitude']) && $airport_details['st_longitude'] != '') ? $airport_details['st_longitude'] : '';	
+					$arrData['meeting_location']	= $Row->st_meeting_location;	
+					$arrData['in_multi_user']		= $Row->in_multi_user;	
+					$arrData['in_user_num']		= $Row->in_user_num;	
+				}
+				
+				if($Row->st_leg_type=="D")
+				{
+					if($Row->in_route_type=='1')
+					{
+						$airport_details = $this->get_airport_details($Row->st_street);
+					}
+					$arrData['leg_type_D']			= $Row->st_leg_type;
+					$arrData['leg_id']				= $Row->in_transportation_leg_id;
+					$arrData['mark_completed']		= $Row->mark_completed;
+					$arrData['drop_street']		= $Row->st_street;
+					$arrData['drop_state']			= $Row->st_state;
+					$arrData['drop_city']			= $Row->st_city;
+					$arrData['drop_zip']			= $Row->st_zip;
+					$arrData['drop_country']		= $Row->st_country;
+					$arrData['drop_start_time']	= $Row->dt_start_time;
+					$arrData['drop_timezone']		= $Row->st_timezone;
+					$arrData['drop_lat']			= (isset($airport_details['st_latitude']) && $airport_details['st_latitude'] != '')  ? $airport_details['st_latitude'] : '';
+					$arrData['drop_lng']			= (isset($airport_details['st_longitude']) && $airport_details['st_longitude'] != '')  ? $airport_details['st_longitude'] : '';	
+					
+					
+					$arrData['meeting_location']	= $Row->st_meeting_location;
+					$arrData['in_multi_user']		= $Row->in_multi_user;	
+					$arrData['in_user_num']		= $Row->in_user_num;		
+				}
+				
+				if($Row->st_leg_type=="O")
+				{	
+					$arrData['leg_id']				= $Row->in_transportation_leg_id;
+					$arrData['o_pick_street']		= $Row->st_street;
+					$arrData['o_pick_state']		= $Row->st_state;
+					$arrData['o_pick_city']			= $Row->st_city;
+					$arrData['o_pick_zip']			= $Row->st_zip;
+					$arrData['o_pick_country']		= $Row->st_country;
+					$arrData['o_pick_start_time']	= $Row->dt_start_time;
+					$arrData['overnight_comments']	= $Row->st_meeting_location;
+				}
+				
+			}
+		}
+		
+		return $arrData;
+	}
+	
+	function get_airport_details($airport_id)
+	{
+		$this->db->select("st_state,st_city,st_longitude,st_latitude,st_iso_country");
+		$this->db->from('tbl_airport');
+		$this->db->where('st_loc_id',$airport_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		//echo $this->db->last_query();
+		return $query->row_array();
+	}
+	
+}
+?>

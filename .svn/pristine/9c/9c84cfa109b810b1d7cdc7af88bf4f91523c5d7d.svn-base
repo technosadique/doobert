@@ -1,0 +1,82 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+class Organization_privacy_setting extends CI_Controller {
+
+	public function __construct()
+    {
+		parent::__construct();
+		$this->output->enable_profiler(FALSE);
+		$this->load->model('common_model');
+		$this->load->model('organization_privacy_setting_model');
+		$this->load->library('form_validation');
+		$this->load->helper('url');
+		$this->load->library('common_function');
+		$this->load->helper('cookie');	
+		$this->load->model('organimal_model');		
+		if(!$this->session->userdata('org_id')) {
+			redirect(base_url().'my-profile');
+		}			
+	}	
+	 
+	public function index()
+	{  	
+		$data = array();
+		$org_id = $this->session->userdata('org_id');
+		$org_references = $this->organization_privacy_setting_model->get_organization_refrences($org_id);
+		//print_r($org_references); exit; //use for testing
+		$data['org_references'] = $org_references;
+		$this->load->model('org_info_model');
+		$data['edit_org_profile'] = $this->org_info_model->organization_profile($org_id);
+		
+		$data['organization_privacy_setting_details'] 	= $this->organization_privacy_setting_model->get_organization_privacy_setting_by_org_id($org_id);	
+		
+		//print_r($data['organization_privacy_setting_details']); exit; //use for testing
+		if($this->input->post('frm_action') == 'frm_post') 
+		{
+		
+			$org_privacy_setting_data 		= array();			
+			
+			$org_privacy_setting_data['st_general_info'] 		=	serialize($this->input->post('gen_info'));	
+			$org_privacy_setting_data['in_organization_id'] 	=	$org_id;		
+			$org_privacy_setting_data['st_org_ref'] 			=	serialize($this->input->post('org_ref'));
+			$org_privacy_setting_data['in_public'] 				=	$this->input->post('org_privacy');
+			$org_privacy_setting_data['dt_updated'] 			= 	date('Y-m-d H:i:s');
+			$org_privacy_setting_data['in_paypal'] 				=	$this->input->post('spaypal');
+			$org_privacy_setting_data['in_tc_info']				= 	$this->input->post('sdisplay_tc');
+			
+			//print_r($org_privacy_setting_data);exit;
+			if(empty($data['organization_privacy_setting_details']))
+			{
+				$data['org_privacy_info']		=	$this->organization_privacy_setting_model->add_org_privacy_setting($org_privacy_setting_data);	
+			}
+			else{
+				$org_privacy_setting_data_private['in_public'] = $this->input->post('org_privacy');
+				$org_privacy_setting_data_private['in_tc_info']	= 	$this->input->post('sdisplay_tc');
+				$data['org_privacy_info']		=	$this->organization_privacy_setting_model->update_org_privacy_setting($this->input->post('org_privacy')==0?$org_privacy_setting_data:$org_privacy_setting_data_private,$org_id);	
+			}
+			
+			$this->session->set_flashdata('message', 'Organization privacy setting updated successfully.');
+			if($this->input->post('flag') && $this->input->post('flag')=='true'){
+				$this->organimal_model->set_manage_public($org_id);
+			}
+			
+			redirect(base_url().'organization-privacy-setting');
+		
+		}
+		else
+		{		
+			$this->load->view('organization_privacy_setting',$data);
+		}			
+	}
+	public function check_manage_profile()
+	{
+		$org_id = $this->input->post('org_id');
+		//print_r($org_id);
+		$data['result'] =$this->organimal_model->check_manage_profile($org_id);
+		echo json_encode($data);	
+	}
+		
+}
+
+/* End of file Organization_privacy_setting.php */
+/* Location: ./application/controllers/organization_privacy_setting.php */

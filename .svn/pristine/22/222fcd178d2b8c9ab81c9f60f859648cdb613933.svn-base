@@ -1,0 +1,344 @@
+<?php
+# ======================================================================================
+# Created by		: sadique mohammad
+# Created date		: 10-Apr-2014
+# File description	: common model for genreal query
+# Special - notes	: none
+# Tables used		: tbl_email_template,tbl_animal_type
+# Stored procedures	: NONE 
+# Triggers used		: none
+# --------------------------------------------------------------------------------------
+class common_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	function index()
+	{
+	
+	}
+	
+	public function get_email_containt($id) {  
+		$this->db->select('in_email_id,st_email_subject,st_email_body,st_category,in_allow_status');
+		$this->db->from('tbl_email_template');
+		$this->db->where('in_email_id',$id);
+		$query = $this->db->get();
+		//echo $this->db->last_query(); die;
+		return $query->result_array();
+	}
+	
+	public function get_animal_types() {
+		$this->db->select('in_animal_type_id,st_animal_type_name,in_animal_breed_count');
+		$this->db->from('tbl_animal_type');
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_animal_type_name','ASC');
+		$query = $this->db->get();
+		return $query->result_array();
+	}	
+	
+	
+	
+	public function get_animal_breed($id) {		
+		$this->db->select('in_animal_breed_id,st_animal_breed_name,in_animal_type_id');
+		$this->db->from('tbl_animal_breed');
+		$this->db->where('in_status',1);
+		$this->db->where('in_animal_type_id',$id);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_animal_breed_name','ASC');
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_demeanor	
+	#	Purpose		:	getting demeanor name by animal id
+	# *******************************************************************************************	
+	
+	public function get_demeanor($animal_id) {
+		$this->db->select('in_demeanor_id,st_demeanor_name');
+		$this->db->from('tbl_demeanor');
+		$this->db->where('in_animal_type_id',$animal_id);
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_demeanor_name','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	
+	public function get_organization_list() {
+		$this->db->select('in_organization_id,st_org_name');
+		$this->db->from('tbl_organization');
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_org_name','ASC');
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	
+	public function user_org_dtls($userId ='')
+	{	
+		$this->db->select('o.in_user_id as org_owner_id,o.st_org_name,o.in_organization_id,ou.st_permission,ou.st_transport_cood,ou.st_fundraiser,ou.st_animal_profile',FALSE);
+		$this->db->from('tbl_organization as o');
+		$this->db->join('tbl_organization_user as ou','ou.in_organization_id = o.in_organization_id','LEFT');
+		$where = "(( o.in_user_id ='".$userId."')  
+					OR( ou.in_user_id ='".$userId."' )
+					AND ou.in_status='1' 
+					AND ou.in_deleted='0') AND o.in_deleted='0' AND o.in_status='1' 
+					";
+		$this->db->where($where, NULL, FALSE);
+		$this->db->group_by('o.in_organization_id'); 
+		$this->db->order_by('o.st_org_name','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		//echo "<pre>";print_r($query->result_array());die;
+		return $query->result_array();	
+	}	
+	
+	
+	
+	
+	
+	public function get_animal_breed_list() {
+		$this->db->select('in_animal_breed_id,st_animal_breed_name,in_animal_type_id');
+		$this->db->from('tbl_animal_breed');
+		$this->db->where('in_status',1);		
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_animal_breed_name','ASC');
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	
+	# *******************************************************************************************	
+	#	Function	:	get_demeanor	
+	#	Purpose		:	getting demeanor name by animal id
+	# *******************************************************************************************	
+	
+	public function get_demeanor_list() {
+		$this->db->select('in_demeanor_id,st_demeanor_name');
+		$this->db->from('tbl_demeanor');		
+		$this->db->where('in_status',1);
+		$this->db->where('in_deleted',0);
+		$this->db->order_by('st_demeanor_name','ASC');
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+	#	Function	:	get_user_profile	
+	#	Purpose		:	User profile details
+	# *******************************************************************************************	
+	public function get_user_profile($id='') {
+		$this->db->select('	pr.in_user_id,
+							pr.st_address1, 
+							pr.st_address2, 
+							pr.st_city, 
+							pr.st_state, 
+							pr.st_zip, 
+							pr.st_time_zone,
+							pr.st_primary_phone, 
+							pr.st_secondary_phone, 
+							pr.st_fax, 
+							pr.st_website,
+							pr.st_driver,
+							pr.st_fundraiser,
+							pr.in_status,
+							u.st_display_name,
+							u.st_last_name,
+							u.st_email,
+							u.in_public,
+							u.st_facebook_uid,
+							u.st_profile_image');	
+		$this->db->from("tbl_user_profile pr");
+		$this->db->join("tbl_users u","pr.in_user_id = u.in_user_id","INNER");		
+		$this->db->where('pr.in_user_id',$id);
+		$this->db->where('pr.in_deleted',0);
+		$this->db->where('pr.in_deleted',0);
+		$query = $this->db->get();
+
+		return $query->result_array();
+	}
+	
+	
+	public function get_progress_status() {
+		$this->db->select('in_progress_status_id,st_progress_status,in_status_type');
+		$this->db->from('tbl_progress_status');
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->result_array();
+	}
+	
+	# *******************************************************************************************	
+    #	Function	:	get_admin_list	
+    #	Purpose		:	Get admin list
+    # *******************************************************************************************	
+
+    public function get_admin_list() {       
+		$this->db->select("st_email_address as email_address,st_name as name,st_permission");
+        $this->db->where(array("in_deleted" => '0'));
+        $query = $this->db->get("tbl_admin");
+        return $query->result_array();
+    }
+	
+	function add_cron_email_status($cron_email_array)
+	{
+		$insert_id = $this->db->insert('tbl_cron_email_status', $cron_email_array);
+		return $insert_id;
+	}
+	
+	function update_cron_status_email_sent($id,$cron_status_array)
+	{
+		$this->db->where('id',$id);
+		$updated_result = $this->db->update('tbl_cron_email_status',$cron_status_array);
+		
+		return $updated_result;
+	}
+	
+	function get_user_id_by_email($email_id)
+	{
+		$user_id = '';
+		$this->db->select('in_user_id');		
+		$this->db->from('tbl_users');        
+		$this->db->where('in_deleted', 0);		
+		$this->db->where('st_email', $email_id);
+		$query = $this->db->get();
+		$user_data = $query->row_array();
+		if(isset($user_data) && !empty($user_data))
+		{
+			$user_id = $user_data['in_user_id'];
+		}
+		
+		return $user_id;
+	}
+	
+	public function user_notification_setting($userId) 
+	{
+		$sql	= "SELECT flg_immediate_transport,flg_immediate_animal,flg_immediate_fund
+				   FROM tbl_users as us 
+				   WHERE us.in_user_id= '".$userId."' AND  us.in_deleted= '0'";		
+					
+		$query = $this->db->query($sql);
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+		
+	}
+	
+	public function check_allowed_even_blocked($email_temp_id)
+	{
+		$this->db->select('in_allow_status');
+		$this->db->from('tbl_email_template');
+		$this->db->where('in_email_id',$email_temp_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();		
+		$result_data = $query->row_array();
+		return $result_data;
+	}
+	
+	public function check_user_unsub_emails($user_id)
+	{
+		$this->db->select('flg_immediate_all,flg_immediate_transport,flg_immediate_animal,flg_immediate_fund,flg_daily_email');
+		$this->db->from('tbl_users');
+		$this->db->where('in_user_id',$user_id);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();		
+		$result_data = $query->row_array();
+		return $result_data;
+	}
+	
+	public function get_affiliate_detail($id,$position){
+        $this->db->select('st_url,st_code,st_position,st_image,st_email_id,st_banner_name');
+        $this->db->from('tbl_affiliate_banner'); 
+		$this->db->where("FIND_IN_SET('".$id."',st_email_id) !=", 0);  
+		$this->db->where('st_position', $position); 
+        $this->db->where('in_deleted', 0);  
+		$this->db->where('in_status', 1);
+		$this->db->order_by('rand()');
+        $query = $this->db->get();
+        return $query->result_array();
+    }
+	
+	function update_org_status($data,$orgId) {	
+		$this->db->where('in_organization_id',$orgId);
+		$this->db->update('tbl_organization',$data);
+		return $this->db->affected_rows();	
+	}
+	
+	public function get_all_user_details(){
+        $this->db->select('o.st_org_name,o.st_email_address,u.st_display_name');
+        $this->db->from('tbl_organization o'); 
+		$this->db->join('tbl_users as u','u.in_user_id = o.in_user_id','LEFT');
+        $this->db->where('o.in_deleted', 0);  
+		$this->db->where('o.in_status', 1);
+		$this->db->where('o.in_new_org_notification', 1);	
+        $query = $this->db->get();
+        return $query->result_array();
+    }
+	
+	public function get_state($zip) {
+		$this->db->select('state_prefix');
+		$this->db->from('tbl_zip_code');
+		$this->db->where('zip_code',$zip);	
+		$query = $this->db->get();
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}
+	public function get_affiliate_donation_detail($position)
+	{		
+        $this->db->select('id,st_url,st_image,st_banner_name');
+        $this->db->from('tbl_affiliate_banner'); 		 		
+		$this->db->where('in_banner_placement', $position);		 		
+		$this->db->where('dt_start <= "'. date('Y-m-d'). '" and dt_end >="'. date('Y-m-d').'"');
+        $this->db->where('in_deleted', 0);  
+		$this->db->where('in_status', '1');  
+		$this->db->order_by('rand()');
+		$this->db->limit(1);
+        $query = $this->db->get();
+		//echo $this->db->last_query(); //exit;
+        return $query->result_array();
+    }
+	
+	public function verify_unsubscribe_user($email_add)
+	{
+		$this->db->select('*');
+		$this->db->from('tbl_unsubscribes_user');
+		$this->db->where('st_email',$email_add);
+		$this->db->where('in_deleted',0);
+		$query = $this->db->get();
+		return $query->num_rows();
+	}
+	public function get_coalition_admin($id)
+	{
+		$this->db->select('cu.in_user_id,us.st_display_name,us.st_email,ct.st_coalition_name');
+		$this->db->from('tbl_org_coalition oc');
+		$this->db->join('tbl_coalition_user as cu', 'cu.in_coalition_id = oc.in_coalition_id AND cu.in_deleted=0 AND in_active=1 AND in_approved=1','LEFT');
+		$this->db->join('tbl_users as us', 'us.in_user_id=cu.in_user_id','LEFT');
+		$this->db->join('tbl_coalition as ct', 'ct.in_coalition_id = oc.in_coalition_id AND ct.in_deleted=0','LEFT');
+		$this->db->where('oc.in_deleted', 0);
+		//$this->db->where('cu.in_active', 1);
+		$this->db->where('oc.in_organization_id',$id);
+		//echo $this->db->last_query(); die;
+		$query=$this->db->get();
+		return $query->result_array();
+	}
+	public function get_coalition_name($id)
+	{
+		$this->db->select("st_coalition_name");
+		$this->db->from("tbl_coalition as ct");
+		$this->db->join("tbl_org_coalition as oc",'oc.in_coalition_id=ct.in_coalition_id','LEFT');
+		$this->db->where(array("ct.in_deleted"=>'0',"oc.in_organization_id"=>$id));		
+		
+		$query = $this->db->get(); 
+		//echo $this->db->last_query();die;
+		return $query->row_array();
+	}	
+}
+?>

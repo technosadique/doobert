@@ -1,0 +1,882 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Trip extends CI_Controller {
+
+    /**
+     * Index Page for this controller.
+     *
+     * Maps to the following URL
+     * 		http://example.com/index.php/welcome
+     * 	- or -  
+     * 		http://example.com/index.php/welcome/index
+     * 	- or -
+     * Since this controller is set as the default controller in 
+     * config/routes.php, it's displayed at http://example.com/
+     *
+     * So any other public methods not prefixed with an underscore will
+     * map to /index.php/welcome/<method_name>
+     * @see http://codeigniter.com/user_guide/general/urls.html
+     */
+    public function __construct() {
+        parent::__construct();
+        $this->output->enable_profiler(FALSE);
+        $this->load->library('common_function');
+        $this->load->model('trip_model');        
+        $this->load->model('common_model');       
+        $this->load->library('form_validation');
+        $this->load->helper('url');
+        $this->load->helper('cookie');
+		$this->load->model('orgtrasnportation_model'); 
+    }
+
+    public function index() {
+	if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		
+	}		
+
+    function upcoming_trips($sort=false,$order=false,$limit=false) {
+		if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		$data['Err_Msg'] = '';
+		$this->load->library('pagination');
+		$data=array();
+		
+		if ($this->uri->segment(5))
+            $limit = $this->uri->segment(5);
+        else
+            $limit = '0';
+			
+		if(!$sort)
+            $sort='in_trip_id';
+		if(!$order)
+            $order = 'desc';
+		
+		$rec_per_page = $this->config->item('per_page');
+        // GET COUNT of TOTAL RECORDS
+        $totalrecord = $this->trip_model->get_total_trip();
+        $data['trip_list'] = $this->trip_model->get_trip($limit, $rec_per_page ,$sort ,$order);		
+		//echo '<pre>';print_r($data['trip_list'][0]['in_filled']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+        $config["base_url"] = base_url() . 'trip/upcoming_trips/'.$sort.'/'.$order;
+        $config['base_url'] = $config['base_url'] . '/';
+        $config['total_rows'] = $totalrecord;
+        $config['per_page'] = $rec_per_page;
+        $config['cur_page'] = $limit;
+        $config['num_links'] = '3';
+        $config['first_link'] = FALSE;
+        $config['last_link'] = FALSE;
+
+        $config['full_tag_open'] = '<ul class="pagination">';
+        $config['full_tag_close'] = '</ul>';
+
+        $config['prev_link'] = 'Prev';
+        $config['prev_tag_open'] = '<li class="prev">';
+        $config['prev_tag_close'] = '</li>';
+
+        $config['next_link'] = 'Next';
+        $config['next_tag_open'] = '<li class="next">';
+        $config['next_tag_close'] = '</li>';
+
+        $config['num_tag_open'] = '<li>';
+        $config['num_tag_close'] = '</li>';
+
+        $config['cur_tag_open'] = '<li class="active"><a href="javascript:void(0);">';
+        $config['cur_tag_close'] = '</a></li>';
+
+        $config['display_pages'] = TRUE;
+        $this->pagination->initialize($config);
+        $data['pagination'] = $this->pagination->create_links();
+        $data['total_rows'] = $config['total_rows'];
+        $data['currrent_page'] = floor(($config['cur_page'] / $config['per_page']) + 1);
+        $data['total_no_page'] = ceil($config['total_rows'] / $config['per_page']);
+        $data['per_page'] = $config['per_page'];
+
+        // ------------------------ PAGINATION ENDS HERE -------------------------------		
+        // SET DATA to MAINTAIN record track on any action			
+       	$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;
+		
+		$this->session->set_userdata('a_limit', $limit);
+        if ($totalrecord == 0) {
+            $data['Err_Msg'] = 'No Record(s) Found!';
+        }	
+        $this->load->view('upcoming-trips',$data);	
+			
+		
+    }
+	
+	function duplicate_trip()
+	{
+		// duplicate action
+		if ($this->input->post('edit_date_action')) {
+		
+		//echo $this->input->post('trip_id'). $this->input->post('dttrip'); die;
+		
+		$data['trip_details'] = $this->trip_model->get_trip_profile($this->input->post('trip_id'));	
+		
+		//echo '<pre>'; print_r($data['trip_details']); die;
+		$trip_date = '';
+		if($this->input->post('dttrip_year'))
+		{
+			$trip_date = date('Y-m-d',strtotime($this->input->post('dttrip').' '.$this->input->post('dttrip_year')));
+		} else {
+			$trip_date = date('Y-m-d',strtotime($this->input->post('dttrip')));
+		}		
+		$trip_info=array();
+		
+		$trip_info['in_user_id'] 				=	(isset($data['trip_details']['in_user_id']) && $data['trip_details']['in_user_id']!='')?$data['trip_details']['in_user_id']:'';
+		//$trip_info['in_filled'] 				=	(isset($data['trip_details']['in_filled']) && $data['trip_details']['in_filled']!='')?$data['trip_details']['in_filled']:'';
+		$trip_info['st_from_street'] 			=	(isset($data['trip_details']['st_from_street']) && $data['trip_details']['st_from_street']!='')? $data['trip_details']['st_from_street']:'';
+		$trip_info['st_from_city'] 				=	(isset($data['trip_details']['st_from_city']) && $data['trip_details']['st_from_city']!='')?$data['trip_details']['st_from_city']:'';
+		$trip_info['st_from_state'] 			=	(isset($data['trip_details']['st_from_state']) && $data['trip_details']['st_from_state']!='')?$data['trip_details']['st_from_state']:'';
+		$trip_info['st_from_zip'] 				=	(isset($data['trip_details']['st_from_zip']) && $data['trip_details']['st_from_zip']!='')?$data['trip_details']['st_from_zip']:'';
+		$trip_info['st_from_country'] 			=	(isset($data['trip_details']['st_from_country']) && $data['trip_details']['st_from_country']!='')?$data['trip_details']['st_from_country']:'';		
+		$trip_info['st_to_street'] 				=	(isset($data['trip_details']['st_to_street']) && $data['trip_details']['st_to_street']!='')?$data['trip_details']['st_to_street']:'';
+		$trip_info['st_to_city'] 				=	(isset($data['trip_details']['st_to_city']) && $data['trip_details']['st_to_city']!='')?$data['trip_details']['st_to_city']:'';
+		$trip_info['st_to_state'] 				=	(isset($data['trip_details']['st_to_state']) && $data['trip_details']['st_to_state']!='')?$data['trip_details']['st_to_state']:'';
+		$trip_info['st_to_zip'] 				=	(isset($data['trip_details']['st_to_zip']) && $data['trip_details']['st_to_zip']!='')?$data['trip_details']['st_to_zip']:'';
+		$trip_info['st_to_country'] 			=	(isset($data['trip_details']['st_to_country']) && $data['trip_details']['st_to_country'])?$data['trip_details']['st_to_country']:'';	
+		$trip_info['dt_trip'] 					=	$trip_date;	
+		$trip_info['in_crates'] 				=	(isset($data['trip_details']['in_crates']) && $data['trip_details']['in_crates']!='')?$data['trip_details']['in_crates']:'';
+		$trip_info['in_tethered'] 				=	(isset($data['trip_details']['in_tethered']) && $data['trip_details']['in_tethered']!='')?$data['trip_details']['in_tethered']:'';	
+		$trip_info['in_type'] 					=	(isset($data['trip_details']['in_type']) && $data['trip_details']['in_type']!='')?$data['trip_details']['in_type']:'';	
+		$trip_info['in_paid'] 					=	(isset($data['trip_details']['in_paid']) && $data['trip_details']['in_paid']!='')?$data['trip_details']['in_paid']:'';	
+		$trip_info['st_comment'] 				=	(isset($data['trip_details']['st_comment']) && $data['trip_details']['st_comment']!='')?$data['trip_details']['st_comment']:'';	
+			
+	
+	/*echo "<pre>" ; print_r($trip_info);
+	die;*/
+
+		$this->trip_model->insertDuplicateTrip($trip_info);							
+		$this->session->set_flashdata('success', 'You have successfully created upcoming trip.');
+		redirect($this->config->item('base_url').'trip/upcoming_trips');		
+		}
+		
+		
+	}
+
+    function add_upcoming_trips() {
+		if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		
+		$data		 =	array();
+		if($this->session->flashdata('from'))
+		{
+			$from =	$this->session->flashdata('from');
+			if($from=='upcoming')
+			$data['from'] = 2;
+			
+		}else {
+		$data['from'] = 1;		
+		}
+		
+		$data['Err_Msg']	=	'';	
+		$form_field	=	array('fromloc'		=> "",	
+							  'toloc'		=> "",		
+							  'dttrip'		=> "",	
+							  'crates'		=> "",
+							  'tethered'	=> "",
+							  'type'		=> "",
+							  'paid'		=> "",
+							  'comment'	=> "",	
+							  'dttrip_year' => "",
+							  
+							);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['add'][$key] = $value;	
+			}			
+		
+		if($this->input->post('action')=='Add')
+		{   
+			// validation starts
+			foreach ($form_field as $key => $value) {	
+					$data['add'][$key] = $this->input->post($key);	
+				}
+						$this->form_validation->set_rules('fromloc','From Location', 'trim|required');
+						$this->form_validation->set_rules('toloc','To Location', 'trim|required');
+						$this->form_validation->set_rules('dttrip', 'Trip Date', 'trim|required');
+						$this->form_validation->set_rules('crates', 'No of Crates', 'trim|required');
+						$this->form_validation->set_rules('tethered', 'No of Tethered', 'trim|required');
+						$this->form_validation->set_rules('comment', 'Comment', 'trim');
+						
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();											
+						$this->load->view('add-upcoming-trips',$data);
+				}
+			else
+			{  		
+						$this->trip_model->insertTrip($data['add']);							
+						$this->session->set_flashdata('success', 'You have successfully created upcoming trip.');redirect($this->config->item('base_url').'trip/upcoming_trips');
+			}
+			
+		}
+		else
+		{		
+			   
+			$this->load->view('add-upcoming-trips',$data);
+			
+		}		
+	}      
+    
+
+    function edit_upcoming_trips($tripId=false) {
+		if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		$data			 =	array();
+		$data['Err_Msg']	=	'';			
+		$form_field	=	array('fromloc'		=> "",	
+							  'toloc'		=> "",
+							  'dttrip'		=> "",
+							  'crates'		=> "",
+							  'tethered'	=> "",
+							  'type'  		=> "",
+							  'dttrip_year' => "",
+							  'comment'  	=> "",
+							  'paid'  		=> array(0 => '')
+								);
+			foreach($form_field as $key => $value)	
+			{	
+				$data['edit'][$key] = $value;	
+			}	
+		$data['trip_details'] = $this->trip_model->get_trip_profile($tripId);	
+		//echo "<pre>";print_r($data['trip_details']);die;	
+		if($this->input->post('action')=='Edit')
+		{   // echo 'AAA'; die;
+			//Validation rules
+						$tripId			   = $this->input->post('tripId');
+						$data['trip_details'] = $this->trip_model->get_trip_profile($tripId);	
+			
+						foreach ($form_field as $key => $value) {	
+						$data['edit'][$key] = $this->input->post($key);	
+						}
+						$this->form_validation->set_rules('fromloc', 'From Location', 'trim|required');
+						$this->form_validation->set_rules('toloc', 'To Location', 'trim|required');
+						$this->form_validation->set_rules('dttrip', 'Trip Date', 'trim|required');
+						$this->form_validation->set_rules('crates', 'Number of crates', 'trim|required');
+						$this->form_validation->set_rules('tethered', 'Number of Tethered Animals', 'trim|required');
+						$this->form_validation->set_rules('comment', 'Comment', 'trim');
+											
+				
+			
+			if($this->form_validation->run() == FALSE)
+				{
+						$data['Err_Msg'] = validation_errors();						
+						$data['trip_details'] = $this->trip_model->get_trip_profile($tripId);						
+						$this->load->view('edit-upcoming-trips',$data);
+				}
+			
+			else
+			{ 		 	$trip_info 		= array();
+						$fromloc								=	$this->input->post('fromloc');
+						$frmloc=explode(', ',$fromloc);
+						//print_r($frmloc); die;
+						
+						$toloc									=	$this->input->post('toloc');
+						$twoloc=explode(', ',$toloc);
+						//print_r($twoloc); die;
+						
+						$trip_info['st_from_city'] 				=	$frmloc[1];
+						$trip_info['st_from_state'] 			=	$frmloc[2];
+						$trip_info['st_from_zip'] 				=	$frmloc[0];
+						$trip_info['st_from_country'] 			=	$frmloc[3];
+						
+						$trip_info['st_to_city'] 				=	$twoloc[1];
+						$trip_info['st_to_state'] 				=	$twoloc[2];
+						$trip_info['st_to_zip'] 				=	$twoloc[0];
+						$trip_info['st_to_country'] 			=	$twoloc[3];
+						
+						if($this->input->post('dttrip_year'))
+						{	
+							$trip_info['dt_trip'] 					=	date('Y-m-d',strtotime($this->input->post('dttrip').' '.$this->input->post('dttrip_year')));
+						} else {
+							$trip_info['dt_trip'] 					=	date('Y-m-d',strtotime($this->input->post('dttrip')));
+						}		
+						$trip_info['in_crates'] 				=	$this->input->post('crates');	
+						$trip_info['in_tethered'] 				=	$this->input->post('tethered');	
+						$trip_info['in_type'] 					=	$this->input->post('type');	
+						$trip_info['in_paid'] 					=	$this->input->post('paid');	
+						$trip_info['dt_modified'] 				= 	date('Y-m-d H:i:s');
+						$trip_info['st_comment'] 				=	$this->input->post('comment');	
+					
+						//Updating trip data
+						$this->trip_model->update_trip_info($trip_info,$tripId,'tbl_trips');					
+						$this->session->set_flashdata('success', 'You have successfully updated upcoming trip.');			
+						redirect($this->config->item('base_url').'trip/upcoming_trips');
+			}
+		}		
+		else
+		{				
+						$this->load->view('edit-upcoming-trips',$data);
+		}	
+        
+    }
+
+    function past_trips($sort=false,$order=false,$limit=false){
+		if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		
+		if(!$sort)
+            $sort='in_trip_id';
+		if(!$order)
+            $order = 'desc';
+					
+		$data['Err_Msg'] = '';
+		$this->load->library('pagination');
+		$data=array();
+		
+		if ($this->uri->segment(5))
+            $limit = $this->uri->segment(5);
+        else
+            $limit = '0';
+		
+		$rec_per_page = $this->config->item('per_page');
+        // GET COUNT of TOTAL RECORDS
+        $totalrecord = $this->trip_model->get_total_pasttrip();
+        $data['trip_list'] = $this->trip_model->get_pasttrip($limit, $rec_per_page,$sort,$order);		
+		//echo '<pre>';print_r($data['trip_list'][0]['in_filled']); die;
+		
+		// ------------------------ PAGINATION STARTS HERE -----------------------------
+        $config["base_url"] = base_url() . 'trip/past_trips/'.$sort.'/'.$order;
+        $config['base_url'] = $config['base_url'] . '/';
+        $config['total_rows'] = $totalrecord;
+        $config['per_page'] = $rec_per_page;
+        $config['cur_page'] = $limit;
+        $config['num_links'] = '3';
+        $config['first_link'] = FALSE;
+        $config['last_link'] = FALSE;
+
+        $config['full_tag_open'] = '<ul class="pagination">';
+        $config['full_tag_close'] = '</ul>';
+
+        $config['prev_link'] = 'Prev';
+        $config['prev_tag_open'] = '<li class="prev">';
+        $config['prev_tag_close'] = '</li>';
+
+        $config['next_link'] = 'Next';
+        $config['next_tag_open'] = '<li class="next">';
+        $config['next_tag_close'] = '</li>';
+
+        $config['num_tag_open'] = '<li>';
+        $config['num_tag_close'] = '</li>';
+
+        $config['cur_tag_open'] = '<li class="active"><a href="javascript:void(0);">';
+        $config['cur_tag_close'] = '</a></li>';
+
+        $config['display_pages'] = TRUE;
+        $this->pagination->initialize($config);
+        $data['pagination'] = $this->pagination->create_links();
+        $data['total_rows'] = $config['total_rows'];
+        $data['currrent_page'] = floor(($config['cur_page'] / $config['per_page']) + 1);
+        $data['total_no_page'] = ceil($config['total_rows'] / $config['per_page']);
+        $data['per_page'] = $config['per_page'];
+
+        // ------------------------ PAGINATION ENDS HERE -------------------------------		
+        // SET DATA to MAINTAIN record track on any action			
+       	$data["limit"]          =   $limit;
+		$data["sort"]           =   $sort;
+		$data["order"]          =   $order;
+        $this->session->set_userdata('a_limit', $limit);
+        if ($totalrecord == 0) {
+            $data['Err_Msg'] = 'No Record(s) Found!';
+        }	
+        $this->load->view('past-trips',$data);	
+    }	
+
+    /*function search_user_trips() {	
+		$data = array();
+        //$this->load->view('search-user-trips');
+		
+		$form_field	=	array('nextPostAge'		=> "3",	
+							  'tr_type1'		=> "1",
+							  'tr_type2'		=> "2");
+		foreach($form_field as $key => $value)	
+		{	
+			$data['trip_data'][$key] = $value;	
+		}	
+		
+		//print_r($data['post_data']);exit;
+		
+		if($this->input->post('frm_action')=='frm_value')
+		{
+			foreach ($form_field as $key => $value) {	
+				$data['post_data'][$key] = $this->input->post($key);	
+			}
+			
+			$data['transport_map'] = $this->trip_model->get_trips_map_detail($data['post_data']);
+			//$data['transport_map'] = $this->trip_model->get_all_transport_users($days,$road_type,$air_type);					
+		}
+		else{
+			$data['transport_map'] = $this->trip_model->get_trips_map_detail($data['trip_data']);
+		}
+		
+		//print_r($data['transport_map']);
+		
+		$trip_map_data_array = array();
+		
+		foreach($data['transport_map'] as $map_val)
+		{
+			$trip_map_data_array[$map_val['trip_id']] = array($map_val['from_zip'],$map_val['to_zip']);
+		}
+		
+		//print_r($trip_map_data_array);
+		$map_all_data = json_encode($data['transport_map']);
+		$map_json_data = json_encode($trip_map_data_array);
+		//print_r($map_json_data);
+		//exit;
+		$data['map_json_data'] = $map_json_data;
+		$data['map_all_data'] = $map_all_data;
+		$this->load->view('search-user-trips-new',$data);
+    } */
+
+	function search_user_trips_ajax() {	
+	
+		$data['trip_data']['nextPostAge'] = $_POST['nextPostAge'];	
+		$data['trip_data']['tr_type1'] = $_POST['tr_type1'];	
+		$data['trip_data']['tr_type2'] = $_POST['tr_type2'];	
+	
+		$data['transport_map'] = $this->trip_model->get_trips_map_detail($data['trip_data']);
+		$map_json_data = json_encode($data['transport_map']);
+		print_r($map_json_data);
+		exit;
+	
+	}
+	function delete_trip() {
+		if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		
+		$tripId	=	$this->uri->segment(3);
+		$this->trip_model->delete_trip($tripId);			
+		$this->session->set_flashdata('success', 'Upcoming Trip information has been deleted successfully.');		
+		redirect($this->config->item('base_url').'trip/upcoming_trips'); 		      
+    } 
+	
+	function gettripinfo()
+	{
+		$tripdetails = $this->trip_model->trip_details($this->uri->segment(3));
+        echo $tripdetails;
+		
+	}
+	
+	 public function set_status()
+	  {
+		$id=$_POST['id'];
+		$active=$_POST['active'];
+		$this->trip_model->set_status($id,$active);
+		return 1;
+	  }
+	  
+	  
+	  
+	  function search_user_trips() {	
+			if (!$this->session->userdata('userid')) {
+            redirect($this->config->item('base_url'));
+        }
+		$data = array();
+		//print_r($_POST);exit;
+		
+		$this->load->view('search-user-trips',$data);
+    } 
+	
+	  # *******************************************************************************************	
+	#	Function	:	create_xml	
+	#	Purpose		:	Create XML for transport
+	# *********************************************************************************************
+	
+	public function create_xml($days='',$tr_type='', $radius='',$zipcode='', $trip_id='') {
+		$data = array();		
+		$days = (isset($_GET['days']) && $_GET['days'] != '')?$_GET['days']:'0';
+		$tr_type = (isset($_GET['tr_type']) && $_GET['tr_type'] != '')? $_GET['tr_type'] : '';
+		$radius = (isset($_GET['radius']) && $_GET['radius'] != '')? $_GET['radius']: '';
+		$zipcode = (isset($_GET['zipcode']) && $_GET['zipcode'] != '')? $_GET['zipcode']: '';
+		$trip_id = (isset($_GET['trip_id']) && $_GET['trip_id'] != '')? $_GET['trip_id']: '';
+		
+		if($zipcode != '')
+		{	
+			$zip_code = $zipcode;
+			$zip_code = str_replace(" ","",$zip_code);
+			$zipcode = strtoupper($zip_code);		
+		}
+		
+		$data['transport_map'] = $this->trip_model->get_all_transport_users($days,$tr_type,$radius,$zipcode,$trip_id);
+		
+		//print_r($data['transport_map'] );exit;
+		
+		$data['latlong'] = array();
+		
+							
+		foreach($data['transport_map'] as $row) {
+		
+		$link_name 	= $this->common_function->get_filtered_name($row['driver']);
+        $user_url 	= base_url()."user-".$row['user_id']."-".$link_name."/";
+		
+		
+		$check_user = $this->common_model->get_user_verified($row['user_id']);
+        if(!empty($check_user)) {
+			//green_logo
+			//$verified_img = base_url().'assets/img/small_doobert_verified_logo1.jpg';
+			$verified_img = base_url().'assets/img/green_logo.png';
+		}else{
+			$verified_img = base_url().'assets/img/gray_logo.png';
+		}
+			
+		$f = $ph = $pd = $u = $v = $d = $p = '';
+			if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+                    $f = base_url().'assets/img/icon-foster-home.png';
+            }
+            if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+                   $ph = base_url().'assets/img/icon-photographer.png';
+            }
+            if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+                   $p =  base_url().'assets/img/icon-pilot-profile.png';
+            }
+            if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+                   $d = base_url().'assets/img/icon-driver.png';
+            }
+            if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+                   $u = base_url().'assets/img/icon-person.png';
+            }
+            if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+                  $v = base_url().'assets/img/icon-virtual-support-volunteers.png';
+            }
+		
+						
+			$data['latlong'][] = array(	'trip_id'		=> $row['trip_id'],
+										'filled'        => $row['filled'],
+										'from_zip'		=> $row['from_zip'],
+										'to_zip' 		=> $row['to_zip'],										
+										'from_lat' 		=> (isset($row['from_lat']))?$row['from_lat']:'',	
+										'from_long' 	=> (isset($row['from_long']))?$row['from_long']:'',
+										'to_lat' 		=> (isset($row['to_lat']))?$row['to_lat']:'',
+										'to_long' 		=> (isset($row['to_long']))?$row['to_long']:'',
+										'from_city' 	=> $row['from_city'],
+										'to_city' 		=> $row['to_city'],
+										'from_street' 	=> $row['from_street'],
+										'from_state' 	=> $row['from_state'],
+										'from_country'	=> $row['from_country'],
+										'to_street' 	=> $row['to_street'],
+										'to_state' 		=> $row['to_state'],
+										'to_country'	=> $row['to_country'],										
+										'paid'			=> ($row['paid']!='')?$row['paid']:'',
+										'dttrip'		=>  $row['dttrip'],
+										'crates'		=>	$row['crates'],
+										'tethered'		=>	$row['tethered'],
+										'driver' 		=>  $row['driver'],
+										'in_type' 		=> 	$row['in_type'],
+										'user_url'      =>  $user_url,
+										'verified_img'  =>  $verified_img,
+										'f'				=>  $f,
+										'ph'			=>  $ph,
+										'p'				=>  $p,
+										'd'				=>  $d,
+										'u'				=>  $u,
+										'v'				=>  $v,
+										'st_email'		=>  $row['st_email'],	
+									);
+		}
+		//echo '<pre/>'; print_r($data['latlong'] );exit;
+		
+		if(!empty($data['latlong'])){
+			$xml = '<trips>';
+			foreach($data['latlong'] as $xml_data) {
+				
+				$from_address  = '';
+				$from_address .=($xml_data['from_street']!='')?$xml_data['from_street'].', ':'';
+				$from_address .=($xml_data['from_city']!='')?$xml_data['from_city'].', ':'';
+				$from_address .=($xml_data['from_state']!='')?$xml_data['from_state'].', ':'';
+				$from_address .=($xml_data['from_zip']!='')?$xml_data['from_zip']:'';
+				
+				$to_address  = '';
+				$to_address .=($xml_data['to_street']!='')?$xml_data['to_street'].', ':'';
+				$to_address .=($xml_data['to_city']!='')?$xml_data['to_city'].', ':'';
+				$to_address .=($xml_data['to_state']!='')?$xml_data['to_state'].', ':'';
+				$to_address .=($xml_data['to_zip']!='')?$xml_data['to_zip']:'';
+				
+				$transport_type ='';
+				if($xml_data['in_type'] == 1) { $transport_type ='Driving';}
+				else if($xml_data['in_type'] == 2) { $transport_type ='Flying';}
+				
+				$filled = '';
+				if($xml_data['filled'] == 1) { $filled = 'Yes';}
+				else if($xml_data['filled']==0){ $filled = 'No';}
+				
+										
+				$xml .= '<trip tripId="TP'.$xml_data['trip_id'].'" sendZip="'.$xml_data['from_zip'].'" sendLat="'.$xml_data['from_lat'].'" sendLon="'.$xml_data['from_long'].'" recZip="'.$xml_data['to_zip'].'" recLat="'.$xml_data['to_lat'].'" recLon="'.$xml_data['to_long'].'" sendCity="'.$from_address.'" recCity="'.$to_address.'" driver="'.$xml_data['driver'].'" dttrip="'.$xml_data['dttrip'].'" crates="'.$xml_data['crates'].'" tethered="'.$xml_data['tethered'].'" paid="'.$xml_data['paid'].'" in_type="'.$xml_data['in_type'].'" userUrl="'.$xml_data['user_url'].'" verifiedImg="'.$xml_data['verified_img'].'" filled="'.$filled.'" transportType="'.$transport_type.'" f="'.$xml_data['f'].'" ph="'.$xml_data['ph'].'" p="'.$xml_data['p'].'" d="'.$xml_data['d'].'" u="'.$xml_data['u'].'" v="'.$xml_data['v'].'" email="'.$xml_data['st_email'].'" tid= "'.$xml_data['trip_id'].'"></trip>';
+				
+			}
+			$xml .= '</trips>';
+			//echo $xml;
+			//exit;
+			Header('Content-type: text/xml');
+			print($xml);
+		}
+	}
+	
+	 public function get_zip_code(){
+
+        if (!$this->session->userdata('userid')){
+            echo "1";
+            die;
+            //redirect($this->config->item('base_url'));
+        }
+		
+		if($this->input->get('flag')){
+			$city = addslashes($this->input->get('city'));
+            $state = addslashes($this->input->get('state'));
+			//print_r($city);
+			//print_r($state);
+			//die();
+			$result = $this->orgtrasnportation_model->get_fullzipcode_by_state_city(trim($city), trim($state));
+			//print_r($result); die();
+			if(!empty($result)){
+			echo json_encode($result);
+			}else {
+				$result ='NULL';
+				echo json_encode($result);
+			}
+			
+		}
+		
+       else if ($this->input->get('term')){
+			//echo "in the term.";
+            //echo $this->uri->segment(3);
+            //echo "<pre>";print_r($_GET);print_r($_POST);die;
+            //echo "<pre>";print_r($this->input->get());print_r($this->input->post());die;
+            $zip = addslashes($this->input->get('term'));
+            //$city = addslashes($this->input->get('city'));
+            //$state = addslashes($this->input->get('state'));
+            //$result = $this->orgtrasnportation_model->get_zipcode($zip, $city, $state);
+			$result = $this->orgtrasnportation_model->get_zipcode2($zip);
+            echo json_encode($result);
+        } else {
+			//echo "<br> in the else";
+            $city = addslashes(trim($this->input->get('city')));
+            $state = addslashes(trim($this->input->get('state')));
+			//echo "city=".$city;
+			$city1=''; $state1='';
+			$expcity = explode(',',$city);
+			if(!empty($expcity)){
+				if(isset($expcity[0])){ $city1 = trim($expcity[0]);}
+				if(isset($expcity[1])){ $state1 = trim($expcity[1]);}
+			}
+			//print_r($expcity); 
+            //$data['zipcodes'] = $this->orgtrasnportation_model->get_zipcode("",$city,$state,"action");
+          //  $result = $this->orgtrasnportation_model->get_zipcode("", $city, $state, "action");
+		    	$result = $this->orgtrasnportation_model->get_zipcode("",$city1 ,$state1, "action");
+             if(isset($result[0]['value']))
+              {
+             // echo $result[0]['value']."#*#".$result[0]['city']."#*#".$result[0]['st_country'];
+              }
+              echo json_encode($result); 
+         //   print_r($result);*/
+			
+           /* if (isset($result[0]['value'])) {
+                echo $result[0]['value'] . "#*#" . $result[0]['city'] . "#*#" . $result[0]['st_country'];
+            }*/
+		 }
+    }
+	function trip_send_mail()
+	{
+	   $user_name = $this->input->post('contact_name');
+        $user_email = $this->input->post('contact_email');
+		$sender_name = $this->session->userdata('user_name');
+		$sender_email = $this->session->userdata('email');
+        $msg = nl2br($this->input->post('contactmessage'));
+		
+		$this->load->library('email');
+        $email_details = $this->common_model->get_email_containt("49");
+		$q			=	$this->common_model->get_affiliate_donation_detail('3');
+		if(isset($q) && !empty($q)){					   		
+				foreach($q as $qr)
+				{		 
+					  
+					if(!empty($qr['st_image']))
+					{
+							$imgpath	=	$this->config->item('upload_url').'affiliate_images/orig/'.$qr['st_image'];
+							$imgtitle   =   $qr['st_banner_name']; 				
+							$donation	    = '<a href='.$qr['st_url'].'><img src="'.$imgpath.'" 
+
+							alt="'.$imgtitle.'" title="'.$imgtitle.'" border="0" style="margin-top: 20px;"/></a>';											
+						  
+						  
+					}
+					else
+					{
+						   $donation='';								 
+					}							  
+						
+				}
+			}			
+			   
+		   else
+		   {
+			  $donation='';
+		   }
+		
+        if (isset($email_details[0]['st_email_body'])) {
+            $templete = $email_details[0]['st_email_body'];
+            $templete = str_replace("##user_name##", $user_name , $templete);
+			$templete = str_replace("##DONATION##", $donation, $templete);
+            $templete = str_replace("##sender_name##", $sender_name , $templete);
+			$templete = str_replace("##message##", $msg , $templete);
+            $templete = str_replace("##sender_email##", $sender_email , $templete);
+            $templete = str_replace("##current_year##", date('Y'), $templete);
+            $strMail = $templete;
+            $to = $user_email;
+            $subject = $email_details[0]['st_email_subject'];
+			$subject = str_replace('##sender_name##',$sender_name , $subject); 
+			$category = $email_details[0]['st_category'];
+		   // $subject = 'Contact Request From: ' . $this->session->userdata('user_name');
+            $message = $strMail;
+			
+			$user_to_id = $this->common_model->get_user_id_by_email($to);
+						
+			$message = str_replace("##change_to_daily_digest##",base_url().'user/update_daily_digest/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+			$message = str_replace("##unsubscribe_url##",base_url().'user/unsubscribe_complete/'.$this->common_function->encode_base64($user_to_id).'/'.$this->common_function->encode_base64($to),$message);		
+			
+			$send_email = 1;							
+			$sub_data = $this->common_model->check_user_unsub_emails($user_to_id);
+			if(isset($sub_data) && $sub_data['flg_daily_email'] == '2' && $sub_data['flg_immediate_all'] == '2' && $sub_data['flg_immediate_transport'] == '2' && $sub_data['flg_immediate_animal'] == '2' && $sub_data['flg_immediate_fund'] == '2')
+			{
+				$send_email = 0;										
+			}
+			
+			$email_template_id = $email_details[0]['in_email_id'];
+			$template_allowed = $this->common_model->check_allowed_even_blocked($email_template_id);
+			if(isset($template_allowed) && isset($template_allowed['in_allow_status']) && $template_allowed['in_allow_status'] == '1')
+			{
+				$send_email = 1;
+			}
+			
+			if($send_email == '1')
+			{
+		 		$this->common_function->send_mail($this->email, $to, $subject, $message, $this->config->item('admin_email_from'), $cc = '', $this->config->item('from_name'),$this->email,$category);
+			}
+			
+			$data['success'] = 1;
+			echo json_encode($data);
+		}
+	}
+	function search_user()
+	{
+		$user_name = trim($this->input->post('username'));
+        $nextPostAge =$this->input->post('nextPostAge');
+		$zipcode = trim($this->input->post('zipcode'));
+		$radius  = trim($this->input->post('radius'));
+		$tr_type = trim($this->input->post('tr_type'));
+		
+		if($zipcode != '')
+		{	
+			$zip_code = $zipcode;
+			$zip_code = str_replace(" ","",$zip_code);
+			$zipcode = strtoupper($zip_code);		
+		}
+		
+		$alldata = $this->trip_model->get_all_user_list($user_name, $nextPostAge, $zipcode, $radius, $tr_type);
+		$data['latlong']=array();
+		if(!empty($alldata))
+		{
+		foreach($alldata as $row){
+		
+		$link_name 	= $this->common_function->get_filtered_name($row['driver']);
+        $user_url 	= base_url()."user-".$row['user_id']."-".$link_name."/";
+		
+		$check_user = $this->common_model->get_user_verified($row['user_id']);
+        if(!empty($check_user)) {
+			$verified_img = base_url().'assets/img/small_doobert_verified_logo1.jpg';
+		}else{
+			$verified_img = base_url().'assets/img/gray_logo.png';
+		}
+			
+		$f = $ph = $pd = $u = $v = $d = $p = '';
+			if (isset($row['st_foster_home']) && $row['st_foster_home'] == 'Y'){
+                    $f = base_url().'assets/img/icon-foster-home.png';
+            }
+            if (isset($row['st_photographer']) && $row['st_photographer'] == 'Y') {
+                   $ph = base_url().'assets/img/icon-photographer.png';
+            }
+            if (isset($row['st_pilot']) && $row['st_pilot'] == 'Y') {
+                   $p =  base_url().'assets/img/icon-pilot-profile.png';
+            }
+            if (isset($row['st_driver']) && $row['st_driver'] == 'Y') {
+                   $d = base_url().'assets/img/icon-driver.png';
+            }
+            if (isset($row['st_in_person_volunteer']) && $row['st_in_person_volunteer'] == 'Y') {
+                   $u = base_url().'assets/img/icon-person.png';
+            }
+            if (isset($row['st_virtual_support_volunteer']) && $row['st_virtual_support_volunteer'] == 'Y'){
+                  $v = base_url().'assets/img/icon-virtual-support-volunteers.png';
+            }
+		
+				$from_address  = '';
+				$from_address .=($row['from_street']!='')?$row['from_street'].', ':'';
+				$from_address .=($row['from_city']!='')?$row['from_city'].', ':'';
+				$from_address .=($row['from_state']!='')?$row['from_state'].', ':'';
+				$from_address .=($row['from_zip']!='')?$row['from_zip']:'';
+				
+				$to_address  = '';
+				$to_address .=($row['to_street']!='')?$row['to_street'].', ':'';
+				$to_address .=($row['to_city']!='')?$row['to_city'].', ':'';
+				$to_address .=($row['to_state']!='')?$row['to_state'].', ':'';
+				$to_address .=($row['to_zip']!='')?$row['to_zip']:'';	
+
+			
+			$data['latlong'][] = array(	'trip_id'		=> $row['trip_id'],
+										'filled'        => $row['filled'],
+										'from_zip'		=> $row['from_zip'],
+										'to_zip' 		=> $row['to_zip'],										
+										'from_lat' 		=> (isset($row['from_lat']))?$row['from_lat']:'',	
+										'from_long' 	=> (isset($row['from_long']))?$row['from_long']:'',
+										'to_lat' 		=> (isset($row['to_lat']))?$row['to_lat']:'',
+										'to_long' 		=> (isset($row['to_long']))?$row['to_long']:'',
+										'from_city' 	=> $row['from_city'],
+										'to_city' 		=> $row['to_city'],
+										'from_street' 	=> $row['from_street'],
+										'from_state' 	=> $row['from_state'],
+										'from_country'	=> $row['from_country'],
+										'to_street' 	=> $row['to_street'],
+										'to_state' 		=> $row['to_state'],
+										'to_country'	=> $row['to_country'],										
+										'paid'			=> ($row['paid']!='')?$row['paid']:'',
+										'dttrip'		=>  $row['dttrip'],
+										'crates'		=>	$row['crates'],
+										'tethered'		=>	$row['tethered'],
+										'driver' 		=>  $row['driver'],
+										'in_type' 		=> 	$row['in_type'],
+										'user_url'      =>  $user_url,
+										'verified_img'  =>  $verified_img,
+										'f'				=>  $f,
+										'ph'			=>  $ph,
+										'p'				=>  $p,
+										'd'				=>  $d,
+										'u'				=>  $u,
+										'v'				=>  $v,
+										'email'		=>  $row['st_email'],
+										'sendCity'		=>  $from_address,
+										'recCity'       =>  $to_address, 
+									);
+		}
+			
+	}
+		$final_array['users']= $data['latlong'];
+		$final_array['count']= count($data['latlong']);	
+		echo json_encode($final_array);	
+	}
+	
+}
+
+/* End of file trip.php */
+/* Location: ./application/controllers/trip.php */

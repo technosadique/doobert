@@ -1,0 +1,221 @@
+<?php 
+$order_trans_id = $this->session->userdata('order_trans_id');
+
+$userid = $this->session->userdata('userid');
+
+$CI = &get_instance();
+$CI->load->model('order_transport_model');
+$CI->load->model('orgtrasnportation_model');
+$uris = $CI->uri->segment(1);
+$order_data = $CI->order_transport_model->get_data_by_order_id($order_trans_id);
+
+?>
+<div class="myaccount-detail">
+	<h2>Manage our Organization</h2>
+    <?php /*	if($owner_id == $this->session->userdata('userid')){ ?>
+	<a href="<?php echo base_url(); ?>manage-volunteer-users/" class="btn btn-big orange waves-effect waves-light">Authorized Users</a>
+    <?php }  */?>
+	<?php /*?><a href="<?php echo base_url(); ?>feedback/" class="btn btn-big orange waves-effect waves-light">Feedback <span class="red-circle"><?php echo $count_feedback; ?></span></a><?php */?>
+	
+	
+	
+	
+	<a data-toggle="modal" href="<?php echo (isset($check_paypal_id) && !empty($check_paypal_id))?base_url().'transportation_search/':'#infoproductpopup'; ?>" class="btn btn-big orange waves-effect waves-light">Reserve a spot</a>
+	<?php if($this->session->userdata('storgtype') !='CT'){  ?>
+	<a  class="btn btn-big orange waves-effect waves-light" href="<?php echo base_url();?>lost_found/myreport">Lost/Found Pets </a>	
+	<?php } ?>
+	<a class="btn btn-big orange waves-effect waves-light" href="<?php echo base_url().'foster-home-volunteer-search/';?>">Volunteers</a>	 
+    <?php if($prod_per_flag == '1') { ?>	
+        <a class="btn btn-big orange waves-effect waves-light" href="<?php echo base_url(); ?>/products/woocommerce_product/">Our Rescue Store</a>
+    <?php } ?>
+	
+	<?php if($this->session->userdata('storgtype') !='CT'){  ?>
+	<a href="<?php echo base_url(); ?>sponsorship/sponsorship_list/" class="btn btn-big orange waves-effect waves-light">Fundraisers</a>
+    <?php } ?>
+	<?php /*	if($owner_id == $this->session->userdata('userid')){ ?>
+	<a href="<?php echo base_url(); ?>organization-account-settings/" class="btn btn-big orange waves-effect waves-light">Account Settings</a>
+    <?php } */ ?>
+	
+    <div class="br"></div>
+    <div class="org-rightbar">
+    	<?php if(!empty($order_trans_id) && isset($order_data) && count($order_data)>0){
+    	if($uris!='open_leg'){?>
+	<div class="cartright mart21">
+		<h4><i class="material-icons">shopping_cart</i>My Cart</h4>
+		<?php 
+					$total = 0;
+					$cost = 0;
+					foreach ($order_data as $o_key => $o_value) {
+						$transport_details = $CI->orgtrasnportation_model->get_transport_details($o_key);
+							if($transport_details[0]['st_org_code'] != ''){
+								$org_code = '#'.$transport_details[0]['st_org_code'];
+							} else{
+								 $org_code = '#DBT';	
+							}
+						?>
+					<div class="datarow">
+						<ul id="cart_view">
+							<li><p class="group"><?php echo $org_code.$o_key;?></p></li>					
+							<?php
+							foreach ($o_value as $value) {
+							?>
+								<li id="crate_<?php echo $value['in_id'];?>">
+									<div class="description"><?php echo $value['st_crate_type']." Crates X "; ?><span class="font-18"><?php echo $value['in_qty']?></span></div>
+									<div class="amount">
+									<?php
+										if(isset($value['in_user_id']) && ($value['in_user_id']!= 0)){
+											$cost = $value['in_qty']*$value['in_cost_private'];
+										}else{
+											$cost = $value['in_qty']*$value['in_cost_public'];
+										}
+										$total = $total + $cost;
+										
+										if($value['is_waitinglist'] == 1){
+											echo "$".number_format((float)$cost, 2, '.', '')." (Waitlist)";									
+										}else{
+											if($value['in_approval_o'] == 1)
+											{	
+												// if(isset($value['in_user_id']) && ($value['in_user_id']!= 0)){
+												// 	$cost = $value['in_qty']*$value['in_cost_private'];
+												// }else{
+												// 	$cost = $value['in_qty']*$value['in_cost_public'];
+												// }
+			
+												echo "$".number_format((float)$cost, 2, '.', '');
+												//$total = $total + $cost;
+											} else {
+												//echo $value['in_qty']."//".$value['in_cost_private']."||".$value['in_cost_public'];
+												echo "$".number_format((float)$cost, 2, '.', '')." (Pending approval)";
+											}	
+										}
+									?>
+									</div>
+									<?php 
+									$id_cost = $value['in_id']."_".$cost;
+									 ?>
+									<div><a href="javascript:void(0);" class="delete-info" data-value ="<?php echo $id_cost;?>" onClick="removecrate(this)"><i class="fa fa-close"></i></a></div>
+									<div class="br li_br"></div>
+								</li>
+
+								</li>
+								
+							<?php
+								}
+							?>
+						</ul>
+					</div>	
+			<?php
+					}
+				?>
+		<div class="datarow total">
+			<ul>
+				<li><div class="description">Cart Subtotal</div>
+					<div class="amount total_cost"><?php echo "$".number_format((float)$total, 2, '.', '');?></div>
+					<div class="br"></div></li>
+					<?php if($total >0){ ?>
+					<li><div class="description">Doobert Support Fee</div>
+					
+					<div class="amount total_cost"><?php echo "$".number_format($this->config->item('transport_cart_admin_fee'), 2, '.', '');?></div>
+					<div class="br"></div></li>
+					
+				<li><div class="description">Total</div>
+					
+					<div class="amount total_cost"><?php echo "$".number_format((float)$total+$this->config->item('transport_cart_admin_fee'), 2, '.', '');?></div>
+					<div class="br"></div></li>	
+					<?php } ?>
+			</ul>
+		</div>	
+		<!-- if on checkout page don't show button-->
+		<?php if($uris != 'checkout'){?>		
+		<div class="datarow chkbutton"><a href="<?php echo base_url()."checkout"?>" class="btn primary-orange"><i class="material-icons">done_all</i> Checkout Now</a></div>
+		<?php }?>	
+	</div>
+	<?php }//open leg
+		}//order data
+	?>
+	<div class="app-detail">
+		<p>Like Doobert? Download the app for<br>easy on-the-go access!</p>
+		<div class="dash-app-info"><a href="https://play.google.com/store/apps/details?id=app.doobert" target="_blank"><img src="<?php echo base_url();?>assets/img/google-play-small.jpg" class="marr24" alt="Google Play" title="Google Play"></a><a href="https://itunes.apple.com/us/app/doobert-user-app/id1047733391" target="_blank"><img src="<?php echo base_url();?>assets/img/app-store-small.jpg" alt="App Store" title="App Store"></a></div>
+	</div>
+		
+	<?php /*<div class="app-detail">
+	<div class="dash-app-info"><a href="https://www.petcofoundation.org/innovation-showdown/" target="_blank"><img src="<?php echo $base_url; ?>/img/vote-doobert.jpg" class="marr24" alt="Vote Doobert" title="Vote Doobert"></a></div>
+	</div>*/ ?>	
+	
+	<!-- if on checkout page don't show adds-->
+	
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+<!-- Dashboard Lower Right corner ads (vol & org) -->
+<ins class="adsbygoogle" style="display:inline-block;width:265px;height:200px"data-ad-client="ca-pub-8745101436469640"data-ad-slot="3919638958"></ins>
+<script>
+(adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+	
+</div>
+<script type="text/javascript">
+	function removecrate(id_cost_ele){
+		var id_cost = $(id_cost_ele).data('value');
+		var current_url = window.location.pathname;
+		var checkout_url = base_url+"checkout";
+
+		var arr = id_cost.split('_');
+		var crate_id = arr[0];
+		var cost = arr[1];
+		var pre_total = $('.total_cost').html();
+		var total = pre_total.substring(1, pre_total.length);
+		var li_id = 'crate_'+crate_id;
+		
+		temp_total = total.substring(0,total.length-3)
+		actual_cost = temp_total - cost;
+		actual_cost = actual_cost.toFixed(2);
+		
+
+		if(confirm('Are you sure you want to delete this record?'))
+		{	 
+			var url = base_url+"order_transport/delete_crate/"+crate_id;
+			$.ajax(
+		        {
+		            url: url,
+		            dataType: "json",
+		            method:"post",
+		            data:{
+		            	crate_id:crate_id
+		            },
+		          	success: function (data)	            
+		            {
+		            	
+		  			if(data =="Success"){
+		     //        		$('.total_cost').text('$'+actual_cost);
+							// var li_cnt = $('#'+li_id ).siblings().length;
+							// if(li_cnt == 1){		
+							// 	$('#'+li_id ).siblings().remove();
+							// 	$('#'+li_id).remove();
+							// 	$(".li_br").remove();
+
+							// }else{
+							// 	$('#'+li_id).remove();
+							// }
+							// if ($('#cart_view li').length == 0){
+							// 	$('.cartright').hide();
+							// 	if(current_url == checkout_url){
+							// 		console.log("here");
+							// 		$('.pay-pal-box').hide();
+							// 	}
+							// }
+		            		alert("Crates removed from cart.");
+		            		//window.location.href;
+		            		window.location.reload();
+		            		
+		            	}else{
+		            		alert("Failure.");
+		            	}
+		          	}
+		       
+		    });
+		}
+		else
+		{
+			 return false;
+		}
+	}
+</script>

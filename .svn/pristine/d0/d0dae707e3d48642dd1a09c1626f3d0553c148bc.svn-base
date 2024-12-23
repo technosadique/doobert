@@ -1,0 +1,159 @@
+<?php
+# =======================================================
+# Created by		: Sadique Mohammad
+# Created date		: 24-March-2014
+# File description	: Login Model for admin
+# Special - notes	: none
+# Tables used		: tbl_admin
+# Stored procedures	: NONE 
+# Triggers used		: none
+# -------------------------------------------------------
+class login_model extends CI_Model {
+
+    function __construct()
+    {
+        // Call the Model constructor
+        parent::__construct();
+    }
+    
+	#============================================================
+	#	Function	:	isValid()
+	#   Parameter	: 	username,password
+	#	Perpose		:	to check valid user login
+	#------------------------------------------------------------
+	
+	function isValid($username,$password)
+	{
+		$arrData['error']	=	'';
+		$is_admin			=	'0';		
+		
+		$this->db->select('in_admin_id, 
+						   st_email_address, 
+						   st_password,
+						   in_login_count,
+						   st_name						  
+						  ');
+		$this->db->where('st_email_address', $username);
+		$this->db->where('st_password', md5($password));
+		$this->db->where('in_deleted', 0);
+		$this->db->from('tbl_admin');
+		$query = $this->db->get(); 
+		//echo $this->db->last_query(); die;		
+
+		
+		if($query->num_rows()>0)
+		{ 
+			foreach($query->result() as $Row)
+			{	 
+				$arrData	= array( 'admin_id' 	=> $Row->in_admin_id,	
+									 'email' 		=> $Row->st_email_address,									
+									 'password'		=> $Row->st_password,	
+									 'login_count'	=> $Row->in_login_count,									 
+									 'name' 		=> $Row->st_name										 
+								   );
+				$is_admin	=	$Row->in_admin_id;
+			}
+			return $arrData;
+		}
+		else
+		{
+			$arrData['error']	=	"Invalid Email or Password.";
+			return $arrData;
+		}
+	}// End isValid
+	
+	
+	#============================================================
+	#	Function	:	updateloginstatus()
+	#   Parameter	: 	admin_id,logincount
+	#	Perpose		:	updating loginstatus in tbl_admin
+	#------------------------------------------------------------		
+	public function updateloginstatus($admin_id,$logincount)
+	{       $logincount++;			
+			$last_login_date	=	date('Y-m-d H:i:s');
+			$arrAdminDetails 	= 	array('dt_last_login' 	=> $last_login_date,'in_login_count'	=> $logincount);
+			$arrWhere 			= 	array('in_admin_id' 	=> $admin_id);
+			$this->db->where($arrWhere);
+			$this->db->update('tbl_admin', $arrAdminDetails);
+			
+	}
+	
+	
+	#============================================================
+	#	Function	:	updateAdminLog()
+	#   Parameter	: 	admin_id,logmsg
+	#	Perpose		:	updating logstatus in tbl_admin_log
+	#------------------------------------------------------------		
+	public function updateAdminLog($adminid,$logmsg='')
+	{ 
+		$created_date	=	date('Y-m-d H:i:s');
+		$st_server_ip	=	$_SERVER['REMOTE_ADDR']; 
+		$admindetails	=	array('in_admin_id'	=>$adminid,'st_log'	=>$logmsg,'st_server_ip'	=>$st_server_ip,'dt_created'	=>$created_date);
+		$this->db->insert('tbl_admin_log', $admindetails);
+		//echo $this->db->last_query(); die;
+			
+	}
+	
+	
+	#============================================================
+	#	Function	:	admin_forgotpassword()
+	#   Parameter	: 	data
+	#	Perpose		:	getting admin details from tbl_admin
+	#------------------------------------------------------------		
+	function admin_forgotpassword($data)
+	{
+		$this->db->select("in_admin_id,st_name,st_email_address");
+		$this->db->where(array("in_deleted"=>'0',"st_email_address"=>addslashes($data['email'])));
+		$query = $this->db->get("tbl_admin");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData['admin_details']	= array("adminid"	=> $Row->in_admin_id,
+													"admin_name"	=> $Row->st_name,
+													"email"		=> $Row->st_email_address													
+													);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	
+	#============================================================
+	#	Function	:	forgotpassword_details()
+	#   Parameter	: 	token,admin_id
+	#	Perpose		:	getting admin details from tbl_admin
+	#------------------------------------------------------------		
+	function forgotpassword_details($token='',$admin_id='')
+	{
+		$this->db->select("in_admin_id");
+		$this->db->where(array("in_deleted"=>'0',"in_admin_id"=>$admin_id));
+		$query = $this->db->get("tbl_admin");
+		if($query->num_rows() > 0)
+		{
+			foreach($query->result() as $Row)
+			{
+				$arrData['admin_details']	= array("adminid"	=> $Row->in_admin_id													
+													);
+			}
+			return $arrData;
+		}
+		
+	}
+	
+	
+	#============================================================
+	#	Function	:	update_admin()
+	#   Parameter	: 	array,admin_id
+	#	Perpose		:	updating admin details in tbl_admin
+	#------------------------------------------------------------	
+	function update_admin($array,$adminId)
+	{ 
+		$this->db->where('in_admin_id', $adminId);
+		$this->db->update('tbl_admin', $array);
+		//$this->db->last_query();
+	}
+	
+}
+?>
